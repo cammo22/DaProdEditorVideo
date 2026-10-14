@@ -1,0 +1,22 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "DaProd Video",
+        "url": "app/index.html",
+        "width": 1600,
+        "height": 960,
+        "minWidth": 1000,
+        "minHeight": 640,
+        "center": true,
+        "maximized": true,
+        "backgroundColor": "#09080d",
+        "dragDropEnabled": true,
+        "theme": "Light",
+        "decorations": false
+      }
+    ]
+  }
+}

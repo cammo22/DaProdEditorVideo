@@ -25,9 +25,10 @@ import * as M from '../core/montaggio';
 import { ANGOLI, bolla, presentazione, SFONDI, type Angolo } from '../core/cornici';
 import type { MediaItem } from '../core/tipi';
 import { importaFile } from '../progetti';
-import { isAndroid, isTauri, salvaMediaSulDisco } from '../platform';
+import { isAndroid, salvaMediaSulDisco } from '../platform';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
+import { Telecomando, type StatoTelecomando } from './telecomando';
 
 /** da dove arriva l'immagine: di solito la scelta del sistema; le prove ne mettono una finta (anche microfono e webcam) */
 type Sorgente = (conAudio: boolean) => Promise<MediaStream>;
@@ -304,13 +305,8 @@ export class Live {
   private vuNome: HTMLElement;
   private selMic: HTMLSelectElement;
   private selCam: HTMLSelectElement;
-  /** il telecomando: tempo, pausa, segno, ferma (nella finestrella sopra le altre, o nell'app diventata piccola) */
-  private mini: HTMLElement;
-  private miniTempo: HTMLElement;
-  private miniPausa: HTMLButtonElement;
-  private pip: Window | null = null;
-  private miniApp = false;
-  private primaMini: { max: boolean; w: number; h: number } | null = null;
+  /** il telecomando: anteprima, tempo, pausa, segno, ferma (src/ui/telecomando.ts) */
+  private tele: Telecomando;
   /** chi rimette a posto interruttori e chip quando le scelte cambiano */
   private sinc: (() => void)[] = [];
   private flussi: MediaStream[] = [];
@@ -422,15 +418,7 @@ export class Live {
     });
 
     // ——— il telecomando ———
-    this.miniTempo = h('span', { class: 'live-mini-tempo' }, '00:00:00');
-    this.miniPausa = h('button', { class: 'live-btn', on: { click: () => this.pausa() } }, '❚❚') as HTMLButtonElement;
-    this.mini = h('div', { class: 'live-mini' },
-      h('i', { class: 'live-mini-punto' }), this.miniTempo, this.miniPausa,
-      h('button', { class: 'live-btn', title: 'Passa alla finestra dopo (tasti 1-9)', on: { click: () => this.prossimaFinestra() } }, '⇄'),
-      h('button', { class: 'live-btn segna', title: 'Segno (M)', on: { click: () => this.segna() } }, icona('marcatore', 14)),
-      h('button', { class: 'live-btn ferma', title: 'Ferma (F)', on: { click: () => this.ferma() } }, '■'),
-      h('button', { class: 'live-btn', title: 'Torna alla finestra grande', on: { click: () => void this.chiudiTelecomando() } }, '⤢'));
-    document.body.append(this.mini);
+    this.tele = new Telecomando({ pausa: () => this.pausa(), segna: () => this.segna(), ferma: () => this.ferma(), prossima: () => this.prossimaFinestra(), tasto: (e) => this.tasto(e) });
 
     const vuoto = h('div', { class: 'live-vuoto' }, icona('schermo', 54), h('b', null, 'Premi REGISTRA'), h('span', null, 'scegli lo schermo, una finestra o una scheda: qui vedi quello che registri'));
     const sezione = (t: string) => h('h4', { class: 'live-sez' }, t);
@@ -477,6 +465,7 @@ export class Live {
     if (!puoRegistrare()) this.bReg.disabled = true;
     this.sinc.forEach((f) => f());
     this.disegnaVu();
+    this.aggiornaTempo();
     // i tasti di LIVE valgono sulla pagina LIVE e sul telecomando, prima di quelli del montaggio
     addEventListener('keydown', (e) => this.tasto(e), true);
     navigator.mediaDevices?.addEventListener?.('devicechange', () => void this.aggiornaDispositivi());
@@ -497,7 +486,7 @@ export class Live {
   }
 
   private tasto(e: KeyboardEvent) {
-    if (!this.visibile && !this.pip && !this.miniApp) return;
+    if (!this.visibile && !this.tele.aperto) return;
     const t = e.target as HTMLElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (document.querySelector('.velo') || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -645,7 +634,12 @@ export class Live {
   private aggiornaTempo() {
     const ms = this.fatto + (this.fase === 'registra' ? performance.now() - this.da : 0);
     this.tempo.textContent = orologio(ms);
-    this.miniTempo.textContent = orologio(ms);
+    this.tele.aggiorna(this.statoTele(orologio(ms)));
+  }
+
+  /** come sta la registrazione, per il telecomando */
+  private statoTele(tempo: string): StatoTelecomando {
+    return { fase: this.fase, tempo, segni: this.segni.length, schermo: this.video.srcObject as MediaStream | null, cam: this.cam, finestre: this.regia?.fonti.length ?? 1 };
   }
 
   /** i tasti e le spie secondo la fase */
@@ -658,10 +652,9 @@ export class Live {
     this.bAggiungi.disabled = f === 'fermo';
     this.bProssima.disabled = !this.regia || f === 'fermo' || this.regia.fonti.length < 2;
     this.bPausa.textContent = f === 'pausa' ? '▶ RIPRENDI' : '❚❚ PAUSA';
-    this.miniPausa.textContent = f === 'pausa' ? '▶' : '❚❚';
     this.el.classList.toggle('in-onda', f === 'registra' || f === 'pausa');
     this.el.classList.toggle('in-pausa', f === 'pausa');
-    this.mini.classList.toggle('in-pausa', f === 'pausa');
+    this.aggiornaTempo();
   }
 
   /** il 3-2-1 sopra l'anteprima, con un bip per numero; FERMA o Esc lo annullano */
@@ -687,7 +680,7 @@ export class Live {
         this.contoEl.classList.remove('batti');
         void this.contoEl.offsetWidth;
         this.contoEl.classList.add('batti');
-        this.miniTempo.textContent = `… ${n}`;
+        this.tele.aggiorna(this.statoTele(`… ${n}`));
         bip();
         n--;
         timer = window.setTimeout(passo, 1000);
@@ -891,6 +884,7 @@ export class Live {
     const t = (this.fatto + performance.now() - this.da) / 1000;
     this.segni.push(t);
     this.stato.textContent = `● Segno ${this.segni.length} a ${orologio(t * 1000)}`;
+    this.aggiornaTempo();
     this.el.classList.remove('lampo');
     void this.el.offsetWidth;
     this.el.classList.add('lampo');
@@ -950,7 +944,7 @@ export class Live {
     this.aggiornaTempo();
     this.aggiornaTasti();
     this.fermaVu();
-    void this.chiudiTelecomando();
+    void this.tele.chiudi();
     this.stato.textContent = 'Metto in ordine la registrazione…';
     const foto = this.foto();
     const durata = this.durataUltima = this.fatto;
@@ -1240,68 +1234,8 @@ export class Live {
   }
 
   // ——— il telecomando ———
-  async apriTelecomando() {
-    if (this.pip || this.miniApp) return;
-    const dpip = (window as unknown as { documentPictureInPicture?: { requestWindow: (o: object) => Promise<Window> } }).documentPictureInPicture;
-    if (dpip && !isTauri) {
-      try {
-        const w = await dpip.requestWindow({ width: 360, height: 72 });
-        // gli stili della pagina, copiati nella finestrella (con la base giusta per i caratteri)
-        w.document.head.append(h('base', { href: location.href }));
-        for (const ss of [...document.styleSheets]) {
-          try {
-            w.document.head.append(h('style', null, [...ss.cssRules].map((r) => r.cssText).join('\n')));
-          } catch {
-            if (ss.href) w.document.head.append(h('link', { rel: 'stylesheet', href: ss.href }));
-          }
-        }
-        w.document.body.className = 'pip-live';
-        w.document.body.append(this.mini);
-        this.mini.classList.add('su');
-        w.addEventListener('keydown', (e) => this.tasto(e), true);
-        w.addEventListener('pagehide', () => { this.pip = null; this.mini.classList.remove('su'); document.body.append(this.mini); });
-        this.pip = w;
-        this.aggiornaTempo();
-        return;
-      } catch { /* niente finestrella: si prova la finestra piccola */ }
-    }
-    if (isTauri && !isAndroid) { await this.finestraPiccola(true); return; }
-    avviso('Il telecomando sopra le altre finestre c\'è in Chrome ed Edge e nell\'app per Windows e Mac', 'info', 3200);
-  }
-
-  async chiudiTelecomando() {
-    if (this.pip) { this.pip.close(); this.pip = null; this.mini.classList.remove('su'); document.body.append(this.mini); }
-    if (this.miniApp) await this.finestraPiccola(false);
-  }
-
-  /** nell'app: la finestra diventa una barretta sempre in primo piano (e poi torna com'era) */
-  private async finestraPiccola(si: boolean) {
-    try {
-      const { getCurrentWindow, LogicalSize } = await import('@tauri-apps/api/window');
-      const w = getCurrentWindow();
-      if (si) {
-        const k = await w.scaleFactor();
-        const s = (await w.innerSize()).toLogical(k);
-        this.primaMini = { max: await w.isMaximized(), w: s.width, h: s.height };
-        if (this.primaMini.max) await w.unmaximize();
-        await w.setMinSize(new LogicalSize(320, 64));
-        await w.setSize(new LogicalSize(400, 72));
-        await w.setAlwaysOnTop(true);
-        document.documentElement.classList.add('mini-live');
-        this.mini.classList.add('su');
-        this.miniApp = true;
-        this.aggiornaTempo();
-      } else {
-        this.miniApp = false;
-        document.documentElement.classList.remove('mini-live');
-        this.mini.classList.remove('su');
-        await w.setAlwaysOnTop(false);
-        await w.setMinSize(new LogicalSize(1000, 640));
-        const pm = this.primaMini;
-        if (pm) { await w.setSize(new LogicalSize(pm.w, pm.h)); if (pm.max) await w.maximize(); }
-      }
-    } catch (e) {
-      avviso('Il telecomando non si apre: ' + String(e), 'info', 3200);
-    }
-  }
+  apriTelecomando() { return this.tele.apri(); }
+  chiudiTelecomando() { return this.tele.chiudi(); }
+  /** per le prove (che non hanno la finestra dell'app): la pagina mostra solo il telecomando */
+  telecomandoNellaPagina(si: boolean) { this.tele.modoPiccolo(si); }
 }
