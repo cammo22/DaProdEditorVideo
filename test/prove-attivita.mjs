@@ -172,7 +172,10 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
       await new Promise((r) => setTimeout(r, 200));
     }
     const x = window.__dpv.doc.media.find((z) => z.id === m.id);
-    return { subito, sostituito: x.size !== sizePrima, ok: mediaRT(m.id)?.stato === 'ok', fps: x.fps, nome: x.name, righe: [...new Set(righe)] };
+    // la copia prende il posto del file e poi si riapre: si aspetta che sia aperta (prima si guardava subito e, su una
+    // macchina lenta, la si trovava ancora a metà apertura)
+    for (let i = 0; i < 100 && mediaRT(m.id)?.stato !== 'ok'; i++) await new Promise((r) => setTimeout(r, 100));
+    return { subito, sostituito: x.size !== sizePrima, ok: mediaRT(m.id)?.stato === 'ok', stato: mediaRT(m.id)?.stato, fps: x.fps, nome: x.name, righe: [...new Set(righe)] };
   });
   prova('il file a frame rate variabile entra subito, e la copia a velocità costante prende il suo posto', vfr.sostituito && vfr.ok && vfr.nome === 'telefono.webm', JSON.stringify(vfr));
   prova('la conversione ha la sua riga nel centro attività', vfr.righe.some((x) => /^conversione:/.test(x)), JSON.stringify(vfr.righe));
