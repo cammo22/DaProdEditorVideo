@@ -17,7 +17,7 @@ export async function proveAnimazioni({ page, prova, OUT }) {
     return { n: ids.length, senzaDisegno, senzaCatalogo, doppi, gruppi, campiOk, font };
   });
   prova('almeno 40 animazioni nel catalogo, tutte con il loro disegno', cat.n >= 40 && !cat.senzaDisegno.length && !cat.senzaCatalogo.length && !cat.doppi.length, JSON.stringify(cat));
-  prova('sei gruppi, tutti pieni', Object.keys(cat.gruppi).length === 6 && Object.values(cat.gruppi).every((n) => n >= 5), JSON.stringify(cat.gruppi));
+  prova('sette gruppi (con i segnalini che seguono), tutti pieni', Object.keys(cat.gruppi).length === 7 && Object.values(cat.gruppi).every((n) => n >= 5), JSON.stringify(cat.gruppi));
   prova('ogni animazione ha una durata e campi con il valore di partenza (e le scelte contengono quello di partenza)', cat.campiOk);
   prova('i caratteri delle animazioni sono caricati (Montserrat, Oswald, Archivo Black, Bebas, Space Mono, Great Vibes, Caveat, Playfair, Cormorant)', cat.font.every(Boolean), JSON.stringify(cat.font));
 

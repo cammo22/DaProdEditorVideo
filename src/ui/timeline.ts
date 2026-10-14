@@ -1444,7 +1444,8 @@ export class Timeline {
         store.setHead(this.agganciaCursore(Math.max(0, Math.round(c.f)), e.altKey));
       } else if (c.clip && c.zona === 'fx') {
         if (!store.sel.has(c.clip.id)) store.select(M.withLinked(store.doc, [c.clip.id]));
-        this.menuEffetti(e.clientX, e.clientY, c.clip);
+        // il tasto "fx" porta alle miniature degli effetti nelle Proprietà (prima era un elenco a tendina, senza vedere niente)
+        document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: isVideoClip(c.clip) ? 'fxv' : 'fxa' }));
         return;
       } else if (c.clip && c.zona === 'suono') {
         if (sonoro(c.clip)?.suono) this.alternaSuono(c.clip.id);
@@ -1945,23 +1946,6 @@ export class Timeline {
   }
   /** quando è nato l'ultimo punto del volume (il doppio clic non deve toglierlo subito) */
   private puntoNuovoA = 0;
-
-  /** il menu degli effetti al volo (tasto "fx" in fondo alla clip) */
-  private menuEffetti(x: number, y: number, clip: Clip) {
-    const p = store.doc;
-    const ids = [...store.sel].length ? [...store.sel] : [clip.id];
-    const cs = p.clips.filter((c) => ids.includes(c.id));
-    const voce = (id: string) => {
-      const e = effetto(id)!;
-      const quali = adatte(e, cs);
-      return { nome: e.nome, spunta: quali.length > 0 && quali.every((c) => e.acceso(c, p)), disattiva: !quali.length, fn: () => alternaEffetto(id, quali.map((c) => c.id)) };
-    };
-    const voci: VoceMenu[] = [];
-    if (cs.some(isVideoClip)) voci.push(...EFFETTI_VIDEO.map((e) => voce(e.id)));
-    if (cs.some((c) => !isVideoClip(c))) { if (voci.length) voci.push({ sep: true }); voci.push(...EFFETTI_AUDIO.map((e) => voce(e.id))); }
-    voci.push({ sep: true }, { nome: 'Tutte le proprietà…', fn: () => document.dispatchEvent(new CustomEvent('dpv:ispettore')) });
-    menuContesto(x, y, voci);
-  }
 
   /** che blocco porta il trascinamento: 'x:e:flash', 'x:t:dve:301' (e il vecchio 't:mix:0') */
   private specBlocco(dato: string): { tipo: 'effetto' | 'transizione'; id: string } {

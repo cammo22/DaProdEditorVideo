@@ -793,7 +793,7 @@ button svg { pointer-events: none; }
 @keyframes lampo { from { opacity: 0.85; } to { opacity: 0; } }
 .btn-mini.foto { display: inline-flex; align-items: center; gap: 4px; color: var(--oro); }
 .num.largo { width: 70px; }
-.isp-durata .isp-riga { grid-template-columns: 70px 76px 1fr; }
+.isp-durata .isp-riga { grid-template-columns: 1fr 92px; }
 .isp-durata .isp-riga .nota { margin: 0; font-size: 10.5px; }
 /* la pulsantiera ci deve stare tutta anche con il tasto FOTO */
 .pulsantiera { gap: 8px; padding: 6px 8px; }
@@ -1301,3 +1301,58 @@ html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo
 @keyframes evidenzia { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 213, 74, 0); } 50% { box-shadow: 0 0 0 4px rgba(255, 213, 74, 0.85), 0 0 22px rgba(255, 213, 74, 0.6); } }
 .isp-aiuti { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .isp-aiuti .btn { display: inline-flex; gap: 6px; align-items: center; }
+
+/* ——— pagina iniziale: il progetto nuovo con risoluzione e fotogrammi al secondo (1.4.0) ——— */
+.home-etichetta { font: 700 11px var(--ui); letter-spacing: 1px; text-transform: uppercase; color: var(--testo3); margin-top: 2px; }
+.home-obiettivi { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.home-obiettivo { border: 0; outline: none; display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 9px; background: #23212b; box-shadow: inset 0 0 0 1px #000; color: var(--testo2); text-align: left; cursor: pointer; transition: box-shadow 0.12s, background 0.12s; }
+.home-obiettivo:hover { background: #2c2a36; }
+.home-obiettivo.acceso { box-shadow: inset 0 0 0 2px var(--oro); background: #2f2b22; }
+.home-obiettivo > span { display: flex; flex-direction: column; min-width: 0; }
+.home-obiettivo b { font: 800 12px var(--ui); color: var(--testo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-obiettivo small { font: 600 10.5px var(--ui); color: var(--testo3); }
+.home-forma { display: inline-block; flex: none; border-radius: 3px; background: linear-gradient(135deg, #6f6a82, #3c394a); box-shadow: 0 0 0 2px #14131a; margin: 0 4px; }
+.home-obiettivo.acceso .home-forma { background: linear-gradient(135deg, #ffe58a, #c9a227); }
+.home-formato-riga { color: var(--testo2); font: 600 12px var(--ui); padding: 4px 2px; }
+.home-formato-riga b { color: var(--oro); }
+@media (max-width: 1000px) { .home-obiettivi { grid-template-columns: 1fr; } }
+
+/* ——— le Proprietà rifatte (1.4.0): quadro in miniatura, posizioni pronte, tessere con anteprima, durata chiara ——— */
+.isp-gruppo.principale { box-shadow: inset 0 0 0 1px rgba(255, 213, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+.isp-gruppo.principale > summary { font-size: 12px; }
+.isp-riga.col { grid-template-columns: 1fr; gap: 3px; }
+.isp-riga.col label small { display: block; color: var(--testo3); font: 600 10.5px var(--ui); }
+.mq { display: flex; flex-direction: column; gap: 4px; }
+.mq-tela { width: 100%; display: block; border-radius: 6px; background: #0b0a10; box-shadow: 0 0 0 1px #000, 0 4px 14px rgba(0, 0, 0, 0.45); touch-action: none; }
+.mq-nota { font: 600 10.5px var(--ui); color: var(--testo3); min-height: 13px; }
+.pp-griglia { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.pp-tessera { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 3px 4px; border-radius: 7px; background: #23212b; border: 1px solid #000; color: var(--testo2); font: 700 10px var(--ui); text-align: center; cursor: pointer; }
+.pp-tessera:hover { background: #2e2c37; color: var(--testo); }
+.pp-tessera:active { transform: translateY(1px); }
+.pp-ico { position: relative; display: block; width: 44px; height: 25px; border-radius: 3px; background: #0b0a10; box-shadow: 0 0 0 1px #3a3748; }
+.pp-ico > b { position: absolute; border-radius: 2px; background: linear-gradient(135deg, #ffe58a, #c9a227); box-shadow: 0 0 0 1px #1a1406; }
+.pp-piu { border-top: 1px dashed #000; padding-top: 5px; }
+.isp-gruppo .pp-piu > summary { list-style: none; cursor: pointer; color: var(--testo3); font: 700 11px var(--ui); letter-spacing: 0; text-transform: none; padding: 2px 0 5px; display: block; }
+.isp-gruppo .pp-piu > summary::before { content: '▸ '; transform: none; display: inline; }
+.isp-gruppo .pp-piu[open] > summary::before { content: '▾ '; transform: none; }
+.pp-piu > .isp-riga { margin: 0 0 5px; }
+.tessere { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.tessera { position: relative; display: flex; flex-direction: column; border-radius: 7px; overflow: hidden; background: #0b0a10; border: 0; padding: 0; cursor: pointer; box-shadow: 0 0 0 1px #000; transition: box-shadow 0.12s, transform 0.12s; }
+.tessera:hover { box-shadow: 0 0 0 2px #6d6a82; transform: translateY(-1px); }
+.tessera.acceso { box-shadow: 0 0 0 2px var(--oro), 0 0 12px rgba(255, 213, 74, 0.35); }
+.tessera-img { width: 100%; aspect-ratio: 16 / 9; display: block; background: #15141a; }
+.tessera-nome { padding: 3px 6px 4px; font: 700 11px var(--ui); color: var(--testo2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #1d1c24; }
+.tessera.acceso .tessera-nome { color: #1a1206; background: linear-gradient(180deg, #ffe07a, #e0a200); }
+.tessera-spunta { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 50%; background: var(--oro); color: #1a1206; font: 900 12px var(--ui); display: none; place-items: center; font-style: normal; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+.tessera.acceso .tessera-spunta { display: grid; }
+.dur-testa { display: flex; align-items: baseline; gap: 10px; padding: 2px 0 6px; flex-wrap: wrap; }
+.dur-numero { font: 900 26px var(--ui); color: var(--oro); letter-spacing: 0.5px; }
+.dur-dove { color: var(--testo3); font: 600 11px var(--ui); }
+.isp-durata .isp-riga.dur-vel { grid-template-columns: 1fr auto; }
+.dur-velocita { color: var(--testo2); font: 700 12px var(--ui); }
+.home-col { overflow: auto; }
+.seg-griglia { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.seg-tessera { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 3px 5px; border-radius: 7px; background: #23212b; border: 1px solid #000; color: var(--testo2); font: 700 10.5px var(--ui); cursor: pointer; }
+.seg-tessera i { font-style: normal; font-size: 20px; line-height: 1; color: var(--oro); }
+.seg-tessera:hover { background: #2e2c37; color: var(--testo); }
+.isp-azioni { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }

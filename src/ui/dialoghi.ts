@@ -1,6 +1,6 @@
 // Le finestre: esporta, impostazioni del progetto, tasti, informazioni.
 import { store } from '../core/store';
-import { FORMATI } from '../core/tipi';
+import { CADENZE, RISOLUZIONI, formatoDa, sceltaDa } from '../core/tipi';
 import { projectEnd } from '../core/progetto';
 import { frameToTc, durataUmana, f2s } from '../core/timecode';
 import { azioni } from '../azioni';
@@ -135,26 +135,33 @@ export function finestraProgetto() {
   const p = store.doc;
   const d = dialogo('Impostazioni del progetto');
   const nome = h('input', { class: 'campo-testo', value: p.name }) as HTMLInputElement;
-  const attuale = FORMATI.find((f) => f.w === p.w && f.h === p.h && f.rate.num === p.rate.num && f.rate.den === p.rate.den);
-  const fmt = h('select', { class: 'mini-select' },
-    FORMATI.map((f) => h('option', { value: f.id, selected: f === attuale }, f.nome)),
-    attuale ? null : h('option', { value: 'attuale', selected: true }, `Attuale · ${p.w}×${p.h} ${(p.rate.num / p.rate.den).toFixed(2)}`)) as HTMLSelectElement;
+  const a = sceltaDa(p.w, p.h, p.rate);
+  const attuale = `Attuale · ${p.w}×${p.h} ${(p.rate.num / p.rate.den).toFixed(2)} fps`;
+  const risSel = h('select', { class: 'mini-select' },
+    RISOLUZIONI.map((r) => h('option', { value: r.id, selected: r.id === a.ris }, `${r.nome} · ${r.w}×${r.h} (${r.info.split(' · ')[1] ?? ''})`)),
+    a.ris ? null : h('option', { value: '', selected: true }, attuale)) as HTMLSelectElement;
+  const cadSel = h('select', { class: 'mini-select' },
+    CADENZE.map((c) => h('option', { value: c.id, selected: c.id === a.cad }, `${c.nome} fps · ${c.info}`)),
+    a.cad ? null : h('option', { value: '', selected: true }, attuale)) as HTMLSelectElement;
   const pre = h('input', { type: 'number', class: 'num', min: 0, max: 10, step: 0.5, value: String(p.preroll) }) as HTMLInputElement;
   d.corpo.append(h('div', { class: 'form' },
     h('label', null, 'Nome'), nome,
-    h('label', null, 'Formato'), fmt,
+    h('label', null, 'Risoluzione'), risSel,
+    h('label', null, 'Fotogrammi al secondo'), cadSel,
     h('label', null, 'Preroll (s)'), pre),
   h('p', { class: 'nota' }, 'Cambiare il formato non tocca le clip: il timecode si ricalcola alla nuova cadenza. Il preroll è quanto il REVIEW parte prima del taglio.'));
   d.piede.append(h('button', { class: 'btn', on: { click: d.chiudi } }, 'Annulla'), h('button', {
     class: 'btn primario', on: {
       click: () => {
-        const f = FORMATI.find((x) => x.id === fmt.value);
+        const f = risSel.value || cadSel.value ? formatoDa(risSel.value || (a.ris ?? 'fhd'), cadSel.value || (a.cad ?? '25')) : null;
+        // una scelta fuori dall'elenco (un formato strano di un vecchio progetto) resta com'è finché non ne scegli una pronta
+        const f2 = !risSel.value && !cadSel.value ? null : { ...f!, w: risSel.value ? f!.w : p.w, h: risSel.value ? f!.h : p.h, rate: cadSel.value ? f!.rate : { ...p.rate }, drop: cadSel.value ? f!.drop : p.drop };
         store.edit('Impostazioni progetto', (pp) => {
           pp.name = nome.value || pp.name;
           pp.preroll = Number(pre.value) || 0;
-          if (f) {
+          if (f2) {
             // le posizioni restano nello stesso istante: si convertono i fotogrammi
-            const k = (f.rate.num / f.rate.den) / (pp.rate.num / pp.rate.den);
+            const k = (f2.rate.num / f2.rate.den) / (pp.rate.num / pp.rate.den);
             if (Math.abs(k - 1) > 1e-6) {
               for (const c of pp.clips) { const e = Math.round((c.start + c.len) * k); c.start = Math.round(c.start * k); c.len = Math.max(1, e - c.start); c.fadeIn = Math.round(c.fadeIn * k); c.fadeOut = Math.round(c.fadeOut * k); if (c.trIn) c.trIn.len = Math.max(1, Math.round(c.trIn.len * k)); c.opKeys.forEach((x) => { x.f = Math.round(x.f * k); }); c.gainKeys.forEach((x) => { x.f = Math.round(x.f * k); }); }
               for (const m of pp.markers) m.f = Math.round(m.f * k);
@@ -162,7 +169,7 @@ export function finestraProgetto() {
               if (pp.inF !== null) pp.inF = Math.round(pp.inF * k);
               if (pp.outF !== null) pp.outF = Math.round(pp.outF * k);
             }
-            pp.w = f.w; pp.h = f.h; pp.rate = { ...f.rate }; pp.drop = f.drop;
+            pp.w = f2.w; pp.h = f2.h; pp.rate = { ...f2.rate }; pp.drop = f2.drop;
           }
         });
         d.chiudi();

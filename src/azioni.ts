@@ -347,6 +347,19 @@ reg({
     store.setHead(f + Math.max(...appunti.map((c) => end(c))) - min);
   },
 });
+reg({
+  id: 'duplica', nome: 'Duplica la clip (subito dopo)', gruppo: 'Modifica', tasti: ['Ctrl+D'],
+  info: 'Una copia delle clip scelte (con i loro effetti) attaccata subito dopo, pronta da spostare.',
+  fn: () => {
+    if (!store.sel.size) { avviso('Scegli una clip da duplicare', 'info', 1400); return; }
+    const p = store.doc;
+    const ids = M.withLinked(p, store.sel);
+    const fine = Math.max(...p.clips.filter((c) => ids.has(c.id) && M.solida(c)).map((c) => end(c)));
+    esegui('copia');
+    store.setHead(fine);
+    esegui('incolla');
+  },
+});
 reg({ id: 'tutto', nome: 'Seleziona tutto', gruppo: 'Modifica', tasti: ['Ctrl+A'], fn: () => store.select(store.doc.clips.map((c) => c.id)) });
 reg({ id: 'deseleziona', nome: 'Deseleziona', gruppo: 'Modifica', tasti: ['Escape'], fn: () => store.select([]) });
 reg({
