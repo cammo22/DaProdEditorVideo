@@ -84,7 +84,11 @@ export async function proveCorrezioni({ page: paginaDi, prova }) {
     await page.evaluate(() => { document.querySelectorAll('.isp-gruppo:not([open]) > summary').forEach((x) => x.click()); });
     await page.waitForTimeout(200);
     await page.evaluate(() => window.__dpv.edit('metà', (p) => { p.clips.find((c) => c.name === 'ALTO').opacity = 0.5; }));
-    await page.waitForTimeout(500);
+    // il pannello si aggiorna al fotogramma dopo: su un computer lento (la CI) ci mette un po'
+    await page.waitForFunction(() => {
+      const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]');
+      return !!r && Number(r.value) === 50;
+    }, null, { timeout: 15000 }).catch(() => {});
     // l'evento della rotella si dà direttamente al campo (il puntatore vero dipende da dove il pannello si è assestato)
     const gira = (dy, extra = {}) => page.evaluate(([dy, extra]) => {
       const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]');
