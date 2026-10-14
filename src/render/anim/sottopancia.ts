@@ -1,6 +1,6 @@
 // I sottopancia: nome e ruolo in undici modi. Nati dai blocchi "lt-*" di HyperFrames (HeyGen, Apache-2.0): stessi
 // tempi di entrata e di uscita, ridisegnati qui in 2D. Ognuno entra subito, resta, e nell'ultimo mezzo secondo esce.
-import { E, FONT, Q, chiaro, hexA, larg, prog, rettTondo, scrivi, sopra, ancora, col, num, tx } from './base';
+import { E, FONT, Q, chiaro, conAdatta, hexA, larg, prog, rettTondo, scrivi, sopra, ancora, col, num, tx } from './base';
 
 const BASSO = 112;
 
@@ -272,7 +272,8 @@ function barre(q: Q) {
   }
 }
 
-export const SOTTOPANCIA: Record<string, (q: Q) => void> = {
+/** ogni sottopancia si misura prima: se il nome o il ruolo sono lunghi, la scheda si rimpicciolisce invece di uscire dallo schermo */
+export const SOTTOPANCIA: Record<string, (q: Q) => void> = Object.fromEntries(Object.entries({
   'lt-barra': barra, 'lt-sottolinea': sottolinea, 'lt-blocco': blocco, 'lt-colore': coloreBlocco, 'lt-scheda': scheda, 'lt-kicker': kicker,
   'lt-maschera': maschera, 'lt-neon': neon, 'lt-linea': linea, 'lt-pillola': pillola, 'lt-barre': barre,
-};
+}).map(([id, f]) => [id, conAdatta(f)]));

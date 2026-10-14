@@ -21,6 +21,7 @@ import { menuBanco, type Pagina } from './menuBanco';
 import { barraTitolo } from './barraTitolo';
 import { Disposizione } from './disposizione';
 import { installaTastiera } from './tastiera';
+import { attivaRotella } from './rotella';
 import { finestraEsporta, finestraInfo, finestraProgetto, finestraTasti, esportaEdl, esportaFotogramma, VERSIONE } from './dialoghi';
 import { apri, apriFile, salvaPacchetto, autosalva, importaDaDrop, importaDialogo, importaFile, nuovo, ricollega, riprendi, salva } from '../progetti';
 import { invoke, isAndroid, isTauri, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
@@ -74,7 +75,12 @@ export function avvia(radice: HTMLElement) {
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');
   });
-  document.addEventListener('dpv:ispettore', () => { pagina('montaggio'); mostraLato('clip'); apriFoglio('lato'); });
+  document.addEventListener('dpv:ispettore', () => {
+    pagina('montaggio');
+    if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
+    mostraLato('clip');
+    apriFoglio('lato');
+  });
   // "porta dove si fa" (guida, ricerca, Centro AI): una sezione delle proprietà della clip scelta
   document.addEventListener('dpv:sezione', (e) => {
     const id = (e as CustomEvent).detail as string;
@@ -109,6 +115,7 @@ export function avvia(radice: HTMLElement) {
   const menus = menuBanco({ radice, pagina, home, monitor, tl, mostraLato, vistaStretta: () => vistaStretta(), rimettiBanco: () => rimettiBanco(), disp });
   // le cose rapide (marchio, progetti, salva, annulla, il nome del progetto, la ricerca) stanno nella barra del titolo,
   // bianca, sopra al banco: qui restano i menu, le pagine ed Esporta
+  attivaRotella();
   const barra = barraTitolo({
     info: () => finestraInfo(), progetti: () => home.mostra(), salva: () => void salva(), importa: () => void importaDialogo(),
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),

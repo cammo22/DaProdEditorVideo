@@ -5,7 +5,11 @@ export type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 export type Valori = Record<string, string | number | boolean>;
 
 /** il fotogramma da disegnare: coordinate "virtuali" alte 1080 (la larghezza segue il formato), t e d in secondi */
-export interface Q { c: Ctx2D; w: number; h: number; t: number; d: number; v: Valori }
+export interface Q {
+  c: Ctx2D; w: number; h: number; t: number; d: number; v: Valori;
+  /** solo nella prova di misura (vedi `conAdatta`): chi disegna dice quanto è larga la sua scheda */
+  misura?: (larghezza: number) => void;
+}
 
 export const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 export const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
@@ -106,7 +110,9 @@ export interface OpzTesto {
 /** la larghezza di un testo (con lo spazio fra le lettere) */
 export function larg(c: Ctx2D, s: string, font: string, spazio = 0): number {
   c.font = font;
-  return c.measureText(s).width + spazio * Math.max(0, [...s].length - 1);
+  // con lo spazio fra le lettere `scrivi` le disegna una per una (senza kerning): la misura dev'essere la stessa
+  if (spazio) { let w = 0; for (const ch of s) w += c.measureText(ch).width; return w + spazio * Math.max(0, [...s].length - 1); }
+  return c.measureText(s).width;
 }
 
 /** scrive un testo; ritorna la larghezza. (x, y) è il punto d'ancora secondo align e base */
@@ -183,6 +189,7 @@ export function scopri(c: Ctx2D, x: number, y: number, w: number, h: number, da:
 
 /** il punto d'inizio di un blocco largo "bw" secondo la posizione scelta (sinistra, centro, destra) */
 export function ancora(q: Q, bw: number, margine = 120): number {
+  q.misura?.(bw);
   const pos = String(q.v.pos ?? 'sinistra');
   return pos === 'centro' ? (q.w - bw) / 2 : pos === 'destra' ? q.w - margine - bw : margine;
 }
@@ -230,3 +237,50 @@ export function scriviSfocato(c: Ctx2D, s: string, x: number, y: number, o: OpzT
 
 /** i numeri all'italiana: 12.840 */
 export const migliaia = (n: number) => Math.round(n).toLocaleString('it-IT');
+
+/**
+ * Un contesto "muto": misura i testi come quello vero (font, measureText) ma non disegna niente. Serve a sapere quanto
+ * viene larga una scheda prima di disegnarla.
+ */
+export function muto(c: Ctx2D): Ctx2D {
+  const noop = () => undefined;
+  const gradiente = () => ({ addColorStop: noop });
+  const passa = new Set(['font', 'letterSpacing', 'textAlign', 'textBaseline', 'fontKerning', 'wordSpacing']);
+  const finto = new Proxy({} as Ctx2D, {
+    get(_t, k: string) {
+      const v = (c as unknown as Record<string, unknown>)[k];
+      if (typeof v !== 'function') return v;
+      if (k === 'measureText' || k === 'getTransform') return (v as (...a: unknown[]) => unknown).bind(c);
+      if (k.startsWith('create')) return gradiente;
+      return noop;
+    },
+    set(_t, k: string, val) { if (passa.has(k)) (c as unknown as Record<string, unknown>)[k] = val; return true; },
+  });
+  return finto;
+}
+
+/**
+ * Fa stare un'animazione nello schermo qualunque sia il testo: la prima volta la "disegna" a vuoto per sapere quanto
+ * viene larga la sua scheda (chi disegna lo dice con `ancora`, o con `q.misura`), e se è più larga dello schermo meno i
+ * margini, la rifà più piccola (la grandezza `dim` si accorcia in proporzione: nomi lunghi non coprono più il resto).
+ */
+export function conAdatta(fn: (q: Q) => void, margine = 130): (q: Q) => void {
+  return (q) => {
+    let w = 0;
+    q.c.save();
+    try { fn({ ...q, c: muto(q.c), misura: (x) => { w = Math.max(w, x); } }); } catch { /* si disegna lo stesso */ }
+    q.c.restore();
+    const max = q.w - margine * 2;
+    const dim = Number(q.v.dim);
+    const v = w > max && max > 100 ? { ...q.v, dim: (Number.isFinite(dim) && dim > 0 ? dim : 100) * (max / w) } : q.v;
+    fn({ ...q, v, misura: undefined });
+  };
+}
+
+/** il testo accorciato con "…" in fondo perché stia in `max` pixel (col font già scelto) */
+export function accorcia(c: Ctx2D, s: string, font: string, max: number, spazio = 0): string {
+  if (larg(c, s, font, spazio) <= max) return s;
+  let a = [...s];
+  while (a.length > 1 && larg(c, a.join('') + '…', font, spazio) > max) a.pop();
+  return a.join('').trimEnd() + '…';
+}

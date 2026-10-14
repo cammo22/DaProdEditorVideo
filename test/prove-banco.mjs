@@ -42,10 +42,12 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
     // annulla e ripeti dalla barra, il nome col puntino delle modifiche e il titolo della finestra
     const u0 = await page.evaluate(() => ({ annulla: document.querySelector('.bt-annulla').disabled }));
     await page.evaluate(() => { const { P } = window.__dpvTest; window.__dpv.edit('Colore di prova', (p) => { const v = p.tracks.find((t) => t.kind === 'video'); p.clips.push(P.newClip('color', v.id, 0, 50, { gen: { color: '#335577' } })); }); });
+    await page.waitForFunction(() => !document.querySelector('.bt-annulla').disabled, null, { timeout: 15000 }).catch(() => {});
     await page.waitForTimeout(150);
     const u1 = await page.evaluate(() => { const a = document.querySelector('.bt-annulla'), r = document.querySelector('.bt-ripeti'); return { annulla: a.disabled, titolo: a.title, ripeti: r.disabled, punto: !!document.querySelector('.barra-titolo .punto-modifica'), doc: document.title }; });
     await page.click('.bt-annulla');
-    await page.waitForFunction(() => !document.querySelector('.bt-ripeti').disabled, null, { timeout: 2000 }).catch(() => {});
+    // gli avvisi del banco partono a ogni fotogramma disegnato: su un computer lento (la CI) ci mette un po'
+    await page.waitForFunction(() => !document.querySelector('.bt-ripeti').disabled, null, { timeout: 15000 }).catch(() => {});
     const u2 = await page.evaluate(() => ({ clip: window.__dpv.doc.clips.length, ripeti: document.querySelector('.bt-ripeti').disabled, puo: window.__dpv.canRedo(), att: document.activeElement?.className }));
     prova('annulla e ripeti nella barra: si accendono con le modifiche, dicono cosa annullano e funzionano', u0.annulla && !u1.annulla && /Colore di prova/.test(u1.titolo) && u1.punto && /^● /.test(u1.doc) && u2.clip === 0 && !u2.ripeti, JSON.stringify({ u0, u1, u2 }));
 
@@ -84,7 +86,8 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
     await page.waitForFunction(() => document.querySelector('.live').classList.contains('in-onda'), null, { timeout: 8000 });
     await page.waitForTimeout(700);
     await page.evaluate(() => window.__dpvTest.ui().live.telecomandoNellaPagina(true));
-    await page.waitForTimeout(500);
+    await page.waitForFunction(() => { const v = document.querySelector('.live-mini .tele-video'); return !!v && v.videoWidth > 0; }, null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
     const t1 = await page.evaluate(() => {
       const m = document.querySelector('.live-mini');
       const r = m.getBoundingClientRect();

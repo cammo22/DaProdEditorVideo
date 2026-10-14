@@ -82,13 +82,13 @@ export function withLinked(p: Project, ids: Iterable<string>): Set<string> {
 const unlocked = (p: Project, c: Clip) => !trackOf(p, c.track).lock;
 
 /**
- * Tasto 1: taglia sotto il cursore. Taglia solo le tracce accese (se ce ne sono), altrimenti tutte quelle
- * non bloccate: le altre restano intatte. Ritorna gli id dei pezzi di destra.
+ * Tasto 1: taglia sotto il cursore. Con `ids` taglia solo quelle clip, con `tracce` solo le tracce accese, senza
+ * niente tutte quelle non bloccate: le altre restano intatte. Ritorna gli id dei pezzi di destra.
  */
-export function splitAt(p: Project, f: number, tracce?: Set<string> | null): string[] {
+export function splitAt(p: Project, f: number, tracce?: Set<string> | null, ids?: Set<string> | null): string[] {
   // i blocchetti FX non si tagliano: si allungano e si accorciano dai bordi
   const targets = p.clips.filter((c) => c.start < f && end(c) > f && unlocked(p, c) && solida(c)
-    && (tracce?.size ? tracce.has(c.track) : true));
+    && (tracce?.size ? tracce.has(c.track) : true) && (ids ? ids.has(c.id) : true));
   const linkMap = new Map<string, string>();
   const out: string[] = [];
   for (const c of targets) {

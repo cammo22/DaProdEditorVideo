@@ -32,7 +32,11 @@ function contatore(q: Q) {
   if (suf) scrivi(c, suf, x0 + wP + wN + 8, yb - size * 0.02, { font: fP, colore: chiaro(colore, 0.2), ombra: { blur: 24, colore: 'rgba(0,0,0,.45)' } });
   c.restore();
   const et = tx(q, 'etichetta', '');
-  if (et) scrivi(c, et.toUpperCase(), q.w / 2, q.h / 2 + size * 0.38 + 10 * (1 - prog(q.t, 0.6, 0.5, E.p3out)), { font: `500 ${size * 0.16}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'top', spazio: size * 0.025, alfa: prog(q.t, 0.6, 0.5, E.p2out) * u * 0.9, ombra: { blur: 16, colore: 'rgba(0,0,0,.5)' } });
+  if (et) {
+    const fE = (px: number) => `500 ${px}px "Montserrat", sans-serif`;
+    const pe = adatta(c, et.toUpperCase(), fE, size * 0.16, q.w * 0.84, size * 0.025);
+    scrivi(c, et.toUpperCase(), q.w / 2, q.h / 2 + size * 0.38 + 10 * (1 - prog(q.t, 0.6, 0.5, E.p3out)), { font: fE(pe), colore: '#fff', align: 'center', base: 'top', spazio: size * 0.025, alfa: prog(q.t, 0.6, 0.5, E.p2out) * u * 0.9, ombra: { blur: 16, colore: 'rgba(0,0,0,.5)' } });
+  }
 }
 
 /** 2) Anello */
@@ -54,7 +58,11 @@ function anello(q: Q) {
   c.shadowColor = 'transparent';
   scrivi(c, Math.round(pc * k) + '%', cx, cy + R * 0.03, { font: `700 ${R * 0.62}px ${fam}`, colore: '#fff', align: 'center', base: 'middle', ombra: { blur: 24, colore: 'rgba(0,0,0,.5)' } });
   const et = tx(q, 'etichetta', '');
-  if (et) scrivi(c, et.toUpperCase(), cx, cy + R * 0.5, { font: `500 ${R * 0.14}px "Montserrat", sans-serif`, colore: 'rgba(255,255,255,.85)', align: 'center', base: 'middle', spazio: R * 0.02 });
+  if (et) {
+    const fE = (px: number) => `500 ${px}px "Montserrat", sans-serif`;
+    const pe = adatta(c, et.toUpperCase(), fE, R * 0.14, R * 1.5, R * 0.02);
+    scrivi(c, et.toUpperCase(), cx, cy + R * 0.5, { font: fE(pe), colore: 'rgba(255,255,255,.85)', align: 'center', base: 'middle', spazio: R * 0.02 });
+  }
   c.restore();
 }
 
@@ -73,8 +81,11 @@ function barreGr(q: Q) {
   let y = (q.h - hTot) / 2;
   const u = resta(q, 0.45);
   c.save(); c.globalAlpha = u;
-  if (titolo) { scrivi(c, titolo, x0, y, { font: `700 ${size * 0.5}px ${fam}`, colore: '#fff', base: 'top', alfa: prog(q.t, 0.05, 0.5, E.p2out), ombra: { blur: 20, colore: 'rgba(0,0,0,.5)' } }); y += size * 0.9; }
-  const fL = `600 ${rh * 0.42}px ${fam}`;
+  if (titolo) { scrivi(c, titolo, x0, y, { font: `700 ${adatta(c, titolo, (px) => `700 ${px}px ${fam}`, size * 0.5, W)}px ${fam}`, colore: '#fff', base: 'top', alfa: prog(q.t, 0.05, 0.5, E.p2out), ombra: { blur: 20, colore: 'rgba(0,0,0,.5)' } }); y += size * 0.9; }
+  // i nomi delle voci: al massimo un terzo della larghezza (poi si rimpiccioliscono), così la barra ha sempre posto
+  const piuLunga = voci.reduce((a, x) => (x.n.length > a.length ? x.n : a), '');
+  const fLpx = adatta(c, piuLunga, (px) => `600 ${px}px ${fam}`, rh * 0.42, W * 0.34);
+  const fL = `600 ${fLpx}px ${fam}`;
   const wl = Math.max(...voci.map((x) => larg(c, x.n, fL))) + 26;
   voci.forEach((v, i) => {
     const k = prog(q.t, 0.4 + i * 0.28, 0.9, E.p4out);
@@ -102,7 +113,7 @@ function lineaGr(q: Q) {
   const u = resta(q, 0.45);
   c.save(); c.globalAlpha = u;
   const titolo = tx(q, 'titolo', '');
-  if (titolo) scrivi(c, titolo, x0, y0 - 64, { font: `700 ${size * 0.5}px ${fam}`, colore: '#fff', base: 'top', alfa: prog(q.t, 0.05, 0.5, E.p2out), ombra: { blur: 20, colore: 'rgba(0,0,0,.5)' } });
+  if (titolo) scrivi(c, titolo, x0, y0 - 64, { font: `700 ${adatta(c, titolo, (px) => `700 ${px}px ${fam}`, size * 0.5, W)}px ${fam}`, colore: '#fff', base: 'top', alfa: prog(q.t, 0.05, 0.5, E.p2out), ombra: { blur: 20, colore: 'rgba(0,0,0,.5)' } });
   // la griglia
   c.strokeStyle = 'rgba(255,255,255,.14)'; c.lineWidth = 2;
   for (let i = 0; i <= 4; i++) { const y = y0 + (H * i) / 4; c.beginPath(); c.moveTo(x0, y); c.lineTo(x0 + W, y); c.stroke(); }
@@ -140,8 +151,12 @@ function progresso(q: Q) {
   const x0 = (q.w - W) / 2, y0 = q.h / 2;
   const k = prog(q.t, 0.4, 2, E.p3out), u = resta(q, 0.45), ent = prog(q.t, 0.05, 0.5, E.p3out);
   c.save(); c.globalAlpha = u * ent;
-  scrivi(c, tx(q, 'etichetta', ''), x0, y0 - 28, { font: `600 ${size * 0.42}px ${fam}`, colore: '#fff', base: 'bottom', ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
-  scrivi(c, Math.round(pc * k) + '%', x0 + W, y0 - 28, { font: `700 ${size * 0.62}px ${fam}`, colore, align: 'right', base: 'bottom', ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
+  const fPc = `700 ${size * 0.62}px ${fam}`;
+  const wPc = larg(c, '100%', fPc) + 30;
+  const etP = tx(q, 'etichetta', '');
+  const fEt = (px: number) => `600 ${px}px ${fam}`;
+  scrivi(c, etP, x0, y0 - 28, { font: fEt(etP ? adatta(c, etP, fEt, size * 0.42, W - wPc) : size * 0.42), colore: '#fff', base: 'bottom', ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
+  scrivi(c, Math.round(pc * k) + '%', x0 + W, y0 - 28, { font: fPc, colore, align: 'right', base: 'bottom', ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
   rettTondo(c, x0, y0, W, h, h / 2); c.fillStyle = 'rgba(255,255,255,.16)'; c.fill();
   const bw = W * (pc / 100) * k;
   if (bw > 1) {

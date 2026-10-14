@@ -1,6 +1,6 @@
 //! Gli aggiornamenti dell'app: la versione nuova si scarica dalla release di GitHub con il `curl` del sistema
 //! (c'è su Windows 10/11 e sul Mac: niente librerie in più) e poi si apre.
-//!  · Windows installabile: parte il setup nuovo (sistema lui l'app installata) e questa si chiude;
+//!  · Windows installabile: parte il setup nuovo in modalità aggiornamento (installa sopra, senza disinstallare prima) e questa si chiude;
 //!  · Windows portatile: l'exe nuovo si mette accanto a quello vecchio, si apre, e questa si chiude;
 //!  · Mac: si apre il .dmg (si trascina l'app in Applicazioni, come la prima volta).
 //! Su Android l'APK lo scarica il browser (lo installa il telefono).
@@ -121,7 +121,15 @@ pub fn aggiornamento_apri(app: AppHandle, path: String) -> Esito<()> {
     }
     #[cfg(target_os = "windows")]
     {
-        Command::new(&p).spawn().map_err(|e| e.to_string())?;
+        let mut c = Command::new(&p);
+        // il setup (NSIS) si apre in modalità "aggiornamento": niente domanda "disinstalla prima di installare", installa
+        // sopra la versione che c'è (impostazioni, file associati e collegamenti restano), mostra solo l'avanzamento
+        // (/P) e alla fine riapre l'app da solo (/R). Il portatile è un exe e basta: si apre così com'è.
+        let e_setup = p.file_name().map(|n| n.to_string_lossy().to_lowercase().contains("setup")).unwrap_or(false);
+        if e_setup {
+            c.args(["/UPDATE", "/P", "/R"]);
+        }
+        c.spawn().map_err(|e| e.to_string())?;
         let a = app.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(900));

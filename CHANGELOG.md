@@ -4,6 +4,30 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.3.3] — 2026-10-14 · Il taglio preciso, i punti sul volume, la rotella ovunque 🎚️
+
+### Il montaggio
+- **Il taglio (1) tocca solo quello che scegli**: le tracce accese, se no le clip selezionate (con quelle legate), se no **la clip più in alto sotto il cursore** con la sua audio. Prima, senza niente di scelto, tagliava tutte le tracce. Per tagliare tutto in un colpo c'è il comando nuovo **Taglia tutte le tracce al cursore** (**Maiusc+C**). Dopo il taglio resta scelto il pezzo più corto, pronto per il 2.
+- **Punti sulla linea del volume**: un clic sulla linea gialla di una clip audio (la musica) mette un punto lì e lo trascini su/giù **e di lato** per alzare o abbassare l'audio solo in quel momento. Clic su un punto lo sposta, Alt+clic (o doppio clic) lo toglie, Maiusc+trascina alza o abbassa tutto il tratto. Prima il clic spostava tutta la linea e il punto si metteva solo col doppio clic.
+- **Doppio clic su una clip che non è un video** (animazione, titolo, colore, effetto, transizione) nella timeline: **si scelgono, il pannello Proprietà si apre da solo** (anche se era chiuso), il cursore entra nella clip e il monitor va sul programma, così le trascini subito sull'immagine per spostarle e ingrandirle.
+- **Sul righello la rotella fa scorrere la vista** avanti e indietro senza spostare il cursore (sulle tracce resta un fotogramma per scatto).
+
+### Le impostazioni
+- **La rotella cambia ogni campo**: con il puntatore su un cursore, un numero o una tendina — in Proprietà, nel Finale, nelle finestre — la rotella cambia il valore (su = di più). Maiusc = passi da dieci, Alt = passi fini. Una girata di rotella è un solo colpo per l'annulla.
+
+### Il rallentatore
+- **Movimento fluido "mosso" rifatto: vero flusso ottico**. Il movimento si stima su più scale (dal grossolano al fine) da A verso B e da B verso A, con confronto su finestre da 5×5 campioni, correzione a mezzo pixel e una passata che livella; poi A e B si spostano verso il punto giusto del tempo e dove non combaciano si torna allo sfumato. Su una scena di prova con movimento noto il fotogramma ricostruito è **fino a 8-10 dB più vicino al vero** (prima era appena meglio dello sfumato, e per i movimenti piccoli anche peggio).
+
+### Le animazioni
+- **Le animazioni si adattano al testo**: la scheda "Segui" si allarga con il nome e con la scritta del pulsante (il pulsante non copre più il nome), "Iscriviti" idem; tutti i sottopancia, "Segui", "Iscriviti" si rimpiccioliscono da soli se il testo è così lungo da uscire dallo schermo; post, notifica, barre, progresso, anello, contatore e le cerimonie accorciano o rimpiccioliscono i testi che non ci stanno. Nei formati stretti (verticale, quadrato) l'animazione si disegna su una tela virtuale più larga e si rimpicciolisce tutta insieme, invece di uscire dai bordi.
+
+### Gli aggiornamenti
+- **Aggiornare non disinstalla più**: il setup parte in modalità aggiornamento (`/UPDATE /P /R`): niente domanda "disinstalla prima di installare", si installa sopra la versione che c'è (impostazioni, file associati e collegamenti restano), si vede solo l'avanzamento e alla fine l'app si riapre da sola.
+- **Meno rosso su GitHub**: le due prove che a volte fallivano sulla CI (annulla/ripeti nella barra e l'anteprima del telecomando) aspettavano troppo poco su macchine lente (gli avvisi del banco partono a ogni fotogramma disegnato); ora aspettano quanto serve. Era la causa delle "X" rosse dopo ogni uscita.
+
+### Per chi ha curiosità
+- Nuovi: `src/ui/rotella.ts`, `conAdatta`/`muto`/`accorcia` in `src/render/anim/base.ts` (la scheda si "disegna a vuoto" con un contesto muto per misurarla), `LARGA_MIN` in `src/render/animazioni.ts`, `FL` (flusso ottico) in `src/render/fluido.ts`. Prove nuove in `test/prove-correzioni.mjs`.
+
 ## [1.3.2] — 2026-10-14 · La barra bianca e il telecomando con l'anteprima 🎛️
 
 ### La barra del titolo, bianca

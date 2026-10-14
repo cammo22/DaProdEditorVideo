@@ -46,7 +46,9 @@ function monogramma(q: Q) {
   const fn = adatta(c, nomi, (px) => `700 ${px}px ${fam}`, 78, q.w * 0.8, 5);
   scrivi(c, nomi, cx, cy + R + 70 + 16 * (1 - kn), { font: `700 ${fn}px ${fam}`, colore: bianco, align: 'center', base: 'middle', alfa: kn, spazio: 5, ombra: { blur: 24, colore: 'rgba(0,0,0,.6)' } });
   filo(c, cx, cy + R + 134, 360, oro, kd);
-  scrivi(c, tx(q, 'data', '').toUpperCase(), cx, cy + R + 190 + 12 * (1 - kd), { font: `500 40px ${FONT.cormorant}`, colore: oro, align: 'center', base: 'middle', alfa: kd, spazio: 10, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
+  const dt = tx(q, 'data', '').toUpperCase();
+  const fD = adatta(c, dt, (px) => `500 ${px}px ${FONT.cormorant}`, 40, q.w * 0.86, 10);
+  scrivi(c, dt, cx, cy + R + 190 + 12 * (1 - kd), { font: `500 ${fD}px ${FONT.cormorant}`, colore: oro, align: 'center', base: 'middle', alfa: kd, spazio: 10, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
   c.restore();
 }
 
@@ -83,7 +85,9 @@ function cornice(q: Q) {
   const f1 = `italic 400 ${adatta(c, t, (px) => `italic 400 ${px}px ${FONT.playfair}`, 150, w - 280)}px ${FONT.playfair}`;
   scrivi(c, t, q.w / 2, q.h / 2 - 20 + 20 * (1 - kt), { font: f1, colore: bianco, align: 'center', base: 'middle', alfa: kt, ombra: { blur: 26, colore: 'rgba(0,0,0,.65)' } });
   filo(c, q.w / 2, q.h / 2 + 76, 420, oro, ks);
-  scrivi(c, tx(q, 'sotto', '').toUpperCase(), q.w / 2, q.h / 2 + 140 + 12 * (1 - ks), { font: `500 46px ${FONT.cormorant}`, colore: oro, align: 'center', base: 'middle', spazio: 9, alfa: ks, ombra: { blur: 18, colore: 'rgba(0,0,0,.65)' } });
+  const sottoC = tx(q, 'sotto', '').toUpperCase();
+  const fS = adatta(c, sottoC, (px) => `500 ${px}px ${FONT.cormorant}`, 46, w - 280, 9);
+  scrivi(c, sottoC, q.w / 2, q.h / 2 + 140 + 12 * (1 - ks), { font: `500 ${fS}px ${FONT.cormorant}`, colore: oro, align: 'center', base: 'middle', spazio: 9, alfa: ks, ombra: { blur: 18, colore: 'rgba(0,0,0,.65)' } });
   c.restore();
 }
 
@@ -106,7 +110,7 @@ function dedica(q: Q) {
   filo(c, q.w / 2, yT - 52, 520, oro, kl);
   rr.forEach((r, i) => { const k = prog(q.t, 0.5 + i * 0.55, 0.9, E.p3out); scrivi(c, r, q.w / 2, yT + i * lh + 14 * (1 - k), { font: f, colore, align: 'center', base: 'top', alfa: k, ombra: { blur: 22, colore: 'rgba(0,0,0,.65)' } }); });
   filo(c, q.w / 2, yT + hT + 36, 520, oro, prog(q.t, 0.5 + rr.length * 0.55, 0.8, E.p4out));
-  if (firma) { const k = prog(q.t, 0.9 + rr.length * 0.55, 0.9, E.p3out); scrivi(c, firma, q.w / 2, yT + hT + 90 + 12 * (1 - k), { font: `400 84px ${FONT.vibes}`, colore: oro, align: 'center', base: 'top', alfa: k, ombra: { blur: 18, colore: 'rgba(0,0,0,.6)' } }); }
+  if (firma) { const k = prog(q.t, 0.9 + rr.length * 0.55, 0.9, E.p3out); const fF = adatta(c, firma, (px) => `400 ${px}px ${FONT.vibes}`, 84, q.w * 0.8); scrivi(c, firma, q.w / 2, yT + hT + 90 + 12 * (1 - k), { font: `400 ${fF}px ${FONT.vibes}`, colore: oro, align: 'center', base: 'top', alfa: k, ombra: { blur: 18, colore: 'rgba(0,0,0,.6)' } }); }
   c.restore();
 }
 
@@ -121,6 +125,10 @@ function data(q: Q) {
   const kg = prog(q.t, 0.2, 1, E.back(1.3));
   const fg = `400 330px ${fam}`;
   const wg = larg(c, g, fg);
+  // mese e anno stanno ai due lati del numero: se sono lunghi, si rimpiccioliscono per non uscire dallo schermo
+  const latoMax = q.w / 2 - (wg / 2 + 70) - 50 - 40;
+  const fMese = adatta(c, mese.length > anno.length ? mese : anno, (px) => `500 ${px}px ${FONT.cormorant}`, 66, latoMax, 12);
+  const fNomiD = adatta(c, tx(q, 'nomi', ''), (px) => `400 ${px}px ${FONT.vibes}`, 110, q.w * 0.86);
   c.save(); c.translate(cx, cy); c.scale(0.85 + 0.15 * kg, 0.85 + 0.15 * kg);
   scrivi(c, g, 0, 20, { font: fg, colore: bianco, align: 'center', base: 'middle', alfa: clamp01(kg * 1.4), ombra: { blur: 30, colore: 'rgba(0,0,0,.6)' } });
   c.restore();
@@ -129,10 +137,10 @@ function data(q: Q) {
   c.fillStyle = oro;
   c.fillRect(cx - ex - 3, cy - 150 * kl, 4, 300 * kl); c.fillRect(cx + ex - 1, cy - 150 * kl, 4, 300 * kl);
   const km = prog(q.t, 1.0, 0.8, E.p3out);
-  scrivi(c, mese, cx - ex - 50 + 30 * (1 - km), cy + 12, { font: `500 66px ${FONT.cormorant}`, colore: oro, align: 'right', base: 'middle', spazio: 12, alfa: km, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
-  scrivi(c, anno, cx + ex + 50 - 30 * (1 - km), cy + 12, { font: `500 66px ${FONT.cormorant}`, colore: oro, align: 'left', base: 'middle', spazio: 12, alfa: km, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
+  scrivi(c, mese, cx - ex - 50 + 30 * (1 - km), cy + 12, { font: `500 ${fMese}px ${FONT.cormorant}`, colore: oro, align: 'right', base: 'middle', spazio: 12, alfa: km, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
+  scrivi(c, anno, cx + ex + 50 - 30 * (1 - km), cy + 12, { font: `500 ${fMese}px ${FONT.cormorant}`, colore: oro, align: 'left', base: 'middle', spazio: 12, alfa: km, ombra: { blur: 16, colore: 'rgba(0,0,0,.6)' } });
   const kn = prog(q.t, 1.5, 0.9, E.p3out);
-  scrivi(c, tx(q, 'nomi', ''), cx, cy + 230 + 14 * (1 - kn), { font: `400 110px ${FONT.vibes}`, colore: bianco, align: 'center', base: 'middle', alfa: kn, ombra: { blur: 22, colore: 'rgba(0,0,0,.6)' } });
+  scrivi(c, tx(q, 'nomi', ''), cx, cy + 230 + 14 * (1 - kn), { font: `400 ${fNomiD}px ${FONT.vibes}`, colore: bianco, align: 'center', base: 'middle', alfa: kn, ombra: { blur: 22, colore: 'rgba(0,0,0,.6)' } });
   c.restore();
 }
 
@@ -165,7 +173,9 @@ function auguri(q: Q) {
   scrivi(c, t, 0, 0, { font: `400 ${adatta(c, t, (px) => `400 ${px}px ${fam}`, 230, q.w * 0.86)}px ${fam}`, colore: '#fff', align: 'center', base: 'middle', alfa: clamp01(kt * 1.5), ombra: { blur: 30, colore: 'rgba(0,0,0,.6)', y: 6 }, contorno: { colore: hexA(c2, 0.9), px: 8 } });
   c.restore();
   const ks = prog(q.t, 1.4, 0.9, E.p3out);
-  scrivi(c, tx(q, 'sotto', '').toUpperCase(), q.w / 2, q.h / 2 + 230 + 14 * (1 - ks), { font: `700 60px ${FONT.montserrat}`, colore: '#fff', align: 'center', base: 'middle', spazio: 10, alfa: ks, ombra: { blur: 20, colore: 'rgba(0,0,0,.6)' } });
+  const sottoA = tx(q, 'sotto', '').toUpperCase();
+  const fSA = adatta(c, sottoA, (px) => `700 ${px}px ${FONT.montserrat}`, 60, q.w * 0.86, 10);
+  scrivi(c, sottoA, q.w / 2, q.h / 2 + 230 + 14 * (1 - ks), { font: `700 ${fSA}px ${FONT.montserrat}`, colore: '#fff', align: 'center', base: 'middle', spazio: 10, alfa: ks, ombra: { blur: 20, colore: 'rgba(0,0,0,.6)' } });
   c.restore();
 }
 
