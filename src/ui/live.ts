@@ -7,6 +7,8 @@
 // Più finestre: mentre registri puoi aggiungere altre finestre o schermi (＋ Finestra) e passare dall'una all'altra al volo
 // (clic sulla miniatura, o i tasti 1-9): la Regia disegna quella scelta (o due insieme, affiancate o una in angolo) in una
 // tela di misura fissa e registra quella, così il file resta uno solo e la misura non cambia.
+// L'audio (voce e computer) passa da un mixer (src/media/liveAudio.ts): barre dei livelli, volumi, bilanciamento, filtri
+// della voce e abbassa-il-computer si regolano dal vivo e finiscono nella registrazione (pannello: src/ui/liveAudio.ts).
 // Sotto c'è il motore del browser (getDisplayMedia, getUserMedia e MediaRecorder).
 // La PAUSA chiude un pezzo e RIPRENDI ne apre un altro (la pausa di MediaRecorder non la tratta uguale ogni browser:
 // alcuni lasciano il buco nel file); alla fine Mediabunny cuce i pezzi uno dopo l'altro in un file solo, con durata
@@ -29,6 +31,13 @@ import { isAndroid, salvaMediaSulDisco } from '../platform';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
+import { PannelloAudio } from './liveAudio';
+import { MixerLive } from '../media/liveAudio';
+import { copiaImpostazioni, IMPOSTAZIONI0, unisciImpostazioni, type ImpostazioniAudio } from '../core/liveAudio';
+
+// per le prove: i conti puri dell'audio e il mixer, raggiungibili da `__dpvTest.LV`
+export * as liveAudioPuro from '../core/liveAudio';
+export { MixerLive };
 
 /** da dove arriva l'immagine: di solito la scelta del sistema; le prove ne mettono una finta (anche microfono e webcam) */
 type Sorgente = (conAudio: boolean) => Promise<MediaStream>;
@@ -242,13 +251,19 @@ interface Opzioni {
   /** più finestre: la regia passa dall'una all'altra mentre registri */
   finestre: boolean;
   layout: Disposizione;
+  /** volumi, bilanciamento e filtri dell'audio (src/core/liveAudio.ts) */
+  audio: ImpostazioniAudio;
 }
 const OPZ0: Opzioni = {
   mic: true, micId: '', separato: true, sistema: true, cam: false, camId: '', camAngolo: 'bd', camTonda: true,
   qualita: 1080, fps: 30, cursore: true, conto: true, timeline: true, presentazione: false, sfondo: 'notte', finestre: false, layout: 'solo',
+  audio: copiaImpostazioni(IMPOSTAZIONI0),
 };
 function leggiOpzioni(): Opzioni {
-  try { return { ...OPZ0, ...JSON.parse(localStorage.getItem('dpv-live') || '{}') }; } catch { return { ...OPZ0 }; }
+  try {
+    const salvate = JSON.parse(localStorage.getItem('dpv-live') || '{}');
+    return { ...OPZ0, ...salvate, audio: unisciImpostazioni(salvate?.audio) };
+  } catch { return { ...OPZ0, audio: copiaImpostazioni(IMPOSTAZIONI0) }; }
 }
 const QUALITA: [number, string][] = [[720, '720p'], [1080, '1080p'], [1440, '1440p'], [2160, '4K']];
 /** quanti bit al secondo per lo schermo: il testo piccolo vuole spazio, i 60 fps un po' di più */
@@ -301,8 +316,8 @@ export class Live {
   private bFerma: HTMLButtonElement;
   private bSegna: HTMLButtonElement;
   private lista: HTMLElement;
-  private vu: HTMLCanvasElement;
-  private vuNome: HTMLElement;
+  /** i livelli, il mixer e i filtri dell'audio (src/ui/liveAudio.ts) */
+  private audio: PannelloAudio;
   private selMic: HTMLSelectElement;
   private selCam: HTMLSelectElement;
   /** il telecomando: anteprima, tempo, pausa, segno, ferma (src/ui/telecomando.ts) */
@@ -314,8 +329,14 @@ export class Live {
   private flusso: MediaStream | null = null;
   /** la webcam: la stessa per l'anteprima e per la registrazione */
   private cam: MediaStream | null = null;
-  /** il microfono aperto solo per provarlo (il VU prima di partire) */
+  /** il microfono aperto solo per provarlo (i livelli e i filtri prima di partire) */
   private micProva: MediaStream | null = null;
+  /** il microfono della registrazione in corso */
+  private micReg: MediaStream | null = null;
+  /** il mixer dell'audio: nasce con la prova o con REGISTRA e dura quanto la registrazione */
+  private mixer: MixerLive | null = null;
+  /** per i bip del conto alla rovescia */
+  private bipCtx: AudioContext | null = null;
   /** la regia (solo se si registra con più finestre) e la fila delle miniature */
   private regia: Regia | null = null;
   private elFonti: HTMLElement;
@@ -334,12 +355,6 @@ export class Live {
   /** il microfono registrato a parte (audio separato) */
   private pezziMic: Promise<Tratto>[] = [];
   private micSep: MediaStream | null = null;
-  private audioCtx: AudioContext | null = null;
-  private vuCtx: AudioContext | null = null;
-  private vuSorgente: MediaStreamAudioSourceNode | null = null;
-  private analisi: AnalyserNode | null = null;
-  private vuGiro = 0;
-  private picco = 0;
   /** millisecondi registrati (senza le pause) e da quando si sta registrando adesso */
   private fatto = 0;
   private da = 0;
@@ -372,12 +387,22 @@ export class Live {
     this.bAggiungi = h('button', { class: 'live-btn', disabled: true, title: 'Aggiungi un\'altra finestra o schermo (N)', on: { click: () => void this.aggiungiFinestra() } }, '＋ FINESTRA') as HTMLButtonElement;
     this.bProssima = h('button', { class: 'live-btn', disabled: true, title: 'Passa alla finestra dopo (o i tasti 1-9)', on: { click: () => this.prossimaFinestra() } }, '⇄ CAMBIA') as HTMLButtonElement;
     this.lista = h('div', { class: 'live-lista' }, h('p', { class: 'nota' }, 'Le registrazioni di oggi compaiono qui (e nel contenitore, cartella Registrazioni).'));
-    this.vu = h('canvas', { class: 'live-vu', width: 300, height: 12, title: 'Clic: prova il microfono' }) as HTMLCanvasElement;
-    this.vu.addEventListener('click', () => void this.provaMic());
-    this.vuNome = h('span', { class: 'live-vu-nome' }, 'clic per provare');
+    this.audio = new PannelloAudio({
+      leggi: () => this.opz.audio,
+      scrivi: (a, vincoli) => {
+        this.opz.audio = a;
+        this.salvaOpzioni();
+        this.mixer?.imposta(a);
+        if (vincoli) this.applicaVincoliMic();
+      },
+      mixer: () => this.mixer,
+      prova: () => void this.provaMic(),
+      inProva: () => !!this.micProva,
+      suLivelli: (pc, voce) => { if (this.tele.aperto) this.tele.livelli(pc, voce); },
+    });
 
     // ——— le scelte ———
-    const salva = () => { try { localStorage.setItem('dpv-live', JSON.stringify(this.opz)); } catch { /* niente */ } };
+    const salva = () => this.salvaOpzioni();
     const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'cam', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre']);
     const cambia = <K extends keyof Opzioni>(k: K, v: Opzioni[K]) => {
       if (this.fase !== 'fermo' && fisse.has(k)) { avviso('Questo si cambia prima di registrare', 'info'); this.sinc.forEach((f) => f()); return false; }
@@ -434,7 +459,7 @@ export class Live {
             h('div', { class: 'live-tasti due' }, this.bSegna, bTele),
             h('div', { class: 'live-tasti due' }, this.bAggiungi, this.bProssima),
             this.elFonti,
-            h('div', { class: 'live-vu-riga' }, icona('mic', 13), this.vu, this.vuNome)),
+            this.audio.compatto),
           sezione('Cosa registro'),
           h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
           interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
@@ -443,6 +468,7 @@ export class Live {
           h('div', { class: 'live-riga cam-scelte' },
             chips('camAngolo', ANGOLI.map(([a, s]): [Angolo, string, string] => [a, s, 'La webcam in questo angolo'])),
             chips('camTonda', [[true, 'Bolla', 'Tonda'], [false, 'Riquadro', 'Un riquadro con gli angoli tondi']])),
+          this.audio.el,
           sezione('Finestre'),
           interruttore('finestre', null, 'Più finestre al volo (nuovo)', 'Aggiungi altre finestre o schermi e passa dall\'una all\'altra mentre registri: il video resta uno solo. Va acceso prima di registrare; il video passa da una tela intermedia, quindi con una finestra sola e senza cambi meglio lasciarlo spento'),
           chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
@@ -464,7 +490,6 @@ export class Live {
     this.video.addEventListener('emptied', () => vuoto.classList.remove('via'));
     if (!puoRegistrare()) this.bReg.disabled = true;
     this.sinc.forEach((f) => f());
-    this.disegnaVu();
     this.aggiornaTempo();
     // i tasti di LIVE valgono sulla pagina LIVE e sul telecomando, prima di quelli del montaggio
     addEventListener('keydown', (e) => this.tasto(e), true);
@@ -485,10 +510,16 @@ export class Live {
     }
   }
 
+  private salvaOpzioni() {
+    try { localStorage.setItem('dpv-live', JSON.stringify(this.opz)); } catch { /* niente */ }
+  }
+
   private tasto(e: KeyboardEvent) {
     if (!this.visibile && !this.tele.aperto) return;
     const t = e.target as HTMLElement;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    // i cursori (volumi, filtri) non scrivono: dopo averne mosso uno R, Spazio e gli altri tasti di LIVE devono funzionare
+    const scrive = t && t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes((t as HTMLInputElement).type);
+    if (t && (scrive || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
     if (document.querySelector('.velo') || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     let preso = true;
@@ -554,81 +585,56 @@ export class Live {
 
   private async apriMic(): Promise<MediaStream> {
     if (microfonoProva) return microfonoProva();
-    return navigator.mediaDevices.getUserMedia({ audio: { deviceId: this.opz.micId ? { exact: this.opz.micId } : undefined, echoCancellation: true, noiseSuppression: true } });
+    const f = this.opz.audio.filtri;
+    // i filtri del browser (toglie i disturbi con il suo modello AI, eco, volume automatico) sono scelte tue
+    return navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: this.opz.micId ? { exact: this.opz.micId } : undefined, echoCancellation: f.eco, noiseSuppression: f.disturbi, autoGainControl: f.livellaAuto },
+    });
   }
 
-  /** clic sul VU prima di registrare: il microfono si accende solo per vedere se arriva la voce */
+  /** i filtri del browser cambiati mentre il microfono è già aperto: si riapplicano alla traccia viva (senza richiuderla) */
+  private applicaVincoliMic() {
+    const f = this.opz.audio.filtri;
+    const flussi = [this.micProva, this.micReg].filter((x): x is MediaStream => !!x);
+    for (const fl of flussi) {
+      for (const t of fl.getAudioTracks()) {
+        void t.applyConstraints?.({ echoCancellation: f.eco, noiseSuppression: f.disturbi, autoGainControl: f.livellaAuto }).catch(() => { /* quella traccia non lo sa fare: vale dalla prossima apertura */ });
+      }
+    }
+  }
+
+  /** "Prova l'audio": il microfono si accende solo per vedere i livelli e sentire i filtri, senza registrare */
   private async provaMic() {
     if (this.fase !== 'fermo') return;
-    if (this.micProva) { this.fermaProvaMic(); return; }
+    // un secondo clic (anche mentre il microfono si sta ancora aprendo) ferma la prova
+    if (this.micProva || this.mixer) { this.fermaProvaMic(); return; }
+    const mix = this.mixer = new MixerLive();
+    this.audio.sveglia();
+    // il contesto audio nasce nel clic (il browser lo vuole), il resto si prepara mentre si apre il microfono
+    void mix.accendi(this.opz.audio, true);
     try {
-      this.micProva = await this.apriMic();
-      this.avviaVu(this.micProva, 'prova: parla');
+      const mic = await this.apriMic();
+      await mix.pronto;
+      if (this.mixer !== mix || this.fase !== 'fermo') { for (const t of mic.getTracks()) t.stop(); mix.chiudi(); return; }
+      if (!mix.ok) { for (const t of mic.getTracks()) t.stop(); throw new Error('niente audio'); }
+      this.micProva = mic;
+      mix.collegaVoce(mic);
+      this.audio.aggiorna();
       void this.aggiornaDispositivi();
     } catch {
+      if (this.mixer === mix) { mix.chiudi(); this.mixer = null; }
+      this.audio.aggiorna();
       avviso('Il microfono non si apre', 'info');
     }
   }
 
   private fermaProvaMic() {
-    if (!this.micProva) return;
-    for (const t of this.micProva.getTracks()) t.stop();
+    if (!this.micProva && !this.mixer) return;
+    for (const t of this.micProva?.getTracks() ?? []) t.stop();
     this.micProva = null;
-    this.fermaVu();
-  }
-
-  private avviaVu(s: MediaStream, nome: string) {
-    this.fermaVu();
-    try {
-      this.vuCtx ??= new AudioContext();
-      void this.vuCtx.resume().catch(() => {});
-      this.vuSorgente = this.vuCtx.createMediaStreamSource(s);
-      this.analisi = this.vuCtx.createAnalyser();
-      this.analisi.fftSize = 1024;
-      this.vuSorgente.connect(this.analisi);
-      this.vuNome.textContent = nome;
-      const buf = new Float32Array(this.analisi.fftSize);
-      const giro = () => {
-        if (!this.analisi) return;
-        this.analisi.getFloatTimeDomainData(buf);
-        let p = 0;
-        for (const x of buf) p = Math.max(p, Math.abs(x));
-        // sale subito, scende piano (come l'ago)
-        this.picco = Math.max(p, this.picco * 0.92);
-        this.disegnaVu();
-        this.vuGiro = requestAnimationFrame(giro);
-      };
-      giro();
-    } catch { /* niente VU: si registra lo stesso */ }
-  }
-
-  private fermaVu() {
-    cancelAnimationFrame(this.vuGiro);
-    this.vuSorgente?.disconnect();
-    this.vuSorgente = null;
-    this.analisi = null;
-    this.picco = 0;
-    this.vuNome.textContent = this.fase === 'fermo' ? 'clic per provare' : '';
-    this.disegnaVu();
-  }
-
-  /** la barra a LED del microfono: verde, giallo da −12 dB, rosso da −3 */
-  private disegnaVu() {
-    const x = this.vu.getContext('2d');
-    if (!x) return;
-    const W = this.vu.width, H = this.vu.height, N = 30, g = 2;
-    const db = this.picco > 0 ? 20 * Math.log10(this.picco) : -60;
-    const acceso = Math.round(Math.max(0, Math.min(1, (db + 48) / 48)) * N);
-    x.clearRect(0, 0, W, H);
-    const w = (W - g * (N - 1)) / N;
-    for (let i = 0; i < N; i++) {
-      const d = -48 + (i / N) * 48;
-      const col = d > -3 ? '#ff4d6d' : d > -12 ? '#ffd54a' : '#4cd98a';
-      x.globalAlpha = i < acceso ? 1 : 0.14;
-      x.fillStyle = col;
-      x.fillRect(i * (w + g), 0, w, H);
-    }
-    x.globalAlpha = 1;
+    // il mixer di una registrazione in corso non si tocca
+    if (this.fase === 'fermo') { this.mixer?.chiudi(); this.mixer = null; }
+    this.audio.aggiorna();
   }
 
   private aggiornaTempo() {
@@ -663,7 +669,7 @@ export class Live {
       let n = 3, timer = 0;
       const bip = () => {
         try {
-          const ctx = this.vuCtx ??= new AudioContext();
+          const ctx = this.bipCtx ??= new AudioContext();
           const o = ctx.createOscillator(), g = ctx.createGain();
           o.frequency.value = 880;
           g.gain.setValueAtTime(0.16, ctx.currentTime);
@@ -722,9 +728,12 @@ export class Live {
     this.fermaProvaMic();
     const o = this.opz;
     // il mixer dell'audio si accende adesso, col clic: dopo la scelta dello schermo il browser lo terrebbe spento
-    // (e l'audio del computer mescolato al microfono usciva muto o a singhiozzo)
-    let mixer: AudioContext | null = null;
-    try { mixer = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' }); void mixer.resume().catch(() => {}); } catch { mixer = null; }
+    // (e l'audio del computer mescolato al microfono usciva muto o a singhiozzo). Voce e computer passano da lui:
+    // volumi, filtri e limitatore finiscono nella registrazione
+    this.mixer?.chiudi();
+    const mix = this.mixer = new MixerLive();
+    void mix.accendi(o.audio);
+    this.audio.sveglia();
     let schermo: MediaStream;
     try {
       schermo = sorgenteProva ? await sorgenteProva(o.sistema) : await navigator.mediaDevices.getDisplayMedia({
@@ -739,7 +748,8 @@ export class Live {
         ...({ selfBrowserSurface: 'exclude', systemAudio: 'include', windowAudio: 'system', surfaceSwitching: 'include' } as object),
       } as DisplayMediaStreamOptions);
     } catch {
-      void mixer?.close().catch(() => {});
+      mix.chiudi();
+      if (this.mixer === mix) this.mixer = null;
       this.stato.textContent = 'Registrazione annullata';
       this.aggiornaTasti();
       return;
@@ -760,44 +770,39 @@ export class Live {
       this.giroFonti = window.setInterval(() => this.aggiornaMiniature(), 400);
       this.disegnaFonti();
     } else tracce = [...schermo.getVideoTracks()];
-    // l'audio: il microfono e quello del computer, mescolati in una traccia sola
-    const audio: MediaStream[] = [];
-    if (schermo.getAudioTracks().length) audio.push(new MediaStream(schermo.getAudioTracks()));
+    // l'audio: il microfono e quello del computer passano dal mixer (livelli, volumi, filtri); a seconda delle scelte
+    // escono in una traccia mescolata, oppure in due file (la voce a parte) o in uno solo se c'è una sola sorgente
+    const audioPc = schermo.getAudioTracks();
     let mic: MediaStream | null = null;
+    this.micReg = null;
     if (o.mic) {
       try {
         mic = await this.apriMic();
         this.flussi.push(mic);
-        audio.push(mic);
+        this.micReg = mic;
       } catch { avviso('Il microfono non si apre: registro senza', 'info', 2400); }
     }
-    let mix: MediaStream | null = null;
+    await mix.pronto;
     this.micSep = null;
-    if (o.separato && mic && audio.length > 1) {
-      // voce e computer in due file: l'audio del computer resta col video, il microfono ha il suo registratore
-      tracce.push(...schermo.getAudioTracks());
-      this.micSep = new MediaStream(mic.getAudioTracks());
-      void mixer?.close().catch(() => {});
-    } else if (audio.length === 1) { tracce.push(...audio[0].getAudioTracks()); void mixer?.close().catch(() => {}); }
-    else if (audio.length > 1) {
-      const ctx = mixer ?? new AudioContext({ sampleRate: 48000 });
-      void ctx.resume().catch(() => {});
-      this.audioCtx = ctx;
-      const dest = ctx.createMediaStreamDestination();
-      dest.channelCount = 2;
-      // un limitatore alla fine: voce e computer insieme non vanno mai in distorsione
-      const lim = ctx.createDynamicsCompressor();
-      lim.threshold.value = -3; lim.knee.value = 2; lim.ratio.value = 20; lim.attack.value = 0.002; lim.release.value = 0.12;
-      lim.connect(dest);
-      for (const a of audio) {
-        const g = ctx.createGain();
-        // il microfono (mono) un filo più su, il computer com'è
-        g.gain.value = a === mic ? 1.15 : 1;
-        ctx.createMediaStreamSource(a).connect(g).connect(lim);
+    const haPc = audioPc.length > 0;
+    if (mix.ok) {
+      mix.imposta(o.audio);
+      if (haPc) mix.collegaComputer(new MediaStream(audioPc));
+      if (mic) mix.collegaVoce(mic);
+      if (o.separato && haPc && mic) {
+        tracce.push(...mix.flussoComputer().getAudioTracks());
+        this.micSep = mix.flussoVoce();
+      } else if (haPc && mic) tracce.push(...mix.flussoMix().getAudioTracks());
+      else if (haPc) tracce.push(...mix.flussoComputer().getAudioTracks());
+      else if (mic) tracce.push(...mix.flussoVoce().getAudioTracks());
+    } else {
+      // niente audio elaborato (il browser non ha il mixer): si registra com'è, la voce a parte
+      tracce.push(...audioPc);
+      if (mic) {
+        if (haPc) this.micSep = new MediaStream(mic.getAudioTracks());
+        else tracce.push(...mic.getAudioTracks());
       }
-      tracce.push(...dest.stream.getAudioTracks());
-      mix = dest.stream;
-    } else void mixer?.close().catch(() => {});
+    }
     if (o.cam && !this.cam) await this.apriCam();
     this.flusso = new MediaStream(tracce);
     this.tipo = formato();
@@ -805,9 +810,8 @@ export class Live {
     this.tipoMic = formatoAudio();
     this.video.srcObject = this.regia ? this.regia.flusso : schermo;
     void this.video.play().catch(() => {});
-    if (audio.length) this.avviaVu(this.micSep ?? mix ?? mic ?? audio[0], this.micSep ? 'microfono (il computer a parte)' : mix ? 'microfono + computer' : mic ? 'microfono' : 'audio del computer');
     const st = st0;
-    this.info.textContent = [st.width && st.height ? `${st.width}×${st.height}` : '', st.frameRate ? `${Math.round(st.frameRate)} fps` : '', mic ? 'microfono' : '', schermo.getAudioTracks().length ? 'audio del computer' : '', this.cam ? 'webcam' : ''].filter(Boolean).join(' · ');
+    this.info.textContent = [st.width && st.height ? `${st.width}×${st.height}` : '', st.frameRate ? `${Math.round(st.frameRate)} fps` : '', mic ? 'microfono' : '', haPc ? 'audio del computer' : '', this.cam ? 'webcam' : ''].filter(Boolean).join(' · ');
     // se si ferma la condivisione dalla barra del sistema, è come premere FERMA
     const f0 = this.regia?.fonti[0];
     schermo.getVideoTracks()[0]?.addEventListener('ended', () => (f0 ? this.togliFinestra(f0) : this.ferma()));
@@ -817,7 +821,6 @@ export class Live {
       this.stato.textContent = 'Si parte fra…';
       if (!(await this.conto())) {
         this.fase = 'fermo';
-        this.fermaVu();
         this.chiudiFlussi();
         this.aggiornaTasti();
         this.stato.textContent = 'Partenza annullata';
@@ -839,7 +842,6 @@ export class Live {
       this.nuovoPezzo();
     } catch (e) {
       this.fase = 'fermo';
-      this.fermaVu();
       this.chiudiFlussi();
       this.aggiornaTasti();
       avviso('Non riesco a registrare: ' + String(e), 'errore', 4000);
@@ -891,13 +893,15 @@ export class Live {
   }
 
   /** spegne schermo, microfono e mixer (quelli di adesso, o quelli di una registrazione appena fermata) */
-  private chiudiFlussi(flussi = this.flussi, ctx = this.audioCtx) {
+  private chiudiFlussi(flussi = this.flussi, mix = this.mixer) {
     for (const f of flussi) for (const t of f.getTracks()) t.stop();
-    void ctx?.close().catch(() => {});
+    mix?.chiudi();
     if (flussi !== this.flussi) return;
     this.chiudiRegia();
     this.flussi = [];
-    this.audioCtx = null;
+    this.micReg = null;
+    if (this.mixer === mix) this.mixer = null;
+    this.audio.aggiorna();
     this.flusso = null;
     this.video.srcObject = null;
   }
@@ -943,12 +947,11 @@ export class Live {
     clearInterval(this.giro);
     this.aggiornaTempo();
     this.aggiornaTasti();
-    this.fermaVu();
     void this.tele.chiudi();
     this.stato.textContent = 'Metto in ordine la registrazione…';
     const foto = this.foto();
     const durata = this.durataUltima = this.fatto;
-    const pezzi = this.pezzi, pezziCam = this.pezziCam, pezziMic = this.pezziMic, segni = this.segni, flussi = this.flussi, ctx = this.audioCtx;
+    const pezzi = this.pezzi, pezziCam = this.pezziCam, pezziMic = this.pezziMic, segni = this.segni, flussi = this.flussi, mix = this.mixer;
     // la regia disegna finché l'ultimo pezzo non ha dato tutto
     const regia = this.regia;
     this.regia = null;
@@ -961,14 +964,17 @@ export class Live {
     this.micSep = null;
     this.segni = [];
     this.flussi = [];
-    this.audioCtx = null;
+    this.micReg = null;
+    // le barre si fermano subito; il mixer resta vivo finché l'ultimo pezzo non ha dato tutto
+    this.mixer = null;
+    this.audio.aggiorna();
     this.flusso = null;
     this.ultima = (async () => {
       // i flussi si spengono solo quando l'ultimo pezzo ha dato tutto
       const [tratti, trattiCam, trattiMic] = await Promise.all([Promise.all(pezzi), Promise.all(pezziCam), Promise.all(pezziMic)]);
       this.diagnosi = tratti.map((x, i) => `tratto ${i + 1}: ${Math.round(x.blob.size / 1024)} kB, ${x.nota}`);
       regia?.ferma();
-      this.chiudiFlussi(flussi, ctx);
+      this.chiudiFlussi(flussi, mix);
       if (this.fase === 'fermo') this.video.srcObject = null;
       // la webcam resta accesa per l'anteprima solo se si è ancora su LIVE
       if (!this.visibile) this.chiudiCam();
