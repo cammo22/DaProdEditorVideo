@@ -159,7 +159,7 @@ export class Ispettore {
           this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video),
           this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video),
           this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video)),
-        video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l'opacità la toglie.') : null,
+        video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l\'opacità la toglie.') : null,
       ], primo.kind === 'media'));
 
       // — gli effetti e i look: miniature vere, applicate al fotogramma dove sei
