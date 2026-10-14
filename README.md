@@ -7,6 +7,7 @@
 [![Changelog](https://img.shields.io/badge/📅_Changelog-mantenuto-ffab00?style=flat-square)](CHANGELOG.md)
 [![Tauri 2](https://img.shields.io/badge/Tauri_2-Rust-24c8db?style=flat-square&logo=tauri)](https://tauri.app/)
 [![Licenza MIT](https://img.shields.io/badge/Licenza-MIT-blue?style=flat-square)](LICENSE)
+[![Discord](https://img.shields.io/badge/Discord-DaProd-5865F2?logo=discord&logoColor=white)](https://discord.gg/Njs52aacwq)
 
 Il **banco di montaggio DaProd**: vecchio stile, moderno dentro. Un monitor grande, il **contenitore** come un
 esplora risorse (le tue **cartelle**, e transizioni ed effetti con le **anteprime fatte coi fotogrammi del tuo
@@ -202,3 +203,9 @@ node test/foto.mjs     # foto del banco (computer, Finale, contenitore, timeline
 - Per ritrovare le cose: `src/ui/cerca.ts` (Ctrl+K) con quello che si trova in `fontiCerca.ts`, `src/ui/guida.ts` (F1, Come si fa), `src/ui/centroAI.ts` (Centro AI) e, sotto, `src/media/libreriaAI.ts` (la libreria AI dentro l'app e i ripieghi), `erroriAI.ts` (gli errori spiegati), `diagnosiAI.ts` (Controlla l'AI).
 - `src/azioni.ts` tutti i comandi con i loro tasti · `src/effetti.ts` gli effetti al volo · `src/export/` export ed EDL · `src/demo.ts` il montaggio dimostrativo.
 - `src-tauri/` l'app Rust, con `gen/android` per l'APK · `test/` le prove.
+
+---
+
+## 💬 Community
+
+Domande, idee, bug o solo voglia di chiacchierare? Entra nel **[Discord di DaProd](https://discord.gg/Njs52aacwq)**: ogni app ha la sua stanza e le nuove versioni arrivano in automatico.
