@@ -90,6 +90,9 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   // un blocco FX ha il suo ordine, e si può riordinare anche lì
   await scegli(ids.blocco);
   const gb = await ordineDi();
+  // le sezioni principali dei blocchi partono aperte e sono alte: si chiudono per averle tutte in vista
+  await page.evaluate(() => document.querySelectorAll('.isp-corpo > .isp-gruppo[open] > summary').forEach((x) => x.click()));
+  await page.waitForTimeout(250);
   if (gb.length >= 2) {
     await trascina(gb[gb.length - 1], gb[0]);
     const gb2 = await ordineDi();
@@ -114,7 +117,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.click('.lato .scheda[data-s=clip]').catch(() => {});
   await page.waitForTimeout(600);
   const dopoRiavvio = await ordineDi();
-  prova('con una clip nuova, dopo il riavvio, le sezioni sono già nell\'ordine scelto', dopoRiavvio[0] === 'durata' && (await gruppi()).every((x) => !x.aperto), JSON.stringify(dopoRiavvio));
+  prova('con una clip nuova, dopo il riavvio, le sezioni sono già nell\'ordine scelto', dopoRiavvio[0] === 'durata' && (await gruppi()).filter((x) => x.aperto).map((x) => x.g).join() === 'immagine', JSON.stringify(dopoRiavvio));
 
   // "Ordine di partenza" rimette tutto com'era
   const haBottone = await page.locator('.isp-ripristina').count();

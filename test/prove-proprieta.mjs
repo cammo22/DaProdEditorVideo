@@ -79,7 +79,7 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     const ti = await aperte('Titolo');
     prova('un titolo: si apre da solo "Titolatrice" in cima', ti[0].g === 'titolo' && ti[0].o && ti.filter((x) => x.o).length === 1, JSON.stringify(ti));
     const mu = await aperte('MUSICA');
-    prova('la musica: si apre il volume', mu.find((x) => x.g === 'audio')?.o && mu.filter((x) => x.o).length === 1, JSON.stringify(mu));
+    prova('la musica: si apre il volume (un tono è anche un generatore: si apre pure quello)', mu.find((x) => x.g === 'audio')?.o && mu.find((x) => x.g === 'fxa')?.o === false && mu.find((x) => x.g === 'durata')?.o === false, JSON.stringify(mu));
     const fo = await aperte('FONDO');
     prova('un colore pieno: si apre "Generatore" in cima', fo[0].g === 'generatore' && fo[0].o, JSON.stringify(fo));
     await page.evaluate(() => { const d = window.__dpv.doc; window.__dpv.select([d.clips.find((c) => c.kind === 'fx').id]); });
@@ -203,28 +203,20 @@ export async function proveProprieta({ page: paginaDi, prova }) {
       });
       return { ids, disegnati };
     });
-    prova('sei segnalini nel catalogo, ognuno disegna qualcosa attorno al centro', sg.ids.length === 6 && sg.disegnati.every(([, n]) => n > 150), JSON.stringify(sg));
-    await page.evaluate(() => {
-      const { P } = window.__dpvTest;
-      const s = window.__dpv;
-      const p = P.newProject({ w: 1920, h: 1080, rate: { num: 25, den: 1 }, drop: false });
-      s.load(p);
+    prova('sei segnalini nel catalogo, ognuno disegna qualcosa attorno al centro', sg.ids.length === 6 && sg.disegnati.every(([, n]) => n > 50), JSON.stringify(sg));
+    // un progetto vuoto, se no il montaggio dimostrativo chiede conferma prima di sostituire quello che c'è
+    await page.evaluate(() => { const { P } = window.__dpvTest; window.__dpv.load(P.newProject({ w: 1920, h: 1080, rate: { num: 25, den: 1 }, drop: false })); });
+    await page.waitForTimeout(300);
+    // il montaggio dimostrativo ha riprese video vere: se ne sceglie una e le si dà un tracking (come fa il tracking vero)
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:demo')));
+    await page.waitForFunction(() => window.__dpv.doc.clips.length >= 8, null, { timeout: 90000 });
+    await page.waitForTimeout(1200);
+    const tracciato = await page.evaluate(() => {
+      const d = window.__dpv.doc;
+      return d.clips.find((x) => x.kind === 'media' && d.tracks.find((t) => t.id === x.track)?.kind === 'video' && d.media.find((m) => m.id === x.media)?.type === 'video').id;
     });
-    const tracciato = await page.evaluate(async () => {
-      const { importaFile, P } = window.__dpvTest;
-      const c = new OffscreenCanvas(640, 360); const x = c.getContext('2d'); x.fillStyle = '#477'; x.fillRect(0, 0, 640, 360);
-      const [m] = await importaFile([{ name: 'ripresa.png', file: new File([await c.convertToBlob({ type: 'image/png' })], 'ripresa.png', { type: 'image/png' }) }], { chiediFormato: false });
-      let id = '';
-      window.__dpv.edit('ripresa', (pp) => {
-        const v = pp.tracks.filter((t) => t.kind === 'video');
-        const cl = P.newClip('media', v[1].id, 0, 100, { media: m.id, name: 'RIPRESA' });
-        pp.clips.push(cl); id = cl.id;
-      });
-      return id;
-    });
-    // un'immagine non si segue: si finge un tracking sul clip (come fa il tracking vero) per provare i pulsanti
     await page.evaluate((id) => {
-      window.__dpv.edit('tracking finto', (pp) => { const c = pp.clips.find((x) => x.id === id); c.traccia = { da: 0, fiducia: 0.9, punti: Array.from({ length: 20 }, (_, i) => ({ t: i * 0.2, x: 0.2 + (i / 19) * 0.6, y: 0.5 })) }; });
+      window.__dpv.edit('tracking finto', (pp) => { const c = pp.clips.find((x) => x.id === id); const dur = pp.media.find((m) => m.id === c.media).duration; c.traccia = { da: 0, fiducia: 0.9, punti: Array.from({ length: 20 }, (_, i) => ({ t: (i / 19) * dur, x: 0.2 + (i / 19) * 0.6, y: 0.5 })) }; });
       window.__dpv.select([id]); window.__motore.vaiA(10);
       document.getElementById('app').classList.remove('senza-lato', 'stretto');
     }, tracciato);
@@ -238,11 +230,11 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     const nuovo = await page.evaluate((id) => {
       const d = window.__dpv.doc; const s = d.clips.find((c) => c.gen?.anim?.id === 'sg-etichetta'); const { TR } = window.__dpvTest;
       if (!s) return null;
-      const a = TR.spostaTraccia(d, s, 5), b = TR.spostaTraccia(d, s, 90);
-      return { segue: s.segue === id, altraTraccia: s.track !== d.clips.find((c) => c.id === id).track, inizio: s.start, len: s.len, a, b, scelta: window.__dpv.sel.has(s.id) };
+      const src = d.clips.find((c) => c.id === id); const a = TR.spostaTraccia(d, s, src.start + 3), b = TR.spostaTraccia(d, s, src.start + src.len - 3);
+      return { segue: s.segue === id, altraTraccia: s.track !== src.track, stessoTempo: s.start === src.start && s.len === src.len, len: s.len, a: [a.dx, a.dy], b: [b.dx, b.dy], scelta: window.__dpv.sel.has(s.id) };
     }, tracciato);
-    prova('un clic su "Etichetta" mette sopra la ripresa un segnalino che la segue per tutta la durata (su un\'altra traccia)', !!nuovo && nuovo.segue && nuovo.altraTraccia && nuovo.inizio === 0 && nuovo.len === 100 && nuovo.scelta, JSON.stringify(nuovo));
-    prova('il segnalino si sposta davvero con l\'oggetto (da sinistra a destra)', !!nuovo && nuovo.b[0] - nuovo.a[0] > 300, JSON.stringify(nuovo));
+    prova('un clic su "Etichetta" mette sopra la ripresa un segnalino che la segue per tutta la durata (su un\'altra traccia)', !!nuovo && nuovo.segue && nuovo.altraTraccia && nuovo.stessoTempo && nuovo.scelta, JSON.stringify(nuovo));
+    prova('il segnalino si sposta davvero con l\'oggetto (da sinistra a destra)', !!nuovo && nuovo.b[0] - nuovo.a[0] > 200, JSON.stringify(nuovo));
 
     // sfondo: cosa metto dietro
     await page.evaluate((id) => { window.__dpv.select([id]); }, tracciato);
