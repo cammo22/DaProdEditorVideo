@@ -1,3 +1,8 @@
+<!-- discord-card -->
+<p align="center">
+  <a href="https://discord.gg/Njs52aacwq"><img src=".github/discord-card.svg" alt="Entra nella community DaProd su Discord" width="720"></a>
+</p>
+
 # DaProd · Video 🎬
 
 [![▶ PROVA ORA](https://img.shields.io/badge/%E2%96%B6_PROVA_ORA-DaProd_Video-ffd54a?style=for-the-badge&labelColor=1a1428)](https://cammo22.github.io/DaProdVideo/app/)
@@ -203,14 +208,3 @@ node test/foto.mjs     # foto del banco (computer, Finale, contenitore, timeline
 - Per ritrovare le cose: `src/ui/cerca.ts` (Ctrl+K) con quello che si trova in `fontiCerca.ts`, `src/ui/guida.ts` (F1, Come si fa), `src/ui/centroAI.ts` (Centro AI) e, sotto, `src/media/libreriaAI.ts` (la libreria AI dentro l'app e i ripieghi), `erroriAI.ts` (gli errori spiegati), `diagnosiAI.ts` (Controlla l'AI).
 - `src/azioni.ts` tutti i comandi con i loro tasti · `src/effetti.ts` gli effetti al volo · `src/export/` export ed EDL · `src/demo.ts` il montaggio dimostrativo.
 - `src-tauri/` l'app Rust, con `gen/android` per l'APK · `test/` le prove.
-
----
-
-<!-- discord-card -->
-## 💬 Community
-
-<p align="center">
-  <a href="https://discord.gg/Njs52aacwq"><img src=".github/discord-card.svg" alt="Entra nella community DaProd su Discord" width="720"></a>
-</p>
-
-Domande, idee, bug o solo voglia di chiacchierare? Entra nel **[Discord di DaProd](https://discord.gg/Njs52aacwq)**: ogni app ha la sua stanza e le nuove versioni arrivano in automatico.
