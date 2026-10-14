@@ -33,6 +33,9 @@
   --ui: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
   --marchio: 'Orbitron', 'Arial Black', sans-serif;
   color-scheme: dark;
+  /* l'altezza della barra del titolo: le finestre a tutto schermo (pagina iniziale, dialoghi, ricerca) stanno sotto,
+     così la finestra si sposta e si chiude anche con un dialogo aperto */
+  --bt-alto: 34px;
 }
 
 * { box-sizing: border-box; }
@@ -145,10 +148,6 @@ button svg { pointer-events: none; }
 .punto-modifica { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ambra); margin-right: 6px; box-shadow: 0 0 6px var(--ambra); }
 .badge { display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 20px; font-size: 11px; font-weight: 700; background: #26242f; color: var(--testo2); border: 1px solid var(--bordo); white-space: nowrap; }
 .badge.edizione { color: var(--verde); border-color: rgba(93, 255, 180, 0.3); }
-/* finestre non larghissime: la testata si stringe invece di uscire dallo schermo */
-@media (max-width: 1560px) { .badge.edizione { display: none; } }
-@media (max-width: 1360px) { .badge.formato, .scritta i { display: none; } .pagina-btn { padding: 5px 10px; } .pagine { margin-left: 6px; } }
-@media (max-width: 1180px) { .pagina-btn span { display: none; } .nome-progetto { max-width: 150px; } .voce-menu { padding: 6px 7px; } }
 .badge.edizione.prova { color: var(--mag); border-color: rgba(255, 61, 242, 0.4); background: rgba(255, 61, 242, 0.08); }
 .badge.usato { color: var(--oro); }
 .badge.segnato { color: var(--cia); }
@@ -925,8 +924,8 @@ button svg { pointer-events: none; }
 .live .fin-testa { gap: 12px; }
 .live-marchio { display: inline-flex; align-items: center; gap: 7px; font: 900 15px var(--marchio); color: var(--rosso); letter-spacing: 2px; }
 .live-marchio i { width: 11px; height: 11px; border-radius: 50%; background: #5b2430; box-shadow: inset 0 1px 2px #000; }
-.live.in-onda .live-marchio i, .live-mini-punto { background: var(--rosso); box-shadow: 0 0 10px var(--rosso); animation: live-pulsa 1s ease-in-out infinite; }
-.live.in-pausa .live-marchio i, .live-mini.in-pausa .live-mini-punto { animation: none; background: var(--oro); box-shadow: 0 0 8px var(--oro); }
+.live.in-onda .live-marchio i { background: var(--rosso); box-shadow: 0 0 10px var(--rosso); animation: live-pulsa 1s ease-in-out infinite; }
+.live.in-pausa .live-marchio i { animation: none; background: var(--oro); box-shadow: 0 0 8px var(--oro); }
 @keyframes live-pulsa { 50% { opacity: 0.35; } }
 .live-tastiera { margin-left: auto; color: var(--testo3); font: 600 11.5px var(--ui); white-space: nowrap; }
 .live-tastiera kbd { margin-left: 4px; }
@@ -1005,12 +1004,36 @@ button svg { pointer-events: none; }
 .stretto .live-dentro { grid-template-columns: 1fr; grid-template-rows: 40vh auto; }
 .stretto .live-tastiera { display: none; }
 /* il telecomando: nella finestrella sopra le altre (browser) o nella finestra dell'app fatta piccola */
-.live-mini { display: none; align-items: center; gap: 7px; padding: 10px 12px; background: linear-gradient(180deg, #1d1b24, #111016); color: var(--testo); font: 700 13px var(--ui); box-sizing: border-box; }
+/* il telecomando: quasi quadrato, sempre sopra; anteprima, tempo, PAUSA grande (src/ui/telecomando.ts) */
+.live-mini { display: none; flex-direction: column; gap: 8px; padding: 10px; background: linear-gradient(180deg, #1d1b24, #111016); color: var(--testo); font: 700 13px var(--ui); box-sizing: border-box; }
 .live-mini.su { display: flex; }
-.live-mini-punto { width: 12px; height: 12px; border-radius: 50%; flex: none; }
-.live-mini-tempo { flex: 1; font: 400 26px var(--tc); color: var(--rosso); letter-spacing: 1px; }
-.live-mini.in-pausa .live-mini-tempo { color: var(--oro); }
-.live-mini .live-btn { height: 38px; min-width: 42px; padding: 0 10px; }
+.tele-testa { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+html[data-finestra='mac'].mini-live .tele-testa { padding-left: 64px; }
+.live-mini-punto { width: 12px; height: 12px; border-radius: 50%; flex: none; background: #4a4655; }
+.live-mini.in-onda .live-mini-punto { background: var(--rosso); box-shadow: 0 0 10px var(--rosso); animation: live-pulsa 1s ease-in-out infinite; }
+.live-mini.in-pausa .live-mini-punto { animation: none; background: var(--oro); box-shadow: 0 0 8px var(--oro); }
+.tele-spia { font: 900 11px var(--marchio); letter-spacing: 1.5px; color: var(--testo3); }
+.live-mini.in-onda .tele-spia { color: var(--rosso); }
+.tele-tempo { flex: 1; font: 400 24px var(--tc); color: var(--testo2); letter-spacing: 1px; }
+.live-mini.in-onda .tele-tempo { color: var(--rosso); }
+.live-mini.in-pausa .tele-tempo, .live-mini.in-pausa .tele-spia { color: var(--oro); }
+.tele-segni { color: var(--cia); font-size: 12px; }
+.tele-torna { height: 30px; min-width: 34px; padding: 0 8px; }
+.tele-quadro { position: relative; flex: 1; min-height: 120px; border-radius: 10px; overflow: hidden; background: #000; border: 1px solid #000; box-shadow: inset 0 0 0 1px var(--bordo); cursor: pointer; }
+.tele-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.tele-cam { position: absolute; right: 8px; bottom: 8px; width: 26%; aspect-ratio: 1; object-fit: cover; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.8); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6); }
+.tele-cam.via { display: none; }
+.tele-pausa-scritta { display: none; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 12px; border-radius: 8px; background: rgba(0, 0, 0, 0.7); color: var(--oro); font: 900 13px var(--marchio); letter-spacing: 1.5px; }
+.live-mini.in-pausa .tele-pausa-scritta { display: block; }
+.tele-spenta { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--testo3); font-size: 12px; }
+.tele-quadro.spenta video { display: none; }
+.tele-quadro.spenta .tele-spenta { display: flex; }
+.tele-tasti { display: grid; grid-template-columns: 1.6fr 1fr; gap: 6px; }
+.tele-tasti.tre { grid-template-columns: 1.2fr 0.6fr 1fr; }
+.live-mini .live-btn { height: 40px; padding: 0 10px; justify-content: center; }
+.live-mini .tele-grande { height: 50px; font-size: 15px; }
+.live-mini .live-btn.acceso { color: var(--oro); }
+.tele-piede { color: var(--testo3); font-size: 11px; text-align: center; }
 html.mini-live body > *:not(.live-mini) { display: none !important; }
 html.mini-live .live-mini.su, body.pip-live .live-mini.su { position: fixed; inset: 0; }
 body.pip-live { margin: 0; background: #111016; overflow: hidden; }
@@ -1152,18 +1175,55 @@ body.pip-live { margin: 0; background: #111016; overflow: hidden; }
 .btn-cerca:hover, .btn-ai:hover { color: var(--oro); }
 .btn-ai { color: #ffd0fb; border-color: #4a1546; background: linear-gradient(180deg, #3a1d3d, #26142b); }
 .btn-ai:hover { color: #fff; box-shadow: 0 0 12px rgba(255, 61, 242, 0.35); }
-/* la testata a gradini: prima vanno via le scritte di contorno, per ultime le etichette delle pagine; Esporta resta
-   sempre in vista (prima, su uno schermo da portatile, la testata traboccava e il tasto Esporta finiva fuori) */
-.btn-cerca kbd { display: none; }
-@media (min-width: 2000px) { .btn-cerca kbd { display: inline; } }
+/* la testata, alleggerita (le cose rapide sono nella barra del titolo): menu, AI, le pagine al centro, Esporta. Sotto
+   una certa larghezza vanno via le etichette, ma Esporta resta sempre in vista */
 .testata > * { flex-shrink: 0; }
-.testata-destra { min-width: 0; flex-shrink: 1; }
-@media (max-width: 1840px) { .badge.edizione { display: none; } }
-@media (max-width: 1720px) { .badge.formato { display: none; } .btn-progetti span { display: none; } .nome-progetto { max-width: 170px; } }
-@media (max-width: 1620px) { .voce-menu { padding: 6px 7px; } .pagina-btn { padding: 5px 10px; letter-spacing: 1px; } .pagine { margin-left: 4px; } .testata { gap: 7px; } }
-@media (max-width: 1520px) { .btn-cerca { min-width: 0; } .btn-cerca span { display: none; } .scritta i { display: none; } }
-@media (max-width: 1420px) { .marchio .scritta { display: none; } .nome-progetto { display: none; } }
-@media (max-width: 1250px) { .pagina-btn span, .btn-ai span { display: none; } .voce-menu { padding: 6px 5px; } }
+.testata .pagine { margin: 0 auto; }
+.testata-destra { margin-left: 0; min-width: 0; flex-shrink: 1; }
+@media (max-width: 1320px) { .voce-menu { padding: 6px 7px; } .pagina-btn { padding: 5px 10px; letter-spacing: 1px; } .testata { gap: 7px; } }
+@media (max-width: 1120px) { .pagina-btn span, .btn-ai span { display: none; } .voce-menu { padding: 6px 5px; } }
+
+/* ——— la barra del titolo: sempre bianca, anche col tema scuro del sistema ——— */
+body { display: flex; flex-direction: column; }
+.home, .velo, .cerca-velo { top: var(--bt-alto); }
+#app { flex: 1; min-height: 0; height: auto; }
+.barra-titolo { flex: none; height: var(--bt-alto); display: flex; align-items: center; gap: 10px; padding: 0 0 0 10px;
+  background: #ffffff; color: #24212c; border-bottom: 1px solid #dcd8e3; position: relative; z-index: 6; font: 700 12.5px var(--ui); color-scheme: light; }
+html[data-finestra='mac'] .barra-titolo { padding-left: 80px; }
+html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo { padding-right: 10px; }
+.barra-titolo .marchio { padding: 0; }
+.barra-titolo .moneta { width: 22px; height: 22px; font-size: 12px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); }
+.barra-titolo .scritta { color: #1c1726; font-size: 13px; }
+.barra-titolo .scritta b { color: #c88d00; }
+.barra-titolo .scritta i { color: #c41bb9; }
+.bt-rapidi { display: flex; align-items: center; gap: 2px; }
+.bt-sep { width: 1px; height: 18px; background: #e2dfe8; margin: 0 4px; }
+.bt-icona { display: grid; place-items: center; width: 30px; height: 26px; border: 0; border-radius: 6px; background: none; color: #4a4655; }
+.bt-icona:hover:not(:disabled) { background: #efedf3; color: #15121c; }
+.bt-icona:disabled { opacity: 0.35; cursor: default; }
+.barra-titolo .btn-progetti { border: 1px solid #e2dfe8; background: #f6f5f9; color: #3a3644; box-shadow: none; margin-right: 4px; }
+.barra-titolo .btn-progetti:hover { background: #fff6d6; color: #6b4d00; border-color: #f0d88a; }
+.bt-centro { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.barra-titolo .nome-progetto { color: #1c1726; font-size: 13px; max-width: 36vw; padding: 3px 8px; border-radius: 6px; }
+.barra-titolo .nome-progetto:hover { background: #efedf3; }
+.barra-titolo .badge { background: #f3f1f6; color: #6a6676; border-color: #e2dfe8; }
+.barra-titolo .badge.edizione { color: #0b8a55; border-color: #b8ebd3; background: #effbf5; }
+.barra-titolo .badge.edizione.prova { color: #b0169f; border-color: #f2c4ec; background: #fdf0fb; }
+.bt-destra { display: flex; align-items: center; gap: 6px; }
+.barra-titolo .btn-cerca { min-width: 190px; height: 26px; padding: 3px 10px; border: 1px solid #e2dfe8; background: #f6f5f9; color: #6a6676; box-shadow: none; }
+.barra-titolo .btn-cerca:hover { border-color: #f0d88a; color: #3a3644; background: #fffdf3; }
+.barra-titolo .btn-cerca kbd { display: inline; background: #fff; border-color: #dcd8e3; color: #8b8696; }
+.barra-titolo .btn-icona { color: #4a4655; }
+.barra-titolo .btn-icona:hover { background: #efedf3; color: #15121c; }
+.bt-finestra { display: flex; align-self: stretch; margin-left: 4px; }
+.bt-tasto { width: 46px; border: 0; border-radius: 0; background: none; color: #1f1c26; display: grid; place-items: center; }
+.bt-tasto:hover { background: #e9e7ee; }
+.bt-tasto.chiudi:hover { background: #e81123; color: #fff; }
+.bt-glifo { display: grid; place-items: center; }
+@media (max-width: 1500px) { .barra-titolo .badge.edizione { display: none; } }
+@media (max-width: 1280px) { .barra-titolo .badge.formato, .barra-titolo .scritta i { display: none; } .barra-titolo .btn-cerca { min-width: 0; } .barra-titolo .btn-cerca kbd { display: none; } }
+@media (max-width: 1080px) { .barra-titolo .scritta, .barra-titolo .btn-progetti span { display: none; } .barra-titolo .btn-cerca span { display: none; } }
+@media (max-width: 900px) { .barra-titolo .nome-progetto { max-width: 46vw; } }
 
 .cerca-velo { position: fixed; inset: 0; z-index: 950; background: rgba(5, 4, 10, 0.55); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding-top: 11vh; animation: appare 0.12s; }
 .cerca { width: min(700px, calc(100vw - 24px)); max-height: 72vh; display: flex; flex-direction: column; background: linear-gradient(180deg, #221f2b, #17161d); border: 1px solid #000; border-radius: 14px; box-shadow: var(--ombra), inset 0 0 0 1px var(--bordo-forte), 0 0 40px rgba(255, 213, 74, 0.08); overflow: hidden; animation: sale 0.15s; }

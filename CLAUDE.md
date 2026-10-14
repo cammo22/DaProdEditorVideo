@@ -37,7 +37,7 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   La **webcam** ha il suo registratore (`nastro`), stesso taglio dello schermo, file suo, e va sulla traccia sopra
   come bolla (`bolla` in `src/core/cornici.ts`); sotto, con lo **stile presentazione**, un colore sfumato (`gen.color2`).
   Tasti R / Spazio / M (segni → marcatori) / F, presi prima di quelli del montaggio solo su LIVE; 3-2-1 (`opz.conto`,
-  le prove vecchie lo spengono); telecomando = Document PiP nel browser, finestra piccola `setAlwaysOnTop` nell'app
+  le prove vecchie lo spengono); telecomando (`telecomando.ts`) = Document PiP nel browser, finestra piccola `setAlwaysOnTop` nell'app
   (permessi in `capabilities/default.json`). Le scelte stanno in localStorage `dpv-live`; le registrazioni vanno
   nella cartella *Registrazioni* e non propongono il formato del progetto.
 - **Sposta e ingrandisci sull'immagine** (`src/ui/posiziona.ts`, dentro il monitor): clic sull'immagine sceglie la clip più
@@ -142,6 +142,15 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   regex → frase italiana con cosa fare; le frasi già italiane passano). Nemotron che sbaglia → Whisper da solo (`ripiego` in `sottotitoliAI`), e
   NeMo riprova con `--device cpu` (`eseguiConRipiego`). Nelle prove la libreria finta si serve anche su `**/ai/transformers.min.js`.
   Prove: `test/prove-aiuto.mjs`.
+- **Barra del titolo e telecomando (1.3.2)**: `src/ui/barraTitolo.ts` = barra **sempre bianca** sopra `#app` (body è una colonna flex;
+  `--bt-alto` = 34px, `.home/.velo/.cerca-velo` partono da lì) con marchio, Progetti, Salva, Importa, `.bt-annulla/.bt-ripeti`, nome
+  progetto, Cerca, aggiornamenti; `data-tauri-drag-region="deep"`. `html[data-finestra]` = `win` (Windows/Linux: `decorations:false` in
+  `tauri.windows.conf.json`/`tauri.linux.conf.json` — **copie intere della finestra**, il merge sostituisce l'array — e i tasti — □ ✕
+  `.bt-finestra`), `mac` (`titleBarStyle: Overlay`, 80px a sinistra per i semafori), `web`. La testata ha solo menu (`barraMenu.ts` +
+  voci in `menuBanco.ts`), AI, pagine, Esporta. Bordi/pannelli: `disposizione.ts` (`disp.alterna(classe)`). **Telecomando**:
+  `src/ui/telecomando.ts` (`Telecomando`: 360×420, anteprima = gli stessi `MediaStream` di `video`/`cam`, spegnibile con
+  `dpv-tele-anteprima`; PiP nel browser, finestra piccola `setAlwaysOnTop` nell'app; `modoPiccolo` = `html.mini-live`, usato anche dalle
+  prove con `live.telecomandoNellaPagina(true)`). Prove: `test/prove-banco.mjs`.
 - **Cursore che si aggancia** (`agganciaCursore` in `src/ui/timeline.ts`): sul righello si aggancia sempre (calamita `N`), Alt lo lascia libero.
 - **Motore NVIDIA** (`src-tauri/src/motori.rs` + `src/media/nemo.ts`): NeMo-Speech.cpp **0.2.0** (Apache-2.0; la 0.1.0 non aveva gli archivi), programma a parte che l'app
   scarica dalla release di NVIDIA (`nemo-speech-<versione>-{windows,macos,linux}-{x86_64,aarch64}-{cpu,cuda,vulkan,metal}`, `.sha256` a fianco) in

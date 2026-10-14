@@ -4,6 +4,27 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.3.2] — 2026-10-14 · La barra bianca e il telecomando con l'anteprima 🎛️
+
+### La barra del titolo, bianca
+- **In alto c'è una barra bianca, sempre**, anche se Windows è in modalità scura. Nell'app per Windows prende il posto della barra del sistema: si trascina, col doppio clic si ingrandisce e ha i suoi tasti riduci, ingrandisci e chiudi. Sul Mac i tre semafori stanno sopra la nostra barra, a sinistra.
+- **Dentro ci sono le cose rapide**: il marchio, **Progetti**, **Salva**, **Importa**, **Annulla** e **Ripeti** (che dicono cosa annullano e si spengono quando non c'è niente), il **nome del progetto** col puntino delle modifiche e il formato, la **ricerca** (Ctrl+K) e gli aggiornamenti.
+- **La testata respira**: restano i menu, il tasto ✨ AI, le quattro pagine al centro ed **Esporta** a destra. Prima era troppo piena e sui portatili le scritte sparivano presto; ora le etichette delle pagine restano anche su finestre più strette.
+- Pagina iniziale, dialoghi e ricerca si aprono sotto la barra, così la finestra si sposta e si chiude anche quando sono aperti. Il titolo della finestra ha il nome del progetto (col pallino se ci sono modifiche da salvare).
+
+### Il telecomando di LIVE
+- **Quasi quadrato e sempre in primo piano**, con l'**anteprima di quello che stai registrando** (e la webcam nel suo angolo), il tempo grande con la spia REC, **PAUSA/RIPRENDI** grande (con la scritta "in pausa" sopra l'anteprima), **SEGNA** (conta i segni), **⇄ FINESTRA** quando registri più finestre e **FERMA**.
+- Un clic sull'anteprima (o sull'occhio) la spegne o la riaccende, e la scelta si ricorda. I tasti di LIVE (Spazio, M, F, 1-9) valgono anche dentro al telecomando.
+- Nel browser (Chrome, Edge) è una finestrella Picture-in-Picture; nell'app è la finestra che si fa piccola e si mette sopra alle altre, e torna com'era quando premi ⤢ o FERMA.
+
+### Sistemato
+- SEGNA aggiornava il contatore del telecomando solo al giro dopo dell'orologio: ora subito.
+
+### Per chi ha curiosità
+- Pezzi nuovi, presi da `app.ts` (da 469 a 305 righe) e `live.ts`: `src/ui/barraTitolo.ts` (la barra), `barraMenu.ts` (le tendine), `menuBanco.ts` (le voci dei menu), `disposizione.ts` (bordi e pannelli che si ricordano), `telecomando.ts`.
+- Finestra: `"theme": "Light"`; `tauri.windows.conf.json` e `tauri.linux.conf.json` tolgono la cornice (`decorations: false`), `tauri.macos.conf.json` fa la barra del sistema trasparente (`titleBarStyle: Overlay`). Permessi nuovi per riduci/ingrandisci/chiudi/trascina.
+- Prove nuove in `test/prove-banco.mjs`. **Nota onesta**: la finestra senza cornice di Windows e i semafori del Mac non si possono provare da qui (le prove girano nel browser): provale tu sull'app.
+
 ## [1.3.1] — 2026-10-07 · Il play non si ferma più sui computer lenti ▶️
 
 Una versione piccola, con due correzioni trovate guardando le prove automatiche dopo l'uscita della 1.3.0.
