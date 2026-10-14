@@ -18,6 +18,9 @@ export const DISEGNA: Record<string, (q: Q) => void> = {
   ...SOTTOPANCIA, ...TESTO, ...DATI, ...SOCIAL, ...SFONDI, ...CERIMONIA,
 };
 
+/** la larghezza virtuale (su 1080 di altezza) sotto cui si rimpicciolisce: 1500 ≈ un po' meno del 4:3 */
+const LARGA_MIN = 1500;
+
 const tele = new Map<string, Tela>();
 
 /** la firma dei valori di una specifica (cambia quando cambi un testo o un colore: serve a ridisegnare) */
@@ -41,7 +44,11 @@ export function disegnaAnimazione(spec: AnimSpec, W: number, H: number, t: numbe
   const f = DISEGNA[spec.id];
   if (f && animazione(spec.id)) {
     c.save();
-    try { f({ c, w: W / s, h: 1080, t: Math.max(0, t), d: Math.max(0.1, d), v: valoriDi(spec) }); } catch { /* un'animazione che si rompe lascia il fotogramma com'è */ }
+    // formati stretti (verticale, quadrato): le animazioni sono pensate per una tela larga almeno quanto il 4:3, così si
+    // disegna su una tela virtuale più larga e poi si rimpicciolisce tutto insieme (niente scritte fuori dallo schermo)
+    let w = W / s, h = 1080;
+    if (w < LARGA_MIN) { const k = w / LARGA_MIN; c.scale(k, k); w = LARGA_MIN; h = 1080 / k; }
+    try { f({ c, w, h, t: Math.max(0, t), d: Math.max(0.1, d), v: valoriDi(spec) }); } catch { /* un'animazione che si rompe lascia il fotogramma com'è */ }
     c.restore();
   }
   c.setTransform(1, 0, 0, 1, 0, 0);

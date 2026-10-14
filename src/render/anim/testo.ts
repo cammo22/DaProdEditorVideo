@@ -3,15 +3,18 @@
 import { E, Q, adatta, caso, chiaro, col, famiglia, hexA, larg, num, prog, resta, rettTondo, righe, scrivi, scriviSfocato, sopra, tx, lerp, clamp01 } from './base';
 
 const grande = (q: Q, base: number) => base * (num(q, 'dim', 100) / 100);
+/** la parola più lunga (una parola sola non va a capo: è lei che decide quanto può essere grande il testo) */
+const piuLunga = (s: string) => s.split(/\s+/).reduce((a, p) => (p.length > a.length ? p : a), '');
 
 /** 1) Parole che salgono (da sfocate a nitide) */
 function parole(q: Q) {
   const { c } = q;
   const testo = tx(q, 'testo', 'Un giorno speciale');
-  const size = grande(q, 100), fam = famiglia(q.v, 'font');
+  const fam = famiglia(q.v, 'font');
+  const max = q.w * 0.82;
+  const size = adatta(c, piuLunga(testo), (px) => `700 ${px}px ${fam}`, grande(q, 100), max);
   const font = `700 ${size}px ${fam}`;
   const unaLettera = q.v.unita === 'lettera';
-  const max = q.w * 0.82;
   const rr = righe(c, testo, font, max);
   const lh = size * 1.18;
   const y0 = (q.h - rr.length * lh) / 2;
@@ -122,7 +125,8 @@ function cambia(q: Q) {
 function colpo(q: Q) {
   const { c } = q;
   const testo = tx(q, 'testo', 'È ARRIVATO IL MOMENTO');
-  const size = grande(q, 150), fam = famiglia(q.v, 'font', 'archivo');
+  const fam = famiglia(q.v, 'font', 'archivo');
+  const size = adatta(c, piuLunga(testo), (px) => `900 ${px}px ${fam}`, grande(q, 150), q.w * 0.86);
   const font = `900 ${size}px ${fam}`;
   const par = testo.split(/\s+/).filter(Boolean);
   const lh = size * 1.1;
@@ -169,7 +173,8 @@ function penna(q: Q) {
   const { c } = q;
   const testo = tx(q, 'testo', 'La cosa più importante è esserci');
   const parola = tx(q, 'parola', '');
-  const size = grande(q, 92), fam = famiglia(q.v, 'font');
+  const fam = famiglia(q.v, 'font');
+  const size = adatta(c, piuLunga(testo), (px) => `700 ${px}px ${fam}`, grande(q, 92), q.w * 0.82);
   const font = `700 ${size}px ${fam}`;
   const rr = righe(c, testo, font, q.w * 0.82);
   const lh = size * 1.3;
@@ -208,8 +213,9 @@ function titolo(q: Q) {
   const { c } = q;
   const t = tx(q, 'titolo', 'Una storia lunga un giorno');
   const s = tx(q, 'sottotitolo', '');
-  const size = grande(q, 120), fam = famiglia(q.v, 'font', 'playfair');
-  const f1 = `700 ${size}px ${fam}`, f2 = `500 ${size * 0.34}px "Montserrat", sans-serif`;
+  const fam = famiglia(q.v, 'font', 'playfair');
+  const size = adatta(c, piuLunga(t), (px) => `700 ${px}px ${fam}`, grande(q, 120), q.w * 0.8);
+  const f1 = `700 ${size}px ${fam}`;
   const rr = righe(c, t, f1, q.w * 0.8);
   const lh = size * 1.12;
   const hT = rr.length * lh;
@@ -227,7 +233,8 @@ function titolo(q: Q) {
   const lw = Math.min(q.w * 0.5, 620) * prog(q.t, 0.7, 0.8, E.p4out);
   c.fillStyle = hexA(col(q, 'accento', '#ffd23f'), u);
   c.fillRect(q.w / 2 - lw / 2, ly, lw, 5);
-  if (s) scrivi(c, s.toUpperCase(), q.w / 2, ly + 34 + 18 * (1 - prog(q.t, 1.1, 0.7, E.p3out)), { font: f2, colore: '#fff', align: 'center', base: 'top', spazio: size * 0.06, alfa: prog(q.t, 1.1, 0.6, E.p2out) * u, ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
+  const f2px = s ? adatta(c, s.toUpperCase(), (px) => `500 ${px}px "Montserrat", sans-serif`, size * 0.34, q.w * 0.84, size * 0.06) : 0;
+  if (s) scrivi(c, s.toUpperCase(), q.w / 2, ly + 34 + 18 * (1 - prog(q.t, 1.1, 0.7, E.p3out)), { font: `500 ${f2px}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'top', spazio: size * 0.06, alfa: prog(q.t, 1.1, 0.6, E.p2out) * u, ombra: { blur: 18, colore: 'rgba(0,0,0,.5)' } });
 }
 
 /** 7) Scritta a mano */

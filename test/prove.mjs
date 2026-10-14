@@ -125,8 +125,8 @@ try {
   await page.locator('.tl-tela').focus();
   await tasto('1');
   d = await doc();
-  prova('1 taglia tutte le tracce sotto il cursore', d.clips.length === prima + 3, `${prima} → ${d.clips.length}`);
-  prova('i pezzi si toccano al fotogramma 60', d.clips.filter((c) => c.start === 60).length === 3);
+  prova('1 senza selezione taglia solo la clip in alto sotto il cursore e la sua audio legata', d.clips.length === prima + 2, `${prima} → ${d.clips.length}`);
+  prova('i pezzi si toccano al fotogramma 60', d.clips.filter((c) => c.start === 60).length === 2);
   const sx = d.clips.find((c) => c.start === 60 && c.kind === 'media' && d.tracks.find((t) => t.id === c.track).kind === 'video');
   prova('il pezzo di destra riparte dal punto giusto della sorgente', Math.abs(sx.srcIn - 60 / 25) < 1e-6, sx.srcIn);
   const pezzoA = d.clips.find((c) => c.start === 60 && d.tracks.find((t) => t.id === c.track).kind === 'audio');
@@ -141,7 +141,7 @@ try {
   await page.evaluate((id) => window.__dpv.select([id]), sx.id);
   await tasto('2');
   d = await doc();
-  prova('2 elimina la clip selezionata e la sua audio', d.clips.length === prima + 1 && !d.clips.some((c) => c.id === sx.id), d.clips.length);
+  prova('2 elimina la clip selezionata e la sua audio', d.clips.length === prima && !d.clips.some((c) => c.id === sx.id), d.clips.length);
   {
     const sel = await page.evaluate(() => [...window.__dpv.sel]);
     const dopoV = d.clips.filter((c) => c.kind !== 'fx' && d.tracks.find((t) => t.id === c.track).name === 'V1' && c.start >= 60).sort((a, b) => a.start - b.start)[0];
@@ -149,9 +149,9 @@ try {
   }
   prova('senza ripple resta il buco', !d.clips.some((c) => c.start === 60 && d.tracks.find((t) => t.id === c.track).name === 'V1'));
   await tasto('Control+z');
-  prova('Ctrl+Z riporta le clip', (await conta()) === prima + 3);
+  prova('Ctrl+Z riporta le clip', (await conta()) === prima + 2);
   await tasto('Control+y');
-  prova('Ctrl+Y le toglie di nuovo', (await conta()) === prima + 1);
+  prova('Ctrl+Y le toglie di nuovo', (await conta()) === prima);
   await tasto('Control+z');
 
   console.log('▶ Tasto 3: elimina e chiudi');
@@ -417,12 +417,14 @@ try {
     const box = await page.locator('.tl-tela').boundingBox();
     const q = await punto(0.5);
     await page.mouse.move(box.x + q.x, box.y + q.y);
+    await page.keyboard.down('Shift');
     await page.mouse.down();
     await page.mouse.move(box.x + q.x, box.y + q.y - 12, { steps: 4 });
     await page.mouse.up();
+    await page.keyboard.up('Shift');
     let dd = await doc();
     const g1 = dd.clips.find((c) => c.id === q.id).gain;
-    prova('trascinando la linea gialla il volume della clip sale', g1 > 0, g1);
+    prova('Maiusc+trascinando la linea gialla il volume di tutta la clip sale', g1 > 0, g1);
     const q2 = await punto(0.3);
     await page.mouse.dblclick(box.x + q2.x, box.y + q2.y);
     dd = await doc();

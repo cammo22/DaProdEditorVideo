@@ -1,6 +1,6 @@
 // Social e chiusure: segui, iscriviti, invito finale, post, notifica del telefono, chat. Idee dai blocchi
 // instagram-follow, tiktok-follow, cta-close, x-post, native-notification-pop e message-thread-reveal di HyperFrames.
-import { E, Q, caso, chiaro, col, famiglia, hexA, larg, lerp, migliaia, num, prog, resta, rettTondo, righe, scrivi, scuro, sopra, tx, clamp01 } from './base';
+import { E, Q, accorcia, caso, chiaro, col, conAdatta, famiglia, hexA, larg, lerp, migliaia, num, prog, resta, rettTondo, righe, scrivi, scuro, sopra, tx, clamp01 } from './base';
 import type { Ctx2D } from './base';
 
 const gr = (q: Q) => num(q, 'dim', 100) / 100;
@@ -26,12 +26,19 @@ function manoCheClicca(q: Q, x1: number, y1: number, ta: number, tb: number, tc:
   puntatore(q.c, lerp(x0, x1, k) + 60 * s * esce, lerp(y0, y1, k) + 50 * s * esce, s * (1 - 0.1 * click), (1 - esce) * Math.min(1, k * 3));
 }
 
-/** 1) Segui */
+/** 1) Segui: la scheda si allarga con il nome e con la scritta del pulsante (e se non basta lo schermo, `conAdatta` la rimpicciolisce) */
 function segui(q: Q) {
   const { c } = q;
   const s = gr(q), colore = col(q, 'colore', '#ff2d6f');
   const nome = tx(q, 'nome', '@daprod'), et = tx(q, 'etichetta', 'Segui');
-  const W = 960 * s, H = 176 * s;
+  const fNome = `700 ${44 * s}px "Montserrat", sans-serif`, fSub = `500 ${26 * s}px "Montserrat", sans-serif`, fBot = `700 ${32 * s}px "Montserrat", sans-serif`;
+  const dopoEt = '✓ Segui già';
+  // le misure: l'avatar, il nome (e la riga sotto), il pulsante largo quanto la sua scritta più lunga
+  const r = 62 * s, margine = 40 * s, gapNome = 28 * s, gapBot = 36 * s;
+  const wNome = Math.max(larg(c, nome, fNome), larg(c, 'Consigliato per te', fSub), larg(c, 'Ora lo segui', fSub));
+  const bw = Math.max(240 * s, Math.max(larg(c, et, fBot), larg(c, dopoEt, fBot)) + 80 * s), bh = 78 * s;
+  const W = Math.max(720 * s, margine + r * 2 + gapNome + wNome + gapBot + bw + margine), H = 176 * s;
+  q.misura?.(W);
   const pos = String(q.v.pos ?? 'sinistra');
   const x = pos === 'centro' ? (q.w - W) / 2 : pos === 'destra' ? q.w - 120 - W : 120, y = q.h - 130 - H - (pos === 'centro' ? 380 : 0);
   const ent = prog(q.t, 0.1, 0.6, E.back(1.5)), u = resta(q, 0.45);
@@ -44,21 +51,21 @@ function segui(q: Q) {
   c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 50; c.shadowOffsetY = 18;
   rettTondo(c, x, y, W, H, 36 * s); c.fillStyle = '#14151b'; c.fill(); c.shadowColor = 'transparent';
   // l'avatar: un cerchio sfumato con l'iniziale
-  const r = 62 * s, ax = x + 40 * s + r, ay = y + H / 2;
+  const ax = x + margine + r, ay = y + H / 2;
   const g = c.createLinearGradient(ax - r, ay - r, ax + r, ay + r); g.addColorStop(0, chiaro(colore, 0.2)); g.addColorStop(1, scuro(colore, 0.2));
   c.beginPath(); c.arc(ax, ay, r, 0, Math.PI * 2); c.fillStyle = g; c.fill();
   c.lineWidth = 5 * s; c.strokeStyle = '#14151b'; c.stroke();
   scrivi(c, (nome.replace('@', '')[0] || 'D').toUpperCase(), ax, ay + 2 * s, { font: `800 ${68 * s}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'middle' });
-  scrivi(c, nome, ax + r + 28 * s, ay - 18 * s, { font: `700 ${44 * s}px "Montserrat", sans-serif`, colore: '#fff', base: 'middle' });
-  scrivi(c, dopo ? 'Ora lo segui' : 'Consigliato per te', ax + r + 28 * s, ay + 26 * s, { font: `500 ${26 * s}px "Montserrat", sans-serif`, colore: '#9aa0ad', base: 'middle' });
-  // il pulsante
-  const bw = 240 * s, bh = 78 * s, bx = x + W - 40 * s - bw, by = y + (H - bh) / 2;
+  scrivi(c, nome, ax + r + gapNome, ay - 18 * s, { font: fNome, colore: '#fff', base: 'middle' });
+  scrivi(c, dopo ? 'Ora lo segui' : 'Consigliato per te', ax + r + gapNome, ay + 26 * s, { font: fSub, colore: '#9aa0ad', base: 'middle' });
+  // il pulsante (sta sempre a destra, e il nome non ci finisce mai sotto)
+  const bx = x + W - margine - bw, by = y + (H - bh) / 2;
   const sc = 1 - 0.07 * pr;
   c.save(); c.translate(bx + bw / 2, by + bh / 2); c.scale(sc, sc); c.translate(-bw / 2, -bh / 2);
   rettTondo(c, 0, 0, bw, bh, bh / 2);
   if (!dopo) { c.fillStyle = colore; c.fill(); }
   else { c.fillStyle = 'rgba(255,255,255,.08)'; c.fill(); c.lineWidth = 3 * s; c.strokeStyle = 'rgba(255,255,255,.35)'; c.stroke(); }
-  scrivi(c, dopo ? '✓ Segui già' : et, bw / 2, bh / 2 + 2 * s, { font: `700 ${32 * s}px "Montserrat", sans-serif`, colore: dopo ? '#fff' : sopra(colore), align: 'center', base: 'middle' });
+  scrivi(c, dopo ? dopoEt : et, bw / 2, bh / 2 + 2 * s, { font: fBot, colore: dopo ? '#fff' : sopra(colore), align: 'center', base: 'middle' });
   c.restore();
   // l'onda del clic
   const onda = prog(q.t, premuto, 0.7, E.p3out);
@@ -72,9 +79,11 @@ function iscriviti(q: Q) {
   const { c } = q;
   const s = gr(q), colore = col(q, 'colore', '#ff0033');
   const et = tx(q, 'etichetta', 'ISCRIVITI');
-  const bw = 460 * s, bh = 112 * s;
+  const fEt = `800 ${46 * s}px "Montserrat", sans-serif`;
+  const bh = 112 * s, bw = Math.max(460 * s, Math.max(larg(c, et.toUpperCase(), fEt, 2 * s), larg(c, 'ISCRITTO', fEt, 2 * s)) + 90 * s);
   const pos = String(q.v.pos ?? 'sinistra');
   const tot = bw + 24 * s + bh;
+  q.misura?.(tot);
   const x = pos === 'centro' ? (q.w - tot) / 2 : pos === 'destra' ? q.w - 120 - tot : 120, y = q.h - 150 - bh - (pos === 'centro' ? 300 : 0);
   const ent = prog(q.t, 0.1, 0.6, E.back(1.6)), u = resta(q, 0.45);
   const premuto = 1.9, dopo = q.t > premuto;
@@ -85,7 +94,7 @@ function iscriviti(q: Q) {
   const sc = 1 - 0.06 * pr;
   c.save(); c.translate(x + bw / 2, y + bh / 2); c.scale(sc, sc); c.translate(-bw / 2, -bh / 2);
   rettTondo(c, 0, 0, bw, bh, 18 * s); c.fillStyle = dopo ? 'rgba(60,60,66,.95)' : colore; c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 30; c.shadowOffsetY = 10; c.fill(); c.shadowColor = 'transparent';
-  scrivi(c, dopo ? 'ISCRITTO' : et.toUpperCase(), bw / 2, bh / 2 + 2 * s, { font: `800 ${46 * s}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'middle', spazio: 2 * s });
+  scrivi(c, dopo ? 'ISCRITTO' : et.toUpperCase(), bw / 2, bh / 2 + 2 * s, { font: fEt, colore: '#fff', align: 'center', base: 'middle', spazio: 2 * s });
   c.restore();
   // la campanella
   const cx = x + bw + 24 * s + bh / 2, cy = y + bh / 2;
@@ -156,10 +165,13 @@ function post(q: Q) {
   const g = c.createLinearGradient(x, y, x + 100 * s, y + 100 * s); g.addColorStop(0, chiaro(colore, 0.2)); g.addColorStop(1, scuro(colore, 0.2)); c.fillStyle = g; c.fill();
   scrivi(c, (nome[0] || 'D').toUpperCase(), x + pad + 46 * s, ay + 2 * s, { font: `800 ${50 * s}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'middle' });
   const nx = x + pad + 110 * s;
-  const wn = scrivi(c, nome, nx, ay - 16 * s, { font: `700 ${38 * s}px "Montserrat", sans-serif`, colore: '#0f1419', base: 'middle' });
+  // il nome (con la spunta) e l'utente stanno nella scheda: se sono lunghi si accorciano
+  const fNomeP = `700 ${38 * s}px "Montserrat", sans-serif`, fUt = `500 ${30 * s}px "Montserrat", sans-serif`;
+  const nomeP = accorcia(c, nome, fNomeP, W - (nx - x) - pad - 60 * s);
+  const wn = scrivi(c, nomeP, nx, ay - 16 * s, { font: fNomeP, colore: '#0f1419', base: 'middle' });
   c.beginPath(); c.arc(nx + wn + 26 * s, ay - 16 * s, 15 * s, 0, Math.PI * 2); c.fillStyle = colore; c.fill();
   scrivi(c, '✓', nx + wn + 26 * s, ay - 14 * s, { font: `800 ${20 * s}px "Montserrat", sans-serif`, colore: '#fff', align: 'center', base: 'middle' });
-  scrivi(c, utente, nx, ay + 26 * s, { font: `500 ${30 * s}px "Montserrat", sans-serif`, colore: '#667785', base: 'middle' });
+  scrivi(c, accorcia(c, utente, fUt, W - (nx - x) - pad), nx, ay + 26 * s, { font: fUt, colore: '#667785', base: 'middle' });
   const ty = y + pad + 92 * s + 26 * s;
   rr.forEach((r, i) => scrivi(c, r, x + pad, ty + i * 40 * s * 1.35, { font: fT, colore: '#0f1419', base: 'top', alfa: prog(q.t, 0.45 + i * 0.12, 0.4, E.p2out) }));
   const ly = ty + hT + 30 * s;
@@ -201,9 +213,10 @@ function notifica(q: Q) {
   rettTondo(c, ix + ic * 0.2, iy + ic * 0.24, ic * 0.6, ic * 0.42, ic * 0.16); c.fill();
   c.beginPath(); c.moveTo(ix + ic * 0.34, iy + ic * 0.62); c.lineTo(ix + ic * 0.28, iy + ic * 0.78); c.lineTo(ix + ic * 0.5, iy + ic * 0.64); c.closePath(); c.fill();
   const tx0 = ix + ic + 28 * s;
-  scrivi(c, app.toUpperCase(), tx0, y + 34 * s, { font: `600 ${22 * s}px "Montserrat", sans-serif`, colore: '#6d6d72', base: 'top', spazio: 1.2 * s });
+  const fApp = `600 ${22 * s}px "Montserrat", sans-serif`, fTit = `700 ${34 * s}px "Montserrat", sans-serif`;
+  scrivi(c, accorcia(c, app.toUpperCase(), fApp, W - (tx0 - x) - 140 * s, 1.2 * s), tx0, y + 34 * s, { font: fApp, colore: '#6d6d72', base: 'top', spazio: 1.2 * s });
   scrivi(c, 'ora', x + W - 32 * s, y + 34 * s, { font: `500 ${22 * s}px "Montserrat", sans-serif`, colore: '#8e8e93', align: 'right', base: 'top' });
-  scrivi(c, titolo, tx0, y + 34 * s + 22 * s * 1.3 + 4 * s, { font: `700 ${34 * s}px "Montserrat", sans-serif`, colore: '#111', base: 'top' });
+  scrivi(c, accorcia(c, titolo, fTit, W - (tx0 - x) - 32 * s), tx0, y + 34 * s + 22 * s * 1.3 + 4 * s, { font: fTit, colore: '#111', base: 'top' });
   rr.forEach((r, i) => scrivi(c, r, tx0, y + 34 * s + 22 * s * 1.3 + 4 * s + 34 * s * 1.25 + 8 * s + i * 32 * s * 1.3, { font: fT, colore: '#2b2b2f', base: 'top' }));
   c.restore();
 }
@@ -259,5 +272,5 @@ function chat(q: Q) {
 }
 
 export const SOCIAL: Record<string, (q: Q) => void> = {
-  'sc-segui': segui, 'sc-iscriviti': iscriviti, 'sc-chiusura': chiusura, 'sc-post': post, 'sc-notifica': notifica, 'sc-chat': chat,
+  'sc-segui': conAdatta(segui, 120), 'sc-iscriviti': conAdatta(iscriviti, 120), 'sc-chiusura': chiusura, 'sc-post': post, 'sc-notifica': notifica, 'sc-chat': chat,
 };

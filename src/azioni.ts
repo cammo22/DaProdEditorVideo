@@ -99,24 +99,48 @@ function eliminaESeleziona(label: string, ids: Set<string>, ripple: boolean): nu
 }
 
 // ——— i tasti numerici: la tua centralina ———
+/**
+ * Chi taglia il tasto 1, in questo ordine: le tracce accese, se no le clip scelte che stanno sotto il cursore (con
+ * quelle legate), se no solo la clip più in alto sotto il cursore (con quelle legate). Mai "tutto" da solo.
+ */
+function bersagliDelTaglio(f: number): { ids: Set<string> | null; tracce: Set<string> | null; chi: string } {
+  const p = store.doc;
+  const sotto = (c: Clip) => c.start < f && end(c) > f && M.solida(c) && !trackOf(p, c.track).lock;
+  // le tracce accese (clic sul nome) sono una scelta esplicita: valgono sopra a tutto
+  const tr = tracceAttive();
+  if (tr) return { ids: null, tracce: tr, chi: 'le tracce accese' };
+  if (store.sel.size) {
+    const scelte = M.withLinked(p, store.sel);
+    const dentro = p.clips.filter((c) => scelte.has(c.id) && sotto(c));
+    if (dentro.length) return { ids: new Set(dentro.map((c) => c.id)), tracce: null, chi: 'la selezione' };
+  }
+  const c = sottoCursore(f);
+  return { ids: c && sotto(c) ? M.withLinked(p, [c.id]) : new Set(), tracce: null, chi: 'la clip sotto il cursore' };
+}
+
+function tagliaOra(f: number, ids: Set<string> | null, tracce: Set<string> | null, chi: string) {
+  const destre = store.edit('Taglia', (p) => M.splitAt(p, f, tracce, ids));
+  if (!destre.length) { avviso(tracce ? 'Sulle tracce accese non c\'è niente sotto il cursore' : 'Nessuna clip sotto il cursore da tagliare', 'info', 1400); return; }
+  // il pezzo più corto della ripresa più in alto (prima le riprese video, poi titoli e generatori, poi l'audio):
+  // è quasi sempre lo scarto
+  const p = store.doc;
+  const peso = (c: Clip) => (isVideoClip(c) ? (c.kind === 'media' ? 0 : 1000) : 2000) + p.tracks.findIndex((t) => t.id === c.track);
+  const dx = destre.map((id) => clipById(p, id)!).filter(Boolean).sort((a, b) => peso(a) - peso(b))[0];
+  const sx = p.clips.find((c) => c.track === dx.track && end(c) === f && c.id !== dx.id && M.solida(c));
+  const corto = sx && f - sx.start < dx.len ? sx : dx;
+  store.select(M.withLinked(p, [corto.id]));
+  avviso(`✂ Taglio a ${frameToTc(f, p.rate, p.drop)} (${chi}) · selezionato il pezzo ${corto === dx ? 'di destra' : 'di sinistra'} (più corto): 2 per toglierlo`, 'tasto', 2000);
+}
+
 reg({
   id: 'taglia', nome: 'Taglia al cursore', gruppo: 'Montaggio', tasti: ['1', 'C'],
-  info: 'Taglia sotto il cursore le tracce accese (tutte, se non ne hai accesa nessuna). Poi seleziona il pezzo più corto: premi 2 e sparisce.',
-  fn: () => {
-    const f = head();
-    const tracce = tracceAttive();
-    const destre = store.edit('Taglia', (p) => M.splitAt(p, f, tracce));
-    if (!destre.length) { avviso(tracce ? 'Sulle tracce accese non c\'è niente sotto il cursore' : 'Nessuna clip sotto il cursore da tagliare', 'info', 1400); return; }
-    // il pezzo più corto della ripresa più in alto (prima le riprese video, poi titoli e generatori, poi l'audio):
-    // è quasi sempre lo scarto
-    const p = store.doc;
-    const peso = (c: Clip) => (isVideoClip(c) ? (c.kind === 'media' ? 0 : 1000) : 2000) + p.tracks.findIndex((t) => t.id === c.track);
-    const dx = destre.map((id) => clipById(p, id)!).filter(Boolean).sort((a, b) => peso(a) - peso(b))[0];
-    const sx = p.clips.find((c) => c.track === dx.track && end(c) === f && c.id !== dx.id && M.solida(c));
-    const corto = sx && f - sx.start < dx.len ? sx : dx;
-    store.select(M.withLinked(p, [corto.id]));
-    avviso(`✂ Taglio a ${frameToTc(f, p.rate, p.drop)} · selezionato il pezzo ${corto === dx ? 'di destra' : 'di sinistra'} (più corto): 2 per toglierlo`, 'tasto', 1800);
-  },
+  info: 'Taglia sotto il cursore solo quello che hai scelto: le tracce accese, se no le clip selezionate, se no la clip più in alto lì sotto (con la sua audio legata). Poi seleziona il pezzo più corto: premi 2 e sparisce.',
+  fn: () => { const f = head(); const b = bersagliDelTaglio(f); tagliaOra(f, b.ids, b.tracce, b.chi); },
+});
+reg({
+  id: 'tagliaTutto', nome: 'Taglia tutte le tracce al cursore', gruppo: 'Montaggio', tasti: ['Shift+C'],
+  info: 'Taglia in un colpo tutte le clip sotto il cursore, su tutte le tracce non bloccate.',
+  fn: () => tagliaOra(head(), null, null, 'tutte le tracce'),
 });
 reg({
   id: 'elimina', nome: 'Elimina clip', gruppo: 'Montaggio', tasti: ['2', 'Delete', 'Backspace'],

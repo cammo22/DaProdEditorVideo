@@ -151,6 +151,14 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   `src/ui/telecomando.ts` (`Telecomando`: 360×420, anteprima = gli stessi `MediaStream` di `video`/`cam`, spegnibile con
   `dpv-tele-anteprima`; PiP nel browser, finestra piccola `setAlwaysOnTop` nell'app; `modoPiccolo` = `html.mini-live`, usato anche dalle
   prove con `live.telecomandoNellaPagina(true)`). Prove: `test/prove-banco.mjs`.
+- **Taglio, volume, rotella (1.3.3)**: il tasto 1 taglia (`bersagliDelTaglio` in `azioni.ts`) **le tracce accese, se no le clip scelte sotto il cursore, se no
+  la clip più in alto sotto il cursore** (+ legate): mai "tutto" da solo (Maiusc+C = `tagliaTutto`). Un clic sulla linea del volume mette un punto e lo si
+  trascina (`presaVolume` → `presaElastico`); Maiusc+trascina = il tratto intero. `src/ui/rotella.ts` (`attivaRotella`, in app.ts): sul cursore/numero/tendina
+  la rotella cambia il valore (`data-senza-rotella` sull'antenato lo esclude). Doppio clic su una clip non-media (timeline) = scelta + pannello aperto
+  (`dpv:ispettore` riapre `senza-lato`) + cursore dentro + monitor sul programma. **Flusso ottico** (`src/render/fluido.ts`): piramide di 5 scale, ±2 celle per
+  scala, finestra 5×5, mezzo pixel, passata di livellamento, due direzioni (A→B, B→A) e ripiego sullo sfumato; texture RGBA16F (`capace`). **Animazioni
+  dinamiche**: `conAdatta(fn)` in `anim/base.ts` disegna a vuoto (`muto`) per misurare la scheda (`ancora`/`q.misura`) e la rifà più piccola se non sta;
+  `disegnaAnimazione` sotto 1500 di larghezza virtuale scala tutto (verticale/quadrato). Aggiornamenti Windows: il setup parte con `/UPDATE /P /R`.
 - **Cursore che si aggancia** (`agganciaCursore` in `src/ui/timeline.ts`): sul righello si aggancia sempre (calamita `N`), Alt lo lascia libero.
 - **Motore NVIDIA** (`src-tauri/src/motori.rs` + `src/media/nemo.ts`): NeMo-Speech.cpp **0.2.0** (Apache-2.0; la 0.1.0 non aveva gli archivi), programma a parte che l'app
   scarica dalla release di NVIDIA (`nemo-speech-<versione>-{windows,macos,linux}-{x86_64,aarch64}-{cpu,cuda,vulkan,metal}`, `.sha256` a fianco) in
