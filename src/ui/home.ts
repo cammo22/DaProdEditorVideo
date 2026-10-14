@@ -2,11 +2,10 @@
 // al montaggio automatico o si torna al montaggio in corso. Compare quando si apre il programma (se non si è
 // aperto un file col doppio clic) e quando si preme "Progetti" in alto o File → Pagina iniziale.
 import { store } from '../core/store';
-import { FORMATI } from '../core/tipi';
+import { CADENZE, OBIETTIVI, RISOLUZIONI, formatoDa } from '../core/tipi';
 import { apri, apriRecente, dimenticaRecente, nuovo, recenti, type Recente } from '../progetti';
 import { h, icona } from './dom';
 
-const FORMATI_RAPIDI = ['hd25', 'hd30', 'hd24', 'vert25', 'quad25', 'uhd25'];
 
 const quando = (t: number) => {
   const d = Date.now() - t;
@@ -22,7 +21,9 @@ const durataUmana = (s: number) => { const m = Math.floor(s / 60), r = Math.roun
 export class Home {
   el: HTMLElement;
   private corpo: HTMLElement;
-  private formato = 'hd25';
+  /** la scelta per il progetto nuovo: risoluzione e fotogrammi al secondo (di partenza Full HD a 25) */
+  private ris = 'fhd';
+  private cad = '25';
   visibile = false;
 
   constructor(private vaiAMontage: () => void) {
@@ -57,23 +58,43 @@ export class Home {
     const p = store.doc;
     const inCorso = p.clips.length || p.media.length;
     // 1 · ricominciare
-    const scelti = FORMATI.filter((f) => FORMATI_RAPIDI.includes(f.id));
-    const chipFormati = h('div', { class: 'isp-chips' }, scelti.map((f) => h('button', {
-      class: 'chip' + (f.id === this.formato ? ' acceso' : ''), 'data-f': f.id, title: f.nome,
-      on: { click: (e: MouseEvent) => { this.formato = f.id; (e.currentTarget as HTMLElement).parentElement!.querySelectorAll('.chip').forEach((c) => c.classList.toggle('acceso', (c as HTMLElement).dataset.f === f.id)); } },
-    }, f.nome.replace(' · ', ' ').replace('Verticale 1080×1920', 'Verticale').replace('Quadrato 1080×1080', 'Quadrato').replace('UHD 4K', '4K'))));
-    const nuovoB = h('button', { class: 'btn primario home-grande', on: { click: async () => { const f = FORMATI.find((x) => x.id === this.formato) ?? FORMATI[0]; await nuovo(f); if (!(store.dirty && store.doc.clips.length)) this.nascondi(); } } }, '＋ Nuovo progetto');
+    const riassunto = h('div', { class: 'home-formato-riga' });
+    const aggiorna = () => {
+      const f = formatoDa(this.ris, this.cad);
+      riassunto.replaceChildren(h('b', null, `${f.w}×${f.h}`), ` · ${RISOLUZIONI.find((r) => r.id === this.ris)?.nome ?? ''} · `, h('b', null, `${CADENZE.find((c) => c.id === this.cad)?.nome ?? ''} fps`));
+      sinistra?.querySelectorAll('[data-ris]').forEach((c) => c.classList.toggle('acceso', (c as HTMLElement).dataset.ris === this.ris));
+      sinistra?.querySelectorAll('[data-cad]').forEach((c) => c.classList.toggle('acceso', (c as HTMLElement).dataset.cad === this.cad));
+      sinistra?.querySelectorAll('[data-ob]').forEach((c) => { const o = OBIETTIVI.find((x) => x.id === (c as HTMLElement).dataset.ob); c.classList.toggle('acceso', !!o && o.ris === this.ris && o.cad === this.cad); });
+    };
+    // 1a · per cosa lo fai: un clic e risoluzione e fotogrammi sono quelli giusti
+    const forma = (w: number, hh: number) => { const k = 26 / Math.max(w, hh); return h('i', { class: 'home-forma', style: `width:${Math.max(8, Math.round(w * k))}px;height:${Math.max(8, Math.round(hh * k))}px` }); };
+    const obiettivi = h('div', { class: 'home-obiettivi' }, OBIETTIVI.map((o) => {
+      const r = RISOLUZIONI.find((x) => x.id === o.ris)!;
+      return h('button', { class: 'home-obiettivo', 'data-ob': o.id, title: `${o.nome}: ${r.w}×${r.h}, ${CADENZE.find((c) => c.id === o.cad)?.nome} fotogrammi al secondo`, on: { click: () => { this.ris = o.ris; this.cad = o.cad; aggiorna(); } } },
+        forma(r.w, r.h), h('span', null, h('b', null, o.nome), h('small', null, o.info)));
+    }));
+    // 1b · oppure si sceglie a mano
+    const chipRis = h('div', { class: 'isp-chips' }, RISOLUZIONI.map((r) => h('button', { class: 'chip', 'data-ris': r.id, title: `${r.w}×${r.h} · ${r.info}`, on: { click: () => { this.ris = r.id; aggiorna(); } } }, r.nome)));
+    const chipCad = h('div', { class: 'isp-chips' }, CADENZE.map((c) => h('button', { class: 'chip', 'data-cad': c.id, title: c.info, on: { click: () => { this.cad = c.id; aggiorna(); } } }, c.nome)));
+    const nuovoB = h('button', { class: 'btn primario home-grande', on: { click: async () => { await nuovo(formatoDa(this.ris, this.cad)); if (!(store.dirty && store.doc.clips.length)) this.nascondi(); } } }, '＋ Nuovo progetto');
     const apriB = h('button', { class: 'btn home-grande', on: { click: async () => { this.nascondi(); await apri(); } } }, icona('apri', 16), ' Apri un progetto…');
     const mont = h('button', { class: 'btn home-grande home-montage', title: 'Butta dentro le foto e il programma monta da solo', on: { click: () => { this.nascondi(); this.vaiAMontage(); } } }, '✨ DaProdMontage · il montaggio automatico');
     const demo = h('button', { class: 'btn-mini', on: { click: () => { this.nascondi(); document.dispatchEvent(new CustomEvent('dpv:demo')); } } }, 'Prova con il montaggio dimostrativo');
 
-    const sinistra = h('section', { class: 'home-col' },
+    // eslint-disable-next-line prefer-const
+    let sinistra: HTMLElement | undefined;
+    sinistra = h('section', { class: 'home-col' },
       inCorso ? h('div', { class: 'home-continua' },
         h('b', null, 'Montaggio in corso'),
         h('span', null, `${p.name || 'Montaggio senza nome'} · ${p.clips.filter((c) => c.kind !== 'fx').length} clip`),
         h('button', { class: 'btn primario', on: { click: () => this.nascondi() } }, '▶ Continua')) : null,
-      h('h3', null, 'Ricomincia'),
-      chipFormati, nuovoB, apriB, mont, demo,
+      h('h3', null, 'Nuovo progetto'),
+      h('label', { class: 'home-etichetta' }, 'Per cosa lo fai?'), obiettivi,
+      h('label', { class: 'home-etichetta' }, 'Risoluzione'), chipRis,
+      h('label', { class: 'home-etichetta' }, 'Fotogrammi al secondo'), chipCad,
+      riassunto, nuovoB,
+      h('h3', null, 'Altro'),
+      apriB, mont, demo,
       // per chi comincia: la guida, la ricerca dei comandi e il Centro AI (prima non c'era un posto da cui partire)
       h('h3', null, 'Impara a usarlo'),
       h('div', { class: 'home-impara' },
@@ -93,6 +114,7 @@ export class Home {
       lista.length ? h('div', { class: 'home-griglia' }, lista.map(carta))
         : h('div', { class: 'home-nulla' }, h('b', null, 'Ancora niente'), h('p', null, 'I progetti che salvi o apri compaiono qui, con la loro miniatura, pronti da riaprire con un clic.')));
     this.corpo.replaceChildren(sinistra, destra);
+    aggiorna();
   }
 }
 

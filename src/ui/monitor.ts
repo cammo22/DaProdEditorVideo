@@ -53,6 +53,8 @@ export class PannelloMonitor {
     this.shuttleLbl = h('span', { class: 'shuttle-vel' }, '');
     this.primaDopo = h('button', { class: 'btn-mini prima-dopo', title: 'Prima e dopo il colore finale, fianco a fianco', on: { click: () => this.alternaPrimaDopo() } }, 'PRIMA | DOPO');
     this.vistaSfondo = h('button', { class: 'btn-mini vista-sfondo', title: 'Guarda lo sfondo tolto: l\'immagine, la maschera in bianco e nero, il soggetto sugli scacchi', on: { click: () => this.alternaVistaSfondo() } }, 'SFONDO');
+    // le Proprietà (Togli lo sfondo) scelgono la vista da lì
+    document.addEventListener('dpv:vista-sfondo', (e) => this.alternaVistaSfondo(Number((e as CustomEvent).detail) || 0));
     const t = (ic: string, title: string, fn: () => void, cls = '') => h('button', { class: 'tasto-trasporto ' + cls, title, on: { click: fn } }, icona(ic, 17));
     const jog = new JogShuttle();
     this.el = h('section', { class: 'monitor' },
@@ -163,10 +165,10 @@ export class PannelloMonitor {
     avviso(motore.rec.prima > 0 ? 'A sinistra com\'era, a destra con il colore finale' : 'Tutto con il colore finale', 'info', 1600);
   }
 
-  /** 0 = l'immagine · 1 = la maschera (bianco = resta) · 2 = il soggetto sugli scacchi */
-  private alternaVistaSfondo() {
+  /** 0 = l'immagine · 1 = la maschera (bianco = resta) · 2 = il soggetto sugli scacchi (senza `a`: passa alla prossima) */
+  private alternaVistaSfondo(a?: number) {
     if (!motore.rec) return;
-    motore.rec.vistaChiave = (motore.rec.vistaChiave + 1) % 3;
+    motore.rec.vistaChiave = a ?? (motore.rec.vistaChiave + 1) % 3;
     this.vistaSfondo.classList.toggle('acceso', motore.rec.vistaChiave > 0);
     this.vistaSfondo.textContent = ['SFONDO', 'MASCHERA', 'SCACCHI'][motore.rec.vistaChiave];
     motore.ridisegna();

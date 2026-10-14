@@ -10,12 +10,13 @@ import { DATI } from './anim/dati';
 import { SOCIAL } from './anim/social';
 import { SFONDI } from './anim/sfondi';
 import { CERIMONIA } from './anim/cerimonia';
+import { SEGNALINI } from './anim/segnalini';
 
 type Tela = HTMLCanvasElement | OffscreenCanvas;
 
 /** id → come si disegna (ogni modulo del catalogo aggiunge le sue) */
 export const DISEGNA: Record<string, (q: Q) => void> = {
-  ...SOTTOPANCIA, ...TESTO, ...DATI, ...SOCIAL, ...SFONDI, ...CERIMONIA,
+  ...SOTTOPANCIA, ...TESTO, ...DATI, ...SOCIAL, ...SFONDI, ...CERIMONIA, ...SEGNALINI,
 };
 
 /** la larghezza virtuale (su 1080 di altezza) sotto cui si rimpicciolisce: 1500 ≈ un po' meno del 4:3 */

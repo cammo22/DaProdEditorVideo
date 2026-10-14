@@ -16,8 +16,8 @@ export const leggi = (page, punti, vista = 0) => page.evaluate(async ([punti, vi
 export const vicino = (a, b, tol = 40) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 
 
-/** le sezioni delle proprietà partono chiuse: le prove che ci lavorano dentro le aprono (e restano aperte) */
+/** le sezioni delle proprietà partono chiuse: le prove che ci lavorano dentro le aprono (e restano aperte). "Effetti e look" no: disegna una ventina di miniature, e sui computer senza scheda video (la CI) blocca la pagina per qualche secondo */
 export const apriGruppi = async (page) => {
-  await page.evaluate(() => { document.querySelectorAll('.isp-gruppo:not([open]) > summary').forEach((x) => x.click()); });
+  await page.evaluate(() => { document.querySelectorAll('.isp-gruppo:not([open]) > summary').forEach((x) => { if (x.parentElement.dataset.g !== 'fxv') x.click(); }); });
   await page.waitForTimeout(150);
 };

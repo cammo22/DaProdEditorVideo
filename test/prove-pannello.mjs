@@ -39,7 +39,8 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
 
   await scegli(ids.foto1);
   const g0 = await gruppi();
-  prova('scegliendo una clip le sezioni del pannello sono tutte chiuse (di partenza)', g0.length >= 4 && g0.every((x) => !x.aperto), JSON.stringify(g0));
+  // solo la sezione "principale" per quel tipo (qui la posizione di un'immagine) parte aperta; le altre chiuse
+  prova('scegliendo una clip si apre da sola la sezione che serve (Posizione e grandezza), le altre restano chiuse', g0.length >= 4 && g0.filter((x) => x.aperto).map((x) => x.g).join() === 'immagine', JSON.stringify(g0));
   await page.screenshot({ path: path.join(OUT, 'pannello-chiuso.png') });
 
   // si apre una sezione e resta aperta anche scegliendo un'altra clip dello stesso tipo
@@ -47,12 +48,16 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.waitForTimeout(200);
   await scegli(ids.foto2);
   const g1 = await gruppi();
-  prova('una sezione aperta resta aperta passando a un\'altra clip; le altre restano chiuse', g1.find((x) => x.g === 'durata')?.aperto && g1.filter((x) => x.aperto).length === 1, JSON.stringify(g1));
+  prova('una sezione aperta resta aperta passando a un\'altra clip; le altre restano chiuse', g1.find((x) => x.g === 'durata')?.aperto && g1.filter((x) => x.aperto).map((x) => x.g).sort().join() === 'durata,immagine', JSON.stringify(g1));
 
   // il clic sulla maniglia non apre né chiude
   const prima = (await gruppi()).find((x) => x.g === 'immagine').aperto;
   await page.click('.isp-gruppo[data-g="immagine"] .isp-grip');
   prova('un clic sulla maniglia non apre né chiude la sezione', (await gruppi()).find((x) => x.g === 'immagine').aperto === prima);
+  // chi chiude la sezione principale la ritrova chiusa (e così le sezioni stanno tutte in vista per il trascinamento)
+  await page.click('.isp-corpo > .isp-gruppo[data-g="immagine"] > summary');
+  await page.waitForTimeout(200);
+  prova('una sezione principale chiusa apposta resta chiusa', !(await gruppi()).find((x) => x.g === 'immagine').aperto);
 
   // si trascina "Durata" in cima
   const ordineDi = async () => (await gruppi()).map((x) => x.g);

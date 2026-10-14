@@ -4,7 +4,7 @@
 import { store } from '../core/store';
 import { azioni, inserisciGeneratore, modi } from '../azioni';
 import { animazioniDi, GRUPPI_ANIM } from '../core/animazioni';
-import { FORMATI } from '../core/tipi';
+import { OBIETTIVI, formatoDa } from '../core/tipi';
 import { avviso, type VoceMenu } from './dom';
 import type { MenuBanco } from './barraMenu';
 import type { Disposizione } from './disposizione';
@@ -43,7 +43,7 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
     ['File', () => [
       { nome: 'Pagina iniziale (progetti)', fn: () => b.home.mostra() },
       { sep: true },
-      { nome: 'Nuovo progetto', tasto: 'Ctrl+N', sotto: FORMATI.map((f) => ({ nome: f.nome, fn: () => nuovo(f) })) },
+      { nome: 'Nuovo progetto', tasto: 'Ctrl+N', sotto: [...OBIETTIVI.map((o) => ({ nome: `${o.nome} · ${o.info}`, fn: () => nuovo(formatoDa(o.ris, o.cad)) })), { sep: true }, ...[25, 30, 50].map((c) => ({ nome: `Full HD · ${c} fps`, fn: () => nuovo(formatoDa('fhd', String(c))) })), { sep: true }, { nome: 'Altre risoluzioni e fotogrammi…', fn: () => b.home.mostra() }] },
       { nome: 'Apri progetto…', tasto: 'Ctrl+O', fn: () => apri() },
       { nome: 'Salva', tasto: 'Ctrl+S', fn: () => salva() },
       { nome: 'Salva come…', tasto: 'Ctrl+Shift+S', fn: () => salva(true) },

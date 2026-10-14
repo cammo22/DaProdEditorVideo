@@ -3,7 +3,7 @@
 // chiuso in "Avanzate". Il colore di tutto il montaggio sta nella pagina Finale.
 import { store } from '../core/store';
 import type { Clip, TitleSpec } from '../core/tipi';
-import { clipById, end, isVideoClip, mediaOf, trackOf, TF0, FX0 } from '../core/progetto';
+import { clipById, end, isVideoClip, mediaOf, newClip, newTrack, nextTrackName, trackOf, FX0 } from '../core/progetto';
 import { frameToTc, fps } from '../core/timecode';
 import { avviso, h, evidenzia } from './dom';
 import * as M from '../core/montaggio';
@@ -12,14 +12,18 @@ import { DIREZIONALI, EFFETTI, TENDINE } from '../render/transizioni';
 import { oggettoSulQuadro, tracciate } from '../core/traccia';
 import type { Project } from '../core/tipi';
 import { EFFETTI_AUDIO, EFFETTI_VIDEO, adatte, alternaEffetto } from '../effetti';
+import { scenaRitocco } from '../render/provino';
 import { cambiaModello, durataDelBlocco, EFFETTI_TEMPO, effettoTempo, haCentro, nomeBlocco, nuovoBlocco, posaBlocco, taglioDelBlocco, taglioVicino, transizioneSul } from '../core/blocchi';
 import { SUONI } from '../core/suoni';
 import { ascoltaSuono } from '../media/audio';
-import { bolla, MOVIMENTI, movimentoPronto, presentazione, SFONDI } from '../core/cornici';
+import { MOVIMENTI, movimentoPronto, SFONDI } from '../core/cornici';
+import { motore } from '../motore';
 import { ANIMAZIONI as CATALOGO_ANIM, GRUPPI_ANIM, animazione, nuovaAnim, valoriDi, type CampoAnim } from '../core/animazioni';
 import { CHIAVI, coloriChiave, QUALITA_RITAGLIO, SPILL0 } from '../core/sfondo';
 import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritaglio';
-import { azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
+import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
+import { tessere } from './tessere';
+import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
 
@@ -41,6 +45,8 @@ export class Ispettore {
   private firma = '';
   /** le sezioni aperte (di partenza sono tutte chiuse; si ricorda finché il programma è aperto) */
   private aperti = new Set<string>();
+  /** le sezioni "principali" (quelle che servono per quel tipo di elemento) partono aperte: qui chi le ha chiuse apposta */
+  private chiusi = new Set<string>();
   /** di che tipo è quello che si sta guardando (clip video, audio, titolo…): l'ordine delle sezioni si ricorda per ognuno */
   private chiave = '';
 
@@ -108,54 +114,81 @@ export class Ispettore {
         h('span', null, 'dura ', h('b', null, (primo.len / r).toFixed(2).replace('.', ',') + ' s')),
         legate ? h('span', { class: 'chip-link' }, `⛓ +${legate}`) : null,
         m && m.type !== 'audio' && m.width ? h('span', null, `${m.width}×${m.height}${m.fps ? ' · ' + Math.round(m.fps * 100) / 100 + ' fps' : ''}`) : null,
-        m ? h('span', { class: 'isp-sorgente' }, m.name) : h('span', null, trackOf(p, primo.track).name))));
+        m ? h('span', { class: 'isp-sorgente' }, m.name) : h('span', null, trackOf(p, primo.track).name)),
+      // le tre cose che si fanno più spesso a una clip scelta
+      h('div', { class: 'isp-azioni' },
+        h('button', { class: 'btn-mini', title: 'Una copia subito dopo (Ctrl+D)', on: { click: () => esegui('duplica') } }, '⧉ Duplica'),
+        h('button', { class: 'btn-mini', title: 'Porta il cursore all\'inizio della clip', on: { click: () => { motore.setMonitor('recorder'); motore.vaiA(primo.start); } } }, '⇤ Vai all\'inizio'),
+        h('button', { class: 'btn-mini', title: 'Toglie la clip (2)', on: { click: () => esegui('elimina') } }, '🗑 Elimina'))));
 
-    // ——— gli effetti al volo: interruttori, niente cursori
-    const chips = (lista: typeof EFFETTI_VIDEO, quali: Clip[]) => h('div', { class: 'isp-chips' }, lista.filter((e) => adatte(e, quali).length).map((e) => {
+    // ——— gli effetti audio al volo: interruttori
+    const chips = (lista: typeof EFFETTI_AUDIO, quali: Clip[]) => h('div', { class: 'isp-chips' }, lista.filter((e) => adatte(e, quali).length).map((e) => {
       const b = h('button', { class: 'chip', title: e.info, on: { click: () => alternaEffetto(e.id, adatte(e, this.sel()).map((c) => c.id)) } }, e.nome);
       const agg = () => { const q = adatte(e, this.sel()); b.classList.toggle('acceso', q.length > 0 && q.every((c) => e.acceso(c, store.doc))); };
       agg();
       this.campi.push({ el: b, aggiorna: agg });
       return b;
     }));
-    if (video.length) out.push(this.gruppo('fxv', 'Effetti al volo', [chips(EFFETTI_VIDEO, video)]));
-    if (audio.length) out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti al volo', [chips(EFFETTI_AUDIO, audio)]));
-
+    // i video prima: posizione, effetti e look. Le clip si cercano per id quando si preme (dopo un annulla gli oggetti sono altri)
+    const ids = video.map((c) => c.id);
+    const vive = () => store.doc.clips.filter((c) => ids.includes(c.id));
     if (video.length) {
-      out.push(this.gruppo('immagine', 'Immagine', [
+      // — la posizione: il quadro in miniatura che si trascina, le posizioni pronte, l'opacità
+      const mq = miniQuadro(() => vive());
+      this.campi.push({ el: mq.el, aggiorna: mq.aggiorna });
+      const pronte = h('div', { class: 'pp-griglia' }, posizioniPronte().map((x) => h('button', {
+        class: 'pp-tessera', title: x.titolo,
+        on: { click: () => store.edit(x.nome, () => { for (const c of vive()) { c.tf = x.fn(c); c.tfFine = undefined; c.via = undefined; } }) },
+      }, disegnino(x.box), h('span', null, x.nome))));
+      out.push(this.gruppo('immagine', 'Posizione e grandezza', [
+        mq.el,
+        h('label', { class: 'etichetta' }, 'Posizioni pronte'), pronte,
         this.cursore('Opacità', 0, 100, 1, (c) => Math.round(c.opacity * 100), (c, v) => { c.opacity = v / 100; c.opKeys = []; }, '%', video),
-        this.cursore('Zoom', 20, 300, 1, (c) => Math.round(c.tf.scale * 100), (c, v) => { c.tf.scale = v / 100; }, '%', video),
-        this.cursore('Larghezza (stira)', 20, 300, 1, (c) => Math.round((c.tf.sx ?? 1) * 100), (c, v) => { c.tf.sx = v / 100; }, '%', video),
-        this.pulsanti([
-          ['Adatta', () => store.edit('Adatta', () => { for (const c of video) c.tf = { ...TF0 }; })],
-          ['Riempi', () => store.edit('Riempi', () => { for (const c of video) { const mm = mediaOf(p, c); if (mm?.width) { const w = mm.rotation % 180 ? mm.height : mm.width, hh = mm.rotation % 180 ? mm.width : mm.height; const kf = Math.min(p.w / w, p.h / hh), kc = Math.max(p.w / w, p.h / hh); c.tf.scale = kc / kf; } } })],
-          ['Riquadro ↘', () => store.edit('Riquadro', () => { for (const c of video) c.tf = { ...TF0, scale: 0.33, x: p.w * 0.3, y: p.h * 0.28 }; })],
-          ['Riquadro ↖', () => store.edit('Riquadro', () => { for (const c of video) c.tf = { ...TF0, scale: 0.33, x: -p.w * 0.3, y: -p.h * 0.28 }; })],
-          ['Bolla ↘', () => store.edit('Bolla', () => { for (const c of video) c.tf = bolla(p, mediaOf(p, c), 'bd'); })],
-          ['Presentazione', () => store.edit('Presentazione', () => { for (const c of video) c.tf = presentazione(); })],
-        ]),
-        h('p', { class: 'nota' }, 'Sull\'immagine del monitor: trascina per spostare, tira un angolo per ingrandire (Maiusc: stira, Ctrl: dal centro), tira un lato per stirare da una parte sola, il pallino in alto la gira. Ctrl+clic sceglie quella che sta sotto. ✂ Ritaglia: i lati ritagliano.'),
-        h('div', { class: 'isp-riga' }, h('label', null, 'Movimento'),
+        h('div', { class: 'isp-riga col' }, h('label', null, 'Movimento', h('small', null, 'la clip si sposta o si ingrandisce da sola durante la ripresa')),
           h('div', { class: 'isp-chips' }, MOVIMENTI.map((m) => h('button', {
             class: 'chip' + ((m.id === 'fermo') === !video[0].tfFine && m.id === 'fermo' ? ' acceso' : ''),
             title: m.id === 'fermo' ? 'Resta dov\'è' : 'Dall\'inizio alla fine della clip, partendo (o arrivando) dove sta adesso',
             on: { click: () => store.edit('Movimento: ' + m.nome, (pp) => { for (const c of video) { const x = clipById(pp, c.id); if (x) movimentoPronto(pp, x, m.id); } }) },
           }, m.nome)))),
-        video[0].tfFine ? h('p', { class: 'nota' }, `Si muove: parte da dove l'hai messa all'inizio, passa da ${(video[0].via ?? []).length ? (video[0].via ?? []).length + ' tappe di mezzo e ' : 'nessuna tappa di mezzo, '}arriva dove l'hai messa alla fine. Sul monitor: ◀ Inizio / Fine ▶, ＋ Tappa; o ferma il cursore fra due tappe e muovi: ne nasce una.`) : null,
-        this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video),
-        this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video),
-        video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l\'opacità la toglie.') : null,
+        video[0].tfFine ? h('p', { class: 'nota' }, `Si muove: parte da dove l'hai messa all'inizio, passa da ${(video[0].via ?? []).length ? (video[0].via ?? []).length + ' tappe di mezzo e ' : 'nessuna tappa di mezzo, '}arriva dove l'hai messa alla fine. Sul monitor grande: ◀ Inizio / Fine ▶, ＋ Tappa; o ferma il cursore fra due tappe e muovi: ne nasce una.`) : null,
+        h('details', { class: 'pp-piu' }, h('summary', null, 'Numeri precisi'),
+          this.cursore('Zoom', 20, 300, 1, (c) => Math.round(c.tf.scale * 100), (c, v) => { c.tf.scale = v / 100; }, '%', video),
+          this.cursore('Larghezza (stira)', 20, 300, 1, (c) => Math.round((c.tf.sx ?? 1) * 100), (c, v) => { c.tf.sx = v / 100; }, '%', video),
+          this.cursore('Orizzontale', -p.w, p.w, 1, (c) => Math.round(c.tf.x), (c, v) => { c.tf.x = v; }, 'px', video),
+          this.cursore('Verticale', -p.h, p.h, 1, (c) => Math.round(c.tf.y), (c, v) => { c.tf.y = v; }, 'px', video),
+          this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video),
+          this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video),
+          this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video)),
+        video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l'opacità la toglie.') : null,
+      ], primo.kind === 'media'));
+
+      // — gli effetti e i look: miniature vere, applicate al fotogramma dove sei
+      const tutti = EFFETTI_VIDEO.filter((e) => adatte(e, video).length);
+      const grid = tessere([
+        { id: 'nessuno', nome: 'Com\'è', info: 'toglie tutti gli effetti rapidi', nessuna: true, provino: scenaRitocco(() => {}), acceso: () => !tutti.some((e) => adatte(e, vive()).some((c) => e.acceso(c, store.doc))), clic: () => store.edit('Toglie gli effetti rapidi', (pp) => { for (const c of pp.clips) if (ids.includes(c.id)) for (const e of tutti) if (e.acceso(c, pp)) e.metti(c, false, pp); }) },
+        ...tutti.map((e) => ({
+          id: e.id, nome: e.nome, info: e.info,
+          provino: scenaRitocco((c, pp) => e.metti(c, true, pp)),
+          acceso: () => { const q = adatte(e, vive()); return q.length > 0 && q.every((c) => e.acceso(c, store.doc)); },
+          clic: () => alternaEffetto(e.id, ids),
+        })),
+      ]);
+      this.campi.push({ el: grid.el, aggiorna: grid.aggiorna });
+      out.push(this.gruppo('fxv', 'Effetti e look', [
+        h('p', { class: 'nota' }, 'Ogni miniatura è il fotogramma dove sei, con quell\'effetto. Un clic accende o spegne (si possono sommare).'),
+        grid.el,
       ]));
       out.push(this.sfondoGruppo(video));
       const sg = this.seguiGruppo(video);
       if (sg) out.push(sg);
-      out.push(this.gruppo('colore', 'Colore della clip', [
+      out.push(this.gruppo('colore', 'Colore: regola a mano', [
         this.cursore('Luce', -50, 50, 1, (c) => Math.round(c.fx.bright * 100), (c, v) => { c.fx.bright = v / 100; }, '', video),
         this.cursore('Contrasto', 50, 150, 1, (c) => Math.round(c.fx.contrast * 100), (c, v) => { c.fx.contrast = v / 100; }, '%', video),
         this.cursore('Saturazione', 0, 200, 1, (c) => Math.round(c.fx.sat * 100), (c, v) => { c.fx.sat = v / 100; }, '%', video),
-        this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, '', video),
-        this.pulsanti([['Azzera', () => store.edit('Azzera colore', () => { for (const c of video) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
-        h('p', { class: 'nota' }, 'Il colore automatico e il look di tutto il montaggio sono nella pagina Finale.'),
+        this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, ' (freddo ↔ caldo)', video),
+        this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video),
+        this.pulsanti([['💧 Bilancia il bianco (clic sul monitor)', () => bilanciaBianco(video[0].id)], ['Azzera il colore', () => store.edit('Azzera colore', () => { for (const c of vive()) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
+        h('p', { class: 'nota' }, 'Per dare lo stesso colore a tutto il montaggio c\'è la pagina Finale. Doppio clic su un cursore = valore di partenza.'),
       ]));
     }
     if (audio.length) {
@@ -163,10 +196,11 @@ export class Ispettore {
         this.cursore('Volume', -40, 12, 0.5, (c) => c.gain, (c, v) => { c.gain = v; c.gainKeys = []; }, 'dB', audio),
         this.pulsanti([['−6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -6; c.gainKeys = []; } })], ['0 dB', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 0; c.gainKeys = []; } })], ['+6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 6; c.gainKeys = []; } })], ['Muto', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -60; c.gainKeys = []; } })]]),
         this.cursore('Panorama', -100, 100, 1, (c) => Math.round(c.pan * 100), (c, v) => { c.pan = v / 100; }, '', audio),
-        h('p', { class: 'nota' }, 'Nella timeline la linea gialla è il volume: trascinala, doppio clic per un punto, tasto destro → "Abbassa qui".'),
-      ]));
+        h('p', { class: 'nota' }, 'Nella timeline la linea gialla è il volume: un clic ci mette un punto da portare su e giù (per alzare o abbassare solo in quel momento); Maiusc+trascina alza o abbassa tutto il tratto.'),
+      ], true));
+      out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti rapidi', [chips(EFFETTI_AUDIO, audio)]));
     }
-    out.push(this.gruppo('durata', 'Durata', [this.durata(cs.filter((c) => c.kind !== 'fx'))]));
+    out.push(this.gruppo('durata', 'Durata e velocità', [this.durata(cs.filter((c) => c.kind !== 'fx'))]));
     if (video.length) out.push(this.transizioniClip(video[0]));
     const gen = cs.filter((c) => c.kind === 'color' || c.kind === 'bars' || c.kind === 'tone' || c.kind === 'beep');
     if (gen.length) {
@@ -185,7 +219,7 @@ export class Ispettore {
         righe.push(this.cursore('Frequenza', 100, 10000, 10, (c) => c.gen?.freq ?? 1000, (c, v) => { c.gen = { ...c.gen, freq: v }; }, 'Hz', gen));
         righe.push(this.cursore('Livello', -40, 0, 1, (c) => c.gen?.level ?? -18, (c, v) => { c.gen = { ...c.gen, level: v }; }, 'dBFS', gen));
       }
-      out.push(this.gruppo('generatore', 'Generatore', righe));
+      out.push(this.gruppo('generatore', 'Generatore', righe, true));
     }
     const animati = cs.filter((c) => c.kind === 'title' && c.gen?.anim);
     const titoli = cs.filter((c) => c.kind === 'title' && !c.gen?.anim);
@@ -205,17 +239,29 @@ export class Ispettore {
       ]));
     }
     if (video.length) {
-      out.push(this.gruppo('avanzate', 'Avanzate (posizione e ritaglio)', [
-        this.cursore('Orizzontale', -p.w, p.w, 1, (c) => Math.round(c.tf.x), (c, v) => { c.tf.x = v; }, 'px', video),
-        this.cursore('Verticale', -p.h, p.h, 1, (c) => Math.round(c.tf.y), (c, v) => { c.tf.y = v; }, 'px', video),
-        this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video),
-        this.cursore('Ritaglio sinistra', 0, 50, 0.5, (c) => c.tf.cropL * 100, (c, v) => { c.tf.cropL = v / 100; }, '%', video),
-        this.cursore('Ritaglio destra', 0, 50, 0.5, (c) => c.tf.cropR * 100, (c, v) => { c.tf.cropR = v / 100; }, '%', video),
-        this.cursore('Ritaglio sopra', 0, 50, 0.5, (c) => c.tf.cropT * 100, (c, v) => { c.tf.cropT = v / 100; }, '%', video),
-        this.cursore('Ritaglio sotto', 0, 50, 0.5, (c) => c.tf.cropB * 100, (c, v) => { c.tf.cropB = v / 100; }, '%', video),
-        this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video),
+      const taglia = (nome: string, l: number, r: number, t: number, bt: number): [string, () => void] => [nome, () => store.edit('Ritaglio ' + nome, () => { for (const c of vive()) { c.tf.cropL = l; c.tf.cropR = r; c.tf.cropT = t; c.tf.cropB = bt; } })];
+      // un quadrato (o un 9:16) preso dal centro: quanto togliere ai lati, secondo la forma di partenza dell'immagine
+      const centro = (rap: number): [string, () => void] => [rap === 1 ? 'Quadrato al centro' : 'Verticale 9:16 al centro', () => store.edit('Ritaglio al centro', () => {
+        for (const c of vive()) {
+          const mm = mediaOf(p, c);
+          const w = mm?.width ? (mm.rotation % 180 ? mm.height : mm.width) : p.w, hh = mm?.height ? (mm.rotation % 180 ? mm.width : mm.height) : p.h;
+          const voluta = rap < 1 ? 9 / 16 : 1;
+          const tolto = Math.max(0, Math.min(0.45, (1 - (hh * voluta) / w) / 2));
+          c.tf.cropL = c.tf.cropR = tolto; c.tf.cropT = c.tf.cropB = 0;
+        }
+      })];
+      out.push(this.gruppo('ritaglio', 'Ritaglio (taglia i bordi)', [
+        this.pulsanti([taglia('Nessuno', 0, 0, 0, 0), centro(1), centro(9 / 16), taglia('Bande cinema', 0, 0, 0.12, 0.12)]),
+        this.cursore('A sinistra', 0, 50, 0.5, (c) => c.tf.cropL * 100, (c, v) => { c.tf.cropL = v / 100; }, '%', video),
+        this.cursore('A destra', 0, 50, 0.5, (c) => c.tf.cropR * 100, (c, v) => { c.tf.cropR = v / 100; }, '%', video),
+        this.cursore('In alto', 0, 50, 0.5, (c) => c.tf.cropT * 100, (c, v) => { c.tf.cropT = v / 100; }, '%', video),
+        this.cursore('In basso', 0, 50, 0.5, (c) => c.tf.cropB * 100, (c, v) => { c.tf.cropB = v / 100; }, '%', video),
+        h('p', { class: 'nota' }, 'Toglie una parte dell\'immagine ai quattro lati (la parte tolta non si vede). Sul monitor grande c\'è anche ✂ Ritaglia, per farlo col mouse dai lati.'),
       ]));
     }
+    // per titoli, animazioni e generatori la sezione loro (testo, campi, colore…) sta in cima, subito sotto il riassunto
+    const prima = out.findIndex((e) => ['titolo', 'animazione', 'generatore'].includes(e.dataset?.g ?? ''));
+    if (prima > 1) out.splice(1, 0, ...out.splice(prima, 1));
     const chiaveClip = (primo.kind === 'title' ? (primo.gen?.anim ? 'animazione' : 'titolo') : primo.kind === 'media' ? (m?.type === 'image' ? 'immagine' : isVideoClip(primo) ? 'video' : 'audio') : 'generatore');
     this.corpo.replaceChildren(...this.conOrdine('clip:' + chiaveClip, out));
   }
@@ -264,7 +310,7 @@ export class Ispettore {
       else righe.push(this.spunta(k.nome, (c) => !!valoreDi(c, k), (c, v) => { if (c.gen?.anim) c.gen.anim.v[k.id] = v; }, an));
     }
     righe.push(h('p', { class: 'nota' }, 'Entra all\'inizio e nell\'ultimo mezzo secondo esce: allunga o accorcia la clip dalla timeline e l\'animazione si adatta. Sull\'immagine del monitor si sposta e si ingrandisce come ogni clip.'));
-    return this.gruppo('animazione', 'Animazione', righe);
+    return this.gruppo('animazione', 'Animazione', righe, true);
   }
 
   /** "Togli lo sfondo": il colore (green screen), la luce, o l'AI che lo toglie da sola (persona, soggetto, oggetti coi clic) */
@@ -273,6 +319,7 @@ export class Ispettore {
     const ids = video.map((c) => c.id);
     const modo = modoSfondo(c0);
     const righe: (HTMLElement | null)[] = [];
+    righe.push(h('label', { class: 'etichetta' }, 'Come lo tolgo?'));
     righe.push(h('div', { class: 'isp-chips' }, modiPossibili(c0).map((m) => h('button', {
       class: 'chip' + (m === modo ? ' acceso' : ''), title: NOMI_MODO[m], on: { click: () => { if (m !== modo) impostaModo(ids, m); } },
     }, NOMI_MODO[m]))));
@@ -341,6 +388,29 @@ export class Ispettore {
         this.spunta('Inverti: tieni lo sfondo', (c) => !!c.ritaglio?.inverti, (c, v) => { if (c.ritaglio) c.ritaglio.inverti = v || undefined; }, video),
         h('p', { class: 'nota' }, `Il modello${mod ? ' ' + mod.nome + ' (licenza ' + mod.licenza + ')' : ''} si scarica da Hugging Face la prima volta e poi resta nel computer; le immagini non escono mai. Guarda il risultato col tasto SFONDO sopra il monitor. La velocità dipende dalla scheda video: senza, scegli "Veloce".`));
     }
+    if (modo !== 'nessuno') {
+      // guardare il risultato e metterci qualcosa dietro, senza uscire dal pannello
+      const vista = h('div', { class: 'isp-chips' }, ['Immagine', 'Maschera', 'Sugli scacchi'].map((n, i) => h('button', {
+        class: 'chip' + (((motore.rec?.vistaChiave ?? 0) === i) ? ' acceso' : ''), title: ['Come si vede nel montaggio', 'Bianco = resta, nero = va via', 'Il soggetto sopra gli scacchi: si vede cosa è trasparente'][i],
+        on: { click: () => { document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: i })); vista.querySelectorAll('.chip').forEach((b, k) => b.classList.toggle('acceso', k === i)); } },
+      }, n)));
+      righe.push(h('label', { class: 'etichetta' }, 'Guarda il risultato'), vista);
+      const colorePieno = h('input', { type: 'color', value: '#1b3a8f', title: 'Un colore pieno dietro al soggetto' }) as HTMLInputElement;
+      const media = store.doc.media.filter((m) => (m.type === 'image' || (m.type === 'video' && m.id !== c0.media)));
+      righe.push(
+        h('label', { class: 'etichetta' }, 'Cosa metto al posto dello sfondo?'),
+        h('div', { class: 'isp-chips' },
+          ...SFONDI.map((x) => h('button', { class: 'chip', title: 'Uno sfondo sfumato dietro al soggetto', on: { click: () => mettiDietro(c0.id, { colore: x.a, colore2: x.b, nome: 'Sfondo ' + x.nome }) } }, x.nome))),
+        h('div', { class: 'isp-riga' }, h('label', null, 'Colore pieno'), colorePieno,
+          h('button', { class: 'btn-mini', on: { click: () => mettiDietro(c0.id, { colore: colorePieno.value, nome: 'Sfondo colore' }) } }, 'Metti')),
+        media.length ? h('div', { class: 'isp-riga' }, h('label', null, 'Un tuo file'),
+          (() => {
+            const sel = h('select', { class: 'mini-select' }, h('option', { value: '' }, 'scegli…'), media.map((m) => h('option', { value: m.id }, m.name))) as HTMLSelectElement;
+            sel.addEventListener('change', () => { if (sel.value) { mettiDietro(c0.id, { media: sel.value }); sel.value = ''; } });
+            return sel;
+          })()) : null,
+        h('p', { class: 'nota' }, 'Ogni scelta mette una clip dietro a questa (su una traccia sotto, per tutta la sua durata): puoi cambiarla o toglierla dalla timeline.'));
+    }
     return this.gruppo('sfondo', 'Togli lo sfondo', righe);
   }
 
@@ -355,6 +425,13 @@ export class Ispettore {
       if (tr) {
         righe.push(h('p', { class: 'nota' }, `Oggetto seguito: ${tr.punti.length} punti, sicurezza ${Math.round(tr.fiducia * 100)}%. Il percorso azzurro si vede sul monitor.`));
         righe.push(this.spunta('Tieni ferma la ripresa sull\'oggetto (stabilizza)', (c) => !!c.stabilizza, (c, v) => { c.stabilizza = v || undefined; }, [c0]));
+        // e una volta tracciato? Si mette qualcosa che lo segue: mirino, cerchio, freccia, etichetta…
+        righe.push(h('label', { class: 'etichetta' }, 'Metti qualcosa che lo segue'));
+        righe.push(h('div', { class: 'seg-griglia' }, SEGNALINI_RAPIDI.map(([id, nome, simbolo]) => h('button', {
+          class: 'seg-tessera', title: `${nome}: si mette sopra questa ripresa e segue l'oggetto per tutta la sua durata`,
+          on: { click: () => aggiungiSegnalino(c0.id, id) },
+        }, h('i', null, simbolo), h('span', null, nome)))));
+        righe.push(h('p', { class: 'nota' }, 'Il segnalino è una clip a parte sopra questa: cambia colore e testo nelle sue Proprietà, o sposta la sua posizione rispetto all\'oggetto trascinandolo sul monitor. Anche titoli, immagini e il centro degli effetti possono seguire l\'oggetto: scegli "Segue" nelle loro Proprietà.'));
         righe.push(this.pulsanti([['Togli il tracking', () => store.edit('Toglie il tracking', (pp) => { for (const z of pp.clips) { if (z.id === c0.id) { delete z.traccia; delete z.stabilizza; } if (z.segue === c0.id) delete z.segue; if (z.fxb?.segue === c0.id) delete z.fxb.segue; } })]]));
       } else righe.push(h('p', { class: 'nota' }, 'Metti il cursore dove l\'oggetto si vede bene, premi il tasto e trascina il mirino sopra: il programma lo segue per tutta la ripresa.'));
     }
@@ -368,26 +445,30 @@ export class Ispettore {
     return righe.length ? this.gruppo('segui', 'Segui un oggetto', righe) : null;
   }
 
-  /** le transizioni all'inizio e alla fine della clip: i blocchetti che stanno su quei bordi */
+  /** come entra e come esce la clip: la dissolvenza (appare e sparisce piano) e le transizioni con la clip vicina */
   private transizioniClip(v: Clip): HTMLElement {
     const p = store.doc;
     const r = fps(p.rate);
     const sulBordo = (f: number) => { const tg = taglioVicino(p, f, 0, v.track); return tg ? transizioneSul(p, tg) : undefined; };
-    const riga = (nome: string, f: number) => {
+    const riga = (nome: string, f: number, cosa: string) => {
       const b = sulBordo(f);
-      return h('div', { class: 'isp-riga' }, h('label', null, nome),
+      return h('div', { class: 'isp-riga col' }, h('label', null, nome, h('small', null, cosa)),
         b
           ? h('div', { class: 'isp-chips' },
             h('button', { class: 'chip acceso tr', title: 'Scegli il blocco per cambiarlo', on: { click: () => store.select([b.id]) } }, `${nomeBlocco(b.fxb!)} · ${(b.len / r).toFixed(1).replace('.', ',')} s`),
             h('button', { class: 'chip', title: 'Togli', on: { click: () => store.edit('Togli transizione', (pp) => { pp.clips = pp.clips.filter((z) => z.id !== b.id); }) } }, '✕'))
-          : h('div', { class: 'isp-chips' }, ['mix', 'dip', 'dve:301', 'dve:401'].map((id) => h('button', {
-            class: 'chip', on: { click: () => { store.select([]); mettiBlocco('transizione', id, f, v.track); } },
-          }, nomeBlocco(nuovoBlocco('transizione', id))))));
+          : h('div', { class: 'isp-chips' }, [['mix', 'Dissolvenza incrociata'], ['dip', 'Passa dal nero'], ['dve:301', 'Effetto 1'], ['dve:401', 'Effetto 2']].map(([id, n]) => h('button', {
+            class: 'chip', title: n, on: { click: () => { store.select([]); mettiBlocco('transizione', id, f, v.track); } },
+          }, id === 'mix' || id === 'dip' ? n : nomeBlocco(nuovoBlocco('transizione', id))))));
     };
-    return this.gruppo('trclip', 'Transizioni', [
-      riga('All\'inizio', v.start),
-      riga('Alla fine', end(v)),
-      h('p', { class: 'nota' }, 'Sono i blocchetti turchesi in basso sulla clip: più lunghi = più lente. Trascinali su un altro taglio quando vuoi.'),
+    return this.gruppo('trclip', 'Entrata e uscita', [
+      h('label', { class: 'etichetta' }, 'Dissolvenza: la clip appare e sparisce piano'),
+      this.cursore('All\'inizio', 0, 5, 0.1, (c) => Math.round((c.fadeIn / r) * 10) / 10, (c, s) => { c.fadeIn = Math.min(Math.round(s * r), Math.max(0, c.len - c.fadeOut)); }, 's', [v]),
+      this.cursore('Alla fine', 0, 5, 0.1, (c) => Math.round((c.fadeOut / r) * 10) / 10, (c, s) => { c.fadeOut = Math.min(Math.round(s * r), Math.max(0, c.len - c.fadeIn)); }, 's', [v]),
+      h('label', { class: 'etichetta' }, 'Transizione con la clip vicina (serve una clip attaccata)'),
+      riga('Con la clip prima', v.start, 'sul taglio all\'inizio'),
+      riga('Con la clip dopo', end(v), 'sul taglio alla fine'),
+      h('p', { class: 'nota' }, 'Le transizioni sono i blocchetti turchesi in basso sulla clip: più lunghi = più lente, e li sposti su un altro taglio quando vuoi. Nessuna cambia la durata delle clip.'),
     ]);
   }
 
@@ -414,13 +495,13 @@ export class Ispettore {
     const durate = [0.25, 0.5, 1, 2, 3, 5, 10];
     const n = h('input', { type: 'number', class: 'num largo', min: 0.08, step: 0.04, value: (b0.len / r).toFixed(2) }) as HTMLInputElement;
     n.addEventListener('change', () => store.edit('Durata', (pp) => { for (const id of ids) durataDelBlocco(pp, clipById(pp, id)!, Math.max(0.08, Number(n.value) || 1) * r); }));
-    out.push(this.gruppo('bdurata', tr ? 'Durata (più lunga = più lenta)' : 'Durata', [
+    out.push(this.gruppo('bdurata', tr ? 'Quanto dura (più lunga = più lenta)' : 'Quanto dura', [
       h('div', { class: 'isp-chips' }, durate.map((d) => h('button', {
         class: 'chip' + (Math.round(d * r) === b0.len ? ' acceso' : ''),
         on: { click: () => store.edit('Durata', (pp) => { for (const id of ids) durataDelBlocco(pp, clipById(pp, id)!, d * r); }) },
       }, String(d).replace('.', ',') + ' s'))),
       h('div', { class: 'isp-riga' }, h('label', null, 'Secondi'), n),
-    ]));
+    ], true));
     if (tr) {
       const opz: [string, string][] = [['mix', 'Dissolvenza incrociata'], ['dip', 'Passaggio a colore'], ...EFFETTI.map((m) => ['dve:' + m.p, 'Effetto · ' + m.nome] as [string, string]), ...TENDINE.map((m) => ['wipe:' + m.p, 'Tendina ' + m.nome] as [string, string])];
       const trDi = (c: Clip) => c.fxb!.tr!;
@@ -435,7 +516,7 @@ export class Ispettore {
         wipe || tipo === 'dip' ? this.colore(tipo === 'dip' ? 'Colore del passaggio' : 'Colore del bordo', (c) => (trDi(c)?.type === 'dip' ? trDi(c).color : trDi(c)?.borderColor ?? '#ffd54a'), (c, v) => { const t = trDi(c); if (t.type === 'dip') t.color = v; else t.borderColor = v; }, bs) : null,
         wipe ? this.cursore('Bordo', 0, 20, 0.5, (c) => (trDi(c)?.border ?? 0) * 100, (c, v) => { trDi(c).border = v / 100; }, '', bs) : null,
         wipe ? this.cursore('Morbidezza', 0, 30, 0.5, (c) => (trDi(c)?.soft ?? 0) * 100, (c, v) => { trDi(c).soft = v / 100; }, '', bs) : null,
-      ]));
+      ], true));
     } else {
       const colori = ['flash', 'lampoNero', 'strobo', 'dalNero', 'alNero', 'dalBianco', 'alBianco', 'duotone', 'bokeh', 'scintille'].includes(fb.id);
       const centro = haCentro(fb.id);
@@ -452,7 +533,7 @@ export class Ispettore {
         ]) : null,
         centro && tracciate(p).length ? this.scelta('Segue', [['', 'Nessuno (sta dove l\'hai messo)'], ...tracciate(p).map((x) => [x.id, x.name] as [string, string])], (c) => c.fxb?.segue ?? '', (c, v) => agganciaSegue(store.doc, c, v), bs) : null,
         segue ? h('p', { class: 'nota' }, 'Il centro segue l\'oggetto tracciato: il mirino sul monitor sposta lo scarto.') : null,
-      ]));
+      ], true));
     }
     // il suono dentro l'FX: acceso/spento, quale, quanto forte
     const suoni: [string, string][] = [['', 'Nessun suono'], ...SUONI.map((x) => [x.id, x.nome] as [string, string])];
@@ -516,10 +597,13 @@ export class Ispettore {
       tsel('Esce', ANIMAZIONI, (s) => s.uscita ?? '', (s, v) => { s.uscita = v || undefined; }),
       this.cursore('Spazio fra le lettere', -5, 60, 1, (c) => Math.round((c.gen!.title!.spaziatura ?? 0) * 100), (c, v) => { c.gen!.title!.spaziatura = v / 100; }, '%', tt),
       tsel('Spessore', [['', 'Come lo stile'], ['400', 'Normale'], ['600', 'Medio'], ['700', 'Grassetto'], ['900', 'Nero']], (s) => (s.peso ? String(s.peso) : ''), (s, v) => { s.peso = v ? Number(v) : undefined; }),
-    ]);
+    ], true);
   }
 
-  /** durata in secondi: si allunga o si accorcia dal bordo di uscita (con il ripple, se acceso) */
+  /**
+   * Durata e velocità, in parole semplici: quanto resta in timeline (si legge grande), da quando a quando, i tasti per
+   * allungarla o accorciarla e la velocità (che cambia anche la durata: più veloce = più corta).
+   */
   private durata(cs: Clip[]): HTMLElement {
     const p0 = store.doc;
     const r = fps(p0.rate);
@@ -528,8 +612,20 @@ export class Ispettore {
       const visti = new Set<string>();
       return store.doc.clips.filter((c) => cs.some((x) => x.id === c.id)).filter((c) => { if (!c.link) return true; if (visti.has(c.link)) return false; visti.add(c.link); return true; });
     };
+    const grande = h('b', { class: 'dur-numero' });
+    const dove = h('small', { class: 'dur-dove' });
+    const velo = h('span', { class: 'dur-velocita' });
     const n = h('input', { type: 'number', class: 'num largo', min: 0.04, step: 0.04 }) as HTMLInputElement;
-    const agg = () => { const c = scelte()[0]; if (c && document.activeElement !== n) n.value = (c.len / r).toFixed(2); };
+    const sec = (len: number) => (len / r).toFixed(2).replace('.', ',') + ' s';
+    const agg = () => {
+      const c = scelte()[0];
+      if (!c) return;
+      const p = store.doc;
+      grande.textContent = sec(c.len);
+      dove.textContent = `da ${frameToTc(c.start, p.rate, p.drop)} a ${frameToTc(c.start + c.len, p.rate, p.drop)}`;
+      velo.textContent = c.speed === 1 ? 'Velocità normale (100%)' : `Velocità ${Math.round(c.speed * 100)}%`;
+      if (document.activeElement !== n) n.value = (c.len / r).toFixed(2);
+    };
     agg();
     const allunga = (label: string, fn: (c: Clip) => number) => {
       store.edit(label, (p) => {
@@ -542,18 +638,28 @@ export class Ispettore {
     };
     n.addEventListener('change', () => allunga('Durata', (c) => Math.max(1, Math.round(Number(n.value) * r)) - c.len));
     const prossima = (c: Clip) => {
-      const dopo = store.doc.clips.filter((x) => x.track === c.track && x.start >= c.start + c.len && x.id !== c.id).sort((a, b) => a.start - b.start)[0];
+      const dopo = store.doc.clips.filter((x) => x.track === c.track && x.start >= c.start + c.len && x.id !== c.id && x.kind !== 'fx').sort((a, b) => a.start - b.start)[0];
       return dopo ? dopo.start - (c.start + c.len) : 0;
     };
+    /** quanto manca alla fine del file (la ripresa non si può allungare oltre) */
+    const finoAllaFine = (c: Clip) => {
+      const m = mediaOf(store.doc, c);
+      if (!m || m.type === 'image' || !m.duration) return 0;
+      const restano = Math.max(0, m.duration - c.srcIn - (c.len / r) * c.speed);
+      return Math.floor((restano / c.speed) * r);
+    };
     const el = h('div', { class: 'isp-durata' },
-      h('div', { class: 'isp-riga' }, h('label', null, 'Secondi'), n, h('small', { class: 'nota' }, modi.ripple ? 'ripple: sposta le clip dopo' : 'si ferma alla clip dopo')),
+      h('div', { class: 'dur-testa' }, grande, dove),
+      h('div', { class: 'isp-riga' }, h('label', null, 'Quanto dura (secondi)'), n),
       this.pulsanti([
+        ['−1 s', () => allunga('Accorcia', (c) => -Math.min(c.len - 1, Math.round(r)))],
         ['+1 s', () => allunga('Allunga', () => Math.round(r))],
         ['+5 s', () => allunga('Allunga', () => Math.round(r * 5))],
-        ['−1 s', () => allunga('Accorcia', (c) => -Math.min(c.len - 1, Math.round(r)))],
-        ['↦ fino alla prossima', () => allunga('Allunga fino alla prossima', prossima)],
+        ['↦ fino alla clip dopo', () => allunga('Allunga fino alla prossima', prossima)],
+        ['↦ fino alla fine del file', () => allunga('Allunga fino alla fine', finoAllaFine)],
       ]),
-      h('p', { class: 'nota' }, 'Le immagini e le istantanee si allungano quanto vuoi; i video fino alla fine della ripresa.'));
+      h('div', { class: 'isp-riga dur-vel' }, velo, h('button', { class: 'btn-mini', title: 'Più veloce o più lenta, con il tono e il movimento fluido (Alt+E)', on: { click: () => esegui('velocita') } }, '⏩ Cambia velocità…')),
+      h('p', { class: 'nota' }, modi.ripple ? 'Con il ripple acceso le clip dopo scorrono: non restano buchi.' : 'Si ferma contro la clip dopo (se serve spazio, usa il ripple). Le immagini si allungano quanto vuoi; i video fino alla fine della ripresa.'));
     this.campi.push({ el, aggiorna: agg });
     return el;
   }
@@ -564,6 +670,7 @@ export class Ispettore {
    */
   apriSezione(id: string): boolean {
     this.aperti.add(id);
+    this.chiusi.delete(id);
     this.firma = '';
     this.costruisci();
     const el = this.corpo.querySelector(`.isp-gruppo[data-g="${id}"]`) as HTMLDetailsElement | null;
@@ -574,10 +681,14 @@ export class Ispettore {
   }
 
   // ——— mattoncini ———
-  private gruppo(id: string, titolo: string, righe: (HTMLElement | null)[]): HTMLElement {
+  /** una sezione del pannello; `principale` = quella che serve per questo tipo di elemento: parte aperta (se non l'hai chiusa tu) */
+  private gruppo(id: string, titolo: string, righe: (HTMLElement | null)[], principale = false): HTMLElement {
     const grip = h('span', { class: 'isp-grip', title: 'Trascina per spostare la sezione (l\'ordine si ricorda)' }, '⠿');
-    const el = h('details', { class: 'isp-gruppo', open: this.aperti.has(id), 'data-g': id }, h('summary', null, titolo, grip), ...righe.filter(Boolean) as HTMLElement[]);
-    el.addEventListener('toggle', () => { if ((el as HTMLDetailsElement).open) this.aperti.add(id); else this.aperti.delete(id); });
+    const aperta = this.aperti.has(id) || (principale && !this.chiusi.has(id));
+    const el = h('details', { class: 'isp-gruppo' + (principale ? ' principale' : ''), open: aperta, 'data-g': id }, h('summary', null, titolo, grip), ...righe.filter(Boolean) as HTMLElement[]);
+    el.addEventListener('toggle', () => {
+      if ((el as HTMLDetailsElement).open) { this.aperti.add(id); this.chiusi.delete(id); } else { this.aperti.delete(id); this.chiusi.add(id); }
+    });
     // la maniglia non apre né chiude: serve solo a trascinare
     grip.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
     grip.addEventListener('pointerdown', (e) => this.trascina(el, e));
@@ -718,6 +829,55 @@ export class Ispettore {
 function spostaChiavi(c: Clip, dx: number, dy: number) {
   const tutte = [c.tf, ...(c.tfFine ? [c.tfFine] : []), ...(c.via ?? []).map((v) => v.tf)];
   for (const t of tutte) { t.x = Math.round(t.x + dx); t.y = Math.round(t.y + dy); }
+}
+
+/** una clip dietro a quella data (su una traccia video sotto, per tutta la sua durata): un colore, uno sfumato o un file */
+function mettiDietro(srcId: string, cosa: { colore?: string; colore2?: string; media?: string; nome?: string }) {
+  store.edit('Sfondo dietro', (pp) => {
+    const src = clipById(pp, srcId);
+    if (!src) return;
+    const video = pp.tracks.filter((t) => t.kind === 'video');
+    const a = src.start, b = end(src);
+    const libera = (id: string) => !pp.clips.some((c) => c.track === id && c.kind !== 'fx' && c.start < b && end(c) > a);
+    let track = video.slice(video.findIndex((t) => t.id === src.track) + 1).find((t) => !t.lock && libera(t.id))?.id;
+    if (!track) {
+      const nt = newTrack('video', nextTrackName(pp, 'video'));
+      pp.tracks.splice(pp.tracks.lastIndexOf(video[video.length - 1]) + 1, 0, nt);
+      track = nt.id;
+    }
+    if (cosa.media) {
+      const m = pp.media.find((x) => x.id === cosa.media);
+      if (!m) return;
+      const durata = m.type === 'image' || !m.duration ? src.len : Math.max(1, Math.floor(m.duration * fps(pp.rate)));
+      const c = newClip('media', track, a, Math.min(src.len, durata), { media: m.id, name: m.name });
+      // a tutto quadro (se la forma è diversa, taglia i bordi che avanzano)
+      if (m.width && m.height) { const k1 = Math.min(pp.w / m.width, pp.h / m.height), k2 = Math.max(pp.w / m.width, pp.h / m.height); c.tf.scale = k2 / k1; }
+      pp.clips.push(c);
+    } else pp.clips.push(newClip('color', track, a, src.len, { name: cosa.nome ?? 'Sfondo', gen: { color: cosa.colore ?? '#000000', ...(cosa.colore2 ? { color2: cosa.colore2 } : {}) } }));
+  });
+}
+
+/** i segnalini che si mettono con un clic sull'oggetto tracciato: (id dell'animazione, nome, simbolo) */
+const SEGNALINI_RAPIDI: [string, string, string][] = [
+  ['sg-mirino', 'Mirino', '⌖'], ['sg-cerchio', 'Cerchio', '◯'], ['sg-freccia', 'Freccia', '➜'], ['sg-etichetta', 'Etichetta', '🏷'], ['sg-nome', 'Nome sopra', '💬'], ['sg-onde', 'Onde', '◎'],
+];
+
+/** mette sopra la ripresa tracciata un segnalino (una animazione del catalogo) che segue l'oggetto per tutta la clip */
+function aggiungiSegnalino(sorgente: string, animId: string) {
+  const def = animazione(animId);
+  if (!def) return;
+  let nuova = '';
+  store.edit('Segnalino: ' + def.nome, (pp) => {
+    const src = clipById(pp, sorgente);
+    if (!src) return;
+    const track = M.tracciaLibera(pp, 'video', src.track, src.start, end(src), undefined, new Set([src.track]));
+    const c = newClip('title', track, src.start, src.len, { name: def.nome, gen: { anim: nuovaAnim(animId) } });
+    // il centro del segnalino va a finire sull'oggetto, e lo segue (lo scarto è zero: sta proprio sopra)
+    c.segue = src.id;
+    pp.clips.push(c);
+    nuova = c.id;
+  });
+  if (nuova) { store.select([nuova]); avviso(`${def.nome}: ora segue l'oggetto. Cambialo dalle sue Proprietà.`, 'ok', 2600); }
 }
 
 /** la clip (o il centro dell'effetto) comincia o smette di seguire un oggetto tracciato, senza che salti: resta dov'è adesso */

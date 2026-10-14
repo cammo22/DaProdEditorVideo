@@ -235,3 +235,28 @@ store.on('doc', () => {
   potaMaschere(store.doc);
   void ripristinaMaschere(store.doc);
 });
+
+// ——— il bianco ———
+/**
+ * "Bilancia il bianco": un clic sul monitor su qualcosa che dovrebbe essere grigio o bianco, e la temperatura del
+ * colore della clip si corregge da sola in modo che lì il colore diventi neutro (la dominante calda o fredda sparisce).
+ * Il conto è quello dello shader: R·(1+0,18·T), B·(1−0,2·T) → T = (B−R) / (0,18·R + 0,2·B).
+ */
+export function bilanciaBianco(id: string) {
+  const c = clipById(store.doc, id);
+  if (!c?.media) { avviso('Il bianco si bilancia su una ripresa o un\'immagine', 'info'); return; }
+  const sc: SceltaImmagine = {
+    id, continua: false,
+    testo: '💧 Clicca su qualcosa che dovrebbe essere grigio o bianco',
+    clic: (x, y) => {
+      void pixelAl(c.media!, istanteQui(clipById(store.doc, id) ?? c), 640).then((px) => {
+        if (!px) { avviso('Non riesco a leggere il colore di questa ripresa', 'errore'); return; }
+        const [r, , b] = coloreIn(px, x, y);
+        const T = Math.max(-1, Math.min(1, (b - r) / Math.max(1, 0.18 * r + 0.2 * b)));
+        store.edit('Bilancia il bianco', (pp) => { const z = clipById(pp, id); if (z) z.fx.temp = Math.round(((z.fx.temp ?? 0) + T) * 100) / 100; });
+        avviso(`Bianco bilanciato: temperatura ${T > 0 ? '+' : ''}${Math.round(T * 100)}`, 'ok', 2200);
+      });
+    },
+  };
+  document.dispatchEvent(new CustomEvent('dpv:scegli', { detail: sc }));
+}

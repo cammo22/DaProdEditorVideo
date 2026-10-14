@@ -17,7 +17,7 @@ export interface CampoAnim {
   scelte?: [string, string][];
 }
 
-export type GruppoAnim = 'sottopancia' | 'testo' | 'dati' | 'social' | 'fondi' | 'cerimonia';
+export type GruppoAnim = 'sottopancia' | 'testo' | 'dati' | 'social' | 'segui' | 'fondi' | 'cerimonia';
 
 export interface Anim {
   id: string;
@@ -36,6 +36,7 @@ export const GRUPPI_ANIM: { id: GruppoAnim; nome: string; info: string }[] = [
   { id: 'testo', nome: 'Testi che si muovono', info: 'parole che salgono, si decodificano, cambiano' },
   { id: 'dati', nome: 'Numeri e grafici', info: 'contatori, anelli, barre' },
   { id: 'social', nome: 'Social e chiusure', info: 'segui, iscriviti, post, notifiche, chat' },
+  { id: 'segui', nome: 'Segnalini che seguono', info: 'mirino, cerchio, freccia, etichetta: seguono un oggetto tracciato' },
   { id: 'fondi', nome: 'Fondi e luci', info: 'aurora, stelle, neve, bokeh, perdite di luce, HUD' },
   { id: 'cerimonia', nome: 'Cerimonie e feste', info: 'monogramma, cornici, cuori, petali, palloncini' },
 ];
@@ -134,6 +135,20 @@ export const ANIMAZIONI: Anim[] = [
     campi: [T('marca', 'Sigla', 'DAPROD NEWS'), L('testo', 'Testo', 'Ultim\'ora: il montaggio è tutto un\'altra cosa · Nuove animazioni in arrivo · Ora anche senza sfondo'), C('colore', 'Colore', '#d2202a')] },
   { id: 'hd-mirino', nome: 'Mirino HUD', gruppo: 'fondi', info: 'angoli che si disegnano e numeri che scorrono', durata: 6,
     campi: [T('etichetta', 'Etichetta', 'SOGGETTO 01'), C('colore', 'Colore', '#35e8ff')] },
+
+  // ——— segnalini che seguono un oggetto (Proprietà → Segui un oggetto) ———
+  { id: 'sg-mirino', nome: 'Mirino', gruppo: 'segui', info: 'quattro angoli che si stringono sull\'oggetto, con una piccola croce', durata: 6,
+    campi: [C('colore', 'Colore', '#35e8ff'), N('spessore', 'Spessore', 6, 2, 16, 1), DIM] },
+  { id: 'sg-cerchio', nome: 'Cerchio', gruppo: 'segui', info: 'un anello tratteggiato che gira e pulsa attorno all\'oggetto', durata: 6,
+    campi: [C('colore', 'Colore', '#ffd23f'), N('spessore', 'Spessore', 6, 2, 16, 1), { id: 'tratteggio', nome: 'Tratteggiato', tipo: 'spunta', def: true }, DIM] },
+  { id: 'sg-freccia', nome: 'Freccia', gruppo: 'segui', info: 'una freccia che indica l\'oggetto e ondeggia', durata: 6,
+    campi: [C('colore', 'Colore', '#ff4d6d'), S('da', 'Da dove arriva', 'su', [['su', 'Da sopra'], ['giu', 'Da sotto'], ['sinistra', 'Da sinistra'], ['destra', 'Da destra'], ['su-sinistra', 'Da sopra a sinistra'], ['su-destra', 'Da sopra a destra']]), DIM] },
+  { id: 'sg-etichetta', nome: 'Etichetta con linea', gruppo: 'segui', info: 'un punto sull\'oggetto, una linea e la targhetta col testo', durata: 6,
+    campi: [T('testo', 'Testo', 'Il protagonista'), C('colore', 'Colore', '#ffffff'), S('verso', 'Dove va la targhetta', 'su-destra', [['su-destra', 'In alto a destra'], ['su-sinistra', 'In alto a sinistra'], ['giu-destra', 'In basso a destra'], ['giu-sinistra', 'In basso a sinistra']]), DIM] },
+  { id: 'sg-nome', nome: 'Nome sopra', gruppo: 'segui', info: 'la targhetta col nome sopra l\'oggetto, con la punta che lo indica', durata: 6,
+    campi: [T('testo', 'Nome', 'Marco'), C('colore', 'Colore', '#ff2d6f'), DIM] },
+  { id: 'sg-onde', nome: 'Onde', gruppo: 'segui', info: 'cerchi che si allargano dall\'oggetto, come un segnale', durata: 6,
+    campi: [C('colore', 'Colore', '#35e8ff'), N('spessore', 'Spessore', 5, 2, 14, 1), DIM] },
 
   // ——— cerimonie e feste ———
   { id: 'cr-monogramma', nome: 'Monogramma', gruppo: 'cerimonia', info: 'le iniziali dentro un cerchio dorato, i nomi e la data', durata: 7,

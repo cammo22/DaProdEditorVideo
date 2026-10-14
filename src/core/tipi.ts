@@ -500,4 +500,54 @@ export const FORMATI = [
   { id: 'quad25', nome: 'Quadrato 1080×1080 · 25p', w: 1080, h: 1080, rate: { num: 25, den: 1 }, drop: false },
 ] as const;
 
+/** le risoluzioni utili per cominciare un progetto (la pagina iniziale e le impostazioni le scelgono insieme ai fotogrammi al secondo) */
+export const RISOLUZIONI = [
+  { id: 'fhd', nome: 'Full HD', w: 1920, h: 1080, info: '1080p · 16:9 · YouTube, TV, schermo' },
+  { id: 'uhd', nome: '4K UHD', w: 3840, h: 2160, info: '2160p · 16:9 · qualità massima' },
+  { id: 'qhd', nome: '2K', w: 2560, h: 1440, info: '1440p · 16:9 · schermi grandi' },
+  { id: 'hd', nome: 'HD', w: 1280, h: 720, info: '720p · 16:9 · leggero e veloce' },
+  { id: 'vert', nome: 'Verticale', w: 1080, h: 1920, info: '9:16 · Reel, TikTok, Shorts, storie' },
+  { id: 'post', nome: 'Post 4:5', w: 1080, h: 1350, info: '4:5 · Instagram e Facebook nel feed' },
+  { id: 'quad', nome: 'Quadrato', w: 1080, h: 1080, info: '1:1 · post e anteprime' },
+  { id: 'cine', nome: 'Cinema 21:9', w: 2560, h: 1080, info: '21:9 · bande nere sopra e sotto, effetto film' },
+  { id: 'c43', nome: '4:3', w: 1440, h: 1080, info: '4:3 · vecchi video, presentazioni' },
+  { id: 'sd', nome: 'SD 16:9', w: 1024, h: 576, info: '576p · bozze molto leggere' },
+] as const;
+
+/** i fotogrammi al secondo più usati */
+export const CADENZE = [
+  { id: '24', nome: '24', rate: { num: 24, den: 1 }, drop: false, info: 'cinema' },
+  { id: '25', nome: '25', rate: { num: 25, den: 1 }, drop: false, info: 'Europa (PAL), TV e web' },
+  { id: '30', nome: '30', rate: { num: 30, den: 1 }, drop: false, info: 'web e social' },
+  { id: '50', nome: '50', rate: { num: 50, den: 1 }, drop: false, info: 'fluido: sport, azione, rallenty' },
+  { id: '60', nome: '60', rate: { num: 60, den: 1 }, drop: false, info: 'molto fluido: giochi, schermo' },
+  { id: '2997', nome: '29,97', rate: { num: 30000, den: 1001 }, drop: true, info: 'TV americana (NTSC, drop frame)' },
+] as const;
+
+/** i formati pronti per "dove lo pubblico?": un clic e risoluzione e fotogrammi sono quelli giusti */
+export const OBIETTIVI = [
+  { id: 'youtube', nome: 'YouTube', info: 'Full HD · 25 fps', ris: 'fhd', cad: '25' },
+  { id: 'youtube4k', nome: 'YouTube 4K', info: '4K · 25 fps', ris: 'uhd', cad: '25' },
+  { id: 'reel', nome: 'Reel · TikTok · Shorts', info: 'verticale · 30 fps', ris: 'vert', cad: '30' },
+  { id: 'post', nome: 'Instagram post', info: '4:5 · 30 fps', ris: 'post', cad: '30' },
+  { id: 'quad', nome: 'Quadrato', info: '1:1 · 30 fps', ris: 'quad', cad: '30' },
+  { id: 'cinema', nome: 'Cinema', info: '21:9 · 24 fps', ris: 'cine', cad: '24' },
+  { id: 'azione', nome: 'Sport e azione', info: 'Full HD · 50 fps', ris: 'fhd', cad: '50' },
+  { id: 'schermo', nome: 'Gioco e schermo', info: 'Full HD · 60 fps', ris: 'fhd', cad: '60' },
+] as const;
+
+/** il formato (come i FORMATI) da una risoluzione e dai fotogrammi al secondo scelti */
+export function formatoDa(ris: string, cad: string) {
+  const r = RISOLUZIONI.find((x) => x.id === ris) ?? RISOLUZIONI[0];
+  const c = CADENZE.find((x) => x.id === cad) ?? CADENZE[1];
+  return { id: `${r.id}-${c.id}`, nome: `${r.nome} · ${r.w}×${r.h} · ${c.nome} fps`, w: r.w as number, h: r.h as number, rate: { num: c.rate.num as number, den: c.rate.den as number }, drop: c.drop as boolean };
+}
+
+/** a quale risoluzione e cadenza corrisponde un progetto (null se non è fra quelle pronte) */
+export function sceltaDa(w: number, h: number, rate: { num: number; den: number }) {
+  const r = RISOLUZIONI.find((x) => x.w === w && x.h === h);
+  const c = CADENZE.find((x) => x.rate.num === rate.num && x.rate.den === rate.den);
+  return { ris: r?.id ?? null, cad: c?.id ?? null };
+}
+
 export const ETICHETTE = ['#4a8cff', '#5dd39e', '#ffd54a', '#ff8a3d', '#ff4d6d', '#c86bff', '#35e8ff', '#9aa3b5'];
