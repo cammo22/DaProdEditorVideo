@@ -5,6 +5,7 @@
 // L'anteprima si può spegnere (si risparmia un po' di lavoro alla scheda video): la scelta si ricorda.
 import { h, icona, avviso } from './dom';
 import { isAndroid, isTauri } from '../platform';
+import { posizioneBarra, SOGLIA_CLIP } from '../core/liveAudio';
 
 export interface ComandiTelecomando {
   pausa: () => void;
@@ -45,6 +46,8 @@ export class Telecomando {
   private bSegna: HTMLButtonElement;
   private bCambia: HTMLButtonElement;
   private bOcchio: HTMLButtonElement;
+  /** i livelli piccoli sull'anteprima: computer e voce */
+  private barre: HTMLElement[];
   private conAnteprima = true;
   private stato: StatoTelecomando | null = null;
 
@@ -56,8 +59,12 @@ export class Telecomando {
     this.tempo = h('span', { class: 'tele-tempo' }, '00:00:00');
     this.spia = h('span', { class: 'tele-spia' }, 'PRONTO');
     this.segni = h('span', { class: 'tele-segni' });
+    this.barre = [h('i'), h('i')];
+    const livelli = h('div', { class: 'tele-livelli', title: 'Livelli: computer e voce' },
+      h('div', { class: 'tele-liv computer' }, icona('altoparlante', 10), h('span', null, this.barre[0])),
+      h('div', { class: 'tele-liv voce' }, icona('mic', 10), h('span', null, this.barre[1])));
     this.quadro = h('div', { class: 'tele-quadro', title: 'Clic: nascondi o mostra l\'anteprima', on: { click: () => this.alternaAnteprima() } },
-      this.video, this.cam, h('span', { class: 'tele-pausa-scritta' }, '❚❚ IN PAUSA'), h('span', { class: 'tele-spenta' }, icona('occhio', 20), 'anteprima spenta'));
+      this.video, this.cam, livelli, h('span', { class: 'tele-pausa-scritta' }, '❚❚ IN PAUSA'), h('span', { class: 'tele-spenta' }, icona('occhio', 20), 'anteprima spenta'));
     this.bPausa = h('button', { class: 'live-btn tele-grande', title: 'Pausa e riprendi (Spazio)', on: { click: () => c.pausa() } }) as HTMLButtonElement;
     this.bSegna = h('button', { class: 'live-btn segna', title: 'Un segno qui: diventa un marcatore (M)', on: { click: () => c.segna() } }, icona('marcatore', 15), 'SEGNA') as HTMLButtonElement;
     this.bCambia = h('button', { class: 'live-btn', title: 'Passa alla finestra dopo (tasti 1-9)', on: { click: () => c.prossima() } }, '⇄ FINESTRA') as HTMLButtonElement;
@@ -139,6 +146,16 @@ export class Telecomando {
     this.bSegna.disabled = s.fase !== 'registra';
     this.bCambia.disabled = s.finestre < 2 || !inOnda;
     this.collega();
+  }
+
+  /** i livelli del computer e della voce (picco di sinistra e destra): due barrette sull'anteprima */
+  livelli(computer: [number, number], voce: [number, number]) {
+    [computer, voce].forEach((p, i) => {
+      const b = this.barre[i], m = Math.max(p[0], p[1]);
+      b.style.transform = `scaleX(${posizioneBarra(m).toFixed(3)})`;
+      b.classList.toggle('alto', m > 0.5);
+      b.classList.toggle('clip', m >= SOGLIA_CLIP);
+    });
   }
 
   /** l'anteprima guarda gli stessi flussi della registrazione (niente copie: è la stessa immagine) */

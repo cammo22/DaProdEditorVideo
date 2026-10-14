@@ -1,0 +1,64 @@
+/* L'audio di LIVE: barre dei livelli, mixer e filtri della voce (src/ui/liveAudio.ts). Va con il resto della pagina LIVE
+   (editor.css), ma sta in un file suo. */
+
+/* ——— le barre ——— */
+.la-misura { display: block; width: 100%; background: transparent; cursor: pointer; }
+.la-misura.grande { height: 18px; }
+.la-misura.piccolo { height: 11px; flex: 1; min-width: 0; }
+
+/* le due barre sempre in vista in cima alla colonna (dentro .live-regia, che resta ferma mentre la colonna scorre) */
+.la-compatto { display: flex; flex-direction: column; gap: 3px; padding: 2px 2px 0; color: var(--testo3); }
+.la-c-riga { display: flex; align-items: center; gap: 7px; }
+.la-c-riga svg { flex: none; }
+
+/* ——— il pannello ——— */
+.la { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.la-testa { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; }
+.la-testa .live-sez { margin: 8px 2px 0; }
+.la-prova { margin-top: 6px; height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid #000; background: var(--metallo-chiaro); color: var(--testo); font: 800 11.5px var(--ui); letter-spacing: 0.4px; cursor: pointer; white-space: nowrap; }
+.la-prova:hover { color: #fff; }
+.la-prova.acceso { color: #ffd9df; background: linear-gradient(180deg, #5a1a26, #3a0f18); }
+
+.la-striscia { display: flex; flex-direction: column; gap: 4px; padding: 7px 8px 8px; border-radius: 9px; background: var(--pann2); border: 1px solid var(--bordo); min-width: 0; }
+.la-riga1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+.la-nome { display: inline-flex; align-items: center; gap: 6px; font: 800 12px var(--ui); letter-spacing: 0.8px; text-transform: uppercase; color: var(--testo2); }
+.la-stato { font: 600 10.5px var(--ui); color: var(--testo3); text-align: right; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.la-stato.avviso { color: var(--rosso); font-weight: 800; }
+.la-riga2 { display: grid; grid-template-columns: auto minmax(0, 1fr) 62px; align-items: center; gap: 8px; }
+.la-fader, .la-bilancio, .la-cursore input { width: 100%; min-width: 0; accent-color: var(--oro); margin: 0; }
+.la-fader.spento { opacity: 0.45; }
+.la-val { font: 700 11px var(--ui); color: var(--testo2); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.la-val.larga { grid-column: 1 / -1; text-align: center; color: var(--testo3); }
+.la-muto { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 6px; border: 1px solid #000; background: var(--metallo-chiaro); color: var(--testo2); font: 800 10.5px var(--ui); letter-spacing: 0.5px; cursor: pointer; }
+.la-muto:hover { color: var(--testo); }
+.la-muto.acceso { background: linear-gradient(180deg, #ff8a9e, #d9344f); color: #fff; box-shadow: 0 0 10px rgba(255, 77, 109, 0.35); }
+
+.la-bil-riga { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 2px 2px 0; }
+.la-lato { font: 800 10.5px var(--ui); letter-spacing: 0.6px; text-transform: uppercase; color: var(--testo3); }
+
+.la-ascolta.via { display: none; }
+.la .fin-interruttore { padding: 7px 10px; gap: 8px; font-size: 12px; }
+
+/* le opzioni avanzate stanno chiuse */
+.la-av { border-radius: 9px; border: 1px solid var(--bordo); background: var(--pann2); }
+.la-av > summary { cursor: pointer; padding: 7px 10px; font: 800 11.5px var(--ui); letter-spacing: 0.5px; color: var(--testo2); list-style: none; user-select: none; }
+.la-av > summary::-webkit-details-marker { display: none; }
+.la-av > summary::before { content: '▸'; display: inline-block; width: 14px; transition: transform 0.15s; }
+.la-av[open] > summary::before { transform: rotate(90deg); }
+.la-av[open] > summary { color: var(--testo); }
+.la-av-dentro { display: flex; flex-direction: column; gap: 5px; padding: 2px 8px 9px; }
+.la-cursore { display: grid; grid-template-columns: minmax(80px, 38%) minmax(0, 1fr) 56px; align-items: center; gap: 8px; }
+.la-etic { font: 600 11px var(--ui); color: var(--testo3); min-width: 0; }
+
+/* finestra piccola: le etichette vanno sopra ai cursori */
+@media (max-width: 760px) { .la-cursore { grid-template-columns: minmax(0, 1fr) 56px; } .la-cursore .la-etic { grid-column: 1 / -1; } }
+
+/* ——— nel telecomando: due barrette sull'anteprima ——— */
+.tele-livelli { position: absolute; left: 8px; bottom: 8px; width: 52%; display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+.tele-liv { display: flex; align-items: center; gap: 5px; color: rgba(255, 255, 255, 0.85); filter: drop-shadow(0 1px 2px #000); }
+.tele-liv svg { flex: none; }
+.tele-liv > span { flex: 1; height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.65); overflow: hidden; }
+.tele-liv > span > i { display: block; height: 100%; width: 100%; transform-origin: left center; transform: scaleX(0); background: #5dffb4; }
+.tele-liv > span > i.alto { background: #ffd54a; }
+.tele-liv > span > i.clip { background: #ff3a4a; }
+.la-senza.via { display: none; }

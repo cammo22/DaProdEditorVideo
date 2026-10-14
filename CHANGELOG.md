@@ -4,6 +4,50 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.4.1] — 2026-10-14 · LIVE: si vedono e si bilanciano i suoni, con i filtri per la voce 🎙️
+
+### Livelli e mixer
+- **Due vumetri stereo con i LED**, uno per l'**audio del computer** e uno per la **voce (microfono)**, nella regia di LIVE, nel pannello Audio e anche nel **telecomando**: si vede subito se uno dei due non arriva o se va in rosso.
+- **Prova l'audio** (si ascolta e si guardano i livelli prima di registrare) e **Ascolto** (te lo senti in cuffia mentre parli).
+- **Volume separato per computer e voce** (da −60 a +12 dB) con il tasto muto, e un **bilanciamento** a cursore con tre scelte pronte: *Voce in primo piano*, *Pari*, *Gioco: computer forte*.
+- **Abbassa il computer quando parlo** (ducking): la musica o il gioco si abbassano da soli mentre la voce parla, e risalgono dopo.
+- **Limitatore** per non far mai saturare la registrazione.
+
+### Filtri per la voce
+- Scelte pronte: **Nessuno, Voce chiara, Voce da podcast, Voce radio, Ambiente rumoroso**.
+- **Toglie i disturbi**: accende l'eliminazione dei rumori di fondo, l'eco e la regolazione del livello che fa il browser o il sistema (non è un modello AI nostro: la qualità dipende dal computer).
+- Per chi vuole regolare a mano (**Avanzate**): taglia-bassi, gate, equalizzatore, de-esser, compressore, limitatore, eco, regolazione automatica del livello.
+- **Le registrazioni prendono l'audio già lavorato** (anche con "voce e computer separati"). Di partenza tutto è trasparente: finché non tocchi niente l'audio è quello di prima. Le scelte si ricordano (`dpv-live`, campo `audio`).
+
+### Per chi ha curiosità
+- Nuovi: `src/core/liveAudio.ts` (parti pure: dB, preset, impostazioni), `src/media/liveAudio.ts` (il grafo Web Audio, con un AudioWorklet `dpv-dinamica` per gate/compressore/ducking), `src/ui/liveAudio.ts`, `src/stile/liveAudio.css`. Prove: `test/prove-liveaudio.mjs`.
+- Non provato con un microfono e un audio di sistema veri (il container non ne ha): le prove usano sorgenti finte.
+
+## [1.4.0] — 2026-10-14 · Le Proprietà rifatte, i formati del progetto e i segnalini che seguono 🎯
+
+### Il pannello di destra (Proprietà)
+- **Clic o doppio clic su una clip, e il menu giusto è già aperto**: per un'animazione si apre "Animazione" (in cima), per un titolo "Titolatrice", per un colore "Generatore", per la musica "Volume", per un effetto o una transizione "Quanto dura" e "Effetto/Transizione", per un video "Posizione e grandezza". Le altre sezioni restano chiuse; se ne chiudi una principale resta chiusa. Il tasto **fx** in fondo a una clip porta alle miniature degli effetti, non più a un elenco.
+- **Posizione e grandezza = un quadro in miniatura che si trascina** (al posto di una fila di cursori): l'immagine del monitor in piccolo con sopra il riquadro della clip. Trascini dentro per spostare, tiri un angolo o giri la rotella per ingrandire, il pallino in alto la gira, doppio clic la rimette a tutto quadro; il centro e i bordi del quadro attirano il riquadro (Alt = libero). Sotto, nove posizioni pronte col loro disegnino (Adatta, Riempi, Piccola, quattro angoli, Bolla, Presentazione) e i numeri precisi chiusi in "Numeri precisi".
+- **Effetti e look con la miniatura vera**: ogni effetto rapido e ogni look di colore si vede già applicato al fotogramma dove sei; un clic lo accende (con la spunta), "Com'è" li spegne tutti.
+- **Durata e velocità, in parole semplici**: la durata si legge grande ("5,20 s") con "da … a …", i tasti −1 s / +1 s / +5 s / fino alla clip dopo / fino alla fine del file e la velocità con il tasto per cambiarla (Alt+E).
+- **Entrata e uscita** (era "Transizioni"): la dissolvenza all'inizio e alla fine in secondi, e le transizioni con la clip prima e dopo con nomi chiari.
+- **Ritaglio** (era "Avanzate"): quattro lati, e i pronti "Quadrato al centro", "Verticale 9:16 al centro", "Bande cinema". La posizione precisa e la rotazione stanno nei numeri precisi, la tinta nel colore.
+- **Colore**: "Bilancia il bianco" col contagocce sul monitor (un clic su qualcosa di grigio o bianco e la dominante sparisce); la temperatura e la tinta sono a portata di mano.
+- In cima a ogni clip: **Duplica** (nuovo comando **Ctrl+D**: una copia subito dopo, con i suoi effetti), **Vai all'inizio** ed **Elimina**.
+
+### Togli lo sfondo
+- Si sceglie "Come lo tolgo?" (colore, luce o AI), si guarda il risultato con **Immagine / Maschera / Sugli scacchi** dal pannello stesso, e c'è **"Cosa metto al posto dello sfondo?"**: uno sfumato (Notte, Tramonto, Mare…), un colore pieno o un tuo file, messo come clip dietro per tutta la durata.
+
+### Segui un oggetto, e poi?
+- Dopo aver tracciato un oggetto compaiono i **segnalini che lo seguono**, da mettere con un clic: **Mirino, Cerchio, Freccia, Etichetta con linea, Nome sopra, Onde**. Sono animazioni nuove del catalogo (gruppo "Segnalini che seguono"): una clip sopra la ripresa che segue l'oggetto per tutta la sua durata; si cambiano colore e testo dalle loro Proprietà e si spostano rispetto all'oggetto trascinandole sul monitor.
+
+### La pagina iniziale
+- **Progetto nuovo con formati pronti**: "Per cosa lo fai?" — YouTube, YouTube 4K, Reel · TikTok · Shorts, Instagram post (4:5), Quadrato, Cinema (21:9, 24 fps), Sport e azione (50 fps), Gioco e schermo (60 fps) — oppure si sceglie **risoluzione** (Full HD, 4K, 2K, HD, Verticale, 4:5, Quadrato, Cinema 21:9, 4:3, SD) e **fotogrammi al secondo** (24, **25, 30, 50**, 60, 29,97) a parte. Lo stesso nelle impostazioni del progetto e nel menu File → Nuovo progetto.
+
+### Per chi ha curiosità
+- Nuovi: `src/ui/miniQuadro.ts` (il quadro in miniatura e le posizioni pronte), `src/ui/tessere.ts` (miniature con `scenaRitocco`+`fotoScena` di `render/provino.ts`, disegnate una alla volta e solo finché si vedono), `src/render/anim/segnalini.ts`, `RISOLUZIONI`/`CADENZE`/`OBIETTIVI`/`formatoDa` in `core/tipi.ts`, `bilanciaBianco` in `ui/sfondo.ts`, comando `duplica`. `Ispettore.gruppo(id, titolo, righe, principale)`: le sezioni principali partono aperte. Prove nuove in `test/prove-proprieta.mjs`.
+- La modalità LIVE con i livelli, il bilanciamento e i filtri audio è nella 1.4.1. (Le note di questa versione sono state scritte dopo l'uscita: se leggi "1.4.0" senza dettagli sulla release, sono queste.)
+
 ## [1.3.3] — 2026-10-14 · Il taglio preciso, i punti sul volume, la rotella ovunque 🎚️
 
 ### Il montaggio
