@@ -145,7 +145,13 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     await page.waitForTimeout(700);
     const cl = await page.evaluate(() => { document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'fxv' })); return null; });
     void cl;
-    await page.waitForTimeout(2500);
+    // le miniature si disegnano una alla volta: si aspetta che ce ne siano abbastanza (su un computer carico ci vuole di più)
+    await page.waitForFunction(() => {
+      const t = [...document.querySelectorAll('.tessera canvas')];
+      let n = 0;
+      for (const c of t) { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let min = 255, max = 0; for (let i = 0; i < d.length; i += 4 * 37) { const v = d[i] + d[i + 1] + d[i + 2]; if (v < min) min = v; if (v > max) max = v; } if (max - min > 60) n++; }
+      return n >= 8;
+    }, null, { timeout: 60000, polling: 500 }).catch(() => {});
     const tess = await page.evaluate(() => {
       const t = [...document.querySelectorAll('.tessera')];
       const piena = (c) => { const x = c.getContext('2d'); const d = x.getImageData(0, 0, c.width, c.height).data; let min = 255, max = 0; for (let i = 0; i < d.length; i += 4 * 37) { const v = d[i] + d[i + 1] + d[i + 2]; if (v < min) min = v; if (v > max) max = v; } return max - min > 60; };
@@ -209,7 +215,7 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     await page.waitForTimeout(300);
     // il montaggio dimostrativo ha riprese video vere: se ne sceglie una e le si dà un tracking (come fa il tracking vero)
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:demo')));
-    await page.waitForFunction(() => window.__dpv.doc.clips.length >= 8, null, { timeout: 90000 });
+    await page.waitForFunction(() => window.__dpv.doc.clips.length >= 8, null, { timeout: 240000 });
     await page.waitForTimeout(1200);
     const tracciato = await page.evaluate(() => {
       const d = window.__dpv.doc;

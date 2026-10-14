@@ -4,6 +4,25 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.4.1] — 2026-10-14 · LIVE: si vedono e si bilanciano i suoni, con i filtri per la voce 🎙️
+
+### Livelli e mixer
+- **Due vumetri stereo con i LED**, uno per l'**audio del computer** e uno per la **voce (microfono)**, nella regia di LIVE, nel pannello Audio e anche nel **telecomando**: si vede subito se uno dei due non arriva o se va in rosso.
+- **Prova l'audio** (si ascolta e si guardano i livelli prima di registrare) e **Ascolto** (te lo senti in cuffia mentre parli).
+- **Volume separato per computer e voce** (da −60 a +12 dB) con il tasto muto, e un **bilanciamento** a cursore con tre scelte pronte: *Voce in primo piano*, *Pari*, *Gioco: computer forte*.
+- **Abbassa il computer quando parlo** (ducking): la musica o il gioco si abbassano da soli mentre la voce parla, e risalgono dopo.
+- **Limitatore** per non far mai saturare la registrazione.
+
+### Filtri per la voce
+- Scelte pronte: **Nessuno, Voce chiara, Voce da podcast, Voce radio, Ambiente rumoroso**.
+- **Toglie i disturbi**: accende l'eliminazione dei rumori di fondo, l'eco e la regolazione del livello che fa il browser o il sistema (non è un modello AI nostro: la qualità dipende dal computer).
+- Per chi vuole regolare a mano (**Avanzate**): taglia-bassi, gate, equalizzatore, de-esser, compressore, limitatore, eco, regolazione automatica del livello.
+- **Le registrazioni prendono l'audio già lavorato** (anche con "voce e computer separati"). Di partenza tutto è trasparente: finché non tocchi niente l'audio è quello di prima. Le scelte si ricordano (`dpv-live`, campo `audio`).
+
+### Per chi ha curiosità
+- Nuovi: `src/core/liveAudio.ts` (parti pure: dB, preset, impostazioni), `src/media/liveAudio.ts` (il grafo Web Audio, con un AudioWorklet `dpv-dinamica` per gate/compressore/ducking), `src/ui/liveAudio.ts`, `src/stile/liveAudio.css`. Prove: `test/prove-liveaudio.mjs`.
+- Non provato con un microfono e un audio di sistema veri (il container non ne ha): le prove usano sorgenti finte.
+
 ## [1.4.0] — 2026-10-14 · Le Proprietà rifatte, i formati del progetto e i segnalini che seguono 🎯
 
 ### Il pannello di destra (Proprietà)
@@ -27,7 +46,7 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 
 ### Per chi ha curiosità
 - Nuovi: `src/ui/miniQuadro.ts` (il quadro in miniatura e le posizioni pronte), `src/ui/tessere.ts` (miniature con `scenaRitocco`+`fotoScena` di `render/provino.ts`, disegnate una alla volta e solo finché si vedono), `src/render/anim/segnalini.ts`, `RISOLUZIONI`/`CADENZE`/`OBIETTIVI`/`formatoDa` in `core/tipi.ts`, `bilanciaBianco` in `ui/sfondo.ts`, comando `duplica`. `Ispettore.gruppo(id, titolo, righe, principale)`: le sezioni principali partono aperte. Prove nuove in `test/prove-proprieta.mjs`.
-- Resta da fare (prossima versione): la modalità LIVE con i livelli del computer e del microfono, il bilanciamento e i filtri audio.
+- La modalità LIVE con i livelli, il bilanciamento e i filtri audio è nella 1.4.1. (Le note di questa versione sono state scritte dopo l'uscita: se leggi "1.4.0" senza dettagli sulla release, sono queste.)
 
 ## [1.3.3] — 2026-10-14 · Il taglio preciso, i punti sul volume, la rotella ovunque 🎚️
 

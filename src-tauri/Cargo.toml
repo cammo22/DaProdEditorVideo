@@ -1,6 +1,6 @@
 [package]
 name = "daprod-video"
-version = "1.4.0"
+version = "1.4.1"
 description = "DaProd Video: il montaggio vecchio stile, moderno dentro"
 authors = ["DaProd"]
 license = "MIT"
