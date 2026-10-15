@@ -526,13 +526,15 @@ async function terza(paginaDi, page, prova, errori) {
         let esito = '';
         const lavoro = AA.togliRumore(clipId, 'media').then(() => { esito = 'finito'; }, (e) => { esito = e.message; });
         // si ferma quando il filtro è partito davvero (la prima volta il wasm da 34 MB ci mette un po' a prepararsi)
-        for (let i = 0; i < 200 && !((AT.attivitaInCorso()[0]?.k ?? 0) > 0.02); i++) await new Promise((r) => setTimeout(r, 100));
-        const riga = AT.attivitaInCorso()[0];
+        // (dalla 1.5.3 prima c'è "Ascolto la voce…": si aspetta il filtro vero, "Pulisco la voce")
+        const rigaAI = () => AT.attivitaInCorso().find((r) => r.categoria === 'ai');
+        for (let i = 0; i < 300 && !/Pulisco/.test(rigaAI()?.dettaglio ?? ''); i++) await new Promise((r) => setTimeout(r, 100));
+        const riga = rigaAI();
         out.durante = riga ? { k: riga.k, dettaglio: riga.dettaglio, titolo: riga.titolo } : null;
         if (riga) AT.fermaRiga(riga.id);
         await lavoro;
         const c = s.doc.clips.find((x) => x.id === clipId);
-        out.stop = { esito, media: c.media === prima.media, mediaN: s.doc.media.length === prima.mediaN, pulito: !!c.afx?.pulito, inUso: AA.lavoriAudioAI().size, righe: AT.attivitaInCorso().length, finita: AT.attivitaFinite()[0]?.stato };
+        out.stop = { esito, media: c.media === prima.media, mediaN: s.doc.media.length === prima.mediaN, pulito: !!c.afx?.pulito, inUso: AA.lavoriAudioAI().size, righe: AT.attivitaInCorso().filter((r) => r.categoria === 'ai').length, finita: AT.attivitaFinite().find((r) => r.categoria === 'ai')?.stato };
       }
       // la clip cambia mentre si lavora: allungata oltre il tratto → non si applica
       {
