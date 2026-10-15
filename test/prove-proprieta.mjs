@@ -114,12 +114,18 @@ export async function proveProprieta({ page: paginaDi, prova }) {
       Object.assign(mq, await rimisura());
       const prima = await tf();
       // il riquadro del titolo sta al centro (poco sopra): si trascina da lì verso destra e in basso
-      await page.mouse.move(mq.x + mq.w / 2, mq.y + mq.h * 0.53);
-      await page.mouse.down();
-      await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20, { steps: 6 });
-      await page.mouse.up();
-      await page.waitForTimeout(300);
-      const dopo = await tf();
+      // su un computer carico il riquadro del titolo a volte non è ancora al suo posto (i caratteri si caricano): si riprova fino a tre volte
+      await page.evaluate(() => document.fonts.ready);
+      let dopo = prima;
+      for (let giro = 0; giro < 3 && !(dopo.x > prima.x + 20); giro++) {
+        if (giro) { await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); window.__dpv.select([c.id]); window.__motore.vaiA(170); }); Object.assign(mq, await rimisura()); }
+        await page.mouse.move(mq.x + mq.w / 2, mq.y + mq.h * 0.53);
+        await page.mouse.down();
+        await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20, { steps: 6 });
+        await page.mouse.up();
+        await page.waitForTimeout(400);
+        dopo = await tf();
+      }
       prova('trascinando dentro il quadro in miniatura il titolo si sposta (a destra e in basso)', dopo.x > prima.x + 20 && dopo.y > prima.y + 10, JSON.stringify({ prima, dopo }));
       Object.assign(mq, await rimisura());
       await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20);

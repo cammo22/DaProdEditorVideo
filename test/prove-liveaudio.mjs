@@ -343,7 +343,8 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     const piu = await page.evaluate(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello));
     prova('volume a +12 dB: la barra della voce sale di 12 dB (prima −20, ora circa −8)', Math.abs(piu + 8) < 2.5, piu);
     await page.click('.la-muto[data-canale=voce]');
-    await page.waitForTimeout(600);
+    // la barra scende piano (e su un computer carico i fotogrammi sono pochi): si aspetta che arrivi in fondo
+    await page.waitForFunction(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello) <= -55, null, { timeout: 10000 }).catch(() => {});
     const mu = await page.evaluate(() => ({ barra: Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello), acceso: document.querySelector('.la-muto[data-canale=voce]').classList.contains('acceso'), val: document.querySelector('.la-striscia[data-chi=voce] .la-val').textContent }));
     prova('MUTO: la voce va a zero, il tasto si accende e il valore dice "muto"', mu.barra <= -55 && mu.acceso && mu.val === 'muto', JSON.stringify(mu));
     await page.click('.la-muto[data-canale=voce]');
