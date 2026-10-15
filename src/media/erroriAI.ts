@@ -17,7 +17,7 @@ const REGOLE: [RegExp, string][] = [
     'Lo spazio per tenere i modelli è pieno: libera un po\' di spazio sul disco e riprova'],
   [/out of memory|oom|array buffer allocation failed|memory access out of bounds|cannot allocate|bad_alloc|aborted\(\)|maximum call stack/i,
     'La memoria non basta per questo modello: scegli quello più leggero (opzioni) o chiudi gli altri programmi'],
-  [/webgpu|gpudevice|device (was )?lost|gpu.*(lost|error|fail)/i,
+  [/webgpu|\bgpu|device (was )?lost|setpipeline|wgsl/i,
     'La scheda video si è fermata durante il lavoro: riprova (il programma userà il processore)'],
   [/no available backend|backend.*(not|fail)|wasm.*(fail|abort|compile)|webassembly/i,
     'Il motore AI non si avvia su questo sistema: aggiorna il programma o il sistema e riprova'],
@@ -34,7 +34,7 @@ export function spiegaErroreAI(e: unknown): string {
 }
 
 /** l'errore va riprovato sul processore? (la scheda video non ce l'ha fatta) */
-export const erroreDellaScheda = (e: unknown) => /webgpu|gpudevice|device (was )?lost|gpubuffer|gpu.*(lost|error|fail)|createbuffer|shader|jsep/i.test(testoErrore(e));
+export const erroreDellaScheda = (e: unknown) => /webgpu|\bgpu|gpu(device|buffer|queue|adapter|compute|render|pass|pipeline|bindgroup|shader)|device (was )?lost|createbuffer|createcomputepipeline|setpipeline|dispatchworkgroups|bindgroup|wgsl|shader|jsep|validation error|\[webgpu\]|mapasync/i.test(testoErrore(e));
 
 /** il file del modello non c'è (con un altro "tipo" o un altro indirizzo può andare) */
 export const erroreFileMancante = (e: unknown) => /could not locate file|404|not found/i.test(testoErrore(e));

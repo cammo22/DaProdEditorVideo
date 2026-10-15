@@ -10,7 +10,8 @@ import { f2s, fps } from '../core/timecode';
 import { mixaggio } from './audio';
 import { assicuraMotore, motoreNemo } from './nemo';
 import { spiegaErroreAI } from './erroriAI';
-import { baseLocaleAI, usaSchedaAI } from './libreriaAI';
+import { baseLocaleAI } from './libreriaAI';
+import { messaggioScheda, schedaGuasta } from './hardware';
 
 export interface Modello { id: string; nome: string; info: string; mb: number }
 
@@ -58,6 +59,7 @@ function lavoratore(): Worker {
       for (const [x, y] of scaricati.values()) { a += x; b += y; }
       caricamento.stato(`Scarico il modello: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
     } else if (m.tipo === 'avviso') { caricamento?.stato(m.msg ?? '', 0); avvisoVoce?.(m.msg ?? ''); }
+    else if (m.tipo === 'scheda-guasta') schedaGuasta();
     else if (m.tipo === 'pronto') { caricamento?.ok(m.device ?? ''); caricamento = null; }
     else if (m.tipo === 'testo') { attese.get(m.id!)?.ok(m.pezzi ?? []); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
@@ -86,7 +88,8 @@ const whisper: Trascrittore = {
   carica: (modello, stato) => new Promise((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
-    lavoratore().postMessage({ tipo: 'carica', modello, base: baseLocaleAI(), scheda: usaSchedaAI() });
+    const hw = messaggioScheda();
+    lavoratore().postMessage({ tipo: 'carica', modello, base: baseLocaleAI(), scheda: hw.scheda, hw });
   }),
   trascrivi: (audio, lingua, traduci) => new Promise((ok, no) => {
     const id = ++seq;

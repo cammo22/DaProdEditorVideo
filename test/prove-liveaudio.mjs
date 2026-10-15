@@ -290,123 +290,32 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     });
     await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(300);
+    // dal 1.5.1 LIVE non ha più il pannello dei filtri e del mixer (l'audio si lavora dopo, nel montaggio): restano le due barre dei livelli
     const s0 = await page.evaluate(() => {
       const q = (s) => document.querySelectorAll(s).length;
       return {
-        pannello: q('.la'), strisce: q('.la-striscia'), compatte: q('.la-compatto canvas'), grandi: q('.la-misura.grande'),
-        presetVoce: q('.la-presetvoce .chip'), presetMix: q('.la-bil-riga') && q('[data-mix]'), disturbi: q('[data-filtro=disturbi]'), abbassa: q('[data-filtro=abbassa]'),
-        prova: document.querySelector('.la-prova')?.textContent, sticky: !!document.querySelector('.live-regia .la-compatto'),
-        avanzateChiuse: [...document.querySelectorAll('.la-av')].every((d) => !d.open), acceso: document.querySelector('.la-presetvoce .chip.acceso')?.dataset.preset,
-        rotella: !!document.querySelector('.la-fader'),
+        pannello: q('.la'), strisce: q('.la-striscia'), compatte: q('.la-compatto canvas'), prova: q('.la-prova'), preset: q('.la-presetvoce'), disturbi: q('[data-filtro]'),
+        sticky: !!document.querySelector('.live-regia .la-compatto'),
       };
     });
-    prova('la pagina ha le due barre sempre in vista (in cima), le due strisce, i preset della voce e del mix, "Toglie i disturbi" e l\'abbassa-computer', s0.pannello === 1 && s0.strisce === 2 && s0.compatte === 2 && s0.grandi === 2 && s0.presetVoce === 5 && s0.presetMix === 3 && s0.disturbi === 1 && s0.abbassa === 1 && s0.sticky, JSON.stringify(s0));
-    prova('di partenza: preset "Nessuno" acceso, opzioni avanzate chiuse, tasto "Prova l\'audio"', s0.acceso === 'nessuno' && s0.avanzateChiuse && /Prova/.test(s0.prova), JSON.stringify(s0));
-
-    // "Prova l'audio": il microfono si apre e la barra della voce si muove, quella del computer no
-    await page.click('.la-prova');
-    await page.waitForFunction(() => [...document.querySelectorAll('.la-misura.grande')].some((c) => Number(c.dataset.livello) > -40), null, { timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(700);
-    const p1 = await page.evaluate(() => {
-      const [pc, vo] = [...document.querySelectorAll('.la-misura.grande')].map((c) => Number(c.dataset.livello));
-      const [pcp, vop] = [...document.querySelectorAll('.la-compatto .la-misura')].map((c) => Number(c.dataset.livello));
-      return { pc, vo, pcp, vop, tasto: document.querySelector('.la-prova').textContent, ascolta: !document.querySelector('.la-ascolta').classList.contains('via'), stato: document.querySelector('.la-striscia[data-chi=voce] .la-stato').textContent };
-    });
-    prova('"Prova l\'audio": la barra della voce (grande e piccola) sale a circa −20 dB, il computer resta fermo, e compare "Ascolto…"', p1.vo > -24 && p1.vo < -16 && p1.vop > -24 && p1.pc <= -59 && p1.pcp <= -59 && /Ferma/.test(p1.tasto) && p1.ascolta, JSON.stringify(p1));
-    prova('accanto ai nomi: "picco −20 dB" per la voce e "silenzio" per il computer (che sentirai quando registri)', /picco -?(19|20|21) dB/.test(p1.stato.replace('−', '-')) && await page.evaluate(() => document.querySelector('.la-striscia[data-chi=computer] .la-stato').textContent === 'silenzio'), p1.stato);
-    // l'ascolto della voce trattata dalle casse (per sentire i filtri): si accende e si spegne
-    await page.click('.la-ascolta');
-    const asc1 = await page.evaluate(() => ({ su: window.__dpvTest.ui().live.mixer.ascoltando, acceso: document.querySelector('.la-ascolta').classList.contains('acceso') }));
-    await page.click('.la-ascolta');
-    const asc2 = await page.evaluate(() => window.__dpvTest.ui().live.mixer.ascoltando);
-    prova('"Ascolto quello che esce": collega la voce trattata alle casse e si spegne con un altro clic', asc1.su && asc1.acceso && !asc2, JSON.stringify({ asc1, asc2 }));
-    // la barra segue l'ampiezza del microfono, in tempo reale
-    await page.evaluate(() => { window.__mic.gain.value = 0.4; });
-    await page.waitForTimeout(500);
-    const alto = await page.evaluate(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello));
-    await page.evaluate(() => { window.__mic.gain.value = 0.02; });
-    await page.waitForTimeout(500);
-    const basso = await page.evaluate(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello));
-    prova('la barra segue la voce: +12 dB quando sale, −14 dB quando scende', Math.abs(alto + 8) < 2 && Math.abs(basso + 34) < 2.5, JSON.stringify({ alto, basso }));
-    await page.evaluate(() => { window.__mic.gain.value = 0.1; });
-
-    // il volume dalla striscia (con la rotella) cambia il livello dal vivo; il muto lo spegne
-    const f0 = await page.evaluate(() => Number(document.querySelector('.la-fader[data-canale=voce]').value));
-    await page.evaluate(() => localStorage.setItem('dpv-rotella-attesa', '0'));
-    await page.hover('.la-fader[data-canale=voce]');
-    await page.mouse.wheel(0, -100);
-    await page.waitForTimeout(600);
-    const f1 = await page.evaluate(() => ({ v: Number(document.querySelector('.la-fader[data-canale=voce]').value), salvato: JSON.parse(localStorage.getItem('dpv-live')).audio.voce.volume, testo: document.querySelector('.la-striscia[data-chi=voce] .la-val').textContent }));
-    prova('la rotella sul cursore del volume lo muove (il valore si scrive e si ricorda)', f1.v > f0 && f1.salvato === f1.v && /dB/.test(f1.testo), JSON.stringify({ f0, f1 }));
-    await page.evaluate(() => { const e = document.querySelector('.la-fader[data-canale=voce]'); e.value = '12'; e.dispatchEvent(new Event('input', { bubbles: true })); });
-    await page.waitForTimeout(600);
-    const piu = await page.evaluate(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello));
-    prova('volume a +12 dB: la barra della voce sale di 12 dB (prima −20, ora circa −8)', Math.abs(piu + 8) < 2.5, piu);
-    await page.click('.la-muto[data-canale=voce]');
-    // la barra scende piano (e su un computer carico i fotogrammi sono pochi): si aspetta che arrivi in fondo
-    await page.waitForFunction(() => Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello) <= -55, null, { timeout: 10000 }).catch(() => {});
-    const mu = await page.evaluate(() => ({ barra: Number(document.querySelectorAll('.la-misura.grande')[1].dataset.livello), acceso: document.querySelector('.la-muto[data-canale=voce]').classList.contains('acceso'), val: document.querySelector('.la-striscia[data-chi=voce] .la-val').textContent }));
-    prova('MUTO: la voce va a zero, il tasto si accende e il valore dice "muto"', mu.barra <= -55 && mu.acceso && mu.val === 'muto', JSON.stringify(mu));
-    await page.click('.la-muto[data-canale=voce]');
-    await page.click('.la-presetvoce .chip[data-preset=podcast]');
-    await page.waitForTimeout(500);
-    const pp = await page.evaluate(() => ({ chip: document.querySelector('.la-presetvoce .chip.acceso')?.dataset.preset, f: window.__dpvTest.ui().live.opz.audio.filtri, mix: window.__dpvTest.ui().live.mixer.voce.din.gr }));
-    prova('un clic sul preset "Voce da podcast" imposta passa-alto, porta, tono, de-esser e compressore, e il preset si accende', pp.chip === 'podcast' && pp.f.passaAlto && pp.f.porta && pp.f.eq && pp.f.deesser && pp.f.compressore && pp.f.livellaAuto === false && pp.f.calore === 2.5, JSON.stringify(pp));
-    await page.screenshot({ path: `${OUT}/live-audio.png` });
-    await page.click('.la-presetvoce .chip[data-preset=nessuno]');
-    await page.click('.la-prova');
-    await page.waitForTimeout(400);
-    const fine = await page.evaluate(() => ({ mixer: window.__dpvTest.ui().live.mixer, tasto: document.querySelector('.la-prova').textContent, stato: document.querySelector('.la-striscia[data-chi=voce] .la-stato').textContent }));
-    prova('"Ferma la prova" chiude il microfono e il mixer, e le barre tornano a zero', fine.mixer === null && /Prova/.test(fine.tasto), JSON.stringify(fine));
-
-    // il browser: "Toglie i disturbi" e gli altri arrivano ai vincoli del microfono
+    prova('la pagina LIVE ha solo le due barre dei livelli in cima: niente filtri, preset, mixer né "Prova l\'audio"', s0.pannello === 0 && s0.strisce === 0 && s0.compatte === 2 && s0.prova === 0 && s0.preset === 0 && s0.disturbi === 0 && s0.sticky, JSON.stringify(s0));
+    // le scelte vecchie (un preset con filtri) non valgono più: l'audio esce com'è
     await page.evaluate(() => {
-      window.__vincoli = []; window.__applicati = [];
-      window.__dpvTest.LV.impostaSorgenteLive(null, null, null);
-      navigator.mediaDevices.getUserMedia = async (c) => {
-        window.__vincoli.push(c.audio);
-        const t = window.__mic.stream.getAudioTracks()[0].clone();
-        t.applyConstraints = async (v) => { window.__applicati.push(v); };
-        return new MediaStream([t]);
-      };
+      const L = window.__dpvTest.LV.liveAudioPuro;
+      const vecchie = JSON.parse(localStorage.getItem('dpv-live') || '{}');
+      const a = L.copiaImpostazioni(L.IMPOSTAZIONI0);
+      a.filtri = { ...L.PRESET_VOCE.find((x) => x.id === 'podcast').filtri };
+      a.computer.volume = -9.5;
+      localStorage.setItem('dpv-live', JSON.stringify({ ...vecchie, audio: a }));
     });
-    await page.click('.la-prova');
-    await page.waitForFunction(() => window.__vincoli.length >= 1, null, { timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(500);
-    const v1 = await page.evaluate(() => ({ ...window.__vincoli[0] }));
-    await page.click('[data-filtro=disturbi]');
-    await page.waitForTimeout(200);
-    const ap = await page.evaluate(() => window.__applicati.at(-1));
-    await page.click('.la-prova');
-    await page.waitForTimeout(300);
-    await page.click('.la-prova');
-    await page.waitForFunction(() => window.__vincoli.length >= 2, null, { timeout: 5000 }).catch(() => {});
-    const v2 = await page.evaluate(() => ({ ...window.__vincoli.at(-1) }));
-    prova('di partenza il microfono si apre con i filtri del browser come prima (disturbi, eco e volume automatico accesi)', v1.noiseSuppression === true && v1.echoCancellation === true && v1.autoGainControl === true, JSON.stringify(v1));
-    prova('"Toglie i disturbi (AI)" spento: arriva alla traccia che sta suonando e alla prossima apertura del microfono', ap && ap.noiseSuppression === false && v2.noiseSuppression === false && v2.echoCancellation === true, JSON.stringify({ ap, v2 }));
-    await page.click('.la-prova');
-    await page.click('[data-filtro=disturbi]');
-
-    // le scelte si ricordano dopo il ricarico della pagina
-    await page.evaluate(() => {
-      const set = (sel, v) => { const e = document.querySelector(sel); e.value = String(v); e.dispatchEvent(new Event('input', { bubbles: true })); };
-      set('.la-fader[data-canale=computer]', -9.5);
-      set('.la-bilancio', 40);
-    });
-    await page.click('.la-presetvoce .chip[data-preset=radio]');
-    await page.click('[data-filtro=abbassa]');
-    const salvato = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-live')).audio);
     await page.reload();
     await page.waitForSelector('.pulsantiera');
     await page.waitForTimeout(800);
+    const vec = await page.evaluate(() => { const L = window.__dpvTest.LV.liveAudioPuro; const o = window.__dpvTest.ui().live.opz.audio; return { porta: o.filtri.porta, compressore: o.filtri.compressore, vol: o.computer.volume, uguale: JSON.stringify(o) === JSON.stringify(L.copiaImpostazioni(L.IMPOSTAZIONI0)) }; });
+    prova('dopo un ricarico le vecchie scelte di filtri e volumi non si applicano: l\'audio esce com\'è', vec.uguale && !vec.porta && !vec.compressore && vec.vol === 0, JSON.stringify(vec));
     await page.click('.pagina-btn[data-p=live]');
-    const dopo = await page.evaluate(() => ({
-      opz: window.__dpvTest.ui().live.opz.audio,
-      fader: Number(document.querySelector('.la-fader[data-canale=computer]').value), bil: Number(document.querySelector('.la-bilancio').value),
-      chip: document.querySelector('.la-presetvoce .chip.acceso')?.dataset.preset, abbassa: document.querySelector('[data-filtro=abbassa]').classList.contains('acceso'),
-      bilTesto: document.querySelector('.la-bil-riga .la-val').textContent,
-    }));
-    prova('dopo il ricarico della pagina volumi, bilanciamento, preset "radio" e abbassa-computer sono come li avevi lasciati', dopo.opz.computer.volume === -9.5 && dopo.opz.bilancio === 40 && dopo.opz.abbassa === true && dopo.opz.filtri.compressore === true && dopo.opz.filtri.calore === 4 && dopo.fader === -9.5 && dopo.bil === 40 && dopo.chip === 'radio' && dopo.abbassa && /computer/.test(dopo.bilTesto) && salvato.filtri.calore === 4, JSON.stringify({ dopo, salvato }));
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/live-audio.png` });
     // si rimette tutto a posto per le registrazioni
     await page.evaluate(() => {
       const L = window.__dpvTest.LV.liveAudioPuro, live = window.__dpvTest.ui().live;
@@ -525,25 +434,25 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     await page.waitForFunction(() => document.querySelector('.live').classList.contains('in-onda'), null, { timeout: 12000 });
     await page.waitForTimeout(1200);
     const sat = await page.evaluate(() => ({
-      pc: document.querySelectorAll('.la-misura.grande')[0].dataset.clip, voce: document.querySelectorAll('.la-misura.grande')[1].dataset.clip,
-      stato: document.querySelector('.la-striscia[data-chi=computer] .la-stato').textContent, picco: Number(document.querySelectorAll('.la-misura.grande')[0].dataset.livello),
+      pc: document.querySelectorAll('.la-compatto .la-misura')[0].dataset.clip, voce: document.querySelectorAll('.la-compatto .la-misura')[1].dataset.clip,
+      picco: Number(document.querySelectorAll('.la-compatto .la-misura')[0].dataset.livello),
     }));
     await page.screenshot({ path: `${OUT}/live-audio-registra.png` });
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.evaluate(() => { window.__pc.gain.value = 0.1; });
-    prova('un computer a piena scala accende la spia di saturazione (e lo dice), la voce a livello normale no; il limitatore tiene il picco a −1 dB', sat.pc === '1' && sat.voce === '0' && /satura/.test(sat.stato) && sat.picco < -0.5, JSON.stringify(sat));
+    prova('un computer a piena scala accende la spia di saturazione, la voce a livello normale no; il limitatore tiene il picco a −1 dB', sat.pc === '1' && sat.voce === '0' && sat.picco < -0.5, JSON.stringify(sat));
 
     // a finestra piccola tutto ci sta, senza scorrere di lato
     await page.setViewportSize({ width: 1000, height: 640 });
     await page.waitForTimeout(300);
     const piccola = await page.evaluate(() => {
       const col = document.querySelector('.live-comandi');
-      const fuori = [...document.querySelectorAll('.la *')].filter((e) => { const r = e.getBoundingClientRect(); const c = col.getBoundingClientRect(); return r.width > 0 && (r.right > c.right + 1 || r.left < c.left - 1); }).map((e) => e.className || e.tagName);
+      const fuori = [...document.querySelectorAll('.live-comandi *')].filter((e) => { const r = e.getBoundingClientRect(); const c = col.getBoundingClientRect(); return r.width > 0 && (r.right > c.right + 1 || r.left < c.left - 1); }).map((e) => e.className || e.tagName);
       return { scrollX: col.scrollWidth > col.clientWidth + 1, fuori: fuori.slice(0, 5), compatto: document.querySelector('.live-regia .la-compatto').getBoundingClientRect().height };
     });
     await page.screenshot({ path: `${OUT}/live-audio-piccola.png` });
-    prova('a 1000×640 il pannello audio non esce dalla colonna e le barre piccole restano in cima', !piccola.scrollX && piccola.fuori.length === 0 && piccola.compatto > 10 && piccola.compatto < 40, JSON.stringify(piccola));
+    prova('a 1000×640 niente esce dalla colonna dei comandi e le barre piccole restano in cima', !piccola.scrollX && piccola.fuori.length === 0 && piccola.compatto > 10 && piccola.compatto < 40, JSON.stringify(piccola));
     await page.setViewportSize({ width: 1600, height: 950 });
 
     await page.evaluate(() => { clearInterval(window.__giroLive); document.querySelectorAll('.tela-live-prova').forEach((e) => e.remove()); });

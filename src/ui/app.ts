@@ -36,6 +36,7 @@ import { apriCerca } from './cerca';
 import './fontiCerca';
 import { finestraGuida } from './guida';
 import { finestraCentroAI } from './centroAI';
+import { rilevaAllAvvio } from '../media/hardware';
 
 export function avvia(radice: HTMLElement) {
   const tl = new Timeline();
@@ -116,6 +117,8 @@ export function avvia(radice: HTMLElement) {
   // le cose rapide (marchio, progetti, salva, annulla, il nome del progetto, la ricerca) stanno nella barra del titolo,
   // bianca, sopra al banco: qui restano i menu, le pagine ed Esporta
   attivaRotella();
+  // quando il programma è fermo guarda le schede video (e rifà le prove solo se l'hardware è cambiato)
+  if (!navigator.webdriver) rilevaAllAvvio();
   const barra = barraTitolo({
     info: () => finestraInfo(), progetti: () => home.mostra(), salva: () => void salva(), importa: () => void importaDialogo(),
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),
@@ -247,16 +250,29 @@ export function avvia(radice: HTMLElement) {
     'ctrl+-': () => void impostaGrandezzaUI([...GRANDEZZE_UI].reverse().find((k) => k < grandezzaUI() - 0.01) ?? grandezzaUI()),
     'ctrl+0': () => void impostaGrandezzaUI(1),
   } : {};
+  // Ctrl + e Ctrl − con il puntatore sulla timeline (o la timeline in primo piano) fanno lo zoom DELLA TIMELINE, non dell'interfaccia
+  const suTimeline = () => tl.el.matches(':hover') || tl.el.contains(document.activeElement);
+  const zoomTimeline: Record<string, () => void> = {
+    'ctrl++': () => tl.zoom(1.5), 'ctrl+=': () => tl.zoom(1.5), 'ctrl+-': () => tl.zoom(1 / 1.5), 'ctrl+_': () => tl.zoom(1 / 1.5), 'ctrl+0': () => tl.adattaTutto(),
+  };
   addEventListener('keydown', (e) => {
     const t = e.target as HTMLElement;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
     if (document.querySelector('.velo')) return;
     const k = [(e.ctrlKey || e.metaKey) ? 'ctrl' : '', e.key.toLowerCase()].filter(Boolean).join('+');
-    const fn = zoomApp[k] as (() => void) | undefined;
+    const fn = (suTimeline() ? zoomTimeline[k] : undefined) ?? (zoomApp[k] as (() => void) | undefined);
     if (!fn) return;
     e.preventDefault();
     fn();
   });
+  // Ctrl + rotella e il pizzico sul trackpad non zoomano mai la pagina intera: sulla timeline (anche sulle sue barre e sui suoi
+  // bottoni) fanno lo zoom della timeline, altrove non fanno niente
+  addEventListener('wheel', (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (!e.defaultPrevented && tl.el.contains(e.target as Node)) tl.zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18);
+    e.preventDefault();
+  }, { passive: false });
+  for (const g of ['gesturestart', 'gesturechange', 'gestureend']) addEventListener(g, (e) => e.preventDefault(), { passive: false });
   const sveglia = () => banco.sveglia();
   addEventListener('pointerdown', sveglia, { once: true });
   addEventListener('keydown', sveglia, { once: true });

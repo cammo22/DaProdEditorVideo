@@ -5,7 +5,7 @@
 //  · famiglia "sam": Segment Anything (SAM 2.1, SlimSAM…): un'immagine + dei clic o un riquadro → la maschera dell'oggetto.
 // Ogni modello ha più indirizzi di riserva e più "tipi" (fp16, fp32, q8): si prova finché uno va. Il tipo si dice
 // sempre: prima no, e col processore la libreria cercava una versione (q8) che per MODNet e BiRefNet non c'è.
-import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, type Dispositivo, type LibreriaAI, type Tipo } from './libreriaAI';
+import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, tipiScheda, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type LibreriaAI, type Tipo } from './libreriaAI';
 
 interface Immagine { data: Uint8ClampedArray | Uint8Array; width: number; height: number; channels: number }
 interface Tensore { data: ArrayLike<number>; dims: number[] }
@@ -17,6 +17,7 @@ type ModelloSam = (inputs: Record<string, unknown>) => Promise<{ pred_masks: unk
 interface Msg {
   tipo: string; id?: number; famiglia?: string; repo?: string[]; w?: number; h?: number; rgba?: Uint8ClampedArray;
   punti?: { x: number; y: number; dentro: boolean }[]; riquadro?: [number, number, number, number]; base?: string; scheda?: boolean;
+  hw?: ImpostazioneScheda;
 }
 
 let T: LibreriaAI | null = null;
@@ -29,7 +30,7 @@ let base = '';
 const manda = (m: unknown, trasferibili: Transferable[] = []) => (self as unknown as Worker).postMessage(m, trasferibili);
 
 /** i tipi da provare: sulla scheda mezza precisione (leggera e veloce), sul processore prima il quantizzato, poi il pieno */
-const tipi = (d: Dispositivo): Tipo[] => (d === 'webgpu' ? ['fp16', 'fp32'] : ['q8', 'fp16', 'fp32']);
+const tipi = (d: Dispositivo): Tipo[] => (d === 'webgpu' ? tipiScheda() : ['q8', 'fp16', 'fp32']);
 
 async function carica(famiglia: string, repo: string[], conScheda = true) {
   const chiave = famiglia + ':' + repo.join(',');
@@ -107,6 +108,7 @@ async function mascheraSicura(m: Msg): Promise<Uint8Array> {
   } catch (e) {
     if (dispositivo !== 'webgpu' || !erroreDellaScheda(e) || !ultimaRichiesta) throw e;
     manda({ tipo: 'avviso', msg: 'La scheda video si è fermata: continuo col processore (più lento)' });
+    manda({ tipo: 'scheda-guasta' });
     caricato = '';
     await carica(ultimaRichiesta.famiglia, ultimaRichiesta.repo, false);
     return await maschera(m);
@@ -126,6 +128,7 @@ self.onmessage = async (e: MessageEvent) => {
   const m = e.data as Msg;
   try {
     if (m.base !== undefined) base = m.base;
+    if (m.hw) usaImpostazioneScheda(m.hw);
     if (m.tipo === 'carica') await carica(m.famiglia!, m.repo!, m.scheda !== false);
     else if (m.tipo === 'maschera') {
       const dati = await mascheraSicura(m);

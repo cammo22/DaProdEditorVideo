@@ -6,8 +6,8 @@ import type { MediaItem, Project } from './core/tipi';
 import { FORMATI } from './core/tipi';
 import { ALTEZZA, MASTER0, newProject } from './core/progetto';
 import { migraBlocchi } from './core/blocchi';
-import { apri as apriMedia, chiudi as chiudiMedia, importa, mediaRT, prioritaMedia } from './media/libreria';
-import { inCoda, nuova } from './media/attivita';
+import { apri as apriMedia, chiudi as chiudiMedia, importa, mediaRT, prioritaMedia, usoDiMedia } from './media/libreria';
+import { inCoda, inSovraccarico, nuova } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
 import { converti, esamina, normalizzaAttivo } from './media/normalizza';
 import { dialogoApri, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, salvaTesto, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
@@ -154,8 +154,10 @@ async function mettiCopia(id: string, copia: FileScelto): Promise<boolean> {
   if (!store.doc.media.some((x) => x.id === id)) return false;
   const d = await importa(copia, { soloDescrizione: true });
   if ('errore' in d) throw new Error(d.errore);
-  // il file non si cambia sotto i piedi di chi sta guardando
-  while (motore.playing) await new Promise((ok) => setTimeout(ok, 400));
+  // il file non si cambia sotto i piedi di chi lo sta guardando: si aspetta che il montaggio si fermi, ma solo se sta suonando proprio
+  // questo file, e non più di 20 secondi (se no la conversione restava appesa per sempre con la riproduzione accesa)
+  const t0 = performance.now();
+  while (motore.playing && (usoDiMedia(id) > 0 || motore.playerMedia === id) && performance.now() - t0 < 20000 && !inSovraccarico()) await new Promise((ok) => setTimeout(ok, 400));
   const m = store.doc.media.find((x) => x.id === id);
   if (!m) return false;
   const n = d.item;

@@ -18,7 +18,8 @@ import { conservaFileNelBrowser } from '../progetti';
 import { avviso } from '../ui/dom';
 import { inCoda, type Lavoro } from './attivita';
 import { spiegaErroreAI, testoErrore } from './erroriAI';
-import { baseLocaleAI, usaSchedaAI } from './libreriaAI';
+import { baseLocaleAI } from './libreriaAI';
+import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiudi as chiudiMedia, importa, mediaRT, type MediaRT } from './libreria';
 import { MODELLO_SEPARAZIONE, modelloInCache, ottieniModello, togliModello, type ModelloAudio } from './modelliAudio';
 import type { DaPagina, DaWorker, InizioRumore, InizioSepara } from './audioAI.worker';
@@ -54,6 +55,8 @@ function gemelle(p: Project, c: Clip): Clip[] {
 class ClipCambiata extends Error {}
 
 const inCorso = new Map<string, 'rumore' | 'separa'>();
+/** la maniglia del lavoro che sta girando (dice a che punto è): serve ai bottoni delle Proprietà per scrivere "in corso 42%" */
+const maniglie = new Map<string, Lavoro>();
 const ultimiErrori: { rumore: string; separa: string } = { rumore: '', separa: '' };
 
 export function possibilita(c: Clip, p: Project = store.doc): Possibilita {
@@ -309,10 +312,11 @@ const nomeBase = (nome: string) => nome.replace(/\.[^.]+$/, '').replace(/[\\/:*?
 // ——— il lavoro vero ———
 
 /** mette il lavoro nella corsia pesante; ritorna il valore, o lancia l'errore (in italiano) o 'fermato' */
-async function inLavoro<T>(titolo: string, fn: (l: Lavoro) => Promise<T>): Promise<T> {
+async function inLavoro<T>(titolo: string, fn: (l: Lavoro) => Promise<T>, chiave?: string): Promise<T> {
   let errore: unknown = null, fatto = false;
   const r = await inCoda({ corsia: 'pesante', titolo, categoria: 'ai', priorita: 1000 }, async (l) => {
-    try { const x = await fn(l); fatto = true; return x; } catch (e) { errore = e; throw e; }
+    if (chiave) maniglie.set(chiave, l);
+    try { const x = await fn(l); fatto = true; return x; } catch (e) { errore = e; throw e; } finally { if (chiave) maniglie.delete(chiave); }
   });
   if (errore) throw errore instanceof ClipCambiata || (errore instanceof Error && errore.message === 'fermato') ? errore : new Error(spiegaErroreAI(errore));
   if (!fatto) throw new Error('fermato');
@@ -432,7 +436,7 @@ export async function togliRumore(clipId: string, forza: Forza = 'media'): Promi
         l.segnale.removeEventListener('abort', ferma);
         ponte?.ferma();
       }
-    });
+    }, a.id);
     ultimiErrori.rumore = '';
   } catch (e) {
     if (!(e instanceof ClipCambiata) && testoErrore(e) !== 'fermato') ultimiErrori.rumore = testoErrore(e);
@@ -498,15 +502,17 @@ export async function separaVoceBase(clipId: string, opz: OpzioniSepara = {}): P
         ponte = new Ponte((m) => {
           if (m.tipo === 'stato') dici(m.k !== undefined && /Scarico/.test(m.testo) ? 0.05 + 0.05 * m.k : null, m.testo);
           else if (m.tipo === 'avviso') avviso(m.msg, 'info', 6000);
+          else if (m.tipo === 'scheda-guasta') schedaGuasta();
           else if (m.tipo === 'pronto') motore = m.motore === 'rapido' ? 'rapido' : 'demucs';
           else if (m.tipo === 'uscita' && m.nome !== 'pulito') {
             const w = scrittori.get(m.nome);
             if (w) scrittura = scrittura.then(() => w.scrivi(m.ch)).catch((e) => { errScrittura ??= e; });
           }
         });
+        const hw = messaggioScheda();
         const inizio: InizioSepara = {
           tipo: 'inizia', lavoro: 'separa', sr: t.sr, canali: t.canali, totale: t.n, media: stat.media, dev: stat.dev,
-          base: impostazioniProva.base ?? baseLocaleAI(), scheda: usaSchedaAI(), modello: impostazioniProva.modello ?? MODELLO_SEPARAZIONE,
+          base: impostazioniProva.base ?? baseLocaleAI(), scheda: hw.scheda, hw, modello: impostazioniProva.modello ?? MODELLO_SEPARAZIONE,
           ripiego: opz.rapido ? 'solo' : impostazioniProva.ripiego ?? 'auto', emetti, finta: impostazioniProva.finta ?? null,
         };
         await ponte.manda(inizio);
@@ -574,7 +580,7 @@ export async function separaVoceBase(clipId: string, opz: OpzioniSepara = {}): P
         l.segnale.removeEventListener('abort', ferma);
         ponte?.ferma();
       }
-    });
+    }, a.id);
     ultimiErrori.separa = '';
   } catch (e) {
     if (!(e instanceof ClipCambiata) && testoErrore(e) !== 'fermato') ultimiErrori.separa = testoErrore(e);
@@ -633,3 +639,14 @@ export const togliSeparazione = () => togliModello(impostazioniProva.modello ?? 
 
 /** quante lavorazioni sono in corso (clip → quale) */
 export const lavoriAudioAI = () => new Map(inCorso);
+
+export interface AvanzamentoAudioAI { tipo: 'rumore' | 'separa'; k: number | null; testo: string; inCoda: boolean }
+/** a che punto sono le lavorazioni (clip → avanzamento): per i bottoni delle Proprietà */
+export function avanzamentoAudioAI(): Map<string, AvanzamentoAudioAI> {
+  const out = new Map<string, AvanzamentoAudioAI>();
+  for (const [id, tipo] of inCorso) {
+    const l = maniglie.get(id);
+    out.set(id, { tipo, k: l?.k ?? null, testo: l?.riga.dettaglio ?? '', inCoda: !l });
+  }
+  return out;
+}

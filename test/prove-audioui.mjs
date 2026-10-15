@@ -1,4 +1,4 @@
-// Le prove della parte che si vede dell'audio con l'AI (1.5.0): la sezione "Audio: pulisci e separa" nelle Proprietà, il tasto destro
+// Le prove della parte che si vede dell'audio con l'AI (1.5.0, aggiornata alla 1.5.1): la sezione "Audio: pulisci e separa" nelle Proprietà, il tasto destro
 // sulla clip, i comandi nella ricerca. Il lavoro vero è provato in prove-audioai.mjs; qui un giro vero con DeepFilterNet su un secondo di audio.
 //   npm run build && node test/prove-nuove.mjs audioui
 
@@ -61,6 +61,14 @@ export async function proveAudioUI({ page: paginaDi, prova }) {
     // un giro vero: "Media" toglie i rumori col DeepFilterNet vero e la clip punta al file nuovo
     const prima = await page.evaluate((cid) => window.__dpv.doc.clips.find((x) => x.id === cid).media, id);
     await page.click('.aai-bottone:has-text("Media")');
+    // mentre lavora: il bottone premuto dice "In corso" (con la percentuale), gli altri sono spenti, sotto compare la barra col testo
+    await page.waitForFunction(() => !!document.querySelector('.aai-bottone.lavora'), null, { timeout: 8000 }).catch(() => {});
+    const inCorso = await page.evaluate(() => {
+      const b = document.querySelector('.aai-bottone.lavora');
+      const st = document.querySelector('.aai-scheda[data-aai=rumore] .aai-stato');
+      return { testo: b?.textContent, altriSpenti: [...document.querySelectorAll('.aai-bottone')].filter((x) => x !== b).every((x) => x.disabled), barra: !!st && !st.hidden && !!st.querySelector('.aai-barra'), stato: st?.querySelector('.aai-testo')?.textContent, altra: document.querySelector('.aai-scheda[data-aai=separa] .aai-stato')?.hidden };
+    });
+    prova('mentre toglie i rumori il bottone "Media" dice "In corso" (con la percentuale), gli altri sono spenti e sotto compare la barra', /In corso|In coda/.test(inCorso.testo ?? '') && inCorso.altriSpenti && inCorso.barra && inCorso.altra === true, JSON.stringify(inCorso));
     await page.waitForFunction((a) => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Voce'); return !!c && c.media !== a; }, prima, { timeout: 90000 }).catch(() => {});
     await page.waitForTimeout(800);
     const dopo = await page.evaluate((cid) => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.id === cid); const m = d.media.find((x) => x.id === c.media); return { cambiata: c.media !== d.clips.find((x) => x.id === cid)?.afx?.pulito?.media && !!c.afx?.pulito, nome: m?.name, forza: c.afx?.pulito?.forza }; }, id);
@@ -68,6 +76,8 @@ export async function proveAudioUI({ page: paginaDi, prova }) {
     await page.waitForTimeout(600);
     const orig = await page.evaluate(() => [...document.querySelectorAll('.isp-gruppo[data-g=audioai] button')].some((b) => /Audio originale/.test(b.textContent)) || JSON.stringify({ sel: [...window.__dpv.sel], gruppi: [...document.querySelectorAll('.isp-gruppo')].map((g) => g.dataset.g) }));
     prova('dopo, compare "Audio originale" per tornare indietro', orig === true, String(orig));
+    const riposo = await page.evaluate(() => ({ lavora: document.querySelectorAll('.aai-bottone.lavora').length, spenti: [...document.querySelectorAll('.aai-bottone')].filter((b) => b.disabled).length, testo: [...document.querySelectorAll('.aai-bottone')].map((b) => b.textContent).join('|') }));
+    prova('finito il lavoro i bottoni tornano normali (niente "In corso" rimasto appeso)', riposo.lavora === 0 && riposo.spenti === 0 && !/In corso/.test(riposo.testo), JSON.stringify(riposo));
     await page.evaluate(() => { document.querySelectorAll('.isp-gruppo[data-g=audioai] button').forEach((b) => { if (/Audio originale/.test(b.textContent)) b.click(); }); });
     await page.waitForTimeout(500);
     const tornata = await page.evaluate(([a, cid]) => window.__dpv.doc.clips.find((x) => x.id === cid).media === a, [prima, id]);

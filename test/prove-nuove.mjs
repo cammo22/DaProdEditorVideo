@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { leggi, vicino, apriGruppi } from './aiuti.mjs';
 export { leggi, vicino };
 
-export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai']) {
+export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai', 'live']) {
   const { page, prova, OUT } = ctx;
   if (quali.includes('sfondo')) await proveSfondo({ page, prova, OUT });
   if (quali.includes('animazioni')) { const m = await import('./prove-animazioni.mjs').catch(() => null); if (m) await m.proveAnimazioni({ page, prova, OUT }); }
@@ -23,6 +23,7 @@ export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage'
   if (quali.includes('rifiniture')) { const m = await import('./prove-rifiniture.mjs').catch((e) => { console.log('  ✗ prove-rifiniture:', e.message); return null; }); if (m) await m.proveRifiniture({ page, prova, OUT }); }
   if (quali.includes('banco')) { const m = await import('./prove-banco.mjs').catch((e) => { console.log('  ✗ prove-banco:', e.message); return null; }); if (m) await m.proveBanco({ page, prova, OUT }); }
   if (quali.includes('liveaudio')) { const m = await import('./prove-liveaudio.mjs').catch((e) => { console.log('  ✗ prove-liveaudio:', e.message); return null; }); if (m) await m.proveLiveAudio({ page, prova, OUT }); }
+  if (quali.includes('live')) { const m = await import('./prove-live.mjs').catch((e) => { console.log('  ✗ prove-live:', e.message); return null; }); if (m) await m.proveLive({ page, prova, OUT }); }
   if (quali.includes('audioui')) { const m = await import('./prove-audioui.mjs').catch((e) => { console.log('  ✗ prove-audioui:', e.message); return null; }); if (m) await m.proveAudioUI({ page, prova, OUT }); }
   if (quali.includes('audioai')) { const m = await import('./prove-audioai.mjs').catch((e) => { console.log('  ✗ prove-audioai:', e.message); return null; }); if (m) await m.proveAudioAI({ page, prova, OUT }); }
   if (quali.includes('correzioni')) { const m = await import('./prove-correzioni.mjs').catch((e) => { console.log('  ✗ prove-correzioni:', e.message); return null; }); if (m) await m.proveCorrezioni({ page, prova, OUT }); }

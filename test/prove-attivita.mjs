@@ -27,6 +27,8 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
     l.fine('fatto');
     fuori.finita = { righe: AT.attivitaInCorso().length, storico: AT.attivitaFinite()[0]?.stato, k: AT.attivitaFinite()[0]?.k };
     // la coda: la corsia pesante fa un lavoro alla volta, e passa avanti chi ha la priorità più alta
+    // (i limiti veri dipendono dal numero di processori: per questa prova si fissano com'erano sui computer piccoli)
+    AT.impostaLimiti({ leggero: 2, pesante: 1 });
     const ordine = []; let insieme = 0, maxInsieme = 0;
     const lavoro = (nome, ms) => async () => { ordine.push(nome); insieme++; maxInsieme = Math.max(maxInsieme, insieme); await new Promise((r) => setTimeout(r, ms)); insieme--; return nome; };
     AT.pausaLavori(true);
@@ -40,6 +42,17 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
     const res = await Promise.all(p);
     fuori.coda = { ordine, maxInsieme, res };
     fuori.chiusa = { righe: AT.attivitaInCorso().length, msg: AT.attivitaFinite()[0]?.messaggio, stato: AT.attivitaFinite()[0]?.stato };
+    // Sovraccarica: più lavori pesanti insieme, e si spegne da solo quando non c'è più niente
+    AT.impostaLimiti(null);
+    const normali = AT.limitiNormali(4), forti = AT.limitiForti(4), forti16 = AT.limitiForti(16);
+    let insieme2 = 0, max2 = 0;
+    const lungo = async () => { insieme2++; max2 = Math.max(max2, insieme2); await new Promise((r) => setTimeout(r, 80)); insieme2--; };
+    AT.sovraccarica(true);
+    const acceso = AT.inSovraccarico();
+    await Promise.all([1, 2, 3, 4].map((i) => AT.inCoda({ corsia: 'pesante', titolo: 'Forza ' + i, categoria: 'conversione', gruppo: 'forza' }, lungo)));
+    await new Promise((r) => setTimeout(r, 1300));
+    fuori.forza = { normali, forti, forti16, acceso, max2, spento: !AT.inSovraccarico() };
+    AT.impostaLimiti({ leggero: 2, pesante: 1 });
     // un lavoro che va male non ferma gli altri
     const ko = await AT.inCoda({ corsia: 'leggero', titolo: 'Rotto', categoria: 'altro' }, async () => { throw new Error('boom'); });
     fuori.errore = { ko, stato: AT.attivitaFinite()[0]?.stato, msg: AT.attivitaFinite()[0]?.messaggio };
@@ -65,6 +78,7 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   prova('un lavoro a mano ha la sua riga con la barra e, finito, passa fra le finite', pure.mano.righe === 1 && Math.abs(pure.mano.k - 0.4) < 0.01 && pure.mano.dett === 'a metà' && pure.finita.righe === 0 && pure.finita.storico === 'finita' && pure.finita.k === 1, JSON.stringify([pure.mano, pure.finita]));
   prova('i lavori dello stesso tipo stanno in una riga sola', pure.gruppo.righe === 1 && pure.gruppo.totale === 3 && pure.gruppo.inCoda === 'coda', JSON.stringify(pure.gruppo));
   prova('la corsia pesante fa un lavoro alla volta e passa avanti chi ha la priorità', pure.coda.maxInsieme === 1 && pure.coda.ordine[0] === 'alto' && pure.coda.ordine.length === 3, JSON.stringify(pure.coda));
+  prova('Sovraccarica: più conversioni insieme (e più analisi), e si spegne da solo a lavoro finito', pure.forza.acceso && pure.forza.max2 >= 2 && pure.forza.spento && pure.forza.forti.pesante > pure.forza.normali.pesante && pure.forza.forti.leggero > pure.forza.normali.leggero && pure.forza.forti16.pesante <= 4 && pure.forza.forti16.leggero <= 8, JSON.stringify(pure.forza));
   prova('finito il gruppo, la riga si chiude con "3 in …"', pure.chiusa.righe === 0 && /^3 in /.test(pure.chiusa.msg) && pure.chiusa.stato === 'finita', JSON.stringify(pure.chiusa));
   prova('un lavoro che va male finisce in errore e il resto continua', pure.errore.ko === null && pure.errore.stato === 'errore' && /boom/.test(pure.errore.msg), JSON.stringify(pure.errore));
   prova('una riga ancora in coda si annulla e il lavoro non parte', pure.annulla.r === null && pure.annulla.partito === false && pure.annulla.stato === 'annullata', JSON.stringify(pure.annulla));
@@ -102,6 +116,18 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   });
   prova('il clic apre il pannello con una riga per attività: titolo, percentuale, tempi', pan.righe.length === 2 && pan.righe[0].t === 'Riapro i file del progetto' && pan.righe[0].pct === '35%' && /passati/.test(pan.righe[0].info) && pan.righe.every((r) => r.stop), JSON.stringify(pan));
   prova('il pannello sta dentro lo schermo', pan.dentro);
+  // il pulsante Sovraccarica: acceso si vede, e il suo testo dice cosa fa; un altro clic lo spegne
+  const forza = await page.evaluate(async () => {
+    const b = document.querySelector('.att-pannello .att-forza');
+    const prima = { c: !!b, testo: b?.textContent, acceso: b?.classList.contains('acceso'), tit: b?.title.length > 40 };
+    b?.click();
+    await new Promise((r) => setTimeout(r, 300));
+    const acceso = { on: window.__dpvTest.AT.inSovraccarico(), cls: document.querySelector('.att-pannello .att-forza')?.classList.contains('acceso'), testo: document.querySelector('.att-pannello .att-forza')?.textContent, barra: document.querySelector('.stato .att')?.classList.contains('sovraccarico'), nota: document.querySelector('.att-pannello .att-nota')?.textContent };
+    document.querySelector('.att-pannello .att-forza')?.click();
+    await new Promise((r) => setTimeout(r, 300));
+    return { prima, acceso, dopo: window.__dpvTest.AT.inSovraccarico() };
+  });
+  prova('nel pannello c\'è il pulsante ⚡ Sovraccarica: acceso si vede (nella barra e nella nota), un altro clic lo spegne', forza.prima.c && /Sovraccarica/.test(forza.prima.testo) && !forza.prima.acceso && forza.acceso.on && forza.acceso.cls && /acceso/.test(forza.acceso.testo) && forza.acceso.barra && /Sovraccarico/.test(forza.acceso.nota) && !forza.dopo, JSON.stringify(forza));
   await page.screenshot({ path: path.join(OUT, 'attivita-pannello.png') });
   // ✕ ferma la riga: chi lavora riceve il segnale
   await page.click('.att-riga:first-child .att-r-stop');
@@ -149,8 +175,8 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
     const dopo = m.map((x) => mediaRT(x.id).proxyStato);
     return { prima, dopo, pronto, doc: JSON.stringify(window.__dpv.doc), ids: m.map((x) => x.id) };
   });
-  prova('i file fuori dalla timeline non fanno la copia leggera (aspettano)', dati.prima.every((s) => s !== 'coda' && s !== 'lavoro'), JSON.stringify(dati.prima));
-  prova('il file messo in timeline se la prende, gli altri restano in attesa', dati.pronto && dati.dopo.slice(1).every((s) => s !== 'pronto'), JSON.stringify(dati.dopo));
+  prova('la copia leggera parte subito, appena i file entrano (non aspetta la timeline)', dati.prima.every((s) => s !== 'attesa'), JSON.stringify(dati.prima));
+  prova('anche il file messo in timeline ha la sua copia leggera pronta', dati.pronto, JSON.stringify(dati.dopo));
 
   const ria = await page.evaluate(async (doc) => {
     const { PR, mediaRT, AT, CH } = window.__dpvTest;

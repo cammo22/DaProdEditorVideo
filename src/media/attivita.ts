@@ -233,12 +233,34 @@ interface Voce { lavoro: Lavoro; priorita: () => number; fn: (l: Lavoro) => Prom
 const corsie: Record<Corsia, { max: number; attivi: number; coda: Voce[] }> = {
   // quasi tutto: forme d'onda, colore, locandine
   leggero: { max: 2, attivi: 0, coda: [] },
-  // copie leggere, conversioni: un solo lavoro alla volta (usano il codificatore)
+  // copie leggere, conversioni, AI sull'audio: usano il codificatore (che sulle schede video fa più sessioni insieme)
   pesante: { max: 1, attivi: 0, coda: [] },
 };
 let ordine = 0;
 let pausaUtente = false;
 let pausaRiproduzione = false;
+
+// ——— quanti lavori insieme: dipende dal computer, e dal pulsante "Sovraccarica" ———
+const processori = () => (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4;
+/** di norma: sui computer con 8 processori o più si lavora a due a due (il processore non resta mai a metà) */
+export const limitiNormali = (n = processori()): Record<Corsia, number> => ({ leggero: n >= 8 ? 3 : 2, pesante: n >= 8 ? 2 : 1 });
+/** con "Sovraccarica": quasi tutto il computer lavora per le conversioni */
+export const limitiForti = (n = processori()): Record<Corsia, number> => ({ leggero: Math.min(8, Math.max(3, n - 1)), pesante: Math.min(4, Math.max(2, Math.floor(n / 3))) });
+let sovraccarico = false;
+let limiteProva: Record<Corsia, number> | null = null;
+const limite = (c: Corsia) => (limiteProva ?? (sovraccarico ? limitiForti() : limitiNormali()))[c];
+export const inSovraccarico = () => sovraccarico;
+/** il pulsante Sovraccarica del Centro attività: più lavori insieme, e i lavori pesanti non aspettano nemmeno il montaggio che suona.
+ *  Si spegne da solo quando non c'è più niente da fare. */
+export function sovraccarica(on: boolean, daSolo = false) {
+  if (sovraccarico === on) return;
+  sovraccarico = on;
+  pompa();
+  avvisa();
+  try { document.dispatchEvent(new CustomEvent('dpv:sovraccarico', { detail: { on, daSolo } })); } catch { /* niente pagina */ }
+}
+/** per le prove: limiti fissi (null = quelli veri) */
+export function impostaLimiti(l: Record<Corsia, number> | null) { limiteProva = l; pompa(); }
 
 export const inPausa = () => pausaUtente;
 /** i lavori pesanti aspettano perché il montaggio sta suonando */
@@ -248,12 +270,12 @@ export function pausaLavori(on: boolean) { pausaUtente = on; if (!on) pompa(); a
 /** il montaggio suona: la corsia pesante aspetta (quella leggera può andare, ma i lavori brevi cedono il passo) */
 export function pausaPerRiproduzione(on: boolean) { pausaRiproduzione = on; if (!on) pompa(); }
 
-function fermaCorsia(c: Corsia) { return pausaUtente || (c === 'pesante' && pausaRiproduzione); }
+function fermaCorsia(c: Corsia) { return pausaUtente || (c === 'pesante' && pausaRiproduzione && !sovraccarico); }
 
 function pompa() {
   for (const nome of Object.keys(corsie) as Corsia[]) {
     const c = corsie[nome];
-    while (c.attivi < c.max && c.coda.length && !fermaCorsia(nome)) {
+    while (c.attivi < limite(nome) && c.coda.length && !fermaCorsia(nome)) {
       // il più importante, e a parità il più vecchio
       let mi = 0, mp = -Infinity;
       for (let i = 0; i < c.coda.length; i++) {
@@ -283,6 +305,8 @@ async function esegui(nome: Corsia, v: Voce) {
     corsie[nome].attivi--;
     // una pausa per respirare: l'interfaccia ridisegna prima del lavoro dopo
     setTimeout(pompa, 0);
+    // finito tutto: il Sovraccarica si spegne da solo
+    if (sovraccarico) setTimeout(() => { if (sovraccarico && !righe.length && !Object.values(corsie).some((x) => x.attivi || x.coda.length)) sovraccarica(false, true); }, 800);
   }
 }
 
@@ -342,6 +366,6 @@ export function azzeraAttivita() {
   for (const r of [...righe]) fermaRiga(r.id);
   righe.length = 0; storico.length = 0; lavoriDi.clear(); annullaDi.clear();
   for (const c of Object.values(corsie)) { c.coda.length = 0; c.attivi = 0; }
-  pausaUtente = false; pausaRiproduzione = false;
+  pausaUtente = false; pausaRiproduzione = false; sovraccarico = false; limiteProva = null;
   avvisa();
 }

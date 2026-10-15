@@ -4,6 +4,32 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.1] — 2026-10-15 · L'hardware si riconosce da solo, Sovraccarica, LIVE più semplice 🚀
+
+### Scheda video e processore: il programma capisce da solo cosa usare
+- **Rilevatore dell'hardware** (si vede in Centro AI → "Controlla l'AI"): guarda **tutte** le schede video che il sistema offre (anche con due schede, una NVIDIA/AMD vera e quella dentro il processore, col cavo del monitor su una delle due), a ognuna fa fare un piccolo conto vero e sceglie la migliore che lo fa giusto; se nessuna va, usa il processore. Lo rifà da solo quando cambia l'hardware (nuova scheda).
+- **Se una scheda sbaglia a metà lavoro** (era l'errore "setPipeline… GPUComputePipeline" di "Togli lo sfondo AI"), prima non veniva riconosciuto come errore della scheda e il lavoro si fermava: adesso il lavoro continua sul processore, e la volta dopo si prova l'altra scheda (o il processore) senza riprovare quella che sbaglia. Vale per sfondo, sottotitoli e separazione voce/base.
+- Copie leggere e conversioni provano prima la **codifica hardware** della scheda video (più veloce, il processore resta libero) e, se non va, ripiegano sul processore.
+
+### Centro attività
+- Nuovo pulsante **⚡ Sovraccarica**: mette tutto il computer (processore e scheda video) a fare copie leggere e conversioni, più file insieme e senza aspettare quando il montaggio suona. Utile quando carichi tanti file. Si spegne da solo quando finisce.
+- **Le copie leggere partono appena importi i file**, non quando li metti in timeline. Di norma si lavora a due a due sui computer con 8 processori o più.
+- Una conversione non resta più appesa a "metto la copia al suo posto" se il montaggio sta suonando un altro file (aspetta al massimo 20 secondi, e solo se sta suonando proprio quel file).
+
+### Audio AI nelle Proprietà
+- Il bottone premuto dice **"In corso 42%"**, gli altri si spengono e sotto compare la barra con cosa sta facendo; a lavoro finito tornano normali.
+- Dopo "Separa voce e musica" la clip originale (muta) **mostra ancora la sua forma d'onda**, più smorta.
+
+### LIVE
+- **Via i filtri audio** (mixer, preset della voce, "Toglie i disturbi"): l'audio si lavora dopo, nel montaggio. Restano le due barre dei livelli.
+- **La webcam si accende e si spegne anche mentre registri** (tasto **WEBCAM** in alto o tasto **C**): ogni volta che resta accesa è un file suo, e in timeline sta al suo posto con il buco di quando era spenta.
+- La **colonna dei comandi è più larga** e non scorre più di lato.
+- Se lo schermo registrato arriva tutto bianco (o nero) lo dice dopo 3 secondi e spiega cosa provare (può capitare con due schede video).
+
+### Banco
+- **Ctrl + / Ctrl −** con il puntatore sulla timeline e **Ctrl + rotella** (anche su intestazioni e mappa) ingrandiscono **solo la timeline**, non più tutta l'interfaccia; il pizzico del trackpad non zooma più la pagina.
+- La **barra sopra il monitor** (nome, Movimento, forbici…) è sottile e su una riga sola.
+
 ## [1.5.0] — 2026-10-15 · L'audio con l'AI nel montaggio, lo sfondo che segue meglio 🎙️
 
 ### Audio: togli i rumori e separa voce e musica (e non solo in LIVE)

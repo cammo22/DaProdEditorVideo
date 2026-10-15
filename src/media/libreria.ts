@@ -7,7 +7,7 @@ import {
 import type { MediaItem } from '../core/tipi';
 import { uid } from '../core/progetto';
 import { invoke, isTauri, type FileScelto } from '../platform';
-import { accodaProxy, modoProxy, proxyEsistente, type Proxy } from './proxy';
+import { accodaProxy, type Proxy } from './proxy';
 import { inCoda as lavoraInCoda, type Lavoro } from './attivita';
 import { chiaveMedia, comprimiPicchi, espandiPicchi, leggiCache, scriviCache } from './cache';
 
@@ -56,6 +56,8 @@ export const PEAKS_PER_SEC = 100;
 /** quante clip della timeline usano un file: chi sta in timeline passa avanti nelle code dei lavori di fondo */
 let usoMedia: (id: string) => number = () => 0;
 export const impostaUsoMedia = (fn: (id: string) => number) => { usoMedia = fn; };
+/** quante clip della timeline usano questo file */
+export const usoDiMedia = (id: string) => usoMedia(id);
 const prioritaDi = (id: string) => () => { const n = usoMedia(id); return n > 0 ? 100 + Math.min(50, n) : 0; };
 /** per chi mette in coda lavori su un file: chi sta in timeline passa avanti */
 export const prioritaMedia = prioritaDi;
@@ -185,13 +187,11 @@ function preparaLavori(item: MediaItem, r: MediaRT, chiave: string) {
   }
 }
 
-/** la copia leggera serve a chi sta in timeline: per gli altri file si aspetta che qualcuno li usi */
+/** la copia leggera si fa subito, appena il file entra (chi sta in timeline passa avanti nella coda): così quando lo metti sul montaggio è già pronta */
 async function preparaProxy(item: MediaItem, r: MediaRT) {
   const fonte = () => sorgente(r);
-  if (usoMedia(item.id) > 0 || modoProxy() === 'sempre') { await accodaProxy(item, r, fonte, prioritaDi(item.id)); return; }
-  // un proxy già fatto si usa subito (costa poco); gli altri si fanno quando serve
-  if (await proxyEsistente(item, r)) return;
-  r.proxyStato = 'attesa';
+  // un proxy già fatto si usa subito (costa poco); gli altri si mettono in coda
+  await accodaProxy(item, r, fonte, prioritaDi(item.id));
 }
 
 /** un file è entrato in timeline: se aspettava la sua copia leggera, adesso si fa */
