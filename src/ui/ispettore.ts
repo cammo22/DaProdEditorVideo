@@ -24,7 +24,8 @@ import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritagl
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
 import { cosaCiMetto } from './seguiMenu';
-import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
+import type { ModoSfondo } from './sfondo';
+import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
 
@@ -321,11 +322,19 @@ export class Ispettore {
     const modo = modoSfondo(c0);
     const righe: (HTMLElement | null)[] = [];
     righe.push(h('label', { class: 'etichetta' }, 'Come lo tolgo?'));
+    // la differenza fra i modi con l'AI, scritta chiara
+    const spiegaAI = (m: ModoSfondo) => (m === 'soggetto' || m === 'persona' || m === 'oggetti' ? h('p', { class: 'nota sf-spiega' }, SPIEGA_MODO[m]) : null);
     righe.push(h('div', { class: 'isp-chips' }, modiPossibili(c0).map((m) => h('button', {
       class: 'chip' + (m === modo ? ' acceso' : ''), title: NOMI_MODO[m], on: { click: () => { if (m !== modo) impostaModo(ids, m); } },
     }, NOMI_MODO[m]))));
+    righe.push(spiegaAI(modo));
+    if (modo === 'soggetto' || modo === 'persona') righe.push(this.pulsanti([['🖱 Voglio scegliere io chi tenere', () => impostaModo(ids, 'oggetti')]]));
     if (modo === 'nessuno') {
-      righe.push(h('p', { class: 'nota' }, 'Scegli come togliere lo sfondo: col colore se hai girato su un fondale verde o blu, con la luce per un fondo nero o bianco, oppure lascia fare all\'AI (una persona, un soggetto qualunque, o l\'oggetto che clicchi). Quello che togli diventa trasparente: metti un\'altra clip sotto.'));
+      righe.push(
+        h('p', { class: 'nota' }, 'Colore: se hai girato su un fondale verde o blu. Luce: per un fondo nero o bianco. Con l\'AI non serve il fondale:'),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Automatico'), ' — ', SPIEGA_MODO.soggetto),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Persone'), ' — ', SPIEGA_MODO.persona),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Clicca tu'), ' — ', SPIEGA_MODO.oggetti));
     }
     if (modo === 'colori') {
       const colori = coloriChiave(c0.fx);
@@ -366,14 +375,14 @@ export class Ispettore {
       if (modo === 'oggetti') {
         const punti = r.punti ?? [];
         righe.push(this.pulsanti([
-          ['🖱 Clicca l\'oggetto sul monitor', () => scegliOggetto(c0.id)],
+          ['🖱 Clicca la persona o l\'oggetto sul monitor', () => scegliOggetto(c0.id)],
           ['Prova su questo fotogramma', () => void provaOggetto(c0.id)],
           ...(punti.length ? [['Toglie i clic', () => azzeraPunti(c0.id)] as [string, () => void]] : []),
         ]));
         righe.push(punti.length
           ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
-          : h('p', { class: 'nota' }, 'Metti il cursore su un fotogramma dove l\'oggetto si vede bene, premi "Clicca l\'oggetto" e clicca sopra (più clic se serve). Alt+clic su una parte che NON è l\'oggetto.'));
-        righe.push(this.spunta('Segui l\'oggetto nel video', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video));
+          : h('p', { class: 'nota' }, 'Metti il cursore su un fotogramma dove si vede bene, premi "Clicca la persona o l\'oggetto" e clicca sopra (più clic se serve). Alt+clic su una parte che NON va tenuta. Dopo l\'ultimo clic il programma lo segue da solo per tutta la clip: non devi premere altro.'));
+        righe.push(this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video));
       }
       const lav = lavoroDi(c0.id);
       const inCorso = !!lav && !lav.finito;

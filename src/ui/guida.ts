@@ -162,8 +162,8 @@ export const ARGOMENTI: Argomento[] = [
     riassunto: 'colore, contagocce, o l\'AI senza fondale', parole: 'sfondo green screen chroma key scontorna ritaglia persona soggetto oggetto ai',
     passi: [
       'Scegli la clip nella timeline.',
-      '**Proprietà → Togli lo sfondo**: *Colore* per il green screen (contagocce, fino a 3 colori), oppure *AI* (Persona, Soggetto, Oggetti coi clic) senza fondale.',
-      'Con l\'AI premi **Togli lo sfondo**: la prima volta il modello si scarica, poi lavora sul tuo computer.',
+      '**Proprietà → Togli lo sfondo**: *Colore* per il green screen (contagocce, fino a 3 colori), oppure *AI* senza fondale: *Automatico* (trova da solo chi sta davanti), *Persone* (solo persone, da solo) oppure *Clicca tu* (clicchi la persona o l\'oggetto da tenere e il programma lo segue per tutta la clip).',
+      'Con *Automatico* e *Persone* premi **Togli lo sfondo**; con *Clicca tu* basta cliccare: dopo l\'ultimo clic parte da solo su tutta la clip. La prima volta il modello si scarica, poi lavora sul tuo computer.',
       'Il tasto **SFONDO** sul monitor mostra la maschera o gli scacchi per controllare.',
     ],
     vai: { nome: 'Apri "Togli lo sfondo"', fn: () => vaiSezione('sfondo') },
