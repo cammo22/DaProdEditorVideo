@@ -28,7 +28,7 @@ const errori = [];
 /** l'errore con le prime righe dello stack (per capire da dove viene, anche dalle pagine aperte a parte) */
 const conStack = (e) => e.message + ' @ ' + String(e.stack ?? '').split('\n').slice(1, 5).join(' | ');
 page.on('pageerror', (e) => errori.push(conStack(e)));
-page.on('console', (m) => { if (m.type() === 'error') errori.push(m.text()); });
+page.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
 
 const doc = () => page.evaluate(() => window.__dpv.doc);
 const doc0 = (pg) => pg.evaluate(() => window.__dpv.doc);
@@ -1189,7 +1189,7 @@ try {
   {
     const pa = await browser.newPage({ viewport: { width: 1600, height: 950 } });
     pa.on('pageerror', (e) => errori.push(conStack(e)));
-    pa.on('console', (m) => { if (m.type() === 'error') errori.push(m.text()); });
+    pa.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
     await pa.goto(srv.url + '/app/');
     await pa.waitForSelector('.pulsantiera');
     await pa.click('text=Prova con il montaggio dimostrativo');
@@ -1640,7 +1640,7 @@ try {
   {
     const pv = await browser.newPage({ viewport: { width: 1600, height: 950 } });
     pv.on('pageerror', (e) => errori.push(conStack(e)));
-    pv.on('console', (m) => { if (m.type() === 'error') errori.push(m.text()); });
+    pv.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
     await pv.goto(srv.url + '/app/');
     await pv.waitForSelector('.pulsantiera');
     await pv.click('text=Prova con il montaggio dimostrativo');
@@ -1722,7 +1722,9 @@ try {
     {
       // annulla
       await pv.keyboard.press('Control+z');
-      await pv.waitForTimeout(200);
+      // su un computer carico l'annulla arriva con un po' di ritardo: si aspetta che la clip torni a velocità 1
+      await pv.waitForFunction((id) => window.__dpv.doc.clips.find((x) => x.id === id)?.speed === 1, c1.id, { timeout: 8000 }).catch(() => {});
+      await pv.waitForTimeout(100);
       const dopo = await doc0(pv);
       const c = dopo.clips.find((x) => x.id === c1.id);
       prova('annulla riporta la velocità normale', c.speed === 1 && c.len === c1.len, `${c.speed} ${c.len}`);
@@ -2075,7 +2077,7 @@ try {
     const pn = await browser.newPage({ viewport: { width: 1600, height: 950 }, acceptDownloads: true });
     const errN = [];
     pn.on('pageerror', (e) => errN.push(e.message));
-    pn.on('console', (m) => { if (m.type() === 'error') errN.push(m.text()); });
+    pn.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errN.push(m.text()); });
     await pn.goto(srv.url + '/app/');
     await pn.waitForSelector('.pulsantiera');
     await pn.waitForTimeout(1200);

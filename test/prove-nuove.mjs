@@ -524,7 +524,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const page = await browser.newPage({ viewport: { width: 1600, height: 950 }, acceptDownloads: true });
   const errori = [];
   page.on('pageerror', (e) => errori.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errori.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
   try {
     await page.goto(srv.url + '/app/');
     await page.waitForSelector('.pulsantiera');

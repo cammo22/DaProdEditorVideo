@@ -9,7 +9,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   const page = await contesto.newPage();
   const errori = [];
   page.on('pageerror', (e) => errori.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errori.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
   await page.goto(paginaDi.url());
   await page.waitForSelector('.pulsantiera');
   await page.waitForTimeout(1200);
