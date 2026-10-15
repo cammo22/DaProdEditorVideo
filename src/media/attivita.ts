@@ -24,8 +24,14 @@ export interface Attivita {
   inizio: number;
   /** quando ha finito (ms) */
   fine: number;
-  /** come è finita: "60 file", l'errore… */
+  /** come è finita: "60 file in 4 min 45 s", l'errore… */
   messaggio: string;
+  /** come è finita, senza il tempo ("60 file", "") */
+  esito: string;
+  /** quanto ci ha messo, in secondi (da quando ha cominciato a lavorare), fisso una volta finita */
+  durata: number;
+  /** a che ora è finita (Date.now): l'ora si scrive una volta, non è un "x fa" che cammina */
+  finitaAlle: number;
   /** per i gruppi: quante cose ci sono e quante sono fatte */
   totale: number;
   fatte: number;
@@ -106,7 +112,7 @@ function creaRiga(o: { titolo: string; categoria: Categoria; dettaglio?: string;
   const t = adesso();
   return {
     id: prossimo++, titolo: o.titolo, dettaglio: o.dettaglio ?? '', categoria: o.categoria, stato: 'coda', k: null,
-    creata: t, inizio: 0, fine: 0, messaggio: '', totale: 0, fatte: 0, attivi: 0, errori: 0, stima: new Stima(), annullabile: o.annullabile ?? true, gruppo: o.gruppo,
+    creata: t, inizio: 0, fine: 0, messaggio: '', esito: '', durata: 0, finitaAlle: 0, totale: 0, fatte: 0, attivi: 0, errori: 0, stima: new Stima(), annullabile: o.annullabile ?? true, gruppo: o.gruppo,
   };
 }
 
@@ -135,10 +141,13 @@ function ricalcola(r: Attivita) {
   if (r.k !== null) r.stima.registra(r.k);
 }
 
-function chiudiRiga(r: Attivita, stato: StatoAttivita, msg: string) {
+function chiudiRiga(r: Attivita, stato: StatoAttivita, msg: string, esito = msg) {
   r.stato = stato;
   r.fine = adesso();
   r.messaggio = msg;
+  r.esito = esito;
+  r.durata = Math.max(0, (r.fine - (r.inizio || r.creata)) / 1000);
+  r.finitaAlle = Date.now();
   r.k = stato === 'finita' ? 1 : r.k;
   const i = righe.indexOf(r);
   if (i >= 0) righe.splice(i, 1);
@@ -160,7 +169,11 @@ function fineLavoro(l: Lavoro, stato: StatoAttivita, msg: string) {
     const tempo = durata < 60 ? `${Math.round(durata)} s` : `${Math.floor(durata / 60)} min ${String(Math.round(durata % 60)).padStart(2, '0')} s`;
     if (stato === 'annullata' && r.fatte === r.errori + 1 && r.totale === 1) chiudiRiga(r, 'annullata', 'annullata');
     else if (r.errori && r.errori === r.totale) chiudiRiga(r, 'errore', msg || 'non riuscito');
-    else chiudiRiga(r, 'finita', (r.totale > 1 ? `${r.totale} in ${tempo}` : msg && stato === 'finita' ? `${msg} in ${tempo}` : `finito in ${tempo}`) + (r.errori ? ` · ${r.errori} non riusciti` : ''));
+    else {
+      const sbagliati = r.errori ? ` · ${r.errori} non riusciti` : '';
+      const esito = (r.totale > 1 ? `${r.totale} elementi` : msg && stato === 'finita' ? msg : '') + sbagliati;
+      chiudiRiga(r, 'finita', (r.totale > 1 ? `${r.totale} in ${tempo}` : msg && stato === 'finita' ? `${msg} in ${tempo}` : `finito in ${tempo}`) + sbagliati, esito.replace(/^ · /, ''));
+    }
   }
   avvisa();
 }

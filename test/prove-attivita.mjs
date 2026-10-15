@@ -112,6 +112,19 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   await page.waitForTimeout(300);
   const fin = await page.evaluate(() => ({ righe: document.querySelectorAll('.att-riga').length, finite: document.querySelectorAll('.att-f').length }));
   prova('finite le attività, il pannello le sposta fra "Finite da poco"', fin.righe === 0 && fin.finite >= 2, JSON.stringify(fin));
+  // le finite dicono quanto ci hanno messo e a che ora hanno finito, una volta sola: niente "x fa" che cammina e niente
+  // elenco ridisegnato ogni secondo (era un timer sempre acceso)
+  const f1 = await page.evaluate(() => {
+    window.__nodiFinite = [...document.querySelectorAll('.att-f')];
+    return window.__nodiFinite.map((x) => ({ dur: x.querySelector('.att-f-dur')?.textContent, quando: x.querySelector('.att-f-quando')?.textContent }));
+  });
+  await page.waitForTimeout(2300);
+  const f2 = await page.evaluate(() => ({
+    stessi: [...document.querySelectorAll('.att-f')].every((x, i) => x === window.__nodiFinite[i]) && document.querySelectorAll('.att-f').length === window.__nodiFinite.length,
+    testo: document.querySelector('.att-finite')?.textContent ?? '',
+  }));
+  prova('le finite scrivono "ci ha messo …" e l\'ora (hh:mm), senza "x fa"', f1.length >= 2 && f1.some((x) => /^ci ha messo/.test(x.dur ?? '')) && f1.every((x) => /^\d\d[:.]\d\d$/.test(x.quando ?? '')) && !/ fa\b/.test(f2.testo), JSON.stringify({ f1, testo: f2.testo.slice(0, 160) }));
+  prova('a lavoro finito l\'elenco non si ridisegna più (niente timer che gira)', f2.stessi, JSON.stringify(f2));
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
   prova('Esc chiude il pannello', (await page.locator('.att-pannello').count()) === 0);
