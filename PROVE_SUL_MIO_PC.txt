@@ -1,0 +1,226 @@
+=====================================================================
+ DaProd Video — PROVE DA FARE SUL PC DI CAMMO (prompt per la prossima sessione)
+=====================================================================
+
+COME USARE QUESTO FILE
+Cammo ti incolla questo testo all'inizio di una sessione nuova. Da lì in poi
+lavori sul SUO computer (Windows) con gli strumenti per usare il PC (computer
+use / browser / terminale, quelli che la sessione ti dà), provi VERAMENTE tutto
+quello che sta scritto qui sotto, e SISTEMI quello che non va. Non fermarti al
+primo problema: arriva in fondo alla lista.
+
+---------------------------------------------------------------------
+0. CHI SEI, COME SI LAVORA
+---------------------------------------------------------------------
+- Rispondi in italiano (i nomi tecnici possono restare in inglese). Cammo parla
+  "parlato", va dritto al punto, e vuole che tu NON faccia errori.
+- Il progetto è il repository GitHub cammo22/DaProdVideo (DaProd Video: editor
+  video web in TypeScript + app Tauri 2 / Rust per Windows, Mac, Android).
+  LEGGI PER PRIMO CLAUDE.md (ha tutta l'architettura) e le tre skill in
+  .claude/skills/ (prove, rilascio, hardware-ai).
+- Ultima versione: 1.5.2. Ogni modifica = una versione nuova (+0.0.1, es. 1.5.3):
+  package.json, package-lock.json, src-tauri/Cargo.toml e SOLO il pacchetto
+  "daprod-video" di src-tauri/Cargo.lock; una voce in CHANGELOG.md in italiano
+  parlato; se serve un paragrafo in CLAUDE.md.
+- Flusso git: sviluppa sul ramo che la sessione ti indica, commit chiari, push,
+  PR in bozza. Se la PR di quel ramo è già unita, riparti da origin/main con lo
+  stesso nome di ramo. Unita su main, la CI (app.yml) compila EXE/setup/DMG e
+  pubblica la release; pages.yml pubblica la versione prova (toglie dist/ai).
+- Le prove automatiche: `npm run build` poi `node test/prove.mjs` (tutta) o
+  `node test/prove-nuove.mjs <chiave>` (chiavi: sfondo animazioni montage
+  pannello seguito attivita aiuto rifiniture banco correzioni proprieta
+  liveaudio live audioui audioai). NON ricompilare mentre la suite gira (i file
+  in dist/ cambiano e le prove cadono per finta).
+- Regola d'oro: NON scrivere mai "provato" o "funziona" se non l'hai VISTO sul
+  PC di Cammo (screenshot, numeri, file creati). Se una cosa non si riesce a
+  provare, scrivilo chiaro. Per ogni prova annota: PASS / FAIL / NON PROVABILE,
+  cosa hai visto, e allega lo screenshot.
+- Se trovi un bug: riproducilo, trova la causa vera (non un cerotto), correggilo,
+  scrivi una prova automatica che lo copre quando si può, rifai il build, rigira
+  la prova sul PC. Poi passa alla successiva.
+
+---------------------------------------------------------------------
+1. IL COMPUTER E COSA SAPPIAMO
+---------------------------------------------------------------------
+- Windows. Cammo ha cambiato scheda video: ora ha una GPU NVIDIA, ma il cavo
+  del monitor è attaccato alla scheda video integrata nel processore (AMD).
+  Prima, con il cavo sulla NVIDIA, tutto funzionava. Questa configurazione a
+  DUE schede è il sospetto numero uno per: webcam che non si apre, schermo
+  registrato bianco, errore dello sfondo AI, uso scarso di GPU/CPU.
+- Raccogli subito: modello CPU (core/thread), RAM, schede video (Gestione
+  attività → Prestazioni; dxdiag), versione driver NVIDIA e AMD, versione di
+  WebView2 (edge://version o Impostazioni → App), versione di DaProd Video
+  (in basso a destra nell'app), come è installato (setup o portatile).
+- Impostazioni Windows da guardare: Sistema → Schermo → Grafica → DaProd Video
+  (Prestazioni elevate / Risparmio energia / Predefinito); Privacy →
+  Fotocamera e Microfono (anche "app desktop"); Pannello NVIDIA → "Gestisci
+  le impostazioni 3D".
+- Per vedere errori e log: se l'app installata non ha gli strumenti sviluppatore,
+  clona il repo sul PC e lancia `npm ci` e `npm run tauri dev` (serve Rust +
+  Node), così hai la console (F12 / Ctrl+Shift+I). Usa anche il browser Chrome
+  con la versione prova (https://cammo22.github.io/DaProdVideo/) per capire se
+  un difetto è dell'app Tauri (WebView2) o del codice.
+
+---------------------------------------------------------------------
+2. PROVE — RILEVATORE HARDWARE E AI (la parte più importante)
+---------------------------------------------------------------------
+2.1  Centro AI → "Controlla l'AI". Annota cosa dice di ogni scheda video
+     (prova superata / fallita, quale sceglie, "mezza precisione sì/no"),
+     di Hugging Face, dei modelli. Controlla in console localStorage
+     "dpv-hardware". Il rilevatore sceglie la scheda GIUSTA (NVIDIA)? Se dà
+     "prova fallita" su una scheda, perché (messaggio)? Premi di nuovo: stesso
+     risultato? Cambia nelle Impostazioni di Windows la scheda assegnata a
+     DaProd Video e rifai: cambia qualcosa?
+2.2  Togli lo sfondo con l'AI, modalità "AI · automatico" su una ripresa VERA
+     (persona in primo piano):
+       - parte da sola? Quanto ci mette (fotogrammi al secondo)? Su quale
+         dispositivo ("scheda video" o "processore", lo dice la barra)?
+       - NIENTE errore "Invalid ShaderModule LayerNorm / failed to call
+         OrtRun". Se l'errore compare lo stesso: SPEGNI e DOCUMENTA (console,
+         messaggio intero), controlla che il worker riparta davvero sul
+         processore (ritaglio.ts / ritaglio.worker.ts) e che il lavoro finisca.
+       - Prova con la scheda video SPENTA (Centro AI → impostazioni) e accesa.
+       - La maschera dopo il primo fotogramma: buchi? pezzi che compaiono?
+         tremolio? Salva screenshot di 5 fotogrammi distanti.
+       - Prova anche "AI · Persone" e "Clicca tu".
+2.3  "Clicca su cosa tenere": CLIC SINISTRO aggiunge un punto verde, CLIC
+     DESTRO sopra un punto lo toglie (e non apre il menu di Windows), Alt+clic
+     mette un punto rosso (non tenere). Con 2 persone nel quadro: clicca una,
+     la segue per tutta la clip? Quanto ci mette? Risultato pulito?
+2.4  Sottotitoli AI (Whisper) su 30 secondi di parlato in italiano: parte,
+     usa la scheda video o il processore, il testo è giusto? Se la scheda
+     sbaglia a metà, riparte da sola sul processore?
+2.5  Audio AI nelle Proprietà (clip audio vera):
+       - "Togli i rumori" Leggera/Media/Forte su una voce di microfono con
+         fruscio/ventola: ASCOLTA prima e dopo (e dillo a Cammo con onestà),
+         il bottone dice "In corso xx%" mentre lavora, tornano normali dopo.
+       - "Separa voce e musica" su una CANZONE vera (il modello Demucs pesa
+         172 MB e si scarica la prima volta: guarda se si scarica, quanto ci
+         mette, se resta in cache). Esce la traccia "Voce" e la traccia "Base"?
+         Ascolta: la voce è pulita? la base senza voce? Le clip nuove mostrano
+         la forma d'onda? L'originale (muto a -60 dB) mostra la sua onda smorta?
+         Ctrl+Z rimette tutto in un colpo? "Audio originale" funziona?
+       - Tempo impiegato per minuto di audio, uso di CPU/GPU in Task Manager.
+       - Se il modello non si scarica: parte la "separazione rapida" e lo dice?
+
+---------------------------------------------------------------------
+3. PROVE — LIVE (registrazione dello schermo e webcam)
+---------------------------------------------------------------------
+3.1  Layout: la colonna dei comandi a destra è sempre in vista a tutta
+     altezza, accanto alla timeline, larga, senza scorrere di lato. Prova a
+     finestra grande, piccola, a schermo intero. Screenshot.
+3.2  Webcam: accendi "Webcam" (tasto in alto WEBCAM o tasto C o l'interruttore).
+     Si vede l'anteprima nell'angolo? Se NON si apre: l'avviso dice il nome
+     tecnico dell'errore (NotAllowedError / NotReadableError / NotFoundError /
+     OverconstrainedError…)? ANNOTALO ESATTO. Poi:
+       - prova con la webcam vera, con "OBS Virtual Camera", con un'altra
+         app che usa la webcam chiusa/aperta;
+       - nella console della pagina (o in Chrome sulla versione prova) lancia
+         navigator.mediaDevices.enumerateDevices() e getUserMedia({video:true})
+         e guarda cosa risponde: stesso errore anche in Chrome? Se in Chrome
+         funziona e nell'app no → è WebView2 (permessi / flag / GPU).
+       - il flag messo in src-tauri/tauri.windows.conf.json
+         (additionalBrowserArgs ... MediaFoundationD3D11VideoCapture) è
+         attivo? Con e senza: cambia qualcosa? Prova anche
+         --disable-gpu-compositing o --disable-accelerated-video-decode SOLO
+         come esperimento e riporta cosa succede.
+       - se la webcam si apre ma resta nera/ferma: l'avviso "non manda
+         immagini" compare dopo 4 secondi?
+3.3  Webcam accesa e spenta MENTRE registri (tasto C o bottone WEBCAM):
+     registra 20 s accendendo/spegnendo 2 volte. Nel montaggio finale: un file
+     webcam per ogni accensione, al posto giusto, con il buco quando era
+     spenta, sulla traccia sopra lo schermo. Sincronia audio/video giusta?
+3.4  Registrazione schermo: schermo intero, una sola finestra, una scheda del
+     browser. L'immagine registrata è giusta o BIANCA/NERA? (c'è un controllo
+     dopo 3 secondi che avvisa). Se è bianca: vale con tutti i tipi di
+     sorgente? Cambia con la scheda assegnata a DaProd Video in Windows? Con
+     Chrome (versione prova) è bianca lo stesso? Documenta e cerca la
+     soluzione (es. consigliare di registrare una finestra, flag, ecc.).
+3.5  Audio in LIVE: dal 1.5.1 NON ci sono più filtri/mixer (solo le due barre
+     dei livelli). Microfono + audio del computer + "voce e computer
+     separati": i file escono, i livelli si muovono, nessun errore.
+3.6  Pausa/riprendi (Spazio), segni (M), conto alla rovescia, telecomando
+     (finestra piccola sempre sopra), "più finestre" (N / 1-9 / L).
+3.7  Dopo FERMA: la registrazione è nel contenitore (cartella "Registrazioni")
+     e in fondo alla timeline, legata, e si riproduce senza buchi.
+
+---------------------------------------------------------------------
+4. PROVE — BANCO, TIMELINE, PAGINE
+---------------------------------------------------------------------
+4.1  Spessore delle tracce/clip: SEMPRE lo stesso (quello delle prime
+     versioni) anche se ridimensioni il pannello del monitor, la finestra,
+     o passi da una pagina all'altra. Misura l'altezza di V1/A1 in pixel a 3
+     altezze di finestra: deve essere identica. (Lo zoom verticale con
+     Ctrl+Shift+rotella resta una scelta.)
+4.2  Zoom: Ctrl + / Ctrl − con il mouse sulla timeline ingrandisce SOLO la
+     timeline; Ctrl+rotella sulla timeline, sulle intestazioni delle tracce e
+     sulla mappa in basso = zoom timeline; il pizzico del trackpad e Ctrl+
+     rotella fuori dalla timeline NON ingrandiscono tutta l'interfaccia. Nel
+     menu Vista → Grandezza, e Ctrl+0, cosa succede?
+4.3  Pagina Finale: timeline piccola, schermata dei ritocchi grande; il
+     divisore si trascina e si ricorda dopo il riavvio.
+4.4  Barra sopra il monitor (nome, Movimento, forbici, mirino): sottile, una
+     riga sola, non esce dal monitor anche con il monitor stretto.
+4.5  Rotella sui campi: dopo 1 secondo col mouse fermo si carica il pallino e
+     poi reagisce; prima no (scorre la pagina). Prova su 5 campi diversi.
+4.6  Incolla (Ctrl+V) nella traccia scelta (accesa); taglio (1) e separa (S)
+     deselezionano le clip; "2" elimina lo scarto subito dopo.
+4.7  Proprietà: tessere "effetti rapidi" quadrate e belle, senza muro di
+     testo; "Segui un oggetto" → dopo il tracking il menu offre testo,
+     immagine, emoji, segnalini, lente; i segnalini NON sono nella libreria
+     Animazioni.
+4.8  Impostazioni del progetto (clic sul nome): niente campi che escono.
+
+---------------------------------------------------------------------
+5. PROVE — CENTRO ATTIVITÀ, CONVERSIONI, PRESTAZIONI
+---------------------------------------------------------------------
+5.1  Importa 15-20 file video veri (alcuni 4K/HEVC/del telefono, alcuni a
+     frame rate variabile). Le COPIE LEGGERE (proxy) partono SUBITO
+     all'importazione (non quando li metti in timeline)? Le righe nel Centro
+     attività sono giuste, i timer si fermano a lavoro finito e dicono "ci ha
+     messo X"?
+5.2  Misura le prestazioni in Task Manager (CPU totale, per core, GPU 3D e
+     soprattutto "Video Encode / Video Decode" della NVIDIA e dell'AMD) durante
+     le conversioni, SENZA e CON il pulsante ⚡ SOVRACCARICA: quanti lavori
+     girano insieme, quanto sale l'uso di CPU e GPU, quanto tempo ci mette
+     tutto l'import (cronometro). Il processore è ancora troppo poco usato?
+     La codifica hardware (prefer-hardware, NVENC) viene davvero usata? Se la
+     scheda sbaglia, ripiega sul processore senza bloccarsi?
+5.3  Nessuna attività resta "bloccata" (es. "metto la copia al suo posto") né
+     con il montaggio che suona. Il pulsante Sovraccarica si spegne da solo
+     a fine lavoro e lo dice.
+5.4  Cerca dove si perde tempo (profilo): decodifica, codifica, WASM,
+     lettura da disco. Proponi e FAI ottimizzazioni misurabili (più lavori
+     insieme dove c'è CPU libera, hardwareAcceleration, dimensione dei blocchi,
+     thread del motore AI, ecc.), rimisurando prima/dopo.
+
+---------------------------------------------------------------------
+6. PROVE — ESPORTAZIONE E COSE DI CONTORNO
+---------------------------------------------------------------------
+6.1  Esporta un montaggio di 1-2 minuti (1080p e 4K, H.264): usa la GPU
+     (NVENC)? Tempo, qualità, audio sincronizzato, il file si apre altrove.
+6.2  Salva/riapri progetto (.dpv) e pacchetto (.daprod); riapertura veloce.
+6.3  Aggiornamenti: l'app trova la versione nuova, scarica e installa senza
+     disinstallare a mano (setup /UPDATE /P /R); versione portatile OK.
+6.4  Montaggio dimostrativo, DaProdMontage (F8), Cerca (Ctrl+K), guida (F1):
+     nessun errore in console.
+
+---------------------------------------------------------------------
+7. COSA CONSEGNARE ALLA FINE
+---------------------------------------------------------------------
+- Una tabella (anche in un file RAPPORTO_PROVE.txt nel repo): per ogni prova
+  PASS / FAIL / NON PROVABILE + una riga su cosa hai visto.
+- Tutti i bug trovati e SISTEMATI, uno per uno, con la causa vera e il commit.
+- I bug che NON sei riuscito a sistemare, con quello che hai provato e cosa
+  serve (es. un driver, una impostazione di Windows).
+- Versione nuova (1.5.3 o successiva) con CHANGELOG, PR, CI verde, release
+  pubblicata. Controlla davvero la CI di main dopo l'unione (job per job).
+- Un riassunto finale breve, in italiano, onesto: cosa ora funziona sul suo PC
+  e cosa no.
+
+NON FARE
+- Non dire che una cosa è a posto se non l'hai vista sul PC.
+- Non togliere né saltare una prova automatica per farla passare.
+- Non ricompilare dist/ mentre una suite sta girando.
+- Non pubblicare cose che non hai provato senza dirlo.
+=====================================================================
