@@ -196,7 +196,18 @@ export interface AudioFx {
   ovattato?: boolean;
   /** volume livellato in automatico (ricorda il guadagno di prima per tornare indietro) */
   norm?: number;
+  /**
+   * rumore tolto con l'AI (src/media/audioAI.ts): la clip suona un file nuovo e "pulito"; qui si ricorda l'originale per tornarci.
+   * media = il file originale, srcIn = dov'era la clip nell'originale (secondi), da = il secondo dell'originale da cui parte il file pulito
+   * (srcIn nel pulito + da = srcIn nell'originale: vale anche se poi la clip viene accorciata).
+   */
+  pulito?: { media: string; srcIn: number; forza: ForzaRumore; da: number };
+  /** voce e base separate con l'AI: 'originale' = la clip da cui si è partiti (silenziata), 'voce'/'base' = le clip nate dalla separazione */
+  separata?: { ruolo: 'voce' | 'base' | 'originale'; /** le altre clip della separazione (sull'originale: voce e base; sulle nuove: l'originale) */ con: string[]; /** sull'originale: il volume (dB) di prima che fosse silenziata */ gain?: number };
 }
+
+/** quanto togliere del rumore: leggera tiene un po' d'ambiente, forte toglie tutto quello che l'AI toglie */
+export type ForzaRumore = 'leggera' | 'media' | 'forte';
 
 export interface Transform {
   /** spostamento in pixel del progetto, dal centro */

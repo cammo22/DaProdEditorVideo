@@ -4,16 +4,19 @@
 // modello è già sul computer, e il pulsante che porta dritto al punto giusto. Sotto, "Controlla l'AI" (la diagnosi) e
 // le impostazioni: la scheda video sì o no, lo spazio occupato dai modelli, il motore NVIDIA.
 import { store } from '../core/store';
+import type { Clip } from '../core/tipi';
 import { isVideoClip } from '../core/progetto';
 import * as M from '../core/montaggio';
 import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
 import { MODELLI_TRADUZIONE } from '../media/traduci';
+import { MODELLO_SEPARAZIONE, installaSeparazione, possibilita, statoAudioAI, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, statoNvidia, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
 import { impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
-import { conferma, dialogo, evidenzia, h } from './dom';
+import { spiegaErroreAI } from '../media/erroriAI';
+import { avviso, conferma, dialogo, evidenzia, h } from './dom';
 import { vaiFinale, vaiPagina, vaiSezione } from './guida';
 import { fonteCerca } from './cerca';
 
@@ -31,6 +34,9 @@ export interface FunzioneAI {
   manca: () => string | null;
   /** porta al punto giusto del programma */
   apri: () => void;
+  /** per chi ha un modello grosso da scaricare a parte: i pulsanti "Scarica ora" e "Togli il modello" */
+  installa?: () => Promise<void>;
+  togli?: () => Promise<unknown>;
 }
 
 const haAudio = () => store.doc.clips.some((c) => c.kind === 'media' && store.doc.tracks.find((t) => t.id === c.track)?.kind === 'audio');
@@ -46,6 +52,20 @@ export function clipVideoDaUsare(scegli = true) {
   if (c && scegli) store.select([c.id]);
   return c;
 }
+
+/** la clip audio su cui lavorare: quella scelta (o la ripresa con l'audio), o quella più in alto sotto il cursore (e la si sceglie) */
+export function clipAudioDaUsare(scegli = true) {
+  const p = store.doc;
+  const buona = (c: Clip) => possibilita(c, p).rumore;
+  const scelta = p.clips.find((c) => store.sel.has(c.id) && buona(c));
+  if (scelta) return scelta;
+  const f = Math.round(store.head);
+  const sotto = M.topClipAt(p, f, 'audio') ?? M.topClipAt(p, f, 'video');
+  const c = sotto && buona(sotto) ? sotto : undefined;
+  if (c && scegli) store.select([c.id]);
+  return c;
+}
+const MANCA_AUDIO = 'Scegli una clip audio (o una ripresa con l\'audio) nella timeline, o mettici sopra il cursore';
 
 export const FUNZIONI_AI: FunzioneAI[] = [
   {
@@ -78,6 +98,23 @@ export const FUNZIONI_AI: FunzioneAI[] = [
     modelli: MODELLI_RITAGLIO.map((m) => ({ repo: m.repo[0], nome: m.nome })),
     manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una clip video o un\'immagine nella timeline (o mettici sopra il cursore)'),
     apri: () => { clipVideoDaUsare(true); vaiSezione('sfondo'); },
+  },
+  {
+    id: 'rumore', nome: 'Togli i rumori', icona: '🎙', dove: 'tutto',
+    cosaFa: 'Toglie il rumore di fondo da un parlato (ventola, fruscio, strada) e lascia la voce. È DeepFilterNet3, un\'AI fatta per la voce: lavora sul computer, senza scaricare niente.',
+    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli quanto (leggera, media, forte)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
+  },
+  {
+    id: 'separa', nome: 'Voce e base', icona: '🎤', dove: 'tutto',
+    cosaFa: 'Divide una canzone in voce (il cantato) e base (la musica), su due tracce nuove, così puoi abbassare la voce, fare un karaoke o tenere solo il cantato. Usa Demucs, un\'AI per la musica.',
+    come: ['Scegli la clip della canzone', 'Proprietà → Audio AI → Separa voce e base', 'La prima volta si scarica il modello (172 MB); senza, c\'è la separazione rapida (meno precisa)'],
+    modelli: [{ repo: MODELLO_SEPARAZIONE.repo, nome: MODELLO_SEPARAZIONE.nome, mb: Math.round(MODELLO_SEPARAZIONE.peso / 1048576) }],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
+    installa: () => installaSeparazione(),
+    togli: () => togliSeparazione(),
   },
   {
     id: 'segui', nome: 'Segui un oggetto', icona: '🎯', dove: 'locale',
@@ -114,11 +151,20 @@ export function finestraCentroAI(subito = false) {
     const stato = h('div', { class: 'ai-stato' }, f.modelli ? 'controllo i modelli…' : '');
     stati.set(f.id, stato);
     const motivo = f.manca();
+    // i modelli grossi si scaricano a parte: "Scarica ora" e "Togli il modello"
+    const modello = f.installa ? h('div', { class: 'ai-riga ai-modello' },
+      h('button', { class: 'btn-mini ai-scarica', on: { click: async (ev: Event) => {
+        const b = ev.currentTarget as HTMLButtonElement;
+        b.disabled = true;
+        try { await f.installa!(); avviso(`${f.nome}: il modello è sul computer`, 'ok', 2600); } catch (e) { avviso(spiegaErroreAI(e), 'errore', 5200); } finally { b.disabled = false; void aggiornaAudio(); }
+      } } }, 'Scarica ora'),
+      f.togli ? h('button', { class: 'btn-mini ai-togli', on: { click: async () => { await f.togli!(); void aggiornaAudio(); } } }, 'Togli il modello') : null) : null;
     return h('article', { class: 'ai-carta', 'data-ai': f.id },
       h('header', null, h('span', { class: 'ai-ic' }, f.icona), h('b', null, f.nome), h('span', { class: 'ai-dove ' + f.dove }, DOVE[f.dove])),
       h('p', null, f.cosaFa),
       h('ol', { class: 'ai-come' }, f.come.map((c) => h('li', null, c))),
       stato,
+      modello,
       motivo ? h('p', { class: 'ai-manca' }, '⚠ ', motivo) : null,
       h('button', { class: 'btn primario ai-usa', on: { click: () => { d.chiudi(); f.apri(); } } }, motivo ? 'Mostrami dove ▶' : 'Usa ▶'));
   });
@@ -141,7 +187,21 @@ export function finestraCentroAI(subito = false) {
     }
     const v = stati.get('voce');
     if (v) v.replaceChildren(nv ? h('span', { class: nv.installato ? 'ai-ok' : '' }, nv.installato ? `✓ motore NVIDIA pronto (${nv.backend})` : '⬇ il motore NVIDIA e la voce si scaricano la prima volta') : h('span', null, 'nel browser non c\'è'));
+    void aggiornaAudio();
   })();
+
+  /** lo stato dei due motori dell'audio (togli rumori, voce e base): dove stanno e quanto pesano */
+  async function aggiornaAudio() {
+    const s = await statoAudioAI();
+    const r = stati.get('rumore'), v = stati.get('separa');
+    const nome = (k: string) => (k === 'in-uso' ? ' · sta lavorando adesso' : k === 'errore' ? ' · l\'ultima volta non è riuscito' : '');
+    if (r) r.replaceChildren(h('span', { class: s.rumore.stato === 'pronto' || s.rumore.stato === 'in-uso' ? 'ai-ok' : '' }, (s.rumore.stato === 'da-scaricare' ? '⬇ il filtro (DeepFilterNet3, ' : '✓ pronto: il filtro (DeepFilterNet3, ') + s.rumore.peso + ')' + nome(s.rumore.stato)));
+    if (v) {
+      const pronto = s.separa.stato === 'pronto' || (s.separa.stato === 'in-uso' && !s.separa.ripiego);
+      v.replaceChildren(h('span', { class: pronto ? 'ai-ok' : '' }, pronto ? `✓ sul computer: ${MODELLO_SEPARAZIONE.nome} (${s.separa.peso})` : `⬇ il modello (${s.separa.peso}) si scarica la prima volta`),
+        h('span', null, ' · senza il modello c\'è la separazione rapida (senza AI, meno precisa)' + (s.separa.ripiego ? ': per ora userebbe quella' : '') + nome(s.separa.stato)));
+    }
+  }
 
   // ——— la diagnosi
   const esito = h('div', { class: 'ai-diagnosi' });
