@@ -6,12 +6,21 @@
 // memoria non c'è mai più di un pezzo) e riceve quello che esce (messaggio "uscita"). Tutto sul computer di chi monta.
 import { Ricampionatore, lunghezzaUscita } from '../core/ricampiona';
 import { PulitoreMono, PulitoreStereo, type FiltroTrama, SR_DF } from '../core/rumore';
+import { CatenaVoce } from '../core/catenaVoce';
 import { DEMUCS, SeparatoreDemucs, SeparatoreRapido, modelloFinto, type EseguiModello } from '../core/separa';
 import { CDN_DEEPFILTERNET, CDN_ORT, applicaPotenza, applicaThread, dispositivi, erroreDellaScheda, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda } from './libreriaAI';
 import { ottieniModello, type ModelloAudio } from './modelliAudio';
 import { spiegaErroreAI } from './erroriAI';
 
-export interface InizioRumore { tipo: 'inizia'; lavoro: 'rumore'; sr: number; canali: 1 | 2; mescola: number; base: string }
+export interface InizioRumore {
+  tipo: 'inizia'; lavoro: 'rumore'; sr: number; canali: 1 | 2; mescola: number; base: string;
+  /** il post-filtro di DeepFilterNet (0 = spento) */
+  postfiltro?: number;
+  /** la catena della voce dopo il filtro (passa-alto, EQ, compressore, limitatore), col guadagno d'ingresso in dB; null = niente */
+  catena?: { preDb: number } | null;
+  /** "voce isolata": prima Demucs tiene solo la voce (via musica, TV, rumori), poi il filtro. Come per la separazione */
+  isola?: Omit<InizioSepara, 'tipo' | 'lavoro' | 'emetti' | 'ripiego'> | null;
+}
 export interface InizioSepara {
   tipo: 'inizia'; lavoro: 'separa'; sr: number; canali: 1 | 2;
   /** campioni (alla frequenza sr) che arriveranno in tutto */
@@ -33,9 +42,11 @@ export type DaWorker =
   | { tipo: 'stato'; testo: string; k?: number }
   | { tipo: 'avviso'; msg: string }
   | { tipo: 'scheda-guasta' }
-  | { tipo: 'pronto'; motore: 'deepfilternet' | 'demucs' | 'rapido'; dispositivo?: Dispositivo | 'finta' }
+  | { tipo: 'pronto'; motore: 'deepfilternet' | 'demucs' | 'rapido' | 'voce'; dispositivo?: Dispositivo | 'finta' }
   | { tipo: 'uscita'; nome: 'pulito' | 'voce' | 'base'; ch: Float32Array[] }
   | { tipo: 'ricevuto' }
+  /** com'è venuta la voce pulita (livello del parlato e picco, in dBFS): la pagina ne fa il volume della clip */
+  | { tipo: 'misura'; parlato: number | null; picco: number }
   | { tipo: 'finito' }
   | { tipo: 'errore'; msg: string };
 
@@ -63,27 +74,67 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
   const { crea } = await caricaDeepFilter(m.base);
   const filtri: any[] = [await crea()];
   if (m.canali === 2) filtri.push(await crea());
+  for (const f of filtri) if (m.postfiltro) f.setPostFilterBeta?.(m.postfiltro);
   let k = 0;
   const mono = m.canali === 1 ? new PulitoreMono(filtri[0] as FiltroTrama, m.mescola) : null;
   const stereo = m.canali === 2 ? new PulitoreStereo(() => filtri[k++] as FiltroTrama, m.mescola) : null;
-  const ric = Array.from({ length: m.canali }, () => new Ricampionatore(m.sr, SR_DF));
-  manda({ tipo: 'pronto', motore: 'deepfilternet' });
-  const esce = (ch: Float32Array[]) => { if (ch[0].length) manda({ tipo: 'uscita', nome: 'pulito', ch }, ch.map((x) => x.buffer)); };
+  const catena = m.catena ? new CatenaVoce(SR_DF, m.canali, m.catena.preDb) : null;
+  const esce = (ch: Float32Array[]) => {
+    if (!ch[0].length) return;
+    catena?.processa(ch);
+    manda({ tipo: 'uscita', nome: 'pulito', ch }, ch.map((x) => x.buffer));
+  };
+  /** dai al filtro l'audio a 48 kHz (già coi canali della clip) */
+  const filtra = (r: Float32Array[]) => esce(mono ? [mono.push(r[0])] : [...stereo!.push(r[0], r[1])]);
+  const chiudiFiltro = () => {
+    esce(mono ? [mono.fine()] : [...stereo!.fine()]);
+    if (catena) manda({ tipo: 'misura', parlato: catena.livello.parlato, picco: catena.livello.piccoDb });
+    for (const f of filtri) f.destroy?.();
+  };
+
+  // "voce isolata": Demucs prima del filtro. Se il modello non si avvia, si pulisce solo col filtro (e lo si dice)
+  let demucs: { esegui: EseguiModello } | null = null;
+  if (m.isola) {
+    try { demucs = await preparaDemucs({ ...m.isola, tipo: 'inizia', lavoro: 'separa', emetti: ['voce'], ripiego: 'mai' }); }
+    catch (e) { manda({ tipo: 'avviso', msg: `Il modello che isola la voce non si avvia (${spiegaErroreAI(e)}): pulisco solo col filtro del rumore` }); demucs = null; }
+  }
+  if (!demucs || !m.isola) {
+    const ric = Array.from({ length: m.canali }, () => new Ricampionatore(m.sr, SR_DF));
+    manda({ tipo: 'pronto', motore: 'deepfilternet' });
+    return {
+      async dati(ch) { filtra(ch.map((x, i) => ric[i].processa(x))); },
+      async fine() { filtra(ric.map((x) => x.fine())); chiudiFiltro(); },
+    };
+  }
+  const iso = m.isola;
+  manda({ tipo: 'pronto', motore: 'voce', dispositivo: iso.finta ? 'finta' : dispositivoOrt });
+  // ingresso → 44,1 kHz stereo (Demucs) → la voce → 48 kHz (il filtro) coi canali della clip
+  const ricIn = [new Ricampionatore(m.sr, DEMUCS.SR), new Ricampionatore(m.sr, DEMUCS.SR)];
+  const ricVoce = [new Ricampionatore(DEMUCS.SR, SR_DF), new Ricampionatore(DEMUCS.SR, SR_DF)];
+  const alFiltro = (l: Float32Array, r: Float32Array) => {
+    if (m.canali === 2) { filtra([l, r]); return; }
+    const n = Math.min(l.length, r.length), x = new Float32Array(n);
+    for (let i = 0; i < n; i++) x[i] = (l[i] + r[i]) * 0.5;
+    filtra([x]);
+  };
+  const sep = new SeparatoreDemucs({
+    totale: lunghezzaUscita(iso.totale, m.sr, DEMUCS.SR), media: iso.media, dev: iso.dev, esegui: demucs.esegui,
+    uscita: async (v) => { alFiltro(ricVoce[0].processa(v[0]), ricVoce[1].processa(v[1])); },
+    avanza: (x) => manda({ tipo: 'stato', testo: 'Isolo la voce…', k: x }),
+  });
   return {
-    async dati(ch) {
-      const r = ch.map((x, i) => ric[i].processa(x));
-      esce(mono ? [mono.push(r[0])] : [...stereo!.push(r[0], r[1])]);
-    },
+    async dati(ch) { await sep.push(ricIn[0].processa(ch[0]), ricIn[1].processa(ch[1] ?? ch[0])); },
     async fine() {
-      const r = ric.map((x) => x.fine());
-      if (mono) { const a = mono.push(r[0]), b = mono.fine(); esce([concat(a, b)]); }
-      else { const [al, ar] = stereo!.push(r[0], r[1]); const [bl, br] = stereo!.fine(); esce([concat(al, bl), concat(ar, br)]); }
-      for (const f of filtri) f.destroy?.();
+      await sep.push(ricIn[0].fine(), ricIn[1].fine());
+      await sep.fine();
+      alFiltro(ricVoce[0].fine(), ricVoce[1].fine());
+      chiudiFiltro();
+      await sessione?.release?.().catch?.(() => {});
+      sessione = null;
     },
   };
 }
 
-const concat = (a: Float32Array, b: Float32Array) => { const o = new Float32Array(a.length + b.length); o.set(a); o.set(b, a.length); return o; };
 
 // ——— separare voce e base ———
 
@@ -156,6 +207,18 @@ function eseguiOrt(m: InizioSepara): EseguiModello {
   };
 }
 
+/** scarica (la prima volta) e avvia Demucs: scheda video se c'è, se no processore. Lancia l'errore se non si può */
+async function preparaDemucs(m: InizioSepara): Promise<{ esegui: EseguiModello; dettaglio: Dispositivo | 'finta' }> {
+  if (m.finta) return { esegui: modelloFinto({ attesaMs: m.finta.attesaMs }), dettaglio: 'finta' };
+  manda({ tipo: 'stato', testo: 'Cerco il modello…' });
+  const bytes = await ottieniModello(m.modello, {
+    avanza: (a, t) => manda({ tipo: 'stato', testo: `Scarico il modello: ${(a / 1048576).toFixed(0)} di ${((t || m.modello.peso) / 1048576).toFixed(0)} MB (una volta sola)`, k: t ? a / t : 0 }),
+  });
+  manda({ tipo: 'stato', testo: 'Avvio il modello…' });
+  await creaSessione(m, bytes, m.scheda);
+  return { esegui: eseguiOrt(m), dettaglio: dispositivoOrt };
+}
+
 async function avviaSepara(m: InizioSepara): Promise<Motore> {
   const stereo = m.canali === 2;
   const totale44 = lunghezzaUscita(m.totale, m.sr, DEMUCS.SR);
@@ -165,17 +228,7 @@ async function avviaSepara(m: InizioSepara): Promise<Motore> {
 
   if (m.ripiego !== 'solo') {
     try {
-      if (m.finta) { esegui = modelloFinto({ attesaMs: m.finta.attesaMs }); dettaglio = 'finta'; }
-      else {
-        manda({ tipo: 'stato', testo: 'Cerco il modello…' });
-        const bytes = await ottieniModello(m.modello, {
-          avanza: (a, t) => manda({ tipo: 'stato', testo: `Scarico il modello: ${(a / 1048576).toFixed(0)} di ${((t || m.modello.peso) / 1048576).toFixed(0)} MB (una volta sola)`, k: t ? a / t : 0 }),
-        });
-        manda({ tipo: 'stato', testo: 'Avvio il modello…' });
-        await creaSessione(m, bytes, m.scheda);
-        esegui = eseguiOrt(m);
-        dettaglio = dispositivoOrt;
-      }
+      ({ esegui, dettaglio } = await preparaDemucs(m));
     } catch (e) {
       if (m.ripiego === 'mai' || !stereo) throw e;
       motivoRipiego = spiegaErroreAI(e);

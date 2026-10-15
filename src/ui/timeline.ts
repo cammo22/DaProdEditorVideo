@@ -684,6 +684,7 @@ export class Timeline {
       ctx.fillRect(this.fX(a), RIGHELLO, (b - a) * this.ppf, H);
     }
     // clip, e sopra i blocchetti FX (in basso sulla riga, una corsia per ogni sovrapposizione)
+    this.contorniScelte = [];
     for (const { t, y, h: hh } of righe) {
       if (y > H || y + hh < RIGHELLO) continue;
       for (const c of p.clips) {
@@ -697,6 +698,17 @@ export class Timeline {
         this.disegnaBlocco(ctx, p, c, t, y, hh, r, corsia.get(c.id)!, n);
       }
     }
+    // il contorno delle clip scelte si disegna DOPO tutte le clip: dopo un taglio i due pezzi sono attaccati e la
+    // vicina, disegnata dopo, copriva metà del bordo giallo (non si capiva più cosa era scelto)
+    for (const k of this.contorniScelte) {
+      ctx.strokeStyle = 'rgba(255,213,74,.35)';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.roundRect(k.x, k.y, k.w, k.h, k.r); ctx.stroke();
+      ctx.strokeStyle = '#ffd54a';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(k.x + 1, k.y + 1, Math.max(1, k.w - 2), Math.max(1, k.h - 2), k.r); ctx.stroke();
+    }
+    ctx.lineWidth = 1;
     // la riga dei sottotitoli
     if (this.rigaSott) this.disegnaSott(ctx, p, W);
     // fantasma del trascinamento dal contenitore
@@ -1036,6 +1048,9 @@ export class Timeline {
     ctx.restore();
   }
 
+  /** i contorni delle clip scelte, disegnati sopra a tutto alla fine del giro */
+  private contorniScelte: { x: number; y: number; w: number; h: number; r: number }[] = [];
+
   private disegnaClip(ctx: CanvasRenderingContext2D, p: Project, c: Clip, t: Track, y: number, hh: number, r: number) {
     const x = this.fX(c.start), w = Math.max(1, c.len * this.ppf);
     const { top, alt, testa, corpoY, corpoH } = this.geo(y, hh);
@@ -1161,19 +1176,16 @@ export class Timeline {
     if (this.haVolume(c, t) && corpoH > 12) this.volume(ctx, c, x, w, corpoY, corpoH);
     else if ((modi.elastico || c.opKeys.length) && isVideoClip(c) && corpoH > 10) this.elastico(ctx, c, t, x, w, corpoY, corpoH);
     ctx.globalAlpha = 1;
+    // scelta: una velatura gialla su tutta la clip, così si vede anche quando è attaccata ad altre
+    if (sel) { ctx.fillStyle = 'rgba(255,213,74,.16)'; ctx.fillRect(xl, top, xr - xl, alt); }
     ctx.restore();
-    // bordo
-    ctx.lineWidth = sel ? 2 : 1;
-    ctx.strokeStyle = sel ? '#ffd54a' : 'rgba(0,0,0,.6)';
-    ctx.beginPath();
-    ctx.roundRect(x + (sel ? 1 : 0.5), top + (sel ? 1 : 0.5), w - (sel ? 2 : 1), alt - (sel ? 2 : 1), Math.min(4, w / 3));
-    ctx.stroke();
-    if (sel) {
-      ctx.strokeStyle = 'rgba(255,213,74,.25)';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
+    // bordo (quello giallo delle scelte arriva alla fine, sopra a tutte le clip)
     ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(0,0,0,.6)';
+    ctx.beginPath();
+    ctx.roundRect(x + 0.5, top + 0.5, w - 1, alt - 1, Math.min(4, w / 3));
+    ctx.stroke();
+    if (sel) this.contorniScelte.push({ x, y: top, w, h: alt, r: Math.min(4, w / 3) });
     // le maniglie delle dissolvenze (quadratini in alto): si trascinano verso l'interno
     if (w >= 40) {
       const [xi, xo] = this.maniglieFade(c);

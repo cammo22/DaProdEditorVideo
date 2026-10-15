@@ -1,0 +1,43 @@
+DaProd Video 1.5.3 — RAPPORTO DELLE PROVE SUL PC DI CAMMO (2026-10-15)
+=====================================================================
+PC: AMD Ryzen 7 5700G (8 core / 16 thread), 63 GB RAM (32 visti dal browser), NVIDIA GeForce RTX 4060 + AMD Radeon
+integrata (monitor sull'integrata), Windows 11 Pro 26200. Provata l'app compilata qui (Rust installato apposta) e
+pilotata dal di fuori (WebView2 con la porta di debug), più le prove automatiche in Chromium.
+
+PROVA                                         ESITO           COSA HO VISTO
+2.1 Rilevatore hardware                       FAIL → SISTEMATO Prima: WebView2 vedeva SOLO la AMD (WebGPU e WebGL), la RTX 4060
+                                                              invisibile. Causa: il cavo sull'integrata. Con --force_high_performance_gpu
+                                                              (ora in tauri.windows.conf.json): sceglie "nvidia lovelace", prova
+                                                              superata in 39 ms, mezza precisione sì.
+2.2/2.3 Sfondo AI, clic                       NON PROVABILE    Non provato a mano (serve una ripresa vera e l'occhio).
+2.4 Sottotitoli Whisper                       NON PROVATO      Tempo della sessione finito.
+2.5 Togli i rumori                            RIFATTO + PASS   Banco con voce vera (sintesi italiana di Windows) sporcata con ventola,
+                                                              ronzio, eco e musica: SI-SDR da -2,7 dB a +8,9 dB ("Voce pulita"),
+                                                              rumore nelle pause da -21 dB a silenzio. "Voce isolata" (Demucs vero,
+                                                              scaricato): 6,5 dB, 23 s per 22 s di audio; non meglio di "Voce
+                                                              pulita" con musica sintetica. WAV da ascoltare: Desktop\DaProdVideo
+                                                              prova voce. L'ASCOLTO VERO LO DEVE FARE CAMMO.
+2.5 Separa voce e musica                      NON PROVATO a mano (Demucs vero scaricato e usato dal banco: funziona).
+3.2 Webcam                                    PASS             Nell'app: usb-webcam (1d6c:0103) si apre, 640x480, immagine vera.
+                                                              Elenco: usb-webcam, OnePlus, Meta Quest, OBS Virtual Camera.
+3.3-3.7 Registrazione schermo/LIVE            NON PROVABILE    Serve scegliere lo schermo a mano nel selettore di Windows.
+4.6 Taglio e selezione                        FAIL → SISTEMATO Dopo il taglio il bordo giallo della clip scelta era coperto dal pezzo
+                                                              attaccato. Ora si disegna sopra a tutto + velatura gialla (foto in
+                                                              test/.out/taglio-scelta.png).
+5.1 Conversioni                               FAIL → SISTEMATO La webcam .webm del LIVE veniva convertita per minuti senza motivo (è 30
+                                                              fps con i tempi al ms). Ora: le registrazioni del LIVE non si
+                                                              controllano; si converte solo VFR vero e MP3 a bitrate variabile.
+                                                              Sui file veri: schermo .mp4, microfono .webm, .m4a = niente da fare.
+5.2 Codifica hardware (NVENC)                 PASS             H.264 hardware supportato a 960x540, 1080p e 4K; 120 fotogrammi 1080p
+                                                              in 1,04 s. HEVC in codifica: non disponibile.
+5.3 Attività bloccate                         FAIL → SISTEMATO Righe "in corso" ferme sotto "non sta facendo niente": restavano nel
+                                                              pannello dopo averlo chiuso. Prova automatica aggiunta.
+6.2 Salva/riapri                              RIFATTO + PASS   Nuovo .dap con dentro tutto. App vera: 1° salvataggio 27,8 MB (25,2 MB
+                                                              di file + copia leggera) in 0,5 s; aggiunta di un file: solo 6,8 MB in
+                                                              60 ms; riaperto, i file si leggono dal .dap; Ctrl+S mentre li legge da
+                                                              lì: +5 KB, si riapre giusto.
+6.1 Esportazione, 6.3 aggiornamenti, 4.x      NON PROVATI      Tempo della sessione finito.
+
+Prove automatiche (Chromium): audioai 70/70, audioui 11/11, seguito 35/35, attivita 30/30, dap 9/9 (nuova).
+La suite completa (node test/prove.mjs) NON è stata fatta girare tutta.
+Altro sistemato: il build non partiva con uno spazio nel percorso ("Progetti Github"): vite.config.ts.

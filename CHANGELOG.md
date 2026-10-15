@@ -4,6 +4,34 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.3] — 2026-10-15 · Il progetto .dap con dentro tutto, voce pulita davvero, niente lavori fantasma 💾
+
+Una versione di sistemazione: nessuna funzione nuova, solo cose che devono andare al 100%.
+
+### Salvare: un file .dap con dentro TUTTO
+- **Salva (Ctrl+S) ora fa un file `.dap`** con dentro tutto il progetto: il montaggio con ogni impostazione, **tutti i file** (video, musiche, immagini, registrazioni del LIVE, audio pulito dall'AI) e **le copie leggere** già fatte. Lo porti su un altro computer, lo apri (doppio clic o File → Apri) e ritrovi tutto identico, senza rifare le copie leggere. Prima il progetto salvato era solo la "ricetta" (pochi KB) e i file restavano dove erano.
+- La prima volta ci mette un po' (copia i file, con la barra nel Centro attività e la ✕ per fermare); **dopo, Salva aggiunge solo quello che è cambiato** ed è veloce anche con GB di video. Se lo fermi o si spegne il computer a metà, il file resta il progetto salvato prima.
+- **Salva come…** riscrive tutto pulito in un file nuovo. I vecchi `.dpv` e `.daprod` si aprono ancora (al primo Salva diventano `.dap`).
+
+### Togli i rumori: resta solo la voce
+- Prima le forze "leggera" e "media" mescolavano il pulito con l'originale (rimaneva il 40% e il 15% del rumore): per questo **attenuava e basta**. Adesso:
+  - **Leggera**: toglie fruscio e ventola e lascia un filo d'ambiente;
+  - **Voce pulita** (quella di partenza): il rumore va via del tutto (anche fra una parola e l'altra), poi la voce passa da una **catena da studio**: via i bassi che rimbombano, voce più chiara, compressore morbido (volume regolare), limitatore, e **il volume giusto** messo nel volume della clip (si può cambiare quando vuoi);
+  - **Voce isolata**: prima un modello AI (Demucs, ~172 MB la prima volta) **tiene solo la voce** — via musica, TV, gente, rumori forti e una parte dell'eco — poi come "Voce pulita". Più lenta.
+- "Audio originale" rimette anche il volume di prima.
+
+### Conversioni solo quando servono
+- Un file si converte **solo se è davvero diverso** da come deve essere: un video si rifà solo se i fotogrammi non stanno su una griglia regolare (un video a 30 fps con qualche fotogramma perso va bene così), un audio solo se è un **MP3 a bitrate variabile**. MP3 a bitrate costante, AAC, WAV, FLAC, Opus restano come sono.
+- **Le registrazioni del LIVE (schermo e webcam) non si convertono più**: le fa il programma stesso, con i tempi giusti (prima la webcam passava minuti in "Conversione a velocità costante").
+- Quando un video si rifà, l'audio dentro si copia così com'è (niente perdita di qualità), e il frame rate scelto è quello comune subito sopra (niente movimento perso).
+
+### Scheda video NVIDIA con il monitor sulla scheda del processore
+- **Trovata la causa** di "AI lenta, scheda video poco usata" sui PC con due schede e il cavo del monitor sulla scheda integrata: il browser interno dell'app usava **solo la scheda integrata** (provato sul PC di Cammo: vedeva solo la AMD Radeon, la RTX 4060 era invisibile). Ora l'app chiede sempre la scheda più potente: sul PC di Cammo usa la **RTX 4060** per l'AI, la codifica H.264 hardware fino al 4K e il disegno del montaggio, con il monitor che resta dov'è.
+
+### Centro attività e timeline
+- **Niente più righe "in corso" ferme** sotto "Il programma non sta facendo niente": chiudendo e riaprendo il pannello le righe vecchie restavano lì col tempo bloccato.
+- **Dopo un taglio la clip scelta si vede tutta**: il bordo giallo non è più coperto dal pezzo attaccato, e la clip scelta ha una velatura gialla.
+
 ## [1.5.2] — 2026-10-15 · Tracce sempre uguali, LIVE con i comandi in vista, sfondo AI che non si blocca più 🎯
 
 ### Timeline

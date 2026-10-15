@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
@@ -21,8 +22,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 4000,
     rollupOptions: {
       input: {
-        home: new URL('./index.html', import.meta.url).pathname,
-        app: new URL('./app/index.html', import.meta.url).pathname,
+        // fileURLToPath e non .pathname: con uno spazio nel percorso ("Progetti Github") .pathname dà %20 e il build non trova le pagine
+        home: fileURLToPath(new URL('./index.html', import.meta.url)),
+        app: fileURLToPath(new URL('./app/index.html', import.meta.url)),
       },
     },
   },

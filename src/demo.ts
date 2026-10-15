@@ -105,14 +105,15 @@ async function creaClip(sc: typeof scene[number], o: { dur?: number; gop?: numbe
   const cv = new OffscreenCanvas(W, H);
   const ctx = cv.getContext('2d')!;
   const vs = new CanvasSource(cv, { codec: v, bitrate: new Quality('medium'), keyFrameInterval: o.gop ?? 1 });
-  out.addVideoTrack(vs, { frameRate: FPS });
+  // il VFR vero non ha una griglia: senza frameRate il contenitore tiene i tempi come sono (con frameRate li arrotonda ai 25 fps)
+  out.addVideoTrack(vs, o.vfr ? {} : { frameRate: FPS });
   let as: AudioBufferSource | null = null;
   if (a) { as = new AudioBufferSource({ codec: a, bitrate: new Quality('medium') }); out.addAudioTrack(as); }
   await out.start();
   if (as) for (let t = 0; t < DUR; t += DUR0) await as.add(await melodia(sc.nota));
   if (o.vfr) {
-    // frame rate variabile (come i telefoni): i fotogrammi arrivano a distanze diverse, da 1 a 4 passi
-    const passi = [1, 1, 3, 1, 2, 1, 4, 1, 1, 2];
+    // frame rate variabile vero (come i telefoni): i fotogrammi arrivano a distanze che non stanno su nessuna griglia
+    const passi = [1, 1.37, 2.9, 0.71, 1.83, 1.12, 3.6, 0.83, 1.29, 2.2];
     let k = 0;
     for (let t = 0; t < DUR * FPS; k++) {
       const p = passi[k % passi.length];
@@ -135,7 +136,7 @@ async function creaClip(sc: typeof scene[number], o: { dur?: number; gop?: numbe
 /** una ripresa a frame rate variabile (VFR), come quelle dei telefoni: per le prove */
 export const ripresaVfrDiProva = (dur: number) => creaClip({ ...scene[2], nome: `Telefono ${dur}s.mp4` }, { dur, gop: 25, vfr: true });
 
-/** un brano a bitrate variabile (Opus VBR, con pause: i pacchetti cambiano molto di grandezza): per le prove */
+/** un brano Opus a bitrate variabile (con pause: i pacchetti cambiano molto di grandezza). Dalla 1.5.3 NON si converte più (Opus ha i tempi in ogni pacchetto): per le prove */
 export async function branoVbrDiProva(dur: number): Promise<File> {
   const out = new Output({ format: new WebMOutputFormat(), target: new BufferTarget() });
   const as = new AudioBufferSource({ codec: 'opus', bitrate: new Quality({ quality: 'high', preferBitrate: true, bitrateMode: 'variable' }) });

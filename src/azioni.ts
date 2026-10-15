@@ -144,7 +144,7 @@ function tagliaOra(f: number, ids: Set<string> | null, tracce: Set<string> | nul
 
 reg({
   id: 'taglia', nome: 'Taglia al cursore', gruppo: 'Montaggio', tasti: ['1', 'C'],
-  info: 'Taglia sotto il cursore solo quello che hai scelto: le tracce accese, se no le clip selezionate, se no la clip più in alto lì sotto (con la sua audio legata). Poi non lascia niente selezionato (puoi cliccare subito la clip che vuoi): se premi 2 subito dopo, sparisce il pezzo più cortosce.',
+  info: 'Taglia sotto il cursore solo quello che hai scelto: le tracce accese, se no le clip selezionate, se no la clip più in alto lì sotto (con la sua audio legata). Poi non lascia niente selezionato (puoi cliccare subito la clip che vuoi): se premi 2 subito dopo, sparisce il pezzo più corto.',
   fn: () => { const f = head(); const b = bersagliDelTaglio(f); tagliaOra(f, b.ids, b.tracce, b.chi); },
 });
 reg({

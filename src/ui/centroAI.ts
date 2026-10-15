@@ -103,7 +103,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'rumore', nome: 'Togli i rumori', icona: '🎙', dove: 'tutto',
     cosaFa: 'Toglie il rumore di fondo da un parlato (ventola, fruscio, strada) e lascia la voce. È DeepFilterNet3, un\'AI fatta per la voce: lavora sul computer, senza scaricare niente.',
-    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli quanto (leggera, media, forte)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
+    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli: Leggera, Voce pulita (va bene quasi sempre) o Voce isolata (rumori forti, musica sotto, eco)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
     manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
     apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
   },

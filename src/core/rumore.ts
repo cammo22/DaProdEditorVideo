@@ -16,8 +16,14 @@ export interface FiltroTrama {
 export const RITARDO_DF = 1440;
 export const SR_DF = 48000;
 
-/** quanto dell'uscita pulita si mescola all'originale: leggera lascia un po' di ambiente, forte toglie tutto quello che il modello toglie */
-export const MESCOLA: Record<ForzaRumore, number> = { leggera: 0.6, media: 0.85, forte: 1 };
+/**
+ * Quanto dell'uscita pulita si mescola all'originale. Fino alla 1.5.2 "leggera" e "media" lasciavano il 40% e il 15%
+ * dell'originale: il rumore si sentiva ancora, solo più basso ("li attenua"). Ora solo "leggera" lascia un filo d'ambiente;
+ * media e forte tengono soltanto la voce (e passano anche dalla catena della voce, src/core/catenaVoce.ts).
+ */
+export const MESCOLA: Record<ForzaRumore, number> = { leggera: 0.88, media: 1, forte: 1 };
+/** il post-filtro di DeepFilterNet (beta): toglie ancora il rumore che resta fra le parole. 0 = spento */
+export const POSTFILTRO: Record<ForzaRumore, number> = { leggera: 0, media: 0.02, forte: 0.03 };
 export const mescolaDi = (f: ForzaRumore | undefined) => MESCOLA[f ?? 'media'] ?? MESCOLA.media;
 
 /** una coda di campioni che si riempie in fondo e si svuota davanti */

@@ -166,7 +166,10 @@ export class CentroAttivita {
   chiudi() {
     this.pannello?.remove();
     this.pannello = null;
+    // anche le righe disegnate vanno via: la lista resta viva fra un'apertura e l'altra, e una riga rimasta lì
+    // (senza più la sua RigaVista) non verrebbe mai tolta → "caricamenti" fermi sotto "non sta facendo niente"
     this.vive.clear();
+    this.listaVive.replaceChildren();
     this.firmaFinite = null;
   }
 

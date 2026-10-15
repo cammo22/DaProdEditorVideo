@@ -233,7 +233,7 @@ export async function proveAudioAI({ page: paginaDi, prova }) {
     prova('piano dei segmenti: uno solo se ci sta, l\'ultimo si sposta indietro per finire sulla fine, sempre crescente e con almeno il 25% di sovrapposizione', pure.piani.corto.length === 1 && pure.piani.esatto.length === 1 && pure.piani.poco.length === 2 && pure.piani.poco[1] === 10 && pure.piani.lungo.join() === '0,257985,515970,538020' && pure.piani.lungo.every((s, i, a) => i === 0 || (s > a[i - 1] && a[i - 1] + 343980 - s >= 85995)), JSON.stringify(pure.piani));
     prova('media e deviazione standard del brano (a pezzi)', Math.abs(pure.stat.media - 2) < 1e-9 && Math.abs(pure.stat.dev - Math.sqrt(2 / 3)) < 1e-9, JSON.stringify(pure.stat));
     prova('rumore: con un filtro che ritarda di 1440 campioni l\'uscita è allineata al campione con l\'ingresso, della stessa lunghezza, con ogni dimensione di pezzo (anche un campione alla volta)', Object.values(pure.ritardo).every((r) => r.len && r.err < 1e-6), JSON.stringify(pure.ritardo));
-    prova('rumore: la forza mescola pulito e originale (leggera 0,6 · media 0,85 · forte 1, di partenza media)', pure.mescolato.forte < 1e-6 && pure.mescolato.media < 1e-6 && pure.mescolato.leggera < 1e-6 && pure.mescole.join() === '0.6,0.85,1,0.85', JSON.stringify([pure.mescolato, pure.mescole]));
+    prova('rumore: la forza mescola pulito e originale (leggera 0,88 · voce pulita 1 · voce isolata 1, di partenza voce pulita)', pure.mescolato.forte < 1e-6 && pure.mescolato.media < 1e-6 && pure.mescolato.leggera < 1e-6 && pure.mescole.join() === '0.88,1,1,1', JSON.stringify([pure.mescolato, pure.mescole]));
     prova('rumore stereo (centro e lati): L e R tornano allineati e della stessa lunghezza', pure.stereoFinto.len && pure.stereoFinto.err < 1e-6, JSON.stringify(pure.stereoFinto));
 
     // ———————————————————————————————————————————————————————————
@@ -349,7 +349,7 @@ async function seconda(paginaDi, page, prova, errori) {
       const out = { poss, prima };
       // durante il lavoro compare la riga nel Centro attività
       const t0 = performance.now();
-      const lavoro = AA.togliRumore(clipId, 'forte');
+      const lavoro = AA.togliRumore(clipId, 'media');
       await new Promise((r) => setTimeout(r, 300));
       out.riga = AT.attivitaInCorso().map((r) => ({ titolo: r.titolo, categoria: r.categoria, annullabile: r.annullabile }));
       out.inUso = AA.lavoriAudioAI().get(clipId) ?? null;
@@ -373,6 +373,10 @@ async function seconda(paginaDi, page, prova, errori) {
         // le pause nell'intervallo usato: 2–3 s e 5–6 s del file → 0–1 s e 3–4 s del tratto; si prende dopo 0,3 s dall'inizio della pausa
         pausa1: [pausa(sp, 0.3, 0.9), pausa(usc, 0.3, 0.9)], pausa2: [pausa(sp, 3.3, 3.9), pausa(usc, 3.3, 3.9)],
         voce: [pausa(sp, 1.2, 2.8), pausa(usc, 1.2, 2.8), pausa(ref, 1.2, 2.8)],
+        // il volume giusto va nella clip: il parlato pulito con il volume della clip
+        piu: c.afx?.pulito?.piu ?? 0, gain: c.gain,
+        // il livello del parlato misurato come lo misura la catena (finestre da 50 ms, 85° percentile), col volume della clip
+        parlatoFinale: (() => { const L = new window.__dpvTest.CV.Livello(SR); L.aggiungi([usc]); return L.parlato + (c.afx?.pulito?.piu ?? 0); })(),
         corr: T.correlazione(usc.subarray(Math.round(1.1 * SR), Math.round(2.9 * SR)), ref.subarray(Math.round(1.1 * SR), Math.round(2.9 * SR))),
         primiDecimi: [pausa(usc, 3.05, 3.15), pausa(ref, 3.05, 3.15)],
       };
@@ -387,7 +391,7 @@ async function seconda(paginaDi, page, prova, errori) {
       // torna all'originale (e annulla il ritorno)
       AA.tornaOriginale(clipId);
       const t = s.doc.clips.find((x) => x.id === clipId);
-      out.torna = { media: t.media === prima.media, srcIn: Math.abs(t.srcIn - prima.srcIn) < 1e-9, ancora: AA.haOriginale(t), pulito: !!t.afx?.pulito };
+      out.torna = { media: t.media === prima.media, srcIn: Math.abs(t.srcIn - prima.srcIn) < 1e-9, ancora: AA.haOriginale(t), pulito: !!t.afx?.pulito, gain: t.gain };
       s.doUndo();
       out.stato = await AA.statoAudioAI();
       return out;
@@ -397,13 +401,13 @@ async function seconda(paginaDi, page, prova, errori) {
     prova('possibilita: una clip audio con audio si può pulire e separare', rum.poss.rumore && rum.poss.separa && !rum.poss.perche, JSON.stringify(rum.poss));
     prova('durante il lavoro: la riga è nel Centro attività (categoria AI, si può fermare), la clip risulta "in uso" e non se ne può far partire un\'altra', rum.riga.length === 1 && /Tolgo il rumore/.test(rum.riga[0].titolo) && rum.riga[0].categoria === 'ai' && rum.riga[0].annullabile && rum.inUso === 'rumore' && !rum.possDurante.rumore && /già/.test(rum.possDurante.perche), JSON.stringify([rum.riga, rum.inUso, rum.possDurante]));
     prova('togliRumore: la clip punta a un file nuovo "Intervista - pulito.wav" (WAV 48 kHz mono) nella cartella "Audio lavorato", il media è uno in più, la durata è la parte usata + 1 s per lato', rum.dopo.mediaCambiato && rum.dopo.nome === 'Intervista - pulito.wav' && rum.dopo.cartella === 'Audio lavorato' && rum.dopo.mediaN === rum.prima.mediaN + 1 && rum.dopo.sr === 48000 && rum.dopo.ch === 1 && Math.abs(rum.dopo.dur - 7) < 0.01 && rum.wav.n === 7 * 48000, JSON.stringify([rum.dopo, rum.wav]));
-    prova('srcIn ricalcolato (1 s nel file nuovo = 2 s nell\'originale), durata della clip invariata, l\'originale si ricorda in afx.pulito', Math.abs(rum.dopo.srcIn - 1) < 1e-9 && rum.dopo.len === rum.prima.len && rum.dopo.pulito && rum.dopo.pulito.media === rum.prima.media && Math.abs(rum.dopo.pulito.da - 1) < 1e-9 && rum.dopo.pulito.srcIn === 2 && rum.dopo.pulito.forza === 'forte' && rum.originale, JSON.stringify(rum.dopo));
-    prova('ALLINEAMENTO: l\'audio pulito è sul campione dell\'originale (correlazione incrociata: ritardo 0 sia con la voce pulita sia con l\'originale rumoroso, entro ±400 campioni)', rum.misure.lagPuro === 0 && rum.misure.lagSporco === 0, JSON.stringify(rum.misure));
-    prova('rumore nelle pause: scende di almeno 25 dB (forte)', rum.misure.pausa1[0] - rum.misure.pausa1[1] > 25 && rum.misure.pausa2[0] - rum.misure.pausa2[1] > 25, JSON.stringify([rum.misure.pausa1, rum.misure.pausa2]));
-    prova('la voce resta: livello entro 3 dB dalla voce pulita, forma d\'onda simile (correlazione ≥ 0,9)', Math.abs(rum.misure.voce[1] - rum.misure.voce[2]) < 3 && rum.misure.corr > 0.9, JSON.stringify(rum.misure));
+    prova('srcIn ricalcolato (1 s nel file nuovo = 2 s nell\'originale), durata della clip invariata, l\'originale si ricorda in afx.pulito', Math.abs(rum.dopo.srcIn - 1) < 1e-9 && rum.dopo.len === rum.prima.len && rum.dopo.pulito && rum.dopo.pulito.media === rum.prima.media && Math.abs(rum.dopo.pulito.da - 1) < 1e-9 && rum.dopo.pulito.srcIn === 2 && rum.dopo.pulito.forza === 'media' && rum.originale, JSON.stringify(rum.dopo));
+    prova('ALLINEAMENTO: l\'audio pulito è sul campione dell\'originale (correlazione incrociata: ritardo entro 2 campioni = 0,04 ms, quello del filtro passa-alto della catena, sia con la voce pulita sia con l\'originale rumoroso)', Math.abs(rum.misure.lagPuro) <= 2 && Math.abs(rum.misure.lagSporco) <= 2, JSON.stringify(rum.misure));
+    prova('rumore nelle pause: scende di almeno 25 dB ("voce pulita": il pulito non si mescola più con l\'originale)', rum.misure.pausa1[0] - rum.misure.pausa1[1] > 25 && rum.misure.pausa2[0] - rum.misure.pausa2[1] > 25, JSON.stringify([rum.misure.pausa1, rum.misure.pausa2]));
+    prova('la voce resta: forma d\'onda simile alla voce pulita (correlazione ≥ 0,9) e col volume della clip arriva al livello giusto (parlato a −16 dBFS ±1,5; il volume dato è nella clip e in afx.pulito.piu)', rum.misure.corr > 0.9 && Math.abs(rum.misure.parlatoFinale - -16) < 1.5 && rum.misure.gain === rum.misure.piu, JSON.stringify(rum.misure));
     prova('niente NaN, niente valori fuori scala, WAV a 16 bit', rum.wav.finito && rum.wav.picco <= 1 && rum.wav.bit === 16 && rum.wav.sr === 48000, JSON.stringify(rum.wav));
     prova('annulla riporta file e punto di prima (e il media nuovo sparisce), ripeti rimette il pulito', rum.annulla.media && rum.annulla.srcIn && rum.annulla.mediaN === rum.prima.mediaN && !rum.annulla.pulito && rum.ripeti.mediaCambiato && rum.ripeti.pulito && Math.abs(rum.ripeti.srcIn - 1) < 1e-9, JSON.stringify([rum.annulla, rum.ripeti]));
-    prova('tornaOriginale: file e punto di prima, niente più "originale a cui tornare"; si annulla anche lui', rum.torna.media && rum.torna.srcIn && !rum.torna.ancora && !rum.torna.pulito, JSON.stringify(rum.torna));
+    prova('tornaOriginale: file, punto e volume di prima, niente più "originale a cui tornare"; si annulla anche lui', rum.torna.media && rum.torna.srcIn && !rum.torna.ancora && !rum.torna.pulito && rum.torna.gain === 0, JSON.stringify(rum.torna));
     prova('statoAudioAI: il filtro del rumore è pronto (dentro il programma), il modello della separazione da scaricare', rum.stato.rumore.stato === 'pronto' && /dentro il programma/.test(rum.stato.rumore.peso) && rum.stato.separa.stato === 'da-scaricare' && /172 MB/.test(rum.stato.separa.peso), JSON.stringify(rum.stato));
   } catch (e) {
     prova('le prove del rumore non si sono fermate', false, String(e && e.stack || e));
@@ -431,7 +435,10 @@ async function terza(paginaDi, page, prova, errori) {
       out.forze = {};
       for (const f of ['leggera', 'media', 'forte']) {
         const { clipId } = await T.progetto('Forza.wav', [sporco], SR, { srcIn: 2, secondi: 4 });
+        // "voce isolata" passa prima da Demucs: nelle prove il modello finto (il vero pesa 172 MB)
+        AA.impostaProveAudioAI(f === 'forte' ? { finta: {} } : null);
         await AA.togliRumore(clipId, f);
+        AA.impostaProveAudioAI(null);
         const c = s.doc.clips.find((x) => x.id === clipId);
         const w = await T.leggiWav(window.__dpvTest.mediaRT(c.media).file);
         const ini = Math.round(c.srcIn * SR);
@@ -442,7 +449,7 @@ async function terza(paginaDi, page, prova, errori) {
         const { clipId, mediaId } = await T.progetto('Forza2.wav', [sporco], SR, { srcIn: 2, secondi: 4 });
         await AA.togliRumore(clipId, 'leggera');
         const dopoPrima = s.doc.clips.find((x) => x.id === clipId).media;
-        await AA.togliRumore(clipId, 'forte');
+        await AA.togliRumore(clipId, 'media');
         const c = s.doc.clips.find((x) => x.id === clipId);
         out.ripulita = { origine: c.afx.pulito.media === mediaId, forza: c.afx.pulito.forza, cambiato: c.media !== dopoPrima, srcIn: c.srcIn, da: c.afx.pulito.da, mediaN: s.doc.media.length };
         AA.tornaOriginale(clipId);
@@ -453,7 +460,7 @@ async function terza(paginaDi, page, prova, errori) {
       {
         const L = T.somma(puro, T.rumore(puro.length, 0.08, 21)), R = T.somma(puro, T.rumore(puro.length, 0.08, 22));
         const { clipId } = await T.progetto('Stereo.wav', [L, R], SR, { srcIn: 2, secondi: 4 });
-        await AA.togliRumore(clipId, 'forte');
+        await AA.togliRumore(clipId, 'media');
         const c = s.doc.clips.find((x) => x.id === clipId);
         const m = s.doc.media.find((x) => x.id === c.media);
         const w = await T.leggiWav(window.__dpvTest.mediaRT(c.media).file);
@@ -476,7 +483,7 @@ async function terza(paginaDi, page, prova, errori) {
         const puro2 = AAC.ricampionaSinc(puro, SR, S2);
         const sp2 = T.somma(puro2, T.rumore(puro2.length, 0.08, 41));
         const { clipId } = await T.progetto('Cd.wav', [sp2], S2, { srcIn: 2, secondi: 4 });
-        await AA.togliRumore(clipId, 'forte');
+        await AA.togliRumore(clipId, 'media');
         const c = s.doc.clips.find((x) => x.id === clipId);
         const m = s.doc.media.find((x) => x.id === c.media);
         const w = await T.leggiWav(window.__dpvTest.mediaRT(c.media).file);
@@ -496,11 +503,11 @@ async function terza(paginaDi, page, prova, errori) {
       return out;
     });
     console.log(`  ℹ pause: forza leggera ${r2.forze.leggera.pausa.toFixed(1)} dB · media ${r2.forze.media.pausa.toFixed(1)} dB · forte ${r2.forze.forte.pausa.toFixed(1)} dB in meno · stereo ${r2.stereo.L.pausa.toFixed(1)}/${r2.stereo.R.pausa.toFixed(1)} dB`);
-    prova('le tre forze: leggera toglie circa 8 dB nelle pause, media circa 16, forte oltre 25 (mescola 0,6 · 0,85 · 1), tutte allineate', r2.forze.leggera.pausa > 6 && r2.forze.leggera.pausa < 10.5 && r2.forze.media.pausa > 13.5 && r2.forze.media.pausa < 19 && r2.forze.forte.pausa > 25 && ['leggera', 'media', 'forte'].every((f) => r2.forze[f].lag === 0), JSON.stringify(r2.forze));
-    prova('una clip già pulita si ripulisce partendo dall\'ORIGINALE (nuova forza, stesso originale, un media in più per ogni lavorazione), e "torna all\'originale" torna al file vero', r2.ripulita.origine && r2.ripulita.forza === 'forte' && r2.ripulita.cambiato && Math.abs(r2.ripulita.srcIn - 1) < 1e-9 && Math.abs(r2.ripulita.da - 1) < 1e-9 && r2.ripulita.torna, JSON.stringify(r2.ripulita));
-    prova('stereo (rumore diverso a destra e a sinistra): file a 2 canali, rumore giù di oltre 20 dB su tutti e due, allineati, nessun NaN', r2.stereo.ch === 2 && r2.stereo.mch === 2 && r2.stereo.finito && r2.stereo.L.pausa > 20 && r2.stereo.R.pausa > 20 && r2.stereo.L.lag === 0 && r2.stereo.R.lag === 0 && r2.stereo.n === 6 * 48000, JSON.stringify(r2.stereo));
+    prova('le tre forze: leggera toglie circa 18 dB nelle pause (lascia un filo d\'ambiente), voce pulita e voce isolata oltre 25, tutte allineate', r2.forze.leggera.pausa > 14 && r2.forze.leggera.pausa < 23 && r2.forze.media.pausa > 25 && r2.forze.forte.pausa > 25 && ['leggera', 'media', 'forte'].every((f) => Math.abs(r2.forze[f].lag) <= 2), JSON.stringify(r2.forze));
+    prova('una clip già pulita si ripulisce partendo dall\'ORIGINALE (nuova forza, stesso originale, un media in più per ogni lavorazione), e "torna all\'originale" torna al file vero', r2.ripulita.origine && r2.ripulita.forza === 'media' && r2.ripulita.cambiato && Math.abs(r2.ripulita.srcIn - 1) < 1e-9 && Math.abs(r2.ripulita.da - 1) < 1e-9 && r2.ripulita.torna, JSON.stringify(r2.ripulita));
+    prova('stereo (rumore diverso a destra e a sinistra): file a 2 canali, rumore giù di oltre 20 dB su tutti e due, allineati, nessun NaN', r2.stereo.ch === 2 && r2.stereo.mch === 2 && r2.stereo.finito && r2.stereo.L.pausa > 20 && r2.stereo.R.pausa > 20 && Math.abs(r2.stereo.L.lag) <= 2 && Math.abs(r2.stereo.R.lag) <= 2 && r2.stereo.n === 6 * 48000, JSON.stringify(r2.stereo));
     prova('due canali uguali → uscita con i due canali uguali (centro e lati: l\'immagine non ondeggia)', r2.uguali.d < 1e-6, JSON.stringify(r2.uguali));
-    prova('sorgente a 44,1 kHz: il file pulito è a 48 kHz, stessa durata, e sta sullo stesso istante (ritardo 0)', r2.cd.sr === 48000 && Math.abs(r2.cd.dur - 6) < 0.01 && r2.cd.lag === 0 && r2.cd.pausa > 20, JSON.stringify(r2.cd));
+    prova('sorgente a 44,1 kHz: il file pulito è a 48 kHz, stessa durata, e sta sullo stesso istante (ritardo entro 2 campioni)', r2.cd.sr === 48000 && Math.abs(r2.cd.dur - 6) < 0.01 && Math.abs(r2.cd.lag) <= 2 && r2.cd.pausa > 20, JSON.stringify(r2.cd));
     prova('clip a velocità doppia: si lavora il tratto che la clip legge (4 s di file + il margine: 5 s qui, perché davanti c\'è solo 1 s), la velocità resta', r2.veloce.speed === 2 && Math.abs(r2.veloce.dur - 6) < 0.02 && Math.abs(r2.veloce.srcIn - 1) < 1e-9 && Math.abs(r2.veloce.da) < 1e-9, JSON.stringify(r2.veloce));
 
     // ——— stop e clip cambiata
