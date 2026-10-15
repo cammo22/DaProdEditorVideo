@@ -42,15 +42,15 @@ async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean
   try {
     return await asr(audio, opz);
   } catch (e) {
-    // la scheda video si è fermata a metà: si ricarica il modello sul processore e si rifà lo stesso pezzo
+    // la scheda video si è fermata a metà: la libreria in questo worker non risponde più nemmeno alle richieste nuove, quindi
+    // si lascia alla pagina buttare il worker e rifare lo stesso pezzo da uno nuovo sul processore
     if (dispositivo !== 'webgpu' || !erroreDellaScheda(e)) throw e;
-    manda({ tipo: 'avviso', msg: 'La scheda video si è fermata: continuo col processore (più lento)' });
     manda({ tipo: 'scheda-guasta' });
-    asr = null;
-    await carica(caricato, false);
-    return await asr!(audio, opz);
+    throw new SchedaGuasta(testoErrore(e));
   }
 }
+
+class SchedaGuasta extends Error {}
 
 self.onmessage = async (e: MessageEvent) => {
   const m = e.data as { tipo: string; id?: number; modello?: string; audio?: Float32Array; lingua?: string; traduci?: boolean; base?: string; scheda?: boolean; hw?: ImpostazioneScheda };
@@ -65,6 +65,6 @@ self.onmessage = async (e: MessageEvent) => {
       manda({ tipo: 'testo', id: m.id, pezzi });
     }
   } catch (err) {
-    manda({ tipo: 'errore', id: m.id, msg: testoErrore(err) });
+    manda({ tipo: 'errore', id: m.id, msg: testoErrore(err), schedaGuasta: err instanceof SchedaGuasta });
   }
 };

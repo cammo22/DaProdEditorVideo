@@ -15,7 +15,8 @@
         "backgroundColor": "#09080d",
         "dragDropEnabled": true,
         "theme": "Light",
-        "decorations": false
+        "decorations": false,
+        "additionalBrowserArgs": "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,MediaFoundationD3D11VideoCapture"
       }
     ]
   }

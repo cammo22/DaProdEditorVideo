@@ -92,18 +92,65 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.waitForTimeout(1800);
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
-    await page.waitForTimeout(400);
+    await page.waitForFunction(() => window.__dpv.doc.media.filter((m) => /webcam/.test(m.name)).length >= 3, null, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(300);
     const una = await page.evaluate(() => {
       const d = window.__dpv.doc;
       const ultimi = d.media.filter((m) => /webcam/.test(m.name));
       return { tot: ultimi.length, nomi: ultimi.map((m) => m.name) };
     });
-    prova('con la webcam sempre accesa la registrazione dopo ha un solo file della webcam (due in tutto, con i due di prima: quattro in più sarebbe un errore)', una.tot === 3, JSON.stringify(una));
+    prova('con la webcam sempre accesa la registrazione dopo ha un solo file della webcam (tre in tutto: i due di prima e uno)', una.tot === 3, JSON.stringify(una));
+
+    // la webcam che non si apre: l'errore è in parole (con il nome tecnico), si riprova senza la scelta vecchia e con richieste semplici
+    const errW = await page.evaluate(async () => {
+      const live = window.__dpvTest.ui().live;
+      window.__dpvTest.LV.impostaSorgenteLive(null, null, null);
+      const veri = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      const out = {};
+      const chiama = [];
+      // 1) un indirizzo vecchio (scheda o webcam cambiate, OBS…): la prima richiesta sbaglia, la seconda senza indirizzo va
+      navigator.mediaDevices.getUserMedia = async (c) => {
+        chiama.push(JSON.stringify(c.video?.deviceId ?? (c.video === true ? 'true' : 'senza')));
+        if (c.video?.deviceId) throw new DOMException('Requested device not found', 'OverconstrainedError');
+        const cv = document.createElement('canvas'); cv.width = 320; cv.height = 180; cv.getContext('2d').fillRect(0, 0, 10, 10);
+        return cv.captureStream(15);
+      };
+      live.chiudiCam();
+      live.opz.camId = 'vecchio-indirizzo'; live.opz.cam = true;
+      const s = await live.apriCam();
+      out.vecchio = { ok: !!s, chiama, camId: live.opz.camId };
+      live.chiudiCam();
+      // 2) webcam usata da un altro programma: il messaggio lo dice e dà il nome dell'errore
+      navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Could not start video source', 'NotReadableError'); };
+      live.opz.cam = true;
+      const r = await live.apriCam();
+      out.occupata = { r, cam: live.opz.cam, avviso: [...document.querySelectorAll('.avviso, .toast')].map((x) => x.textContent).join(' | ') };
+      // 3) permesso negato: non riprova a vuoto
+      let n = 0;
+      navigator.mediaDevices.getUserMedia = async () => { n++; throw new DOMException('Permission denied', 'NotAllowedError'); };
+      live.opz.cam = true;
+      await live.apriCam();
+      out.negato = { chiamate: n, avviso: [...document.querySelectorAll('.avviso, .toast')].map((x) => x.textContent).join(' | ') };
+      navigator.mediaDevices.getUserMedia = veri;
+      live.opz.cam = false; live.chiudiCam();
+      return out;
+    });
+    prova('webcam: un indirizzo vecchio non blocca (si riprova senza e si dimentica)', errW.vecchio.ok && errW.vecchio.chiama.length === 2 && errW.vecchio.camId === '', JSON.stringify(errW.vecchio));
+    prova('webcam usata da un altro programma: l\'avviso lo dice in italiano, con il nome tecnico dell\'errore, e la webcam resta spenta', errW.occupata.r === null && errW.occupata.cam === false && /usata da un altro programma/.test(errW.occupata.avviso) && /NotReadableError/.test(errW.occupata.avviso), JSON.stringify(errW.occupata));
+    prova('webcam con permesso negato: una richiesta sola e l\'avviso spiega dove dare il permesso', errW.negato.chiamate === 1 && /permesso/.test(errW.negato.avviso) && /NotAllowedError/.test(errW.negato.avviso), JSON.stringify(errW.negato));
 
     // niente più filtri audio nella pagina
     const senzaFiltri = await page.evaluate(() => ({ filtri: document.querySelectorAll('.la, [data-filtro], .la-presetvoce').length, barre: document.querySelectorAll('.live-regia .la-compatto canvas').length }));
     prova('nella pagina LIVE non ci sono più i filtri audio (restano le barre dei livelli)', senzaFiltri.filtri === 0 && senzaFiltri.barre === 2, JSON.stringify(senzaFiltri));
     await page.evaluate(() => { for (const i of window.__giri ?? []) clearInterval(i); });
+
+    // la pagina LIVE: i comandi stanno sempre in vista, a tutta altezza accanto alla timeline
+    const lay = await page.evaluate(() => {
+      const r = (s) => document.querySelector(s)?.getBoundingClientRect();
+      const c = r('.live-comandi'), t = r('.timeline'), sc = r('.live-schermo'), st = r('.stato');
+      return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left), w: Math.round(c.width) }, tl: t && { right: Math.round(t.right), bottom: Math.round(t.bottom) }, schermo: sc && { right: Math.round(sc.right) }, stato: st && Math.round(st.top) };
+    });
+    prova('LIVE: i comandi scendono fino in fondo, accanto alla timeline (che resta a sinistra), come il pannello fisso del montaggio', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.tl.right - 1 && lay.comandi.left >= lay.schermo.right && lay.comandi.top < 200, JSON.stringify(lay));
 
     // ——— il banco ———
     console.log('▶ Banco: barra sul monitor sottile, zoom della timeline');
@@ -158,6 +205,22 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
       return e.defaultPrevented;
     });
     prova('Ctrl + rotella sulle intestazioni della timeline la ingrandisce; Ctrl + rotella fuori dalla timeline non zooma la pagina (viene fermata)', ppf3 > ppf0 * 1.1 && fuori, JSON.stringify({ ppf0, ppf3, fuori }));
+    // lo spessore delle tracce è sempre quello di base: non cresce con lo spazio della timeline (a qualunque altezza di finestra)
+    await page.click('.pagina-btn[data-p=montaggio]');
+    const kk = [];
+    for (const hh of [700, 950, 1300]) {
+      await page.setViewportSize({ width: 1600, height: hh });
+      await page.waitForTimeout(400);
+      kk.push(await page.evaluate(() => { const tl = window.__dpvTest.ui().tl; return { k: tl.kV(), h: Math.round(document.querySelector('.tl-testata')?.getBoundingClientRect().height ?? 0) }; }));
+    }
+    await page.setViewportSize({ width: 1600, height: 950 });
+    prova('le tracce hanno sempre lo stesso spessore (kV = 1, stessa altezza della testata) a 700, 950 e 1300 px di altezza della finestra', kk.every((x) => x.k === 1) && new Set(kk.map((x) => x.h)).size === 1, JSON.stringify(kk));
+    // la pagina Finale: la timeline è piccola, la schermata dei ritocchi grande
+    await page.click('.pagina-btn[data-p=finale]');
+    await page.waitForTimeout(500);
+    const fin = await page.evaluate(() => { const r = (s) => document.querySelector(s)?.getBoundingClientRect(); return { tl: Math.round(r('.timeline').height), finale: Math.round(r('.finale').height), vh: innerHeight }; });
+    prova('Finale: la timeline è piccola (meno di un quinto dell\'altezza) e la schermata dei ritocchi è grande (più della metà)', fin.tl < fin.vh * 0.2 && fin.finale > fin.vh * 0.55, JSON.stringify(fin));
+    await page.click('.pagina-btn[data-p=montaggio]');
     prova('nessun errore nella pagina (LIVE e banco)', errori.length === 0, errori.slice(0, 4).join(' | '));
   } finally {
     await contesto.close();

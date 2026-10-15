@@ -52,7 +52,7 @@ function lavoratore(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL('./voce.worker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = (e: MessageEvent) => {
-    const m = e.data as { tipo: string; id?: number; pezzi?: Pezzo[]; msg?: string; device?: string; file?: string; loaded?: number; total?: number };
+    const m = e.data as { tipo: string; id?: number; pezzi?: Pezzo[]; msg?: string; device?: string; file?: string; loaded?: number; total?: number; schedaGuasta?: boolean };
     if (m.tipo === 'scarico' && caricamento) {
       scaricati.set(m.file!, [m.loaded!, m.total!]);
       let a = 0, b = 0;
@@ -63,7 +63,8 @@ function lavoratore(): Worker {
     else if (m.tipo === 'pronto') { caricamento?.ok(m.device ?? ''); caricamento = null; }
     else if (m.tipo === 'testo') { attese.get(m.id!)?.ok(m.pezzi ?? []); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
-      const err = new Error(m.msg || 'errore della voce');
+      const err: Error & { schedaGuasta?: boolean } = new Error(m.msg || 'errore della voce');
+      err.schedaGuasta = m.schedaGuasta;
       if (m.id !== undefined && attese.has(m.id)) { attese.get(m.id)!.no(err); attese.delete(m.id); }
       else { caricamento?.no(err); caricamento = null; }
     }
@@ -84,18 +85,46 @@ function lavoratore(): Worker {
 /** chi vuole sapere i cambi in corsa (la scheda video si è fermata, si continua col processore) */
 let avvisoVoce: ((msg: string) => void) | null = null;
 
-const whisper: Trascrittore = {
-  carica: (modello, stato) => new Promise((ok, no) => {
+/** l'ultimo modello caricato (per ricaricarlo se bisogna ripartire) */
+let ultimoModello: { modello: string; stato: (fase: string, prog: number) => void } | null = null;
+
+function caricaNelWorker(modello: string, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
+  return new Promise((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
     const hw = messaggioScheda();
-    lavoratore().postMessage({ tipo: 'carica', modello, base: baseLocaleAI(), scheda: hw.scheda, hw });
-  }),
-  trascrivi: (audio, lingua, traduci) => new Promise((ok, no) => {
+    const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
+    lavoratore().postMessage({ tipo: 'carica', modello, base: baseLocaleAI(), scheda: usa.scheda, hw: usa });
+  });
+}
+
+function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: boolean): Promise<Pezzo[]> {
+  return new Promise((ok, no) => {
     const id = ++seq;
     attese.set(id, { ok, no });
     lavoratore().postMessage({ tipo: 'trascrivi', id, audio, lingua, traduci }, [audio.buffer]);
-  }),
+  });
+}
+
+const whisper: Trascrittore = {
+  carica: (modello, stato) => { ultimoModello = { modello, stato }; return caricaNelWorker(modello, stato); },
+  trascrivi: async (audio, lingua, traduci) => {
+    // l'audio passa al worker (e da lì sparisce): se serve rifare il pezzo se ne tiene una copia
+    const copia = audio.slice();
+    try {
+      return await trascriviNelWorker(audio, lingua, traduci);
+    } catch (e) {
+      if (!(e as { schedaGuasta?: boolean }).schedaGuasta || !ultimoModello) throw e;
+      // la scheda video ha sbagliato: il worker si butta e si riparte da uno nuovo sul processore, con lo stesso pezzo
+      ultimoModello.stato('La scheda video si è fermata: continuo col processore (più lento)', 0);
+      worker?.terminate();
+      worker = null;
+      caricamento = null;
+      attese.clear();
+      await caricaNelWorker(ultimoModello.modello, ultimoModello.stato, true);
+      return trascriviNelWorker(copia, lingua, traduci);
+    }
+  },
 };
 
 let trascrittore: Trascrittore = whisper;

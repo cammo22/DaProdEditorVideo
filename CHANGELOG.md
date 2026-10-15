@@ -4,6 +4,23 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.2] — 2026-10-15 · Tracce sempre uguali, LIVE con i comandi in vista, sfondo AI che non si blocca più 🎯
+
+### Timeline
+- **Lo spessore delle tracce e delle clip è sempre quello di base** (quello delle prime versioni), qualunque sia lo spazio che la timeline ha: se la allarghi o ingrandisci, resta solo più posto vuoto, le clip non si ingrossano più. Lo zoom verticale (Ctrl+Shift+rotella) resta una scelta tua.
+
+### Pagine
+- **LIVE**: i comandi stanno **sempre in vista**, a tutta altezza accanto alla timeline (come le proprietà col tasto V nel montaggio): niente più scorrere per trovare REGISTRA o la webcam.
+- **Finale**: la timeline è **piccola** e la schermata dei ritocchi (colore, look, ritocchi) è grande. Il divisore in mezzo si trascina e si ricorda.
+
+### Webcam in LIVE
+- Se la webcam non si apre, l'avviso ora dice **perché e cosa fare** (permesso negato, usata da un altro programma, non trovata…) con il nome tecnico dell'errore fra parentesi. Un indirizzo di webcam vecchio (dopo aver cambiato scheda video o provando OBS) non blocca più: si riprova da soli senza e con richieste più semplici. Se la webcam si apre ma non arrivano immagini lo dice dopo 4 secondi.
+- L'anteprima della webcam sta sopra a tutto. Nell'app per Windows è stata tolta la cattura video con la scheda video del browser interno (può dare una webcam nera o che non parte con due schede video): serve riavviare il programma.
+
+### Togli lo sfondo con l'AI
+- **Trovata la vera causa dell'errore "Invalid ShaderModule LayerNorm / failed to call OrtRun()"**: dopo il primo errore della scheda video la libreria dentro il worker rifiuta anche le richieste nuove con lo stesso errore, e il ripiego sul processore non partiva mai. Adesso il lavoro si butta e **riparte da un worker nuovo sul processore**, con lo stesso fotogramma. Vale anche per i sottotitoli (Whisper). L'errore finale mostra quello dell'ultimo tentativo, non solo il primo della scheda.
+- **Clic sinistro aggiunge un punto, clic destro lo toglie** (sopra il punto); Alt+clic resta "questa parte NON si tiene".
+
 ## [1.5.1] — 2026-10-15 · L'hardware si riconosce da solo, Sovraccarica, LIVE più semplice 🚀
 
 ### Scheda video e processore: il programma capisce da solo cosa usare

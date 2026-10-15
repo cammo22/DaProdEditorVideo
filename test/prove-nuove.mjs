@@ -393,6 +393,45 @@ async function proveSfondo({ page, prova, OUT }) {
     return { firmaProva, tutta, chiamate: window.__chiamateAI.length, punti: c1.ritaglio.punti.length, ok: MK.maschereDi(c1.ritaglio.firma)?.n > 1 };
   });
   prova('un clic sull\'oggetto: prima la prova su un fotogramma, poi da solo tutta la clip (maschere per tutta la durata)', clicco.firmaProva >= 1 && clicco.tutta > 1 && clicco.ok && clicco.punti === 1, JSON.stringify(clicco));
+  // clic sinistro aggiunge un punto, clic destro lo toglie (sopra il punto; altrove non toglie niente)
+  const punti = await page.evaluate(async () => {
+    const { USF } = window.__dpvTest;
+    const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    window.__dpv.edit('Punti', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam2', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
+    let sc = null;
+    document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
+    USF.scegliOggetto(c0.id);
+    const n = () => window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.length;
+    sc.clic(0.3, 0.3, false); sc.clic(0.7, 0.6, false); sc.clic(0.5, 0.9, true);
+    const tre = n();
+    sc.destro(0.1, 0.1);
+    const lontano = n();
+    sc.destro(0.31, 0.29);
+    const dopoUno = n();
+    const resta = window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.map((q) => [q.x, q.y, q.dentro]);
+    return { tre, lontano, dopoUno, resta, vicino: [USF.puntoVicino([{ x: 0.2, y: 0.2 }, { x: 0.5, y: 0.5 }], 0.52, 0.49), USF.puntoVicino([{ x: 0.2, y: 0.2 }], 0.9, 0.9)], testo: sc.testo };
+  });
+  prova('clic sinistro aggiunge un punto, clic destro sopra un punto lo toglie (lontano da ogni punto non toglie niente); il testo lo dice', punti.tre === 3 && punti.lontano === 3 && punti.dopoUno === 2 && punti.resta.every((q) => q[0] !== 0.3) && punti.vicino[0] === 1 && punti.vicino[1] === -1 && /destro/.test(punti.testo), JSON.stringify(punti));
+  // col mouse vero sul monitor: sinistro aggiunge, destro toglie (e niente menu del sistema)
+  await page.evaluate(async () => {
+    const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    window.__dpv.edit('Pulisco', () => { c0.ritaglio.punti = []; });
+    window.__dpv.select([c0.id]);
+    window.__dpv.setHead(c0.start + 2);
+    window.__dpvTest.USF.scegliOggetto(c0.id);
+    await new Promise((r) => setTimeout(r, 400));
+  });
+  const schM = await page.evaluate(() => { const r = document.querySelector('.monitor canvas, .monitor .schermo')?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null; });
+  if (schM) {
+    await page.mouse.click(schM.x + schM.w * 0.5, schM.y + schM.h * 0.5);
+    await page.waitForTimeout(250);
+    const col = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.length);
+    await page.mouse.click(schM.x + schM.w * 0.5, schM.y + schM.h * 0.5, { button: 'right' });
+    await page.waitForTimeout(250);
+    const dopo = await page.evaluate(() => ({ n: window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.length, menu: !!document.querySelector('.menu-contesto') }));
+    prova('col mouse sul monitor: il sinistro mette un punto, il destro (sullo stesso punto) lo toglie, senza menu', col === 1 && dopo.n === 0 && !dopo.menu, JSON.stringify({ col, dopo }));
+  }
+  await page.keyboard.press('Escape');
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); window.__dpv.edit('Via il ritaglio', () => { delete c.ritaglio; }); });
 

@@ -24,7 +24,6 @@ let T: LibreriaAI | null = null;
 let sfondo: ((img: unknown) => Promise<Immagine | Immagine[]>) | null = null;
 let sam: { model: ModelloSam; processor: Elaboratore } | null = null;
 let caricato = '';
-let ultimaRichiesta: { famiglia: string; repo: string[] } | null = null;
 let dispositivo: Dispositivo = 'wasm';
 let base = '';
 const manda = (m: unknown, trasferibili: Transferable[] = []) => (self as unknown as Worker).postMessage(m, trasferibili);
@@ -35,7 +34,6 @@ const tipi = (d: Dispositivo): Tipo[] => (d === 'webgpu' ? tipiScheda() : ['q8',
 async function carica(famiglia: string, repo: string[], conScheda = true) {
   const chiave = famiglia + ':' + repo.join(',');
   if (caricato === chiave && (sfondo || sam) && (conScheda || dispositivo === 'wasm')) { manda({ tipo: 'pronto', device: dispositivo }); return; }
-  ultimaRichiesta = { famiglia, repo };
   const lib = await libreria(base);
   T = lib.T;
   const progress_callback = progressoScarico(manda);
@@ -101,17 +99,18 @@ async function maschera(m: Msg): Promise<Uint8Array> {
   return W === w && H === h ? o : ridimensiona(o, W, H, w, h);
 }
 
-/** la maschera, e se la scheda video si ferma a metà si ricarica il modello sul processore e si rifà */
+/** l'errore di una scheda video che si è fermata: in questo worker la libreria non è più affidabile (dopo un errore della scheda
+ *  rifiuta anche le richieste nuove, con lo stesso errore), quindi si lascia alla pagina buttare il worker e ripartire col processore */
+class SchedaGuasta extends Error {}
+
+/** la maschera; se la scheda video sbaglia lo si dice alla pagina, che riparte da un worker nuovo sul processore */
 async function mascheraSicura(m: Msg): Promise<Uint8Array> {
   try {
     return await maschera(m);
   } catch (e) {
-    if (dispositivo !== 'webgpu' || !erroreDellaScheda(e) || !ultimaRichiesta) throw e;
-    manda({ tipo: 'avviso', msg: 'La scheda video si è fermata: continuo col processore (più lento)' });
+    if (dispositivo !== 'webgpu' || !erroreDellaScheda(e)) throw e;
     manda({ tipo: 'scheda-guasta' });
-    caricato = '';
-    await carica(ultimaRichiesta.famiglia, ultimaRichiesta.repo, false);
-    return await maschera(m);
+    throw new SchedaGuasta(testoErrore(e));
   }
 }
 
@@ -135,6 +134,6 @@ self.onmessage = async (e: MessageEvent) => {
       manda({ tipo: 'maschera', id: m.id, dati }, [dati.buffer]);
     }
   } catch (err) {
-    manda({ tipo: 'errore', id: m.id, msg: testoErrore(err) });
+    manda({ tipo: 'errore', id: m.id, msg: testoErrore(err), schedaGuasta: err instanceof SchedaGuasta });
   }
 };

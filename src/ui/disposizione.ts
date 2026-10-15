@@ -2,7 +2,7 @@
 // Ogni bordo si trascina, col doppio clic chiude o riapre il pannello accanto, e tutto si ricorda in localStorage
 // (dpv-banco), così il banco si riapre come l'avevi lasciato.
 
-const VARI = ['--alto', '--bin', '--lato', '--fin', '--tlfin'];
+const VARI = ['--alto', '--bin', '--lato', '--fin', '--tlfin', '--tlpag'];
 const CLASSI = ['senza-bin', 'senza-lato', 'senza-puls', 'lato-lungo'];
 const CHIAVE = 'dpv-banco';
 

@@ -198,15 +198,13 @@ export class Timeline {
   /** mentre si tira l'altezza di una traccia la scala resta ferma */
   private kFermo: number | null = null;
   /**
-   * Quanto crescono le tracce sulla tela: se c'è posto (schermi grandi, timeline alta) si allargano da sole
-   * fino a quasi il doppio, così niente resta piccolino; poi c'è lo zoom verticale.
+   * Quanto sono alte le tracce sulla tela: sempre la misura di base di ogni traccia (la stessa fin dalle prime versioni),
+   * qualunque sia lo spazio che la timeline ha a disposizione: se la timeline si allarga resta solo più posto vuoto, le clip non
+   * si ingrossano. Cambia solo lo zoom verticale scelto da te (Ctrl+Shift+rotella).
    */
-  kV(p: Project = store.doc): number {
+  kV(_p: Project = store.doc): number {
     if (this.kFermo !== null) return this.kFermo;
-    const base = p.tracks.reduce((s, t) => s + t.height, 0);
-    const libero = this.H - RIGHELLO - SEP - 34 - (this.conSott(p) ? SOTT_H : 0);
-    const riempi = base > 0 ? clamp(libero / base, 1, 1.8) : 1;
-    return Math.round(riempi * this.zoomV * 100) / 100;
+    return Math.round(this.zoomV * 100) / 100;
   }
   private altezza(t: Track, k: number) { return Math.round(t.height * k); }
 

@@ -39,14 +39,17 @@ export type Dispositivo = 'webgpu' | 'wasm';
 
 /** cosa ha deciso il rilevatore dell'hardware (src/media/hardware.ts, solo nella pagina) per i worker, che non hanno localStorage:
  *  arriva nei messaggi `carica` e si ricorda qui. `potenza` = quale scheda chiedere al sistema (alte prestazioni / basso consumo). */
-export interface ImpostazioneScheda { scheda?: boolean; potenza?: '' | 'high-performance' | 'low-power'; f16?: boolean; thread?: number }
+export interface ImpostazioneScheda { scheda?: boolean; potenza?: '' | 'high-performance' | 'low-power'; f16?: boolean; thread?: number; finta?: boolean }
 let potenzaScelta: '' | 'high-performance' | 'low-power' = '';
 let f16Scheda = true;
 let threadScelti = 0;
+/** per le prove: finge che ci sia una scheda video (le prove girano senza) per vedere cosa fa il worker quando sbaglia */
+let schedaFinta = false;
 export function usaImpostazioneScheda(m: ImpostazioneScheda) {
   if (m.potenza !== undefined) potenzaScelta = m.potenza;
   if (m.f16 !== undefined) f16Scheda = m.f16;
   if (m.thread) threadScelti = m.thread;
+  if (m.finta !== undefined) schedaFinta = m.finta;
 }
 export const schedaF16 = () => f16Scheda;
 /** i tipi di modello da provare sulla scheda: mezza precisione solo se la scheda la sa fare */
@@ -114,6 +117,7 @@ export function libreria(base?: string): Promise<{ T: LibreriaAI; dove: 'locale'
 /** scheda video prima (se c'è e non è stata spenta), poi il processore */
 export async function dispositivi(conScheda = true): Promise<Dispositivo[]> {
   if (!conScheda) return ['wasm'];
+  if (schedaFinta) return ['webgpu', 'wasm'];
   const gpu = (navigator as unknown as { gpu?: { requestAdapter: (o?: unknown) => Promise<unknown> } }).gpu;
   const adattatore = gpu ? await (gpu.requestAdapter as (o?: unknown) => Promise<unknown>)(potenzaScelta ? { powerPreference: potenzaScelta } : undefined).catch(() => null) : null;
   return adattatore ? ['webgpu', 'wasm'] : ['wasm'];
@@ -157,7 +161,8 @@ export async function caricaConRipieghi<V>(
       }
     }
   }
-  throw utile ?? ultimo;
+  // l'ultimo tentativo (di solito sul processore) dice di più del primo, che era della scheda video; ma un semplice "file mancante" no
+  throw (ultimo && !erroreFileMancante(ultimo) ? ultimo : utile) ?? ultimo;
 }
 
 /** un nome leggibile del tipo (per dire cosa si è caricato) */
