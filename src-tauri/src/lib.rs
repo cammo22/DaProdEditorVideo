@@ -261,6 +261,40 @@ async fn export_scrivi(stato: State<'_, Stato>, request: Request<'_>) -> Esito<(
     .map_err(|e| e.to_string())?
 }
 
+/// Progetto .dap: riapre un .dap che c'è già per AGGIUNGERE in fondo (senza troncarlo: i video dentro restano dove sono).
+#[tauri::command]
+async fn pacchetto_riapri(app: AppHandle, stato: State<'_, Stato>, path: String) -> Esito<u32> {
+    let mut o = OpenOptions::new();
+    o.read(true).write(true);
+    let f = app
+        .fs()
+        .open(percorso(&path), o)
+        .map_err(|e| format!("non riesco ad aprire {path} per salvare: {e}"))?;
+    let mut n = stato.prossimo.lock().map_err(|e| e.to_string())?;
+    *n += 1;
+    let id = *n;
+    stato
+        .scritture
+        .lock()
+        .map_err(|e| e.to_string())?
+        .insert(id, Arc::new(Mutex::new(f)));
+    Ok(id)
+}
+
+/// Quanto è lungo il file aperto in scrittura (dove si comincia ad aggiungere).
+#[tauri::command]
+async fn pacchetto_lunghezza(stato: State<'_, Stato>, id: u32) -> Esito<u64> {
+    let f = stato
+        .scritture
+        .lock()
+        .map_err(|e| e.to_string())?
+        .get(&id)
+        .cloned()
+        .ok_or("pacchetto non aperto")?;
+    let mut f = f.lock().map_err(|e| e.to_string())?;
+    f.seek(SeekFrom::End(0)).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn export_chiudi(stato: State<'_, Stato>, id: u32) -> Esito<()> {
     let f = stato.scritture.lock().map_err(|e| e.to_string())?.remove(&id);
@@ -329,13 +363,13 @@ async fn pacchetto_copia(app: AppHandle, stato: State<'_, Stato>, path: String, 
     .map_err(|e| e.to_string())?
 }
 
-/// Il progetto aperto col doppio clic (.daprod o .dpv): arriva dagli argomenti (Windows, Linux) o dal sistema (Mac).
+/// Il progetto aperto col doppio clic (.dap, .daprod o .dpv): arriva dagli argomenti (Windows, Linux) o dal sistema (Mac).
 #[derive(Default)]
 struct Avvio(Mutex<Option<String>>);
 
 fn file_progetto(p: &str) -> bool {
     let l = p.to_lowercase();
-    l.ends_with(".daprod") || l.ends_with(".dpv")
+    l.ends_with(".daprod") || l.ends_with(".dpv") || l.ends_with(".dap")
 }
 
 /// Il file da aprire all'avvio (una volta sola: poi torna vuoto).
@@ -402,6 +436,8 @@ pub fn run() {
             export_scrivi,
             export_chiudi,
             pacchetto_copia,
+            pacchetto_riapri,
+            pacchetto_lunghezza,
             file_di_avvio,
             apri_link,
             istantanea_percorso,

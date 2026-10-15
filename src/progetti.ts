@@ -10,8 +10,9 @@ import { apri as apriMedia, chiudi as chiudiMedia, importa, mediaRT, prioritaMed
 import { inCoda, inSovraccarico, nuova } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
 import { converti, esamina, normalizzaAttivo } from './media/normalizza';
-import { dialogoApri, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, salvaTesto, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
-import { leggiPacchetto, pianoPacchetto, scriviPacchetto, type Sorgente } from './pacchetto';
+import { dialogoApri, dialogoSalva, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
+import { dapAttuale, indicePacchetto, leggi as leggiPezzo, leggiPacchetto, pianoDap, pianoPacchetto, ricordaDap, scriviDapApp, scriviDapBrowser, scriviPacchetto, type PianoDap, type Sorgente, type VoceLetta } from './pacchetto';
+import { proxyDelProgetto, rimettiProxy } from './media/proxy';
 import { avviso, conferma, dialogo, h } from './ui/dom';
 import { motore } from './motore';
 import { s2f } from './core/timecode';
@@ -90,7 +91,7 @@ type Maniglia = FileSystemFileHandle & { queryPermission?: (o: object) => Promis
 // ——— importazione ———
 const IMMAGINE = /\.(jpe?g|png|webp|gif|bmp|avif)$/i;
 
-export async function importaFile(lista: (FileScelto & { maniglia?: Maniglia })[], opzioni: { chiediFormato?: boolean; cartella?: string } = {}): Promise<MediaItem[]> {
+export async function importaFile(lista: (FileScelto & { maniglia?: Maniglia })[], opzioni: { chiediFormato?: boolean; cartella?: string; controlla?: boolean } = {}): Promise<MediaItem[]> {
   if (!lista.length) return [];
   const nuovi: MediaItem[] = [];
   const errori: string[] = [];
@@ -107,7 +108,8 @@ export async function importaFile(lista: (FileScelto & { maniglia?: Maniglia })[
     // nel browser, senza "maniglia" (Firefox, Safari, file trascinati, istantanee) i file piccoli si tengono
     // dentro il browser: così il progetto li ritrova alla prossima apertura senza ricollegarli
     else if (!isTauri && f.file && f.file.size <= FILE_LOCALE_MAX) void idb('file', 'put', r.item.id, f.file);
-    controllaVelocita(r.item, f);
+    // le registrazioni del LIVE le fa il programma stesso, con i tempi giusti in ogni fotogramma: non si rifanno
+    if (opzioni.controlla !== false) controllaVelocita(r.item, f);
   }
   lav.fine(nuovi.length === 1 ? '1 file' : `${nuovi.length} file`);
   if (nuovi.length) {
@@ -269,7 +271,8 @@ const fps0 = (p: Project) => p.rate.num / p.rate.den;
 export async function apriRecente(r: Recente): Promise<boolean> {
   if (store.dirty && store.doc.clips.length && !(await conferma('Apri progetto', 'Il montaggio attuale ha modifiche non salvate. Aprire un altro progetto?', 'Apri', 'Annulla'))) return false;
   if (r.path && isTauri) {
-    try { await invoke<string>('progetto_leggi', { path: r.path }); } catch { avviso('Questo progetto non c\'è più dove l\'avevi salvato', 'errore', 4000); dimenticaRecente(r.chiave); return false; }
+    // c'è ancora? (si chiede solo la grandezza: un .dap può essere di molti GB, e non è testo)
+    try { await invoke<number>('media_dimensione', { path: r.path }); } catch { avviso('Questo progetto non c\'è più dove l\'avevi salvato', 'errore', 4000); dimenticaRecente(r.chiave); return false; }
     await apriFile({ path: r.path });
     return true;
   }
@@ -290,23 +293,66 @@ function serializza(): string {
   return JSON.stringify(p);
 }
 
+let salvando = false;
+
+/**
+ * Salva (Ctrl+S): un file .dap con dentro TUTTO (montaggio, file, copie leggere), da riaprire identico su un altro computer.
+ * Nell'app la prima volta si sceglie dove; dopo si aggiunge in fondo allo stesso file solo quello che manca (veloce).
+ * Salva come… riscrive tutto in un file nuovo (pulito). Nel browser si salva/scarica il .dap intero.
+ */
 export async function salva(come = false) {
+  if (salvando) return;
+  salvando = true;
   const p = store.doc;
-  const nome = (p.name || 'montaggio').replace(/[\\/:*?"<>|]/g, '_') + '.dpv';
-  let r: string | null;
+  const nome = (p.name || 'montaggio').replace(/[\\/:*?"<>|]/g, '_') + '.dap';
+  let stop = false;
+  let barra: ReturnType<typeof avvisoLungo> | null = null;
   try {
-    r = await salvaTesto(nome, serializza(), 'dpv', come ? undefined : percorsoProgetto ?? undefined);
+    const proxy = await proxyDelProgetto(p.media);
+    let r: string | null = null;
+    let piano: PianoDap;
+    if (isTauri) {
+      let path = !come && percorsoProgetto && /\.dap$/i.test(percorsoProgetto) ? percorsoProgetto : null;
+      if (!path) {
+        path = await dialogoSalva(nome, 'dap', 'application/zip');
+        if (!path) return;
+        if (!/\.dap$/i.test(path)) path += '.dap';
+      }
+      // il .dap da cui si leggono i file (aperto o già salvato): si AGGIUNGE in fondo, non si può riscrivere da capo
+      const stesso = (x?: string | null) => !!x && x.toLowerCase() === path!.toLowerCase();
+      let vecchie: Map<string, VoceLetta> | null = null;
+      if (stesso(dapAttuale()) || p.media.some((m) => stesso(m.path))) {
+        vecchie = await indicePacchetto({ path }).catch(() => null);
+        if (!vecchie) throw new Error('il file .dap aperto non si legge più: usa Salva come… con un nome nuovo');
+      }
+      piano = await pianoDap(vecchie, proxy);
+      barra = avvisoLungo(vecchie ? 'Salvo il progetto…' : 'Salvo il progetto con tutti i file…', () => { stop = true; });
+      const b = barra;
+      await scriviDapApp(path, vecchie, piano, (f, t, cosa) => b.testo(`💾 ${Math.floor((f / t) * 100)}% · ${cosa}`, f / t), () => stop);
+      r = path;
+      percorsoProgetto = path;
+      try { localStorage.setItem('dpv-percorso', path); } catch { /* niente memoria */ }
+    } else {
+      piano = await pianoDap(null, proxy);
+      barra = avvisoLungo('Preparo il progetto .dap…', () => { stop = true; });
+      const b = barra;
+      r = await scriviDapBrowser(nome, piano, (f, t, cosa) => b.testo(`💾 ${Math.floor((f / t) * 100)}% · ${cosa}`, f / t), () => stop);
+    }
+    if (!r) return;
+    store.dirty = false;
+    registraRecente(store.doc, isTauri ? r : undefined, isTauri ? undefined : serializza());
+    const aggiunti = piano.byte > 1 << 20 ? ` (+${mb(piano.byte)})` : '';
+    avviso(`💾 Salvato con tutti i file: ${nomeDaPercorso(r)}${aggiunti}`, 'ok', 3000);
+    if (piano.mancano.length) avviso(`⚠ ${piano.mancano.length} file scollegati non sono dentro il progetto: ${piano.mancano.map((m) => m.name).slice(0, 3).join(', ')}${piano.mancano.length > 3 ? '…' : ''} · File → Ricollega media e salva di nuovo`, 'info', 8000);
+    store.emit('status');
   } catch (e) {
     // disco pieno, cartella protetta, chiavetta tolta: lo si dice (prima non compariva niente e sembrava salvato)
-    avviso('⚠ Il progetto NON è stato salvato: ' + (e instanceof Error ? e.message : String(e)) + ' · prova Salva come…', 'errore', 7000);
-    return;
+    if (stop || (e instanceof Error && e.message === 'annullato')) avviso('Salvataggio fermato: il file è com\'era prima', 'info', 4000);
+    else avviso('⚠ Il progetto NON è stato salvato: ' + (e instanceof Error ? e.message : String(e)) + ' · prova Salva come…', 'errore', 7000);
+  } finally {
+    barra?.chiudi();
+    salvando = false;
   }
-  if (!r) return;
-  if (isTauri) percorsoProgetto = r;
-  store.dirty = false;
-  registraRecente(store.doc, isTauri ? r : undefined, isTauri ? undefined : serializza());
-  avviso(`💾 Salvato: ${nomeDaPercorso(r)}`, 'ok');
-  store.emit('status');
 }
 
 /** la revisione del documento già scritta dall'autosalvataggio (-1 = niente ancora) */
@@ -346,18 +392,20 @@ function valida(o: unknown): Project | null {
 export async function apri() {
   if (store.dirty && store.doc.clips.length && !(await conferma('Apri progetto', 'Il montaggio attuale ha modifiche. Aprire un altro progetto?', 'Apri', 'Annulla'))) return;
   if (isTauri) {
-    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Video', estensioni: ['daprod', 'dpv', 'json'], mime: [] });
+    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Video', estensioni: ['dap', 'daprod', 'dpv', 'json'], mime: [] });
     if (path) await apriFile({ path });
     return;
   }
-  const [file] = await scegliFileBrowser('.daprod,.dpv,.json,application/json,application/zip', false);
+  const [file] = await scegliFileBrowser('.dap,.daprod,.dpv,.json,application/json,application/zip', false);
   if (file) await apriFile({ file });
 }
 
 /** apre un progetto da un percorso (app, anche col doppio clic sul file) o da un file (browser) */
 export async function apriFile(s: Sorgente) {
   const nome = s.file?.name ?? nomeDaPercorso(s.path ?? '');
-  if (/\.daprod$/i.test(nome)) { await apriPacchetto(s); return; }
+  if (/\.(daprod|dap)$/i.test(nome)) { await apriPacchetto(s, /\.dap$/i.test(nome)); return; }
+  ricordaDap(null);
+  try { localStorage.removeItem('dpv-percorso'); } catch { /* niente */ }
   let p: Project | null = null;
   try {
     const testo = s.file ? await s.file.text() : await invoke<string>('progetto_leggi', { path: s.path });
@@ -374,8 +422,8 @@ export async function apriFile(s: Sorgente) {
  * Apre un pacchetto .daprod: il progetto e i suoi file vengono da dentro lo zip, così com'è (niente da
  * scompattare). Nell'app i media si leggono dal pacchetto stesso; nel browser sono pezzi del file scelto.
  */
-async function apriPacchetto(s: Sorgente) {
-  const barra = avvisoLungo('Apro il pacchetto…');
+async function apriPacchetto(s: Sorgente, dap = false) {
+  const barra = avvisoLungo(dap ? 'Apro il progetto…' : 'Apro il pacchetto…');
   try {
     const { testo, voci } = await leggiPacchetto(s);
     const p = valida(JSON.parse(testo));
@@ -386,8 +434,17 @@ async function apriPacchetto(s: Sorgente) {
       m.dentro = { off: v.off, len: v.len };
       if (s.path) m.path = s.path;
     }
-    // Salva (Ctrl+S) non riscrive il pacchetto: chiede dove mettere il progetto leggero, che punta dentro il pacchetto
-    percorsoProgetto = null;
+    // le copie leggere dentro il file tornano nel disco privato prima di aprire i media: il monitor le trova già pronte
+    const proxy = [...voci.values()].filter((v) => v.nome.startsWith('proxy/') && v.stored);
+    let k = 0;
+    for (const v of proxy) {
+      barra.testo(`Rimetto le copie leggere: ${++k}/${proxy.length}`, 0);
+      await rimettiProxy(v.nome.slice(6), v.len, (a, b) => leggiPezzo(s, v.off + a, v.off + b));
+    }
+    // il .dap è il progetto: Salva (Ctrl+S) aggiunge lì. Il vecchio .daprod no: Salva chiede dove fare il .dap
+    percorsoProgetto = dap && s.path ? s.path : null;
+    ricordaDap(dap && s.path ? s.path : null, p, voci);
+    try { if (percorsoProgetto) localStorage.setItem('dpv-percorso', percorsoProgetto); else localStorage.removeItem('dpv-percorso'); } catch { /* niente */ }
     for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
     motore.caricaPlayer(null);
     store.load(p);
@@ -406,7 +463,8 @@ async function apriPacchetto(s: Sorgente) {
     store.dirty = false;
     store.emit('doc');
     motore.ridisegna();
-    avviso(`📦 ${p.name}: aperto dal pacchetto${mancano ? ` (${mancano} file mancano)` : ', con tutti i suoi file'}`, mancano ? 'info' : 'ok', 3500);
+    if (dap) registraRecente(p, s.path, s.path ? undefined : JSON.stringify(p));
+    avviso(`${dap ? '📂' : '📦'} ${p.name}: aperto${dap ? '' : ' dal pacchetto'}${mancano ? ` (${mancano} file mancano)` : ', con tutti i suoi file'}`, mancano ? 'info' : 'ok', 3500);
   } catch (e) {
     avviso('Il pacchetto non si apre: ' + (e instanceof Error ? e.message : String(e)), 'errore', 5000);
   } finally {
@@ -463,6 +521,8 @@ export async function nuovo(fmt: { w: number; h: number; rate: { num: number; de
   if (store.dirty && store.doc.clips.length && !(await conferma('Nuovo progetto', 'Il montaggio attuale ha modifiche non salvate. Ricominciare?', 'Nuovo', 'Annulla'))) return;
   for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
   percorsoProgetto = null;
+  ricordaDap(null);
+  try { localStorage.removeItem('dpv-percorso'); } catch { /* niente */ }
   motore.caricaPlayer(null);
   store.load(newProject(fmt));
   store.doc.saved = 0;
@@ -573,6 +633,14 @@ export async function riprendi(): Promise<boolean> {
   if (!p || (!p.clips.length && !p.media.length)) return false;
   store.load(p);
   store.dirty = false;
+  // il progetto era un .dap: Salva continua ad aggiungere lì (se il file c'è ancora e i media vengono da lì o è stato salvato lì)
+  try {
+    const dap = isTauri ? localStorage.getItem('dpv-percorso') : null;
+    if (dap && /\.dap$/i.test(dap)) {
+      const v = await indicePacchetto({ path: dap }).catch(() => null);
+      if (v) { percorsoProgetto = dap; ricordaDap(dap, p, v); }
+    }
+  } catch { /* niente */ }
   const mancano = await riapriMedia(false);
   if (mancano) {
     avviso(`Montaggio ripreso. ${mancano} file da ricollegare: File → Ricollega media`, 'info', 6000);

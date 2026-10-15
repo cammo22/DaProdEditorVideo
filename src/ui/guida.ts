@@ -210,10 +210,10 @@ export const ARGOMENTI: Argomento[] = [
   },
   {
     id: 'progetti', gruppo: 'Finale ed export', icona: '💾', titolo: 'Salvare e portare il progetto altrove',
-    riassunto: '.dpv leggero o pacchetto .daprod con tutti i file', parole: 'salva progetto apri recenti pacchetto daprod dpv sposta altro computer',
+    riassunto: 'un file .dap con dentro tutto: montaggio, file e copie leggere', parole: 'salva progetto apri recenti pacchetto dap daprod dpv sposta altro computer',
     passi: [
-      '`Ctrl+S` salva il progetto (.dpv): leggero, i file restano dove sono. Ogni 15 secondi c\'è anche l\'autosalvataggio.',
-      'File → **Salva il pacchetto .daprod**: il progetto con dentro tutti i suoi file, da aprire identico su un altro computer.',
+      '`Ctrl+S` salva il progetto in un file **.dap** con dentro TUTTO: il montaggio, tutti i file (video, musiche, immagini, registrazioni, audio pulito) e le copie leggere. Portalo su un altro computer e lo riapri identico.',
+      'La prima volta ci mette un po\' (copia i file); dopo, Salva aggiunge solo quello che è cambiato: è veloce. **Salva come…** riscrive tutto pulito in un file nuovo. Ogni 15 secondi c\'è anche l\'autosalvataggio.',
       'Il tasto **Progetti** in alto mostra i recenti con la miniatura.',
     ],
     vai: { nome: 'Salva', fn: () => esegui('salva') },

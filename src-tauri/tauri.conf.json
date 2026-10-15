@@ -43,6 +43,13 @@
     "category": "Video",
     "fileAssociations": [
       {
+        "ext": ["dap"],
+        "name": "Progetto DaProd Video",
+        "description": "Progetto DaProd Video completo: montaggio, file e copie leggere",
+        "role": "Editor",
+        "mimeType": "application/x-daprod-dap"
+      },
+      {
         "ext": ["daprod"],
         "name": "Progetto DaProd Video",
         "description": "Progetto DaProd Video con tutti i suoi file dentro",

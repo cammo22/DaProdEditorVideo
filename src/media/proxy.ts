@@ -32,7 +32,7 @@ export const quandoProxy = (fn: () => void) => { ascoltatori.add(fn); return () 
 const avvisa = () => { for (const f of ascoltatori) f(); };
 
 /** il nome del file del proxy: dipende solo dal file originale (nome, dimensione, data, durata) */
-function nomeProxy(m: MediaItem) {
+export function nomeProxy(m: MediaItem) {
   const s = `${m.name}|${m.size}|${m.lastModified}|${m.duration.toFixed(3)}|${m.width}x${m.height}`;
   let a = 0x811c9dc5, b = 0x01000193;
   for (let i = 0; i < s.length; i++) { a = Math.imul(a ^ s.charCodeAt(i), 16777619); b = Math.imul(b ^ s.charCodeAt(i), 2246822519); }
@@ -204,6 +204,34 @@ export function statoProxy(lista: MediaRT[]) {
     else if (r.proxyStato === 'lavoro' || r.proxyStato === 'coda') { lavoro++; if (r.proxyStato === 'lavoro') prog = r.proxyProg ?? 0; }
   }
   return { pronti, lavoro, prog, attesa };
+}
+
+/** le copie leggere già fatte dei media del progetto (nome → file): vanno dentro il .dap */
+export async function proxyDelProgetto(media: MediaItem[]): Promise<Map<string, Blob>> {
+  const out = new Map<string, Blob>();
+  const dir = await cartella();
+  if (!dir) return out;
+  for (const m of media) {
+    if (m.type !== 'video') continue;
+    const n = nomeProxy(m);
+    try { const f = await (await dir.getFileHandle(n)).getFile(); if (f.size) out.set(n, f); } catch { /* non c'è */ }
+  }
+  return out;
+}
+
+/** aprendo un .dap: la copia leggera torna nel disco privato (se non c'è già), così il monitor la usa subito */
+export async function rimettiProxy(nome: string, len: number, leggi: (a: number, b: number) => Promise<Uint8Array>): Promise<boolean> {
+  const dir = await cartella();
+  if (!dir || !/^[0-9a-f]{16}$/.test(nome)) return false;
+  try { const f = await (await dir.getFileHandle(nome)).getFile(); if (f.size === len) return true; } catch { /* non c'è: si copia */ }
+  try {
+    const fh = await dir.getFileHandle(nome, { create: true });
+    const ws = await fh.createWritable();
+    const PEZZO = 8 << 20;
+    for (let a = 0; a < len; a += PEZZO) await ws.write(new Blob([await leggi(a, Math.min(len, a + PEZZO)) as BlobPart]));
+    await ws.close();
+    return true;
+  } catch { return false; }
 }
 
 /** svuota i proxy salvati (menu Vista): si rifanno quando servono */

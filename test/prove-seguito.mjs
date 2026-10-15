@@ -265,9 +265,20 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
       durata: [a[0]?.duration, orig?.duration], brano: [b[0]?.name, b[0]?.acodec, b[0]?.container, b[0]?.duration], normale: [c[0]?.name, c[0]?.fps],
     };
   });
-  prova('si riconosce un video a frame rate variabile e un brano a bitrate variabile; un video normale va bene com\'è', nz.dVfr?.vfr === true && nz.dVbr?.vbr === true && nz.dCfr === null, JSON.stringify([nz.dVfr, nz.dVbr, nz.dCfr]));
+  prova('si riconosce un video a frame rate variabile; un video normale e un brano Opus (già con i tempi giusti) vanno bene come sono', nz.dVfr?.vfr === true && nz.dVbr === null && nz.dCfr === null, JSON.stringify([nz.dVfr, nz.dVbr, nz.dCfr]));
   prova('il video variabile entra già rifatto a frame rate costante (stessa durata) e con un frame rate pulito', nz.costante === true && Math.abs(nz.durata[0] - nz.durata[1]) < 0.5 && nz.fps > 20 && nz.fps < 31, JSON.stringify(nz));
-  prova('il brano a bitrate variabile entra rifatto a bitrate costante (stessa durata)', !!nz.brano[0] && Math.abs(nz.brano[3] - 8) < 0.5 && !!nz.brano[1], JSON.stringify(nz.brano));
+  prova('il brano Opus NON si rifà (stesso nome, stesso contenitore, stessa durata): si converte solo quello che serve', nz.brano[0] === 'Brano VBR 8s.webm' && /webm/i.test(nz.brano[2] ?? '') && Math.abs(nz.brano[3] - 8) < 0.5, JSON.stringify(nz.brano));
+  const regole = await page.evaluate(() => {
+    const { NZ } = window.__dpvTest;
+    const griglia = { underlyingFrameRate: 30, frameRateIsConstant: false, probedPacketCount: 300, maxFrameRate: 30, minFrameRate: 10 };
+    const vfr = { underlyingFrameRate: null, frameRateIsConstant: false, probedPacketCount: 300, maxFrameRate: 41, minFrameRate: 9 };
+    const cbr = Array.from({ length: 200 }, (_, i) => 417 + (i % 3 === 0 ? 1 : 0));
+    const vbr = Array.from({ length: 200 }, (_, i) => [210, 420, 640, 300, 900][i % 5]);
+    // misurata sul PC di Cammo: webcam del LIVE in WebM (tempi al millisecondo, qualche fotogramma perso) = 30 fps veri
+    const webcam = { underlyingFrameRate: null, frameRateIsConstant: false, probedPacketCount: 400, maxFrameRate: 33.333, minFrameRate: 15.873, averageFrameRate: 29.906 };
+    return [NZ.vfrVero(griglia), NZ.vfrVero(vfr), NZ.mp3Variabile(cbr), NZ.mp3Variabile(vbr), NZ.vfrVero(webcam)];
+  });
+  prova('regole: fotogrammi persi su una griglia = non si rifà; VFR vero sì; MP3 a bitrate costante no; MP3 variabile sì; webcam WebM a 30 fps coi tempi al millisecondo no', JSON.stringify(regole) === '[false,true,false,true,false]', JSON.stringify(regole));
   prova('un video normale non si tocca (nome e frame rate com\'erano)', nz.normale[0] === 'Lunga 3s.mp4' || /^Lunga 3s\./.test(nz.normale[0]), JSON.stringify(nz.normale));
 
   // ———————————————————————————————————————————————————————————

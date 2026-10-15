@@ -14,9 +14,9 @@ export const separazioneRapida = () => { try { return localStorage.getItem(RAPID
 const impostaRapida = (v: boolean) => { try { if (v) localStorage.setItem(RAPIDO, 'si'); else localStorage.removeItem(RAPIDO); } catch { /* niente */ } };
 
 const FORZE: [Forza, string, string][] = [
-  ['leggera', 'Leggera', 'Toglie il fruscio e lascia molto del suono di prima'],
-  ['media', 'Media', 'Va bene quasi sempre: voce pulita, rumore molto più basso'],
-  ['forte', 'Forte', 'Tutto il rumore va via (può togliere un po\' di naturalezza)'],
+  ['leggera', 'Leggera', 'Toglie fruscio e ventola, lascia un filo dell\'ambiente di prima'],
+  ['media', 'Voce pulita', 'Resta solo la voce: rumore via, poi la catena da studio (bassi puliti, voce chiara, volume regolare e giusto)'],
+  ['forte', 'Voce isolata', 'Prima un modello AI tiene solo la voce (via musica, TV, gente, rumori forti, parte dell\'eco), poi come "Voce pulita". La prima volta scarica il modello (~172 MB), è più lento'],
 ];
 
 /** quando una lavorazione sbaglia lo dice (le frasi sono già in italiano); "fermato" = l'hai fermata tu */

@@ -1144,7 +1144,7 @@ export class Live {
     const importa = async (nome: string, blob: Blob) => {
       const path = await salvaSulDisco(nome, blob);
       const file = new File([blob], nome, { type: blob.type });
-      const [m] = await importaFile([{ name: nome, path, file: path ? undefined : file }], { chiediFormato: false, cartella });
+      const [m] = await importaFile([{ name: nome, path, file: path ? undefined : file }], { chiediFormato: false, cartella, controlla: false });
       return m as MediaItem | undefined;
     };
     const schermi: MediaItem[] = [];

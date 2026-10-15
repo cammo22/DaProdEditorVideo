@@ -12,7 +12,8 @@ import { newClip, newTrack, trackOf, uid } from '../core/progetto';
 import { f2s } from '../core/timecode';
 import { store } from '../core/store';
 import { StatisticheMono } from '../core/separa';
-import { mescolaDi } from '../core/rumore';
+import { POSTFILTRO, mescolaDi } from '../core/rumore';
+import { Livello, guadagnoIngresso, volumeFinale } from '../core/catenaVoce';
 import { invoke, isTauri, type FileScelto } from '../platform';
 import { conservaFileNelBrowser } from '../progetti';
 import { avviso } from '../ui/dom';
@@ -104,6 +105,8 @@ export function tornaOriginale(clipId: string): void {
       if (!x || !pu) continue;
       x.media = pu.media;
       x.srcIn = x.srcIn + pu.da;
+      // il volume dato alla voce pulita se ne va con lei
+      if (pu.piu) x.gain = Math.round((x.gain - pu.piu) * 10) / 10;
       delete x.afx!.pulito;
     }
   });
@@ -388,20 +391,49 @@ export async function togliRumore(clipId: string, forza: Forza = 'media'): Promi
       let k = 0;
       const dici = (x: number | null, testo?: string) => { if (x !== null) k = x; l.imposta(k, testo); };
       try {
+        // "voce pulita" e "voce isolata": prima si misura il parlato (per il livello della catena) e, per isolare la voce, la
+        // media e la deviazione che vuole Demucs
+        const conCatena = forza !== 'leggera';
+        const livIn = new Livello(t.sr);
+        const stat = new StatisticheMono();
+        if (conCatena) {
+          let letti = 0;
+          await leggiAudio(t, Math.round(t.sr), async (ch) => {
+            livIn.aggiungi(ch);
+            if (forza === 'forte') stat.aggiungi(ch[0], ch[1]);
+            letti += ch[0].length;
+            dici((letti / t.n) * 0.05, 'Ascolto la voce…');
+          }, l.segnale);
+        }
+        let misura: { parlato: number | null; picco: number } | null = null;
         await scrittore.apri();
         ponte = new Ponte((m) => {
           if (m.tipo === 'stato') dici(null, m.testo);
+          else if (m.tipo === 'avviso') avviso(m.msg, 'info', 6000);
+          else if (m.tipo === 'scheda-guasta') schedaGuasta();
+          else if (m.tipo === 'misura') misura = { parlato: m.parlato, picco: m.picco };
           else if (m.tipo === 'uscita') scrittura = scrittura.then(() => scrittore.scrivi(m.ch)).catch((e) => { errScrittura ??= e; });
         });
-        const inizio: InizioRumore = { tipo: 'inizia', lavoro: 'rumore', sr: t.sr, canali: t.canali, mescola: mescolaDi(forza), base: impostazioniProva.base ?? baseLocaleAI() };
+        const base = impostazioniProva.base ?? baseLocaleAI();
+        const hw = messaggioScheda();
+        const inizio: InizioRumore = {
+          tipo: 'inizia', lavoro: 'rumore', sr: t.sr, canali: t.canali, mescola: mescolaDi(forza), base, postfiltro: POSTFILTRO[forza],
+          catena: conCatena ? { preDb: guadagnoIngresso(livIn.parlato) } : null,
+          isola: forza === 'forte' ? {
+            sr: t.sr, canali: t.canali, totale: t.n, media: stat.media, dev: stat.dev, base, scheda: hw.scheda, hw,
+            modello: impostazioniProva.modello ?? MODELLO_SEPARAZIONE, finta: impostazioniProva.finta ?? null,
+          } : null,
+        };
         await ponte.manda(inizio);
         let inviati = 0;
         const blocco = Math.round(t.sr);
+        const k0 = conCatena ? 0.05 : 0;
+        const cosa = forza === 'forte' ? 'Isolo e pulisco la voce' : forza === 'media' ? 'Pulisco la voce' : 'Tolgo il rumore';
         await leggiAudio(t, blocco, async (ch) => {
           if (l.fermato) throw new Error('fermato');
           inviati += ch[0].length;
           await ponte!.manda({ tipo: 'dati', ch }, ch.map((x) => x.buffer));
-          dici((inviati / t.n) * 0.95, `Tolgo il rumore: ${Math.round(inviati / t.sr)} di ${Math.round(t.n / t.sr)} secondi`);
+          dici(k0 + (inviati / t.n) * (0.95 - k0), `${cosa}: ${Math.round(inviati / t.sr)} di ${Math.round(t.n / t.sr)} secondi`);
         }, l.segnale);
         await ponte.manda({ tipo: 'fine' });
         await scrittura;
@@ -414,6 +446,9 @@ export async function togliRumore(clipId: string, forza: Forza = 'media'): Promi
         const perche = ancoraValida(a, t, s0);
         if (perche) { chiudiMedia(r.item.id); throw new ClipCambiata(perche + ': non l\'ho applicato'); }
         const nuovo = r.item;
+        // il volume giusto della voce pulita va nel volume della clip (il file resta com'è: lo si può sempre cambiare)
+        const fatta = misura as { parlato: number | null; picco: number } | null;
+        const piu = conCatena && fatta ? volumeFinale(fatta.parlato, fatta.picco) : 0;
         store.edit('Togli rumore (AI)', (p) => {
           nuovo.cartella = cartellaAudioLavorato(p);
           p.media.push(nuovo);
@@ -421,14 +456,16 @@ export async function togliRumore(clipId: string, forza: Forza = 'media'): Promi
           for (const c of [x, ...gemelle(p, x)]) {
             const prima = sorgenteDi(p, c);
             if (typeof prima === 'string') continue;
-            c.afx = { ...c.afx, pulito: { media: prima.m.id, srcIn: prima.srcIn, forza, da: t.da } };
+            const vecchio = c.afx?.pulito?.piu ?? 0;
+            c.afx = { ...c.afx, pulito: { media: prima.m.id, srcIn: prima.srcIn, forza, da: t.da, ...(piu ? { piu } : {}) } };
+            c.gain = Math.round((c.gain - vecchio + piu) * 10) / 10;
             c.srcIn = prima.srcIn - t.da;
             c.media = nuovo.id;
           }
         });
         store.select([a.id]);
         l.imposta(1, 'Fatto');
-        avviso(`🎙 Rumore tolto (${forza}): ${s0.m.name}. Ctrl+Z per tornare com'era`, 'ok', 3600);
+        avviso(`🎙 ${forza === 'forte' ? 'Voce isolata e pulita' : forza === 'media' ? 'Voce pulita' : 'Rumore tolto'}: ${s0.m.name}${piu ? ` (volume ${piu > 0 ? '+' : ''}${String(piu).replace('.', ',')} dB)` : ''}. Ctrl+Z per tornare com'era`, 'ok', 3600);
       } catch (e) {
         await scrittore.annulla();
         throw e;

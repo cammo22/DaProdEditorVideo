@@ -201,7 +201,7 @@ export interface AudioFx {
    * media = il file originale, srcIn = dov'era la clip nell'originale (secondi), da = il secondo dell'originale da cui parte il file pulito
    * (srcIn nel pulito + da = srcIn nell'originale: vale anche se poi la clip viene accorciata).
    */
-  pulito?: { media: string; srcIn: number; forza: ForzaRumore; da: number };
+  pulito?: { media: string; srcIn: number; forza: ForzaRumore; da: number; /** dB aggiunti al volume della clip per portare la voce pulita al livello giusto (si tolgono tornando all'originale) */ piu?: number };
   /** voce e base separate con l'AI: 'originale' = la clip da cui si è partiti (silenziata), 'voce'/'base' = le clip nate dalla separazione */
   separata?: { ruolo: 'voce' | 'base' | 'originale'; /** le altre clip della separazione (sull'originale: voce e base; sulle nuove: l'originale) */ con: string[]; /** sull'originale: il volume (dB) di prima che fosse silenziata */ gain?: number };
 }

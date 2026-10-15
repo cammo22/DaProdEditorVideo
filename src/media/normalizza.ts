@@ -51,7 +51,14 @@ function sorgenteDi(sel: FileScelto) {
   });
 }
 
-/** guarda il file (pochi pacchetti) e dice se va rifatto a velocità costante; null se va bene com'è */
+/**
+ * guarda il file (pochi pacchetti) e dice se va rifatto a velocità costante; null se va bene com'è.
+ * Si converte SOLO quando serve davvero (dalla 1.5.3):
+ *  · video: solo se i fotogrammi non stanno su una griglia regolare (`underlyingFrameRate` = null). Un video a 30 fps
+ *    con qualche fotogramma perso sta ancora sulla sua griglia: il montaggio lo legge giusto, non si rifà;
+ *  · audio: solo l'MP3 a bitrate variabile (lì i tempi e i salti sono imprecisi). L'MP3 a bitrate costante, l'AAC, il WAV,
+ *    il FLAC e anche Opus/Vorbis (variabili di natura ma con i tempi scritti in ogni pacchetto) restano com'erano.
+ */
 export async function esamina(sel: FileScelto): Promise<Verdetto | null> {
   if (!sel.file && !(sel.path && isTauri)) return null;
   const input = new Input({ source: sorgenteDi(sel), formats: ALL_FORMATS });
@@ -60,23 +67,20 @@ export async function esamina(sel: FileScelto): Promise<Verdetto | null> {
     const a = await input.getPrimaryAudioTrack();
     if (v) {
       const m = await v.computeFrameRateMetrics({ targetPacketCount: 400 }).catch(() => null);
-      if (m && !m.frameRateIsConstant && m.probedPacketCount >= 30 && m.maxFrameRate / Math.max(1e-6, m.minFrameRate) > 1.25) {
-        return { vfr: true, fps: fpsPulito(m.medianFrameRate || m.averageFrameRate), vbr: false, motivo: 'frame rate variabile → costante' };
-      }
+      if (m && vfrVero(m)) return { vfr: true, fps: fpsDestinazione(m.medianFrameRate || m.averageFrameRate), vbr: false, motivo: 'frame rate variabile → costante' };
       return null;
     }
     if (a) {
       const codec = String((await a.getCodec()) ?? '');
-      if (!/^(mp3|opus|vorbis)$/.test(codec)) return null;
+      if (codec !== 'mp3') return null;
       const sink = new EncodedPacketSink(a);
       const grandezze: number[] = [];
       for await (const p of sink.packets(undefined, undefined, { metadataOnly: true })) {
         grandezze.push(p.byteLength);
         if (grandezze.length >= 400) break;
       }
-      const { cv, rapporto } = variazione(grandezze);
-      // l'MP3 a bitrate costante cambia di un byte (il "padding"): cv sotto 0,01. Opus e Vorbis sono variabili di natura.
-      if (cv > 0.08 && rapporto > 1.25) return { vfr: false, fps: 0, vbr: true, motivo: 'bitrate variabile → costante' };
+      // l'MP3 a bitrate costante cambia di un byte (il "padding"): cv sotto 0,01
+      if (mp3Variabile(grandezze)) return { vfr: false, fps: 0, vbr: true, motivo: 'bitrate variabile → costante' };
     }
     return null;
   } catch {
@@ -84,6 +88,27 @@ export async function esamina(sel: FileScelto): Promise<Verdetto | null> {
   } finally {
     input.dispose();
   }
+}
+
+/** il frame rate costante per un video variabile: quello comune subito sopra il più frequente (non si perde movimento) */
+export function fpsDestinazione(mediano: number): number {
+  return FPS_COMUNI.find((c) => c >= mediano * 0.98) ?? fpsPulito(mediano);
+}
+
+/** un video è "a velocità variabile" sul serio: abbastanza pacchetti, nessuna griglia sotto, distanze molto diverse */
+export function vfrVero(m: { underlyingFrameRate: number | null; frameRateIsConstant: boolean; probedPacketCount: number; maxFrameRate: number; minFrameRate: number; averageFrameRate?: number }): boolean {
+  if (m.frameRateIsConstant || m.underlyingFrameRate !== null || m.probedPacketCount < 30) return false;
+  // quasi costante: la media sta su un frame rate comune, i tempi ballano solo per l'arrotondamento al millisecondo del WebM
+  // (32/33/34 ms a 30 fps) e al massimo si perde un fotogramma di fila. È il caso delle webcam e delle registrazioni: va bene così
+  const comune = m.averageFrameRate ? FPS_COMUNI.find((c) => Math.abs(c - m.averageFrameRate!) / c < 0.03) : undefined;
+  if (comune && m.maxFrameRate <= comune * 1.15 && m.minFrameRate >= comune / 2.05) return false;
+  return m.maxFrameRate / Math.max(1e-6, m.minFrameRate) > 1.25;
+}
+
+/** un MP3 è a bitrate variabile: i pacchetti cambiano di grandezza ben oltre il byte del padding */
+export function mp3Variabile(grandezze: number[]): boolean {
+  const { cv, rapporto } = variazione(grandezze);
+  return cv > 0.08 && rapporto > 1.25;
 }
 
 /** una scrittura che accetta pezzi in qualunque posizione: su disco nell'app, in memoria nel browser */
@@ -141,8 +166,9 @@ async function convertiCon(sel: FileScelto, v: Verdetto, avanza: (k: number) => 
       const conv = await Conversion.init({
         input, output: out,
         ...(v.vfr ? { video: { frameRate: v.fps, ...(vc ? { codec: vc } : {}), bitrate: new Quality('high'), hardwareAcceleration: hw } } : { video: { discard: true } }),
-        // l'audio a bitrate costante (192 kbit/s); se è già adatto resta com'è
-        audio: { ...(ac ? { codec: ac } : {}), bitrate: new Quality({ quality: 'high', preferBitrate: true, bitrateMode: 'constant' }), ...(v.vbr ? { forceTranscode: true } : {}) },
+        // video da rifare: l'audio si copia così com'è (se il contenitore nuovo lo accetta; se no Mediabunny sceglie da solo un codec che va).
+        // MP3 variabile: si rifà a bitrate costante (192 kbit/s)
+        audio: v.vbr ? { ...(ac ? { codec: ac } : {}), bitrate: new Quality({ quality: 'high', preferBitrate: true, bitrateMode: 'constant' }), forceTranscode: true } : {},
       });
       if (!conv.isValid) throw new Error('questo file non si riesce a convertire');
       conv.onProgress = (k: number) => { avanza(k); if (segnale?.aborted) void conv.cancel(); };
