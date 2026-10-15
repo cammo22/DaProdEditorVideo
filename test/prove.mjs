@@ -332,6 +332,8 @@ try {
     await tasto('s');
     dd = await doc();
     prova('S separa il gruppo (audio e video vanno per conto loro)', !dd.clips.find((c) => c.id === v.id).link && !dd.clips.find((c) => c.id === a.id).link);
+    prova('dopo S che separa non resta niente di selezionato (si va a prendere subito la clip che serve)', (await page.evaluate(() => [...window.__dpv.sel])).length === 0);
+    await page.evaluate((ids) => window.__dpv.select(ids), [v.id, a.id]);
     await tasto('s');
     dd = await doc();
     const lv = dd.clips.find((c) => c.id === v.id).link;
