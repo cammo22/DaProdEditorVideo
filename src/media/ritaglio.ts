@@ -11,7 +11,7 @@ import { VideoSampleSink } from 'mediabunny';
 import type { Clip, Project, Ritaglio } from '../core/tipi';
 import { mediaOf } from '../core/progetto';
 import { fps } from '../core/timecode';
-import { firmaRitaglio, istantiCampioni, levigaMaschere, puoRitagliare, QUALITA_RITAGLIO, riquadroMaschera, trattoSorgente } from '../core/sfondo';
+import { firmaRitaglio, istantiCampioni, levigaMaschere, pulisciMaschera, puntiNucleo, puoRitagliare, QUALITA_RITAGLIO, riquadroMaschera, trattoSorgente, votoTemporale } from '../core/sfondo';
 import { mediaRT } from './libreria';
 import { misuraPer, pixelAl, type Pixel } from './campiona';
 import { impostaMaschere, potaMaschere, type Maschere } from './maschere';
@@ -203,9 +203,14 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
       for (let i = 1; i < px.length; i++) if (Math.abs(piano.t0 + i * piano.dt - tClic) < Math.abs(piano.t0 + i0 * piano.dt - tClic)) i0 = i;
       let fatti = 0;
       const tot = px.length;
+      const clic: [number, number][] = (r.punti ?? []).filter((q) => q.dentro).map((q) => [q.x, q.y]);
       const passo = async (i: number, prec: Uint8Array | null, ultimoBuono: [number, number, number, number] | null) => {
         const hint = r.segui !== false && prec ? (suggerimento(prec, w, h) ?? ultimoBuono) : null;
-        const m = await segmentatore.maschera(px[i], hint ? { riquadro: hint } : { punti: r.punti });
+        // dopo il primo fotogramma: il riquadro (dov'è) e qualche punto nel cuore della maschera di prima (quale)
+        const nucleo = hint && prec ? puntiNucleo(prec, w, h) : [];
+        const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}) } : { punti: r.punti });
+        // buchi riempiti e isole tolte: si tiene quello che tocca il fotogramma di prima (o i clic nel primo)
+        const m = pulisciMaschera(grezza, w, h, { vicino: hint ? prec : null, tieni: hint ? undefined : clic, soloConnessi: true });
         dati[i] = m;
         fatti++;
         avanza(0.15 + 0.85 * (fatti / tot), `Seguo l'oggetto: fotogramma ${fatti} di ${tot}`);
@@ -229,7 +234,8 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
       if (!px.length) return { ok: false, motivo: 'Non riesco a leggere la ripresa' };
       w = px[0].w; h = px[0].h;
       for (let i = 0; i < px.length && !ferma(); i++) {
-        dati[i] = await segmentatore.maschera(px[i]);
+        // il fotogramma di prima aiuta a tenere tutte le persone che c'erano e a buttare i pezzi che compaiono per sbaglio
+        dati[i] = pulisciMaschera(await segmentatore.maschera(px[i]), w, h, { vicino: i ? dati[i - 1] : null });
         avanza((i + 1) / px.length, `Tolgo lo sfondo: fotogramma ${i + 1} di ${px.length}`);
       }
     }
@@ -239,7 +245,8 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   if (ferma()) return { ok: false, motivo: 'Fermato' };
   const completi = dati.filter(Boolean);
   if (completi.length !== piano.n) return { ok: false, motivo: 'Qualche fotogramma non è venuto' };
-  if (!immagine) levigaMaschere(dati);
+  // un buco che c'è in un fotogramma solo si riempie (guardando prima e dopo), poi la levigatura dei bordi
+  if (!immagine) { votoTemporale(dati); levigaMaschere(dati); }
   const firma = firmaRitaglio(c.media, r);
   const m: Maschere = { firma, w, h, t0: piano.t0, dt: piano.dt, n: piano.n, hz: piano.hz, dati };
   impostaMaschere(m);
@@ -258,7 +265,8 @@ export async function provaRitaglio(p: Project, c: Clip, t: number, stato?: (fas
   const q = QUALITA_RITAGLIO[Math.max(0, Math.min(QUALITA_RITAGLIO.length - 1, r.qualita))];
   const px = await pixelAl(c.media, t, q.lato);
   if (!px) return null;
-  const mask = await segmentatore.maschera(px, r.modo === 'oggetti' ? { punti: r.punti } : undefined);
+  const grezza = await segmentatore.maschera(px, r.modo === 'oggetti' ? { punti: r.punti } : undefined);
+  const mask = pulisciMaschera(grezza, px.w, px.h, { tieni: r.modo === 'oggetti' ? (r.punti ?? []).filter((q) => q.dentro).map((q): [number, number] => [q.x, q.y]) : undefined, soloConnessi: r.modo === 'oggetti' });
   return { px, mask };
 }
 

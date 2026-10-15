@@ -156,3 +156,150 @@ export function trattoSorgente(c: Clip, r: number): { da: number; a: number } {
 
 /** il ritaglio vale per questa clip? (serve un video o un'immagine vera) */
 export const puoRitagliare = (m: MediaItem | undefined) => !!m && (m.type === 'image' || m.type === 'video') && m.width > 0;
+
+// ——— maschere più pulite: buchi, isole e fotogrammi che sbagliano da soli ———
+
+export interface OpzioniPulizia {
+  /** la maschera del fotogramma di prima: le parti che non la toccano sono quasi sempre un altro soggetto o un errore */
+  vicino?: Uint8Array | null;
+  /** punti (frazioni del quadro) che devono restare: i clic sull'oggetto */
+  tieni?: [number, number][];
+  /** i buchi dentro il soggetto più piccoli di questa parte del quadro si riempiono (di partenza il 2%) */
+  buchiMax?: number;
+  /** le isole più piccole di questa parte della più grande si tolgono, se non toccano il fotogramma di prima (di partenza il 12%) */
+  isoleMin?: number;
+  /** si tiene solo quello che tocca il fotogramma di prima o i clic (un oggetto scelto), non tutte le persone */
+  soloConnessi?: boolean;
+}
+
+/**
+ * Pulisce la maschera di un fotogramma: riempie i buchi dentro il soggetto (la camicia a pezzi, le macchie) e toglie le isole
+ * sparse che non c'entrano. Non tocca i bordi morbidi: cambia solo i pezzi interi.
+ */
+export function pulisciMaschera(m: Uint8Array, w: number, h: number, o: OpzioniPulizia = {}): Uint8Array {
+  const n = w * h;
+  const out = Uint8Array.from(m);
+  const fuori = new Int32Array(n).fill(-1);
+  const coda = new Int32Array(n);
+  /** riempie la componente che parte da `i` (4 vicini) con valori dove `dentro(valore)`; ritorna l'elenco dei pixel */
+  const componente = (i0: number, id: number, dentro: (k: number) => boolean): number => {
+    let testa = 0, fine = 0;
+    coda[fine++] = i0; fuori[i0] = id;
+    while (testa < fine) {
+      const k = coda[testa++];
+      const x = k % w, y = (k / w) | 0;
+      if (x > 0 && fuori[k - 1] < 0 && dentro(k - 1)) { fuori[k - 1] = id; coda[fine++] = k - 1; }
+      if (x < w - 1 && fuori[k + 1] < 0 && dentro(k + 1)) { fuori[k + 1] = id; coda[fine++] = k + 1; }
+      if (y > 0 && fuori[k - w] < 0 && dentro(k - w)) { fuori[k - w] = id; coda[fine++] = k - w; }
+      if (y < h - 1 && fuori[k + w] < 0 && dentro(k + w)) { fuori[k + w] = id; coda[fine++] = k + w; }
+    }
+    return fine;
+  };
+  // 1) il primo piano: le isole
+  const primo = (k: number) => m[k] >= 128;
+  const isole: { id: number; area: number; tocca: number; conClic: boolean; pixel: Int32Array }[] = [];
+  let id = 0;
+  for (let i = 0; i < n; i++) {
+    if (fuori[i] >= 0 || !primo(i)) continue;
+    const area = componente(i, id, primo);
+    const pixel = coda.slice(0, area);
+    let tocca = 0;
+    if (o.vicino) for (let j = 0; j < area; j++) if (o.vicino[pixel[j]] >= 128) tocca++;
+    let conClic = false;
+    for (const [fx, fy] of o.tieni ?? []) {
+      const px = Math.min(w - 1, Math.max(0, Math.round(fx * w))), py = Math.min(h - 1, Math.max(0, Math.round(fy * h)));
+      // il clic può cadere a un pixel dal bordo: si guarda anche il vicinato
+      for (let dy = -2; dy <= 2 && !conClic; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const X = px + dx, Y = py + dy;
+        if (X >= 0 && X < w && Y >= 0 && Y < h && fuori[Y * w + X] === id) { conClic = true; break; }
+      }
+    }
+    isole.push({ id, area, tocca, conClic, pixel });
+    id++;
+  }
+  if (isole.length) {
+    const grande = isole.reduce((a, b) => (b.area > a.area ? b : a));
+    const min = (o.isoleMin ?? 0.12) * grande.area;
+    const legata = (z: (typeof isole)[number]) => z.conClic || (!!o.vicino && z.tocca >= 0.3 * z.area);
+    const qualcunaLegata = isole.some(legata);
+    for (const z of isole) {
+      let tieni: boolean;
+      if (o.soloConnessi) tieni = qualcunaLegata ? legata(z) : z === grande;
+      else tieni = z === grande || legata(z) || z.area >= min;
+      if (!tieni) for (let j = 0; j < z.area; j++) out[z.pixel[j]] = 0;
+    }
+  }
+  // 2) lo sfondo: i buchi sono i pezzi che non toccano il bordo del quadro e sono piccoli
+  fuori.fill(-1);
+  const sfondo = (k: number) => out[k] < 128;
+  const limite = (o.buchiMax ?? 0.02) * n;
+  for (let i = 0; i < n; i++) {
+    if (fuori[i] >= 0 || !sfondo(i)) continue;
+    const area = componente(i, id++, sfondo);
+    let bordo = false;
+    for (let j = 0; j < area && !bordo; j++) { const k = coda[j], x = k % w, y = (k / w) | 0; if (x === 0 || y === 0 || x === w - 1 || y === h - 1) bordo = true; }
+    if (!bordo && area <= limite) for (let j = 0; j < area; j++) out[coda[j]] = 255;
+  }
+  return out;
+}
+
+/**
+ * Un buco che c'è in un fotogramma solo (davanti e dietro il pixel è pieno) si riempie. Solo questo verso: un pezzo che compare
+ * in un fotogramma solo potrebbe essere un oggetto veloce (una mano, una palla) e non va tolto, ci pensa la pulizia per fotogramma.
+ */
+export function votoTemporale(ms: Uint8Array[]): void {
+  if (ms.length < 3) return;
+  let prima = Uint8Array.from(ms[0]);
+  for (let i = 1; i < ms.length - 1; i++) {
+    const m = ms[i], dopo = ms[i + 1];
+    const mia = Uint8Array.from(m);
+    for (let k = 0; k < m.length; k++) {
+      if (mia[k] < 128 && prima[k] >= 128 && dopo[k] >= 128) m[k] = Math.min(prima[k], dopo[k]);
+    }
+    prima = mia;
+  }
+}
+
+/**
+ * Qualche punto "dentro" scelto nel cuore della maschera (lontano dai bordi): uno in generale e uno nella metà alta e uno nella
+ * metà bassa del riquadro. Sono i clic che il fotogramma dopo riceve insieme al riquadro, così il modello sa quale oggetto è
+ * anche quando nel riquadro c'è un'altra persona.
+ */
+export function puntiNucleo(m: Uint8Array, w: number, h: number): { x: number; y: number; dentro: true }[] {
+  const q = riquadroMaschera(m, w, h, 128);
+  if (!q) return [];
+  const n = w * h;
+  // distanza dal bordo (chamfer 3-4, due passaggi)
+  const d = new Uint16Array(n);
+  for (let k = 0; k < n; k++) d[k] = m[k] >= 128 ? 60000 : 0;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const k = y * w + x;
+    if (!d[k]) continue;
+    let v = d[k];
+    if (x === 0 || y === 0) v = Math.min(v, 3);
+    else v = Math.min(v, d[k - 1] + 3, d[k - w] + 3, d[k - w - 1] + 4, x < w - 1 ? d[k - w + 1] + 4 : 4);
+    d[k] = v;
+  }
+  for (let y = h - 1; y >= 0; y--) for (let x = w - 1; x >= 0; x--) {
+    const k = y * w + x;
+    if (!d[k]) continue;
+    let v = d[k];
+    if (x === w - 1 || y === h - 1) v = Math.min(v, 3);
+    else v = Math.min(v, d[k + 1] + 3, d[k + w] + 3, d[k + w + 1] + 4, x > 0 ? d[k + w - 1] + 4 : 4);
+    d[k] = v;
+  }
+  const migliore = (y0: number, y1: number): { x: number; y: number; v: number } | null => {
+    let best = -1, bk = -1;
+    for (let y = Math.max(0, y0); y < Math.min(h, y1); y++) for (let x = 0; x < w; x++) { const k = y * w + x; if (m[k] >= 128 && d[k] > best) { best = d[k]; bk = k; } }
+    return bk < 0 ? null : { x: ((bk % w) + 0.5) / w, y: (((bk / w) | 0) + 0.5) / h, v: best };
+  };
+  const ymin = Math.floor(q.y0 * h), ymax = Math.ceil(q.y1 * h), meta = (ymin + ymax) >> 1;
+  const out: { x: number; y: number; dentro: true }[] = [];
+  const tutti = migliore(ymin, ymax);
+  if (tutti) out.push({ x: tutti.x, y: tutti.y, dentro: true });
+  for (const p of [migliore(ymin, meta), migliore(meta, ymax)]) {
+    if (!p || p.v < 6) continue; // troppo vicino al bordo (meno di due pixel): non è "dentro" per davvero
+    if (out.every((o) => Math.hypot(o.x - p.x, (o.y - p.y) * (h / w)) > 0.06)) out.push({ x: p.x, y: p.y, dentro: true });
+  }
+  return out;
+}

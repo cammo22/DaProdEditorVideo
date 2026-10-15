@@ -153,6 +153,19 @@ function elaboraDopoClic(id: string) {
   }, 1800);
 }
 
+/** "AI · automatico": si sceglie il modo che fa tutto da solo e parte subito il lavoro su tutta la clip */
+export function avviaAI(ids: string[]) {
+  impostaModo(ids, 'soggetto');
+  for (const id of ids) void elaboraClip(id);
+}
+
+/** "Clicca su cosa tenere": se non è già il modo dei clic ci si passa (la persona o l'oggetto lo capisce da solo il modello), poi si clicca sul monitor */
+export function cliccaCosaTenere(id: string) {
+  const c = clipById(store.doc, id);
+  if (c?.ritaglio?.modo !== 'oggetti') impostaModo([id], 'oggetti');
+  scegliOggetto(id);
+}
+
 export function scegliOggetto(id: string) {
   const c = clipById(store.doc, id);
   if (!mioR(c) || c!.ritaglio!.modo !== 'oggetti') return;
