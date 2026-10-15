@@ -61,7 +61,7 @@ function lavoratore(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL('./ritaglio.worker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = (e: MessageEvent) => {
-    const m = e.data as { tipo: string; id?: number; dati?: Uint8Array; msg?: string; device?: string; repo?: string; file?: string; loaded?: number; total?: number };
+    const m = e.data as { tipo: string; id?: number; dati?: Uint8Array; msg?: string; device?: string; repo?: string; file?: string; loaded?: number; total?: number; schedaGuasta?: boolean };
     if (m.tipo === 'scarico' && caricamento) {
       scaricati.set(m.file!, [m.loaded!, m.total!]);
       let a = 0, b = 0;
@@ -72,7 +72,8 @@ function lavoratore(): Worker {
     else if (m.tipo === 'pronto') { caricamento?.ok((m.repo ? m.repo + ' · ' : '') + (m.device ?? '')); caricamento = null; }
     else if (m.tipo === 'maschera') { attese.get(m.id!)?.ok(m.dati!); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
-      const err = new Error(m.msg || 'errore del modello');
+      const err: Error & { schedaGuasta?: boolean } = new Error(m.msg || 'errore del modello');
+      err.schedaGuasta = m.schedaGuasta;
       if (m.id !== undefined && attese.has(m.id)) { attese.get(m.id)!.no(err); attese.delete(m.id); }
       else { caricamento?.no(err); caricamento = null; }
     }
@@ -87,19 +88,47 @@ function lavoratore(): Worker {
   return worker;
 }
 
-const conIlWorker: Segmentatore = {
-  carica: (m, stato) => new Promise((ok, no) => {
+/** l'ultimo modello caricato (per ricaricarlo se bisogna ripartire) */
+let ultimoCarico: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
+
+function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
+  return new Promise((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
     const hw = messaggioScheda();
-    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: hw.scheda, hw });
-  }),
-  maschera: (px, o) => new Promise((ok, no) => {
+    const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
+    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa });
+  });
+}
+
+/** un fotogramma al worker */
+function inviaMaschera(px: Pixel, o?: { punti?: NonNullable<Ritaglio['punti']>; riquadro?: [number, number, number, number] }): Promise<Uint8Array> {
+  return new Promise((ok, no) => {
     const id = ++seq;
     attese.set(id, { ok, no });
     const rgba = new Uint8ClampedArray(px.data);
     lavoratore().postMessage({ tipo: 'maschera', id, w: px.w, h: px.h, rgba, punti: o?.punti, riquadro: o?.riquadro }, [rgba.buffer]);
-  }),
+  });
+}
+
+const conIlWorker: Segmentatore = {
+  carica: (m, stato) => { ultimoCarico = { m, stato }; return caricaNelWorker(m, stato); },
+  maschera: async (px, o) => {
+    try {
+      return await inviaMaschera(px, o);
+    } catch (e) {
+      // la scheda video ha sbagliato: il worker si butta (la libreria dentro non risponde più nemmeno alle richieste nuove) e si
+      // riparte da uno nuovo sul processore, con lo stesso modello e lo stesso fotogramma
+      if (!(e as { schedaGuasta?: boolean }).schedaGuasta || !ultimoCarico) throw e;
+      ultimoCarico.stato('La scheda video si è fermata: continuo col processore (più lento)', 0);
+      worker?.terminate();
+      worker = null;
+      caricamento = null;
+      attese.clear();
+      await caricaNelWorker(ultimoCarico.m, ultimoCarico.stato, true);
+      return inviaMaschera(px, o);
+    }
+  },
 };
 
 let segmentatore: Segmentatore = conIlWorker;

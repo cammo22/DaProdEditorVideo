@@ -562,12 +562,45 @@ export class Live {
   }
 
   // ——— webcam e microfono ———
+  /** la webcam vera: prima con la scelta fatta (HD), poi senza la scelta (un'altra webcam o l'indirizzo cambiato, per esempio dopo aver cambiato scheda o con OBS), poi con le richieste più semplici */
+  private async apriWebcamVera(): Promise<MediaStream> {
+    const id = this.opz.camId;
+    const prove: MediaStreamConstraints[] = [
+      ...(id ? [{ video: { deviceId: { exact: id }, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } }] : []),
+      { video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } } },
+      { video: true },
+    ];
+    let ultimo: unknown = null;
+    for (const [i, c] of prove.entries()) {
+      try {
+        const s = await navigator.mediaDevices.getUserMedia(c);
+        // la webcam di prima non c'è più: si dimentica
+        if (id && i > 0) { this.opz.camId = ''; this.salvaOpzioni(); }
+        return s;
+      } catch (e) {
+        ultimo = e;
+        // un permesso negato non cambia riprovando
+        if (e instanceof DOMException && e.name === 'NotAllowedError') break;
+      }
+    }
+    throw ultimo;
+  }
+
+  /** l'errore della webcam in parole: cosa è successo e cosa fare, più il nome tecnico (per chi ti aiuta) */
+  private frasiWebcam(e: unknown): string {
+    const nome = e instanceof DOMException ? e.name : e instanceof Error ? e.name : '';
+    const msg = e instanceof Error ? e.message : String(e ?? '');
+    const frase = nome === 'NotAllowedError' ? 'il permesso per la webcam è negato (Windows: Impostazioni → Privacy → Fotocamera, e consenti anche alle app desktop)'
+      : nome === 'NotFoundError' || nome === 'OverconstrainedError' ? 'non trovo nessuna webcam (scollegata, o spenta da Windows)'
+      : nome === 'NotReadableError' || nome === 'AbortError' || /could not start|in use|occupat/i.test(msg) ? 'la webcam è usata da un altro programma (OBS, Teams, Zoom, il browser…) o non riesce ad avviarsi: chiudi gli altri programmi che la usano e riprova'
+      : 'la webcam non parte';
+    return `${frase} [${nome || 'errore'}${msg ? ': ' + msg.slice(0, 90) : ''}]`;
+  }
+
   private async apriCam(): Promise<MediaStream | null> {
     if (this.cam) return this.cam;
     try {
-      const s = webcamProva ? await webcamProva() : await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: this.opz.camId ? { exact: this.opz.camId } : undefined, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-      });
+      const s = webcamProva ? await webcamProva() : await this.apriWebcamVera();
       // nel frattempo l'hanno spenta
       if (!this.opz.cam) { for (const t of s.getTracks()) t.stop(); return null; }
       this.cam = s;
@@ -575,13 +608,27 @@ export class Live {
       void this.camVideo.play().catch(() => {});
       this.el.classList.add('con-cam');
       void this.aggiornaDispositivi();
+      // arrivano immagini? Una webcam "aperta" che non manda niente (driver, scheda video, programma che la blocca) si dice subito
+      if (!webcamProva) void this.controllaImmaginiCam(s);
       return s;
-    } catch {
-      avviso('La webcam non si apre (è usata da un altro programma o manca il permesso)', 'info', 3200);
+    } catch (e) {
+      avviso('La webcam non si apre: ' + this.frasiWebcam(e), 'errore', 11000);
       this.opz.cam = false;
       this.sinc.forEach((f) => f());
       return null;
     }
+  }
+
+  /** dopo qualche secondo: la webcam aperta ha mandato almeno un'immagine? */
+  private async controllaImmaginiCam(s: MediaStream) {
+    for (let i = 0; i < 40; i++) {
+      if (this.cam !== s) return;
+      if (this.camVideo.videoWidth > 0 && this.camVideo.readyState >= 2) return;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    if (this.cam !== s) return;
+    const t = s.getVideoTracks()[0];
+    avviso(`La webcam è aperta ma non manda immagini${t?.label ? ` (${t.label})` : ''}: prova un'altra webcam dal menu accanto, o chiudi gli altri programmi che la usano (OBS, Teams…)`, 'errore', 11000);
   }
 
   private chiudiCam() {

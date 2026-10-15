@@ -271,6 +271,51 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       prova('Traduzione: stessa cosa (q8 manca → fp32), le righe vuote restano vuote', trad.testi?.[0] === '[eng_Latn] Buongiorno' && trad.testi?.[1] === '' && trad.testi?.[2] === '[eng_Latn] Grazie', JSON.stringify(trad));
       await page.context().unroute('**/ai/transformers.min.js');
       await page.context().unroute('https://cdn.jsdelivr.net/npm/@huggingface/transformers@*/dist/transformers.min.js');
+
+      // ——— lo sfondo AI su una scheda video che sbaglia (la "LayerNorm" non compilata): il worker vero deve ripiegare sul processore ———
+      console.log('▶ AI: lo sfondo con una scheda video che sbaglia a metà lavoro (worker vero, libreria finta)');
+      const LIB_SFONDO = `
+export const env = { allowLocalModels: true, backends: { onnx: { wasm: {} } } };
+self.__dev = [];
+export class RawImage { constructor(d, w, h, c) { this.data = d; this.width = w; this.height = h; this.channels = c; } }
+// come transformers.js vero: le inferenze passano da una catena di promesse; dopo un errore la catena resta rifiutata e rifiuta anche
+// le richieste nuove con lo stesso errore (per questo il worker dopo un errore della scheda si butta)
+let catena = Promise.resolve();
+export async function pipeline(task, repo, opz) {
+  self.__dev.push(opz.device);
+  return (img) => { const run = async () => lavora(img, opz); return (catena = catena.then(run)); };
+}
+async function lavora(img, opz) {
+  {
+    if (opz.device === 'webgpu') throw new Error('failed to call OrtRun(). ERROR_CODE: 1, ERROR_MESSAGE: webgpu buffer_manager.cc:562 Create FAIL : Failed to create a WebGPU compute pipeline: [Invalid ShaderModule "LayerNorm"] is invalid due to a previous error. - While validating compute stage ([Invalid ShaderModule "LayerNorm"], entryPoint: "main").');
+    const n = img.width * img.height, d = new Uint8ClampedArray(n * 4);
+    for (let i = 0; i < n; i++) { const x = i % img.width, y = Math.floor(i / img.width); d[i * 4 + 3] = x > img.width / 4 && x < img.width * 3 / 4 && y > img.height / 4 && y < img.height * 3 / 4 ? 255 : 0; }
+    return { data: d, width: img.width, height: img.height, channels: 4 };
+  }
+}
+`;
+      const fintaSfondo = (r) => r.fulfill({ status: 200, contentType: 'text/javascript', headers: { 'access-control-allow-origin': '*' }, body: LIB_SFONDO });
+      await page.context().route('**/ai/transformers.min.js', fintaSfondo);
+      await page.context().route('https://cdn.jsdelivr.net/npm/@huggingface/transformers@*/dist/transformers.min.js', fintaSfondo);
+      const sfondo = await page.evaluate(async () => {
+        const { P, importaFile, ripresaDiProva, RT, HW } = window.__dpvTest;
+        const p = P.newProject({ w: 640, h: 360, rate: { num: 25, den: 1 }, drop: false });
+        window.__dpv.load(p);
+        const b = await ripresaDiProva(2, 25);
+        const [m] = await importaFile([{ name: 'Prova.webm', file: new File([await b.arrayBuffer()], 'Prova.webm', { type: 'video/webm' }) }], { chiediFormato: false });
+        let c;
+        window.__dpv.edit('clip', (pp) => { const v = pp.tracks.find((t) => t.kind === 'video').id; c = P.newClip('media', v, 0, 50, { media: m.id, name: 'Prova' }); c.ritaglio = { modo: 'soggetto', modello: 'ben2', bordo: 0, morbido: 0.3, qualita: 0 }; pp.clips.push(c); });
+        HW.impostaSchedaFinta(true);
+        const fasi = [];
+        try {
+          const r = await RT.provaRitaglio(window.__dpv.doc, window.__dpv.doc.clips[0], 0.5, (f) => fasi.push(f));
+          const px = r?.mask ? Array.from(r.mask).filter((v) => v > 127).length : 0;
+          return { ok: !!r, pieni: px, tot: r?.mask?.length ?? 0, fasi: fasi.slice(-4) };
+        } catch (e) { return { errore: e.message, fasi }; } finally { HW.impostaSchedaFinta(false); }
+      });
+      prova('sfondo AI: la scheda video sbaglia ("Invalid ShaderModule LayerNorm"), il worker si butta, riparte sul processore (anche se la libreria resta avvelenata) e la maschera arriva lo stesso', sfondo.ok && sfondo.pieni > 0 && sfondo.pieni < sfondo.tot, JSON.stringify(sfondo));
+      await page.context().unroute('**/ai/transformers.min.js');
+      await page.context().unroute('https://cdn.jsdelivr.net/npm/@huggingface/transformers@*/dist/transformers.min.js');
       prova('nessun errore nelle prove delle AI', errori.length === 0, errori.slice(0, 5).join(' | '));
     } finally {
       await contesto.close();

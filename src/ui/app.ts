@@ -187,8 +187,10 @@ export function avvia(radice: HTMLElement) {
     ? ['--fin', Math.max(300, Math.min(innerWidth * 0.72, r0.width - dx))]
     : ['--lato', Math.max(230, Math.min(innerWidth * 0.45, r0.width - dx))], () => (radice.dataset.pagina === 'finale' ? finale.el : pannelloLato).getBoundingClientRect(), 'senza-lato');
   disp.bordo(divisore, (_dx, dy, r0) => radice.dataset.pagina === 'finale'
-    ? ['--tlfin', Math.max(90, Math.min(innerHeight - 220, r0.height - dy))]
-    : ['--alto', Math.max(160, Math.min(innerHeight - 220, r0.height + dy))], () => (radice.dataset.pagina === 'finale' ? tl.el : monitor.el).getBoundingClientRect());
+    ? ['--tlpag', Math.max(90, Math.min(innerHeight - 220, r0.height - dy))]
+    : radice.dataset.pagina === 'live'
+      ? ['--tlfin', Math.max(90, Math.min(innerHeight - 220, r0.height - dy))]
+      : ['--alto', Math.max(160, Math.min(innerHeight - 220, r0.height + dy))], () => (radice.dataset.pagina === 'finale' || radice.dataset.pagina === 'live' ? tl.el : monitor.el).getBoundingClientRect());
 
   /** tasto V: la timeline si stringe e la colonna di destra (VU, proprietà, mixer) scende fino in fondo, o torna larga */
   const vistaStretta = () => {

@@ -29,6 +29,9 @@
   --bin: clamp(300px, calc(100vw - var(--lato) - 640px), 50vw);
   --fin: clamp(420px, 55vw, calc(100vw - 480px));
   --tlfin: 27vh;
+  /* la timeline nella pagina Finale: piccola, perché lì conta la schermata dei ritocchi */
+  --tlpag: clamp(110px, 17vh, 170px);
+  --livecol: clamp(380px, 30vw, 600px);
   --tc: 'DSEG7', 'Share Tech Mono', monospace;
   --ui: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
   --marchio: 'Orbitron', 'Arial Black', sans-serif;
@@ -85,7 +88,7 @@ button svg { pointer-events: none; }
 /* la pagina Finale: monitor grande, i ritocchi a destra, la timeline sotto */
 #app[data-pagina='finale'] {
   grid-template-columns: minmax(0, 1fr) 6px var(--fin);
-  grid-template-rows: 44px minmax(0, 1fr) 7px var(--tlfin) 22px;
+  grid-template-rows: 44px minmax(0, 1fr) 7px var(--tlpag) 22px;
   grid-template-areas: 'testa testa testa' 'monitor blato fin' 'div div div' 'tl tl tl' 'stato stato stato';
 }
 #app[data-pagina='finale'] .contenitore, #app[data-pagina='finale'] .lato, #app[data-pagina='finale'] .bordo-bin, #app[data-pagina='finale'] .pulsantiera { display: none; }
@@ -99,6 +102,17 @@ button svg { pointer-events: none; }
 #app[data-pagina='live'] .pulsantiera, #app[data-pagina='live'] .monitor, #app[data-pagina='live'] .finale { display: none !important; }
 #app .live { grid-area: live; display: none; }
 #app[data-pagina='live'] .live { display: flex; }
+/* i comandi di LIVE restano sempre in vista, a tutta altezza (come le proprietà col tasto V): la colonna scende accanto alla timeline;
+   la testata e lo schermo stanno a sinistra, sopra la timeline. Con la finestra stretta resta la disposizione a colonna sola. */
+#app[data-pagina='live']:not(.stretto) {
+  grid-template-columns: minmax(0, 1fr) var(--livecol);
+  grid-template-rows: 44px auto minmax(0, 1fr) 7px var(--tlfin) 22px;
+  grid-template-areas: 'testa testa' 'liveh comandi' 'schermo comandi' 'div comandi' 'tl comandi' 'stato stato';
+}
+#app[data-pagina='live']:not(.stretto) .live, #app[data-pagina='live']:not(.stretto) .live-dentro { display: contents; }
+#app[data-pagina='live']:not(.stretto) .live .fin-testa { grid-area: liveh; overflow: hidden; }
+#app[data-pagina='live']:not(.stretto) .live-schermo { grid-area: schermo; margin: 10px; }
+#app[data-pagina='live']:not(.stretto) .live-comandi { grid-area: comandi; padding: 10px 8px 10px 10px; background: var(--pann); border-left: 1px solid #000; box-shadow: inset 1px 0 0 var(--bordo); }
 /* la pagina DaProdMontage: tre colonne (file, stile, scelte), la timeline resta sotto per vedere il risultato */
 #app[data-pagina='montage']:not(.nessuna) {
   grid-template-columns: minmax(0, 1fr);
@@ -962,7 +976,7 @@ button svg { pointer-events: none; }
 .live-vuoto.via { display: none; }
 .live-vuoto:not(.via) + .live-video { display: none; }
 /* la webcam nel suo angolo, come verrà in timeline */
-.live-cam { position: absolute; display: none; width: 24%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.85); background: #111; }
+.live-cam { position: absolute; z-index: 3; pointer-events: none; display: none; width: 24%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; box-shadow: 0 8px 26px rgba(0, 0, 0, 0.6), 0 0 0 2px rgba(255, 255, 255, 0.85); background: #111; }
 .live-cam.tonda { width: auto; height: 30%; aspect-ratio: 1; border-radius: 50%; }
 .live.con-cam .live-cam { display: block; }
 .live-cam[data-angolo='bd'] { right: 4%; bottom: 5%; }

@@ -25,7 +25,7 @@ export function modoSfondo(c: Clip): ModoSfondo {
 export const SPIEGA_MODO: Record<'soggetto' | 'persona' | 'oggetti', string> = {
   soggetto: 'Fa tutto da solo: trova chi o cosa sta davanti (una persona, un oggetto, un animale) e toglie il resto. Non devi cliccare niente.',
   persona: 'Fa tutto da solo ma cerca solo le persone: capelli e bordi più puliti, e tiene tutte le persone che vede. Veloce anche senza scheda video.',
-  oggetti: 'Scegli tu: clicchi sulla persona o sull\'oggetto che vuoi tenere (anche più clic) e il programma lo segue da solo per tutta la clip. Serve quando ci sono più persone o più cose e ne vuoi una sola.',
+  oggetti: 'Scegli tu: clicchi sulla persona o sull\'oggetto che vuoi tenere (anche più clic) e il programma lo segue da solo per tutta la clip. Serve quando ci sono più persone o più cose e ne vuoi una sola. Clic sinistro aggiunge un punto, clic destro sopra un punto lo toglie.',
 };
 
 export const NOMI_MODO: Record<ModoSfondo, string> = {
@@ -171,7 +171,7 @@ export function scegliOggetto(id: string) {
   if (!mioR(c) || c!.ritaglio!.modo !== 'oggetti') return;
   const sc: SceltaImmagine = {
     id, continua: true,
-    testo: '🖱 Clicca la persona o l\'oggetto da tenere (verde) · Alt+clic = questa parte NON si tiene (rosso)',
+    testo: '🖱 Clic sinistro = aggiungi un punto sulla persona o sull\'oggetto da tenere (verde) · clic destro = togli un punto · Alt+clic = questa parte NON si tiene (rosso)',
     punti: () => clipById(store.doc, id)?.ritaglio?.punti ?? [],
     clic: (x, y, alt) => {
       store.edit('Clic sull\'oggetto', (pp) => {
@@ -184,8 +184,22 @@ export function scegliOggetto(id: string) {
       });
       ritardaProva(id);
     },
+    // tasto destro: toglie il punto più vicino (entro un po' di spazio da dove hai cliccato)
+    destro: (x, y) => {
+      const pt = clipById(store.doc, id)?.ritaglio?.punti ?? [];
+      const i = puntoVicino(pt, x, y);
+      if (i < 0) { avviso('Qui non c\'è nessun punto da togliere: clic sinistro ne aggiunge uno, clic destro sopra un punto lo toglie', 'info', 2600); return; }
+      togliPunto(id, i);
+    },
   };
   document.dispatchEvent(new CustomEvent('dpv:scegli', { detail: sc }));
+}
+
+/** il punto più vicino a (x, y) (frazioni dell'immagine), o -1 se nessuno è entro il raggio */
+export function puntoVicino(punti: { x: number; y: number }[], x: number, y: number, raggio = 0.05): number {
+  let best = -1, d0 = raggio;
+  punti.forEach((p, i) => { const d = Math.hypot(p.x - x, p.y - y); if (d <= d0) { d0 = d; best = i; } });
+  return best;
 }
 
 export function togliPunto(id: string, i: number) {

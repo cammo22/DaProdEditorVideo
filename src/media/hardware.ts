@@ -165,9 +165,16 @@ export function rilevaHardware(forza = false): Promise<Hardware> {
 export const hardwareNoto = () => leggi();
 
 /** cosa dire ai worker: scheda sì/no, quale (alte prestazioni o basso consumo), se sa i mezzi float */
-export function messaggioScheda(): { scheda: boolean; potenza: Potenza; f16: boolean } {
+let schedaFintaProva = false;
+/** per le prove: i worker fingono di avere una scheda video */
+export const impostaSchedaFinta = (on: boolean) => { schedaFintaProva = on; };
+
+export function messaggioScheda(): { scheda: boolean; potenza: Potenza; f16: boolean; finta?: boolean } {
+  if (schedaFintaProva) return { scheda: true, potenza: '', f16: true, finta: true };
   if (!usaSchedaAI()) return { scheda: false, potenza: '', f16: false };
   const h = leggi();
+  // senza un rilevamento (o con una sola scheda rimasta) dopo un errore della scheda in questa sessione si lavora col processore
+  if (guastaInSessione && (!h || h.scelta < 0)) return { scheda: false, potenza: '', f16: false };
   // mai rilevato (o in corso): si lascia scegliere al sistema, come prima
   if (!h) return { scheda: true, potenza: '', f16: true };
   if (!h.gpuApi || h.scelta < 0) return { scheda: false, potenza: '', f16: false };
@@ -176,7 +183,9 @@ export function messaggioScheda(): { scheda: boolean; potenza: Potenza; f16: boo
 }
 
 /** una scheda ha sbagliato a metà lavoro: non si usa più, e la prossima volta tocca all'altra (o al processore) */
+let guastaInSessione = false;
 export function schedaGuasta() {
+  guastaInSessione = true;
   const h = leggi();
   if (!h || h.scelta < 0) return;
   h.schede[h.scelta].guasta = true;

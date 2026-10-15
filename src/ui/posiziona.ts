@@ -111,6 +111,8 @@ export interface SceltaImmagine {
   clic: (x: number, y: number, alt: boolean) => void;
   /** i punti da disegnare sopra l'immagine (dentro = verde, fuori = rosso) */
   punti?: () => { x: number; y: number; dentro: boolean }[];
+  /** tasto destro: toglie il punto più vicino a dove hai cliccato (frazioni 0..1) */
+  destro?: (x: number, y: number) => void;
   /** resta aperta dopo il primo clic */
   continua: boolean;
 }
@@ -164,6 +166,8 @@ export class Posiziona {
     this.barra = h('div', { class: 'pos-barra' }, this.nome, this.bMoto, this.bInizio, this.tappeEl, this.bFine, this.bPiu, this.bMeno, this.bRitaglia, this.bSegui, this.bAdatta, this.bMira, this.bScelta);
     schermo.append(this.barra);
     schermo.addEventListener('pointerdown', (e) => this.giu(e));
+    // durante la scelta dei punti il tasto destro toglie un punto: niente menu del sistema
+    schermo.addEventListener('contextmenu', (e) => { if (this.scelta) e.preventDefault(); });
     schermo.addEventListener('pointermove', (e) => { if (!this.trascina) this.cursore(e); });
     store.on('sel', () => {
       if (this.mira && !store.sel.has(this.mira.id)) this.mira = null;
@@ -499,6 +503,7 @@ export class Posiziona {
   }
 
   private giu(e: PointerEvent) {
+    if (e.button === 2 && this.scelta && motore.attivo === 'recorder') { const { x, y } = this.punto(e); this.destroScelta(e, x, y); return; }
     if (e.button !== 0 || motore.attivo !== 'recorder') return;
     if ((e.target as HTMLElement).closest('.pos-barra, .mini-tl')) return;
     const { x, y } = this.punto(e);
@@ -767,6 +772,19 @@ export class Posiziona {
     if (!q || q.x < 0 || q.x > 1 || q.y < 0 || q.y > 1) { avviso('Clicca sull\'immagine della clip', 'info', 1800); return; }
     sc.clic(q.x, q.y, e.altKey);
     if (!sc.continua) this.scelta = null;
+    this.ridisegna();
+  }
+
+  /** tasto destro durante la scelta: toglie il punto lì sotto (se la scelta lo sa fare) */
+  private destroScelta(e: PointerEvent, x: number, y: number) {
+    const sc = this.scelta!;
+    const p = store.doc, c = p.clips.find((z) => z.id === sc.id);
+    if (!c || !sc.destro) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const q = immagineDa(p, c, Math.floor(store.head + 1e-6), x, y);
+    if (!q) return;
+    sc.destro(q.x, q.y);
     this.ridisegna();
   }
 
