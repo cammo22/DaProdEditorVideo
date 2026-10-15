@@ -71,6 +71,7 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       voce('istantanea'), voce('fermoImmagine'), { sep: true },
       voce('modoInserisci', { spunta: modi.inserisci, nome: 'Modo inserisci' }), voce('ripple', { spunta: modi.ripple }), voce('snap', { spunta: modi.snap }), voce('elastico', { spunta: modi.elastico }),
       { sep: true }, voce('tracciaV'), voce('tracciaA'),
+      { sep: true }, voce('audioTogliRumore'), voce('audioSeparaVoce'),
     ]],
     ['Generatori', () => [
       voce('genBarre'), voce('genCountdown'), voce('genNero'), voce('genColore'), voce('genTitolo'), { sep: true },

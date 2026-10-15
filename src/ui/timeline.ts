@@ -22,6 +22,7 @@ import { attivaDi, eliminaSequenza, nuovaSequenza, passaA, rinominaSequenza, seq
 import { EFFETTI_AUDIO, EFFETTI_VIDEO, adatte, alternaEffetto, effettiAccesi, effetto } from '../effetti';
 import { ascoltaSuono, banco } from '../media/audio';
 import { avviso, chiedi, clamp, h, icona, menuContesto, type VoceMenu } from './dom';
+import { vociMenuAudioAI } from './audioAI';
 import { etichettaVelocita, finestraVelocita, impostaVelocita } from './velocita';
 import { registraBersaglio } from './trascina';
 import { EFFETTI as DVE, TENDINE, nomeModello } from '../render/transizioni';
@@ -2297,6 +2298,7 @@ export class Timeline {
           { nome: 'Volume normale (togli i punti)', disattiva: !clip.gainKeys.length && clip.gain === 0, fn: () => store.edit('Volume normale', (p) => { const cc = clipById(p, clip.id)!; cc.gainKeys = []; cc.gain = 0; }) });
       }
       voci.push(
+        ...(vociMenuAudioAI(c.clip).length ? [{ sep: true } as VoceMenu, ...vociMenuAudioAI(c.clip)] : []),
         {
           nome: 'Colore etichetta', sotto: ETICHETTE.map((col, i) => ({ nome: ['Nessuno', 'Verde', 'Giallo', 'Arancio', 'Rosso', 'Viola', 'Ciano', 'Grigio'][i], spunta: c.clip!.label === i, fn: () => store.edit('Etichetta', (p) => { for (const z of p.clips) if (store.sel.has(z.id)) z.label = i; }) })),
         },

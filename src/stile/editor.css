@@ -1390,3 +1390,16 @@ html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo
 @keyframes rp-carica { to { stroke-dashoffset: 0; } }
 @keyframes rp-pronto { from { transform: scale(0.3); transform-origin: 50% 50%; } to { transform: scale(1); transform-origin: 50% 50%; } }
 @media (prefers-reduced-motion: reduce) { .rotella-pallino.carica .rp-anello { animation-duration: 0.01ms; } }
+
+/* l'audio con l'AI: due schede grandi con pulsanti grandi */
+.aai-scheda { background: #23212b; border: 1px solid #000; border-radius: 9px; padding: 9px 10px; margin-bottom: 8px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
+.aai-testa { display: flex; gap: 9px; align-items: flex-start; margin-bottom: 8px; }
+.aai-testa i { font-style: normal; font-size: 26px; line-height: 1; }
+.aai-testa b { display: block; color: var(--testo); font: 800 13px var(--ui); }
+.aai-testa span { display: block; color: var(--testo2); font-size: 11.5px; line-height: 1.3; margin-top: 2px; }
+.aai-bottoni { display: flex; gap: 5px; flex-wrap: wrap; }
+.aai-bottone { flex: 1 1 0; min-width: 70px; padding: 8px 6px; border-radius: 7px; border: 1px solid #000; background: #2e2c37; color: var(--testo); font: 800 12px var(--ui); cursor: pointer; }
+.aai-bottone:hover:not(:disabled) { background: #3a3846; }
+.aai-bottone.primario { background: linear-gradient(180deg, #ffe07a, #e0a200); color: #1a1206; }
+.aai-bottone:disabled { opacity: 0.45; cursor: not-allowed; }
+.spunta-riga { display: flex; gap: 8px; align-items: center; }

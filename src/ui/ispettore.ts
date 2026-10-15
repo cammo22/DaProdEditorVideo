@@ -24,6 +24,8 @@ import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritagl
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
 import { cosaCiMetto } from './seguiMenu';
+import { righeAudioAI } from './audioAI';
+import { possibilita as audioAIPossibile } from '../media/audioAI';
 import type { ModoSfondo } from './sfondo';
 import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, avviaAI, cliccaCosaTenere, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
@@ -71,7 +73,7 @@ export class Ispettore {
   private costruisci() {
     const cs = this.sel();
     // si ricostruisce se cambia la scelta o se cambiano i blocchi FX (le transizioni della clip scelta)
-    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : ''))
+    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.afx?.pulito ? 'p' + c.afx.pulito.forza : '') + (c.afx?.separata?.ruolo ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : ''))
       .join(',') + '|' + store.doc.clips.filter((c) => c.kind === 'fx').map((c) => c.id + c.start + ':' + c.len + (c.fxb?.id ?? '')).join(',');
     if (firma === this.firma && this.campi.length) { for (const c of this.campi) c.aggiorna(); return; }
     this.firma = firma;
@@ -207,6 +209,9 @@ export class Ispettore {
       ], true));
       out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti rapidi', [chips(EFFETTI_AUDIO, audio)]));
     }
+    // l'audio con l'AI: togliere i rumori e separare voce e base. Per l'audio sta aperto (è quello che si cerca); per una ripresa con audio sta chiuso
+    const conAudio = audio.find((c) => c.kind === 'media') ?? video.find((c) => c.kind === 'media' && audioAIPossibile(c).rumore);
+    if (conAudio) out.push(this.gruppo('audioai', 'Audio: pulisci e separa (AI)', righeAudioAI(conAudio), audio.length > 0));
     out.push(this.gruppo('durata', 'Durata e velocità', [this.durata(cs.filter((c) => c.kind !== 'fx'))]));
     if (video.length) out.push(this.transizioniClip(video[0]));
     const gen = cs.filter((c) => c.kind === 'color' || c.kind === 'bars' || c.kind === 'tone' || c.kind === 'beep');
