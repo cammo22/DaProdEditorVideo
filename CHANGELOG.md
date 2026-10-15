@@ -4,6 +4,33 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.4.2] — 2026-10-15 · Il tracking che si completa, la rotella con la pausa, lo sfondo che segue 🎯
+
+### Segui un oggetto: e poi?
+- **Finito il tracking, il pannello Proprietà si apre da solo sulla sezione "Segui un oggetto"** e offre tutto quello che si può mettere sopra, con tessere grandi: **Testo** (un titolo sopra l'oggetto, da scrivere), **Nome sopra** ed **Etichetta**, **Mirino, Cerchio, Freccia, Onde**, **Immagine** (una del progetto o un file nuovo), **Emoji**, e gli effetti che lavorano sull'oggetto: **Lente, Zoom, Vortice, Occhio di pesce**. Ognuno segue l'oggetto per tutta la ripresa; si cambia dalle sue Proprietà e si sposta rispetto all'oggetto trascinandolo sul monitor.
+- **I segnalini che seguono non stanno più nella libreria delle Animazioni** (né nel menu né nella ricerca): si mettono solo da qui, dove hanno senso.
+
+### Togli lo sfondo con l'AI: un clic e segue per tutta la clip
+- Con **"Clicca tu"** (prima "Oggetti"), dopo l'ultimo clic sulla persona o sull'oggetto parte **da solo il lavoro su tutta la clip**: prima restava la prova su un solo fotogramma finché non si premeva un altro pulsante. Un clic nuovo ferma il lavoro e lo rifà coi clic aggiornati.
+- **I modi sono spiegati**: *Automatico* (trova da solo chi sta davanti), *Persone (da solo)* (cerca solo le persone, bordi e capelli più puliti, tiene tutte quelle che vede), *Clicca tu* (scegli persona o oggetto con i clic e lo segue). Dai modi automatici un pulsante porta subito a "Clicca tu".
+
+### La rotella non cambia più i valori per sbaglio
+- Un cursore, un numero o una tendina risponde alla rotella **solo dopo che il puntatore è rimasto fermo sopra per 1,5 secondi**: mentre aspetti compare vicino al puntatore un anello che si carica, poi un punto dorato = pronto. Prima, e se muovi il mouse, la rotella fa scorrere il pannello come sempre.
+
+### Il taglio
+- **Dopo il taglio (1) e dopo Separa (S) non resta niente selezionato**: puoi cliccare subito la clip che vuoi. Il **2 subito dopo il taglio toglie ancora il pezzo più corto** (lo scarto), come prima.
+
+### Proprietà
+- **Effetti e look in miniature quadrate**, col nome sopra l'immagine e i filtri in cima (Colore, Atmosfera, Vintage, Altro): niente più muro di testo.
+
+### Centro attività e finestre
+- **A lavoro finito non gira più nessun timer**: il conteggio dei secondi parte solo mentre c'è qualcosa in corso, e l'elenco delle finite non si ridisegna ogni secondo. Le attività finite dicono **quanto ci hanno messo** ("ci ha messo 4 min 45 s") e **a che ora** hanno finito, scritti una volta, senza il "x fa" che cammina.
+- **La finestra "Impostazioni del progetto" non esce più dallo schermo**: le tendine stanno dentro la colonna (niente scroll orizzontale), e la finestra è un po' più larga.
+
+### Per chi ha curiosità
+- Nuovi: `src/ui/seguiMenu.ts` (tutto quello che si mette sull'oggetto), `Pallino` e attesa in `src/ui/rotella.ts` (`dpv-rotella-attesa` in localStorage la cambia, le prove la mettono a 0), filtri in `src/ui/tessere.ts`, `GRUPPI_LIBRERIA`/`ANIM_LIBRERIA` in `src/core/animazioni.ts`.
+- Non provati con i modelli veri: il tracciamento dell'AI di "Clicca tu" su riprese vere (le prove usano un segmentatore finto).
+
 ## [1.4.1] — 2026-10-14 · LIVE: si vedono e si bilanciano i suoni, con i filtri per la voce 🎙️
 
 ### Livelli e mixer
