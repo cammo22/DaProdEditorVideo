@@ -80,6 +80,11 @@ async function potaDeposito() {
   for (const dep of ['file', 'maniglie'] as const) for (const k of await chiaviIdb(dep)) if (!tieni.has(k)) void idb(dep, 'delete', k);
 }
 
+/** un file fatto dal programma (l'audio pulito, le tracce separate): nel browser si tiene dentro il browser, così alla prossima apertura il progetto lo ritrova (se non è enorme) */
+export function conservaFileNelBrowser(id: string, file: File) {
+  if (!isTauri && file.size <= FILE_LOCALE_MAX) void idb('file', 'put', id, file);
+}
+
 type Maniglia = FileSystemFileHandle & { queryPermission?: (o: object) => Promise<string>; requestPermission?: (o: object) => Promise<string> };
 
 // ——— importazione ———

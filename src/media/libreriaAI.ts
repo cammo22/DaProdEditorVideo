@@ -14,6 +14,14 @@ import { erroreDellaScheda, erroreFileMancante, testoErrore } from './erroriAI';
 export const VERSIONE_LIBRERIA = '4.3.1';
 export const CDN_LIBRERIA = `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${VERSIONE_LIBRERIA}/dist/transformers.min.js`;
 
+/** ONNX Runtime con le sue API (per i modelli che non passano da transformers.js: Demucs) e DeepFilterNet (togliere i rumori):
+ *  i file stanno in dist/ai/ (scripts/ai-locale.mjs) e la CDN serve solo se mancano. VERSIONE_ORT è quella che transformers.js
+ *  4.3.1 dichiara nelle sue dipendenze, così il motore (asyncify .wasm) è uno solo. */
+export const VERSIONE_ORT = '1.31.0-dev.20260914-8d85527a0';
+export const VERSIONE_DEEPFILTERNET = '0.1.0';
+export const CDN_ORT = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${VERSIONE_ORT}/dist/`;
+export const CDN_DEEPFILTERNET = `https://cdn.jsdelivr.net/npm/@lofcz/deepfilternet-web@${VERSIONE_DEEPFILTERNET}/dist/`;
+
 /** dove stanno i file locali della libreria, visto dalla pagina (app/index.html → ../ai/): si passa ai worker */
 export function baseLocaleAI(): string {
   try { return new URL('../ai/', document.baseURI).href; } catch { return ''; }
