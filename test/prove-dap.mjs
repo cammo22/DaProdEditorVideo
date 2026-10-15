@@ -55,8 +55,10 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     await page.waitForTimeout(300);
     const pezzi = await page.evaluate(() => window.__dpv.doc.clips.filter((c) => c.name === 'Ripresa' || c.name.startsWith('Ripresa')).map((c) => ({ id: c.id, start: c.start, len: c.len, track: c.track })).sort((a, b) => a.start - b.start));
     // si sceglie il pezzo di SINISTRA: la vicina (destra) è disegnata dopo e prima copriva il suo bordo destro
-    await page.evaluate((id) => window.__dpv.select([id]), pezzi[0].id);
-    await page.waitForTimeout(400);
+    // il cursore (linea rossa) sta proprio sul taglio: lo si porta via, se no copre i pixel da guardare
+    await page.evaluate((id) => { window.__dpv.select([id]); window.__motore.vaiA(85); }, pezzi[0].id);
+    await page.waitForFunction(() => { const tl = window.__dpvTest.ui().tl; return !tl.sporco; }, null, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(600);
     const bordo = await page.evaluate((pz) => {
       const tl = window.__dpvTest.ui().tl, d = window.__dpv.doc;
       tl.righe(d);
@@ -67,7 +69,7 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
       const k = tl.dpr;
       // le colonne appena a sinistra del taglio, a metà altezza della clip: il bordo giallo della scelta
       const giallo = (px) => { const [rr, gg, bb] = ctx.getImageData(Math.round(px * k), Math.round((g.top + g.alt / 2) * k), 1, 1).data; return rr > 200 && gg > 170 && bb < 140; };
-      return { colonne: [-3, -2, -1].map((dx) => giallo(x + dx)), velatura: (() => { const [rr, gg, bb] = ctx.getImageData(Math.round((x - 30) * k), Math.round((g.top + g.testa + 3) * k), 1, 1).data; return [rr, gg, bb]; })(), n: pz };
+      return { colonne: [-4, -3, -2, -1, 0].map((dx) => giallo(x + dx)), velatura: (() => { const [rr, gg, bb] = ctx.getImageData(Math.round((x - 30) * k), Math.round((g.top + g.testa + 3) * k), 1, 1).data; return [rr, gg, bb]; })(), n: pz };
     }, pezzi[0]);
     prova('dopo il taglio il pezzo scelto ha il bordo giallo anche sul lato attaccato all\'altro pezzo', pezzi.length === 2 && bordo.colonne.some(Boolean), JSON.stringify({ pezzi, bordo }));
     await page.screenshot({ path: `${OUT}/taglio-scelta.png`, clip: await page.locator('.tl-tela').boundingBox() });
