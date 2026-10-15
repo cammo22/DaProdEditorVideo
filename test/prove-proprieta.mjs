@@ -106,6 +106,12 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     prova('nelle Proprietà c\'è il quadro in miniatura', !!mq && mq.w > 150, JSON.stringify(mq));
     if (mq) {
       const tf = () => page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); return { x: c.tf.x, y: c.tf.y, s: c.tf.scale, r: c.tf.rot }; });
+      // il pannello si assesta (su un computer carico anche dopo mezzo secondo): si rimisura il quadro subito prima di ogni gesto
+      const rimisura = async () => {
+        await page.waitForTimeout(400);
+        return page.evaluate(() => { const t = document.querySelector('.mq-tela'); t.scrollIntoView({ block: 'center', behavior: 'instant' }); const b = t.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; });
+      };
+      Object.assign(mq, await rimisura());
       const prima = await tf();
       // il riquadro del titolo sta al centro (poco sopra): si trascina da lì verso destra e in basso
       await page.mouse.move(mq.x + mq.w / 2, mq.y + mq.h * 0.53);
@@ -115,6 +121,7 @@ export async function proveProprieta({ page: paginaDi, prova }) {
       await page.waitForTimeout(300);
       const dopo = await tf();
       prova('trascinando dentro il quadro in miniatura il titolo si sposta (a destra e in basso)', dopo.x > prima.x + 20 && dopo.y > prima.y + 10, JSON.stringify({ prima, dopo }));
+      Object.assign(mq, await rimisura());
       await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20);
       await page.mouse.wheel(0, -300);
       await page.waitForTimeout(700);
@@ -213,10 +220,15 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     // un progetto vuoto, se no il montaggio dimostrativo chiede conferma prima di sostituire quello che c'è
     await page.evaluate(() => { const { P } = window.__dpvTest; window.__dpv.load(P.newProject({ w: 1920, h: 1080, rate: { num: 25, den: 1 }, drop: false })); });
     await page.waitForTimeout(300);
-    // il montaggio dimostrativo ha riprese video vere: se ne sceglie una e le si dà un tracking (come fa il tracking vero)
-    await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:demo')));
-    await page.waitForFunction(() => window.__dpv.doc.clips.length >= 8, null, { timeout: 240000 });
-    await page.waitForTimeout(1200);
+    // una ripresa video vera, ma corta (il montaggio dimostrativo ne fa quattro e su un computer carico ci mette minuti): si importa e si mette in timeline
+    await page.evaluate(async () => {
+      const { ripresaDiProva, importaFile, P } = window.__dpvTest;
+      const f = await ripresaDiProva(4, 25);
+      const [m] = await importaFile([{ name: f.name, file: f }], { chiediFormato: false });
+      const v1 = window.__dpv.doc.tracks.filter((t) => t.kind === 'video')[0];
+      window.__dpv.edit('Ripresa', (pp) => { pp.clips.push(P.newClip('media', v1.id, 0, 100, { media: m.id, name: 'Ripresa', srcIn: 0 })); });
+    });
+    await page.waitForTimeout(800);
     const tracciato = await page.evaluate(() => {
       const d = window.__dpv.doc;
       return d.clips.find((x) => x.kind === 'media' && d.tracks.find((t) => t.id === x.track)?.kind === 'video' && d.media.find((m) => m.id === x.media)?.type === 'video').id;
