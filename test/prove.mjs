@@ -134,7 +134,14 @@ try {
   {
     const sel = await page.evaluate(() => [...window.__dpv.sel]);
     const sxV = d.clips.find((c) => c.start === 0 && c.len === 60 && d.tracks.find((t) => t.id === c.track).name === 'V1');
-    prova('dopo il taglio è scelto il pezzo più corto (pronto per il 2)', !!sxV && sel.includes(sxV.id) && !sel.includes(sx.id), sel.join(','));
+    prova('dopo il taglio non resta niente di selezionato (si può cliccare subito la clip che serve)', sel.length === 0, sel.join(','));
+    // ma "2" subito dopo il taglio toglie ancora il pezzo più corto (lo scarto)
+    const nPrima = (await doc()).clips.length;
+    await tasto('2');
+    const dd = await doc();
+    prova('"2" subito dopo il taglio toglie il pezzo più corto', !!sxV && !dd.clips.some((c) => c.id === sxV.id) && dd.clips.some((c) => c.id === sx.id) && dd.clips.length === nPrima - 2, `${nPrima} → ${dd.clips.length}`);
+    await tasto('Control+z');
+    prova('Ctrl+Z rimette il pezzo', (await doc()).clips.length === nPrima);
   }
 
   console.log('▶ Tasto 2: elimina');

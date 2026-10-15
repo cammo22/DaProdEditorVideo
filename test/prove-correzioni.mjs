@@ -89,10 +89,14 @@ export async function proveCorrezioni({ page: paginaDi, prova }) {
       const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]');
       return !!r && Number(r.value) === 50;
     }, null, { timeout: 15000 }).catch(() => {});
-    // l'evento della rotella si dà direttamente al campo (il puntatore vero dipende da dove il pannello si è assestato)
+    // l'evento della rotella si dà direttamente al campo (il puntatore vero dipende da dove il pannello si è assestato).
+    // La rotella risponde solo dopo che il puntatore è rimasto fermo sul campo: qui l'attesa è zero e basta una mossa sul campo.
+    await page.evaluate(() => localStorage.setItem('dpv-rotella-attesa', '0'));
     const gira = (dy, extra = {}) => page.evaluate(([dy, extra]) => {
       const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]');
       if (!r) return null;
+      const b = r.getBoundingClientRect();
+      r.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: b.left + 5, clientY: b.top + 3, pointerType: 'mouse' }));
       const e = new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true, ...extra });
       r.dispatchEvent(e);
       return { v: Number(r.value), fermata: e.defaultPrevented };
@@ -109,6 +113,29 @@ export async function proveCorrezioni({ page: paginaDi, prova }) {
     prova('Maiusc + rotella su = passi da dieci (49 → 59)', !!g2 && Math.abs(o2 - 0.59) < 0.001, JSON.stringify({ g2, o2 }));
     const n = await page.evaluate(() => { const s = window.__dpv; let k = 0; while (s.canUndo() && s.undoLabel().includes('Opacità')) { s.doUndo(); k++; if (k > 5) break; } return k; });
     prova('ogni girata è un solo colpo per l\'annulla (due girate = due annulla)', n === 2, String(n));
+    // l'attesa: la rotella cambia un campo solo dopo che il puntatore è rimasto fermo lì (qui 400 ms invece di 1,5 s); prima scorre la pagina
+    await page.evaluate(() => localStorage.setItem('dpv-rotella-attesa', '400'));
+    const campo = (cosa) => page.evaluate((cosa) => {
+      const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]');
+      const b = r.getBoundingClientRect();
+      const muovi = (dx) => r.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: b.left + 5 + dx, clientY: b.top + 3, pointerType: 'mouse' }));
+      const gira = (dy) => { const e = new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true }); r.dispatchEvent(e); return e.defaultPrevented; };
+      const st = () => window.__rotella.stato();
+      const v0 = Number(r.value);
+      if (cosa === 'subito') { muovi(80); muovi(0); const a = st(); const fermata = gira(100); return { a, fermata, cambiato: Number(r.value) !== v0 }; }
+      if (cosa === 'pronto') { const a = st(); const fermata = gira(100); return { a, fermata, cambiato: Number(r.value) !== v0 }; }
+      if (cosa === 'muovi') { muovi(60); const a = st(); const fermata = gira(100); return { a, fermata, cambiato: Number(r.value) !== v0 }; }
+    }, cosa);
+    const d1 = await campo('subito');
+    prova('appena il puntatore arriva sul campo parte il pallino che si carica, e la rotella non cambia niente (scorre la pagina)', d1.a.acceso && d1.a.inCarica && !d1.a.pronto && !d1.fermata && !d1.cambiato, JSON.stringify(d1));
+    await page.evaluate(() => { const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]'); const b = r.getBoundingClientRect(); r.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: b.left + 5, clientY: b.top + 3, pointerType: 'mouse' })); });
+    await page.waitForTimeout(650);
+    const d2 = await campo('pronto');
+    prova('dopo l\'attesa il pallino è pieno e la rotella cambia il valore', d2.a.pronto && d2.fermata && d2.cambiato, JSON.stringify(d2));
+    const d3 = await campo('muovi');
+    prova('se il puntatore si sposta si ricomincia da capo (e intanto la rotella non cambia)', d3.a.inCarica && !d3.a.pronto && !d3.fermata && !d3.cambiato, JSON.stringify(d3));
+    await page.evaluate(() => localStorage.setItem('dpv-rotella-attesa', '0'));
+    await page.evaluate(() => window.__dpv.edit('metà', (p) => { p.clips.find((c) => c.name === 'ALTO').opacity = 0.5; }));
     const v = await page.evaluate(() => window.__dpvTest.ui().tl.scrollF);
     // sul righello la rotella scorre la vista senza muovere il cursore
     await page.evaluate(() => { const tl = window.__dpvTest.ui().tl; tl.ppf = 8; tl.scrollF = 100; tl.sporca(); window.__dpv.setHead?.(120); });

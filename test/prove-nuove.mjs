@@ -153,19 +153,19 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForTimeout(200);
   let d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
   prova('"Niente" spegne la chiave', d.fx.key === 'none' && !d.ritaglio);
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Persona")');
+  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Persone")');
   await page.waitForTimeout(700);
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Persona" mette il ritaglio col modello veloce per le persone', d.ritaglio?.modo === 'persona' && d.ritaglio.modello === 'modnet' && d.fx.key === 'none', JSON.stringify(d.ritaglio));
+  prova('"AI · Persone" mette il ritaglio col modello veloce per le persone', d.ritaglio?.modo === 'persona' && d.ritaglio.modello === 'modnet' && d.fx.key === 'none', JSON.stringify(d.ritaglio));
   prova('si vede il pulsante per togliere lo sfondo e il nome del modello', (await page.locator('button:has-text("Togli lo sfondo")').count()) >= 1 && (await page.locator('.isp-gruppo select option:has-text("MODNet")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Soggetto")');
+  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Automatico")');
   await page.waitForTimeout(500);
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Soggetto" parte da BEN2 (la più precisa)', d.ritaglio?.modo === 'soggetto' && d.ritaglio.modello === 'ben2');
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Oggetti")');
+  prova('"AI · Automatico" parte da BEN2 (la più precisa)', d.ritaglio?.modo === 'soggetto' && d.ritaglio.modello === 'ben2');
+  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Clicca tu")');
   await page.waitForTimeout(500);
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Oggetti" mette i clic da fare e il segui acceso', d.ritaglio?.modo === 'oggetti' && Array.isArray(d.ritaglio.punti) && d.ritaglio.segui === true && d.ritaglio.modello === 'sam2');
+  prova('"AI · Clicca tu" mette i clic da fare e il segui acceso', d.ritaglio?.modo === 'oggetti' && Array.isArray(d.ritaglio.punti) && d.ritaglio.segui === true && d.ritaglio.modello === 'sam2');
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
   await page.evaluate(() => {
@@ -337,6 +337,23 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
+  // un clic sull'oggetto dal monitor: dopo una pausa parte da solo il lavoro su TUTTA la clip (non resta un fotogramma solo)
+  const clicco = await page.evaluate(async () => {
+    const { MK, USF } = window.__dpvTest;
+    const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam2', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
+    let sc = null;
+    document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
+    USF.scegliOggetto(c0.id);
+    if (!sc) return { errore: 'niente scelta' };
+    window.__chiamateAI = [];
+    sc.clic(0.4, 0.5, false);
+    const firmaProva = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if (m || performance.now() - t0 > 6000) ok(m ? m.n : 0); else setTimeout(g, 100); }; g(); });
+    const tutta = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if ((m && m.n > 1) || performance.now() - t0 > 20000) ok(m ? m.n : 0); else setTimeout(g, 150); }; g(); });
+    const c1 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    return { firmaProva, tutta, chiamate: window.__chiamateAI.length, punti: c1.ritaglio.punti.length, ok: MK.maschereDi(c1.ritaglio.firma)?.n > 1 };
+  });
+  prova('un clic sull\'oggetto: prima la prova su un fotogramma, poi da solo tutta la clip (maschere per tutta la durata)', clicco.firmaProva >= 1 && clicco.tutta > 1 && clicco.ok && clicco.punti === 1, JSON.stringify(clicco));
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); window.__dpv.edit('Via il ritaglio', () => { delete c.ritaglio; }); });
 

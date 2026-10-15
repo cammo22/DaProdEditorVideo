@@ -864,6 +864,8 @@ export class Posiziona {
     this.mira = null;
     if (!tr || tr.punti.length < 2) { avviso('Non riesco a seguire questo punto: scegli un dettaglio con più contrasto', 'info', 3500); this.ridisegna(); return; }
     store.edit('Segui un oggetto', (pp) => { const z = pp.clips.find((x) => x.id === c.id); if (z) z.traccia = tr; });
+    // finito il tracking: si apre il pannello sulla sezione "Segui un oggetto", con tutto quello che si può mettere sopra
+    if (tr.fiducia > 0.2) setTimeout(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' })), 80);
     avviso(tr.fiducia > 0.5 ? '🎯 Oggetto seguito: ora un titolo, un effetto o un\'immagine lo può seguire (nelle proprietà, "Segui")' : '🎯 Seguito, ma in qualche punto era incerto: guarda il percorso azzurro e, se serve, rifai', 'ok', 4200);
     this.ridisegna();
   }

@@ -21,9 +21,16 @@ export function modoSfondo(c: Clip): ModoSfondo {
   return c.fx.key === 'chroma' ? 'colori' : c.fx.key === 'luma' ? 'luma' : 'nessuno';
 }
 
+/** cosa fa ogni modo con l'AI, in parole: la differenza che prima non si capiva */
+export const SPIEGA_MODO: Record<'soggetto' | 'persona' | 'oggetti', string> = {
+  soggetto: 'Fa tutto da solo: trova chi o cosa sta davanti (una persona, un oggetto, un animale) e toglie il resto. Non devi cliccare niente.',
+  persona: 'Fa tutto da solo ma cerca solo le persone: capelli e bordi più puliti, e tiene tutte le persone che vede. Veloce anche senza scheda video.',
+  oggetti: 'Scegli tu: clicchi sulla persona o sull\'oggetto che vuoi tenere (anche più clic) e il programma lo segue da solo per tutta la clip. Serve quando ci sono più persone o più cose e ne vuoi una sola.',
+};
+
 export const NOMI_MODO: Record<ModoSfondo, string> = {
   nessuno: 'Niente', colori: 'Colore (green screen)', luma: 'Luce (toglie nero o bianco)',
-  persona: 'AI · Persona', soggetto: 'AI · Soggetto', oggetti: 'AI · Oggetti (clic)',
+  persona: 'AI · Persone (da solo)', soggetto: 'AI · Automatico', oggetti: 'AI · Clicca tu',
 };
 
 const IMMAGINE_O_VIDEO = (c: Clip) => c.kind === 'media' && puoRitagliare(mediaOf(store.doc, c));
@@ -31,7 +38,7 @@ const IMMAGINE_O_VIDEO = (c: Clip) => c.kind === 'media' && puoRitagliare(mediaO
 /** i modi che la clip può avere (l'AI vuole una ripresa o un'immagine vera) */
 export function modiPossibili(c: Clip): ModoSfondo[] {
   const base: ModoSfondo[] = ['nessuno', 'colori', 'luma'];
-  return IMMAGINE_O_VIDEO(c) ? [...base, 'persona', 'soggetto', 'oggetti'] : base;
+  return IMMAGINE_O_VIDEO(c) ? [...base, 'soggetto', 'persona', 'oggetti'] : base;
 }
 
 /** cambia il modo di tutte le clip scelte */
@@ -124,6 +131,26 @@ let prova = 0;
 function ritardaProva(id: string) {
   const mio = ++prova;
   setTimeout(() => { if (mio === prova) void provaOggetto(id); }, 220);
+  // e subito dopo, da solo, tutta la clip
+  elaboraDopoClic(id);
+}
+
+/** dopo l'ultimo clic (una pausa) parte da solo il lavoro su tutta la clip: l'oggetto scelto si segue per tutta la durata, senza altri pulsanti */
+let attesaLavoro = 0;
+function elaboraDopoClic(id: string) {
+  const mio = ++attesaLavoro;
+  setTimeout(() => {
+    void (async () => {
+      if (mio !== attesaLavoro) return;
+      const l = lavori.get(id);
+      // se stava già lavorando con i clic di prima, si ferma e si ricomincia con quelli nuovi
+      if (l && !l.finito) { l.ferma = true; for (let i = 0; i < 50 && lavori.get(id)?.finito === false; i++) await new Promise((r) => setTimeout(r, 100)); }
+      if (mio !== attesaLavoro) return;
+      const c = clipById(store.doc, id);
+      if (!c?.ritaglio || c.ritaglio.modo !== 'oggetti' || !(c.ritaglio.punti ?? []).some((q) => q.dentro)) return;
+      await elaboraClip(id);
+    })();
+  }, 1800);
 }
 
 export function scegliOggetto(id: string) {
@@ -131,7 +158,7 @@ export function scegliOggetto(id: string) {
   if (!mioR(c) || c!.ritaglio!.modo !== 'oggetti') return;
   const sc: SceltaImmagine = {
     id, continua: true,
-    testo: '🖱 Clicca l\'oggetto (verde) · Alt+clic = non è l\'oggetto (rosso)',
+    testo: '🖱 Clicca la persona o l\'oggetto da tenere (verde) · Alt+clic = questa parte NON si tiene (rosso)',
     punti: () => clipById(store.doc, id)?.ritaglio?.punti ?? [],
     clic: (x, y, alt) => {
       store.edit('Clic sull\'oggetto', (pp) => {
@@ -218,9 +245,12 @@ export function statoMaschere(c: Clip): { testo: string; ok: boolean } {
   if (!r) return { testo: '', ok: false };
   const m = maschereDi(r.firma);
   const attuale = !!c.media && r.firma === firmaRitaglio(c.media, r);
-  if (!m) return { testo: r.modo === 'oggetti' && !(r.punti ?? []).length ? 'Clicca sull\'oggetto da tenere, poi "Togli lo sfondo".' : 'Da elaborare: premi "Togli lo sfondo".', ok: false };
+  if (!m) return { testo: r.modo === 'oggetti' && !(r.punti ?? []).length ? 'Clicca sulla persona o sull\'oggetto da tenere: dopo l\'ultimo clic il programma lo segue da solo per tutta la clip.' : 'Da elaborare: premi "Togli lo sfondo".', ok: false };
   if (!attuale) return { testo: 'Hai cambiato modello, precisione o clic: rifai "Togli lo sfondo" per aggiornare.', ok: false };
-  if (m.n === 1 && mediaOf(store.doc, c)?.type !== 'image') return { testo: 'Questa è solo la prova su un fotogramma: premi "Togli lo sfondo" per fare tutta la clip.', ok: false };
+  if (m.n === 1 && mediaOf(store.doc, c)?.type !== 'image') {
+    const l = lavori.get(c.id);
+    return { testo: l && !l.finito ? 'Questa è la prova su un fotogramma: sto seguendo la persona o l\'oggetto per tutta la clip…' : 'Per ora c\'è un solo fotogramma: tra un attimo parte da solo il lavoro su tutta la clip (o premi "Togli lo sfondo").', ok: false };
+  }
   return { testo: mediaOf(store.doc, c)?.type === 'image' ? 'Pronto: sfondo tolto.' : `Pronto: ${m.n} maschere (${m.hz.toFixed(0)} al secondo, mescolate fra loro).`, ok: true };
 }
 

@@ -80,8 +80,16 @@ function sottoCursore(f: number, kind: 'video' | 'audio' | 'any' = 'any'): Clip 
 const r = () => fps(store.doc.rate);
 const head = () => Math.round(store.head);
 
+/** il pezzo più corto dell'ultimo taglio (di solito lo scarto): dopo un taglio non resta niente di selezionato, ma "2" subito dopo lo toglie */
+let scartoDelTaglio: { id: string; f: number; revisione: number } | null = null;
+
 function selezionateOSottoCursore(): Set<string> {
   if (store.sel.size) return M.withLinked(store.doc, store.sel);
+  const s = scartoDelTaglio;
+  if (s && s.f === head() && s.revisione === store.revisione) {
+    const c = store.doc.clips.find((x) => x.id === s.id);
+    if (c) return M.withLinked(store.doc, [c.id]);
+  }
   const c = sottoCursore(head());
   return c ? M.withLinked(store.doc, [c.id]) : new Set();
 }
@@ -128,13 +136,15 @@ function tagliaOra(f: number, ids: Set<string> | null, tracce: Set<string> | nul
   const dx = destre.map((id) => clipById(p, id)!).filter(Boolean).sort((a, b) => peso(a) - peso(b))[0];
   const sx = p.clips.find((c) => c.track === dx.track && end(c) === f && c.id !== dx.id && M.solida(c));
   const corto = sx && f - sx.start < dx.len ? sx : dx;
-  store.select(M.withLinked(p, [corto.id]));
-  avviso(`✂ Taglio a ${frameToTc(f, p.rate, p.drop)} (${chi}) · selezionato il pezzo ${corto === dx ? 'di destra' : 'di sinistra'} (più corto): 2 per toglierlo`, 'tasto', 2000);
+  // niente resta selezionato: si può cliccare subito la clip che si vuole. Il pezzo più corto si ricorda solo per il "2".
+  store.select([]);
+  scartoDelTaglio = { id: corto.id, f, revisione: store.revisione };
+  avviso(`✂ Taglio a ${frameToTc(f, p.rate, p.drop)} (${chi}) · 2 toglie il pezzo ${corto === dx ? 'di destra' : 'di sinistra'} (il più corto)`, 'tasto', 2000);
 }
 
 reg({
   id: 'taglia', nome: 'Taglia al cursore', gruppo: 'Montaggio', tasti: ['1', 'C'],
-  info: 'Taglia sotto il cursore solo quello che hai scelto: le tracce accese, se no le clip selezionate, se no la clip più in alto lì sotto (con la sua audio legata). Poi seleziona il pezzo più corto: premi 2 e sparisce.',
+  info: 'Taglia sotto il cursore solo quello che hai scelto: le tracce accese, se no le clip selezionate, se no la clip più in alto lì sotto (con la sua audio legata). Poi non lascia niente selezionato (puoi cliccare subito la clip che vuoi): se premi 2 subito dopo, sparisce il pezzo più cortosce.',
   fn: () => { const f = head(); const b = bersagliDelTaglio(f); tagliaOra(f, b.ids, b.tracce, b.chi); },
 });
 reg({
@@ -172,6 +182,8 @@ reg({
     const unGruppo = new Set(cs.map((c) => c.link ?? '∅' + c.id)).size === 1 && !!cs[0]?.link;
     if (!unGruppo && cs.length < 2) { avviso('Per unire seleziona almeno due clip (Shift+clic o riquadro)', 'info', 2200); return; }
     const esito = store.edit('Separa / unisci', (p) => M.toggleLink(p, store.sel));
+    // separate: nessuna clip resta scelta, così si va a prendere subito quella che serve (unite: il gruppo nuovo resta scelto)
+    if (esito === 'separati') store.select([]);
     avviso(esito === 'separati' ? '⛓ Separate: ora ogni clip si muove da sola' : `⛓ Unite: ${n} clip si muovono insieme`, 'tasto');
   },
 });

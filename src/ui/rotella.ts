@@ -3,8 +3,16 @@
 // mentre il puntatore sta su un campo: per scorrere il pannello si va sull'etichetta, a lato o sulla barretta.
 // Si cambia il valore e si avvisa il campo come se lo avessi mosso a mano ('input' subito, 'change' quando la rotella si ferma),
 // così anche l'annulla vede un colpo solo per tutta la girata.
+//
+// Per non cambiare i valori per sbaglio mentre si scorre il pannello, un campo risponde alla rotella solo dopo che il
+// puntatore è rimasto fermo su di lui per 1,5 secondi: mentre aspetta compare vicino al puntatore un pallino che si
+// carica (un anello che si riempie); quando è pieno e dorato la rotella cambia il valore. Se il puntatore si muove,
+// o la pagina scorre, si ricomincia da capo, e finché non è pronto la rotella fa scorrere il pannello come sempre.
 
 const DOPO_MS = 350;
+/** quanto si aspetta, fermi sul campo, prima che la rotella lo cambi (di prova si può mettere a 0: localStorage `dpv-rotella-attesa`, in millisecondi) */
+export const ATTESA_MS = 1500;
+const MOVIMENTO_MAX = 5;
 const PASSO_PIXEL = 40;
 
 interface Stato { acc: number; timer: ReturnType<typeof setTimeout> | undefined }
@@ -68,16 +76,105 @@ function cambia(el: HTMLInputElement | HTMLSelectElement, n: number, e: WheelEve
   st.timer = setTimeout(() => el.dispatchEvent(new Event('change', { bubbles: true })), DOPO_MS);
 }
 
+/** quanto aspettare adesso (letto a ogni mossa: le prove lo mettono a 0) */
+function attesa(): number {
+  try { const v = localStorage.getItem('dpv-rotella-attesa'); if (v !== null && Number.isFinite(Number(v))) return Math.max(0, Number(v)); } catch { /* niente */ }
+  return ATTESA_MS;
+}
+
+/** il pallino che si carica: un anello che si riempie in 1,5 s, poi un punto dorato "pronto" */
+class Pallino {
+  private el: HTMLElement | null = null;
+  private pos = (x: number, y: number) => {
+    if (!this.el) return;
+    // vicino al puntatore, sempre dentro lo schermo
+    const X = Math.min(innerWidth - 30, x + 14), Y = Math.min(innerHeight - 30, y + 16);
+    this.el.style.transform = `translate(${X}px, ${Y}px)`;
+  };
+  private crea() {
+    if (this.el) return;
+    const el = document.createElement('div');
+    el.className = 'rotella-pallino';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<svg viewBox="0 0 24 24" width="22" height="22"><circle class="rp-fondo" cx="12" cy="12" r="9"/><circle class="rp-anello" cx="12" cy="12" r="9" pathLength="100"/><circle class="rp-punto" cx="12" cy="12" r="4.2"/></svg>';
+    document.body.appendChild(el);
+    this.el = el;
+  }
+  /** comincia a caricarsi, con la durata data */
+  carica(x: number, y: number, ms: number) {
+    this.crea();
+    const el = this.el!;
+    this.pos(x, y);
+    el.classList.remove('pronto');
+    el.classList.add('visibile');
+    el.style.setProperty('--rp-ms', ms + 'ms');
+    // si riparte da zero: si toglie e si rimette l'animazione
+    el.classList.remove('carica');
+    void el.getBoundingClientRect();
+    el.classList.add('carica');
+  }
+  pronto() { this.el?.classList.remove('carica'); this.el?.classList.add('pronto'); }
+  muovi(x: number, y: number) { this.pos(x, y); }
+  nascondi() { this.el?.classList.remove('visibile', 'carica', 'pronto'); }
+  get acceso() { return !!this.el?.classList.contains('visibile'); }
+  get inCarica() { return !!this.el?.classList.contains('carica'); }
+  get èPronto() { return !!this.el?.classList.contains('pronto'); }
+}
+
 let attiva = false;
 
 /** si accende una volta sola, all'avvio */
 export function attivaRotella() {
   if (attiva) return;
   attiva = true;
+  const pallino = new Pallino();
+  /** il campo che sta aspettando o è pronto, e dove era il puntatore quando ha cominciato */
+  let candidato: HTMLInputElement | HTMLSelectElement | null = null;
+  let pronto = false;
+  let x0 = 0, y0 = 0, ultimoX = 0, ultimoY = 0;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let finePagina: ReturnType<typeof setTimeout> | undefined;
+
+  const spegni = () => { clearTimeout(timer); candidato = null; pronto = false; pallino.nascondi(); };
+  const comincia = (el: HTMLInputElement | HTMLSelectElement, x: number, y: number) => {
+    clearTimeout(timer);
+    candidato = el; pronto = false; x0 = x; y0 = y;
+    const ms = attesa();
+    if (ms <= 0) { pronto = true; pallino.carica(x, y, 0); pallino.pronto(); return; }
+    pallino.carica(x, y, ms);
+    timer = setTimeout(() => { if (candidato === el) { pronto = true; pallino.pronto(); } }, ms);
+  };
+  /** un controllo del puntatore: dov'è e cosa c'è sotto */
+  const guarda = (x: number, y: number, bersaglio: EventTarget | null) => {
+    ultimoX = x; ultimoY = y;
+    const el = campoDa(bersaglio);
+    if (!el) { if (candidato) spegni(); return; }
+    if (el !== candidato) { comincia(el, x, y); return; }
+    // lo stesso campo: un tremolio piccolo non conta, uno spostamento vero rifà l'attesa
+    if (Math.hypot(x - x0, y - y0) > MOVIMENTO_MAX) comincia(el, x, y);
+    else pallino.muovi(x, y);
+  };
+  document.addEventListener('pointermove', (e) => { if (e.pointerType === 'touch') return; guarda(e.clientX, e.clientY, e.target); }, { capture: true, passive: true });
+  document.addEventListener('pointerdown', () => spegni(), { capture: true, passive: true });
+  document.documentElement.addEventListener('pointerleave', () => spegni(), { passive: true });
+  window.addEventListener('blur', spegni);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') spegni(); }, { capture: true, passive: true });
+
   document.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) return; // lo zoom è un'altra cosa
     const el = campoDa(e.target);
-    if (!el) return;
+    if (!el || el !== candidato || !pronto) {
+      // il campo non è pronto: la rotella scorre la pagina come sempre. Mentre scorre non si carica niente: quando si
+      // ferma (e il puntatore resta lì), si ricomincia da quello che c'è adesso sotto il puntatore.
+      if (el || candidato) { spegni(); }
+      clearTimeout(finePagina);
+      finePagina = setTimeout(() => {
+        const sotto = document.elementFromPoint(ultimoX, ultimoY);
+        const c = campoDa(sotto);
+        if (c && !candidato) comincia(c, ultimoX, ultimoY);
+      }, 180);
+      return;
+    }
     e.preventDefault();
     const st = stati.get(el) ?? { acc: 0, timer: undefined };
     stati.set(el, st);
@@ -88,4 +185,7 @@ export function attivaRotella() {
     // su = di più
     if (n) cambia(el, -n, e);
   }, { passive: false, capture: true });
+
+  // per le prove: com'è il pallino
+  (window as unknown as { __rotella?: unknown }).__rotella = { stato: () => ({ acceso: pallino.acceso, inCarica: pallino.inCarica, pronto: pallino.èPronto, campo: !!candidato }) };
 }

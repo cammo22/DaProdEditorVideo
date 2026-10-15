@@ -21,7 +21,7 @@ import { EFFETTI_AUDIO, EFFETTI_VIDEO, adatte, alternaEffetto, type Effetto } fr
 import { anteprimaChiara } from '../render/anteprime';
 import { PRESET_TITOLI, presetTitolo } from '../core/generatori';
 import { STILI_CONTO, disegnaCountdown, specAlTempo, telaTitolo } from '../render/grafica';
-import { ANIMAZIONI, GRUPPI_ANIM, animazioniDi, nuovaAnim } from '../core/animazioni';
+import { ANIMAZIONI, GRUPPI_LIBRERIA, animazioniDi, nuovaAnim } from '../core/animazioni';
 import { disegnaAnimazione } from '../render/animazioni';
 import { caricaFontAnimazioni } from '../render/font';
 import { scenaAnimazione, scenaConto, scenaEffetto, scenaRitocco, scenaSala, scenaTitolo, scenaTransizione, suonaProvino, type Costruttore } from '../render/provino';
@@ -39,7 +39,7 @@ const TIPI: Ramo[] = [
 const LIBRERIA: Ramo[] = [
   { id: 'transizioni', nome: 'Transizioni', icona: 'transizione', figli: [['tr:dissolvenze', 'Dissolvenze'], ['tr:movimento', 'Movimento'], ['tr:3d', '3D e forme'], ['tr:luce', 'Luce'], ['tr:stile', 'Stile'], ['tr:tendine', 'Tendine SMPTE']] },
   { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
-  { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_ANIM.map((g): [string, string] => ['an:' + g.id, g.nome]) },
+  { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
   { id: 'effetti', nome: 'Effetti', icona: 'effetti', figli: [['fx:rapidi', 'Rapidi'], ['fx:lunghi', 'Lunghi'], ['fx:luci', 'Luci'], ['fx:distorsioni', 'Distorsioni'], ['fx:colore', 'Colore'], ['fx:particelle', 'Particelle'], ['fx:clip', 'Stile della clip'], ['fx:audio', 'Audio']] },
 ];
 
@@ -720,7 +720,7 @@ export class Contenitore {
     };
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' },
       h('p', { class: 'nota' }, 'Clicca una animazione per metterla al cursore, poi cambia testi, colori e durata dalle proprietà. I fondi e le luci riempiono il quadro: mettili su una traccia sotto.'),
-      ...this.sezioni('animazioni', GRUPPI_ANIM.map((g): [string, string, HTMLElement[]] => ['an:' + g.id, g.nome, this.filtra(animazioniDi(g.id)).map(carta)]))));
+      ...this.sezioni('animazioni', GRUPPI_LIBRERIA.map((g): [string, string, HTMLElement[]] => ['an:' + g.id, g.nome, this.filtra(animazioniDi(g.id)).map(carta)]))));
   }
 
   private paginaEffetti() {

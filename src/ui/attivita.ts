@@ -72,14 +72,15 @@ export class CentroAttivita {
   private listaVive = h('div', { class: 'att-lista' });
   private listaFinite = h('div', { class: 'att-finite' });
   private nota = h('p', { class: 'att-nota' });
+  private firmaFinite: string | null = null;
   private bPausa = h('button', { class: 'btn piccolo', on: { click: () => { pausaLavori(!inPausa()); this.aggiorna(); } } });
 
   constructor() {
     this.el = h('button', { class: 'att att-ferma', title: 'Cosa sta facendo il programma · clic per i dettagli e i tempi', on: { click: () => { this.alterna(); this.el.blur(); } } },
       this.led, this.testo, this.pista, this.tempo, this.altre);
     quandoAttivita(() => this.aggiorna());
-    // i secondi passano anche quando nessuno avvisa
-    window.setInterval(() => { if (attivitaInCorso().length || this.pannello) this.aggiorna(); }, 1000);
+    // i secondi passano solo mentre si lavora: a lavoro finito nessun timer resta acceso (l'elenco delle finite ha l'ora e
+    // la durata scritte una volta sola, non un "x fa" che cammina)
     document.addEventListener('pointerdown', (e) => {
       if (this.pannello && !this.pannello.contains(e.target as Node) && !this.el.contains(e.target as Node)) this.chiudi();
     });
@@ -89,7 +90,20 @@ export class CentroAttivita {
 
   get aperto() { return !!this.pannello; }
 
+  /** il battito del secondo: gira solo se c'è qualcosa in corso (per far camminare i tempi) e si ferma da solo */
+  private battito = 0;
+  /** il ritorno alla scritta "Nessuna attività" dopo il ✓ (una volta sola, non un controllo a tempo) */
+  private riposo = 0;
+  private armaBattito() {
+    if (this.battito || !attivitaInCorso().length) return;
+    this.battito = window.setInterval(() => {
+      if (!attivitaInCorso().length) { clearInterval(this.battito); this.battito = 0; }
+      this.aggiorna();
+    }, 1000);
+  }
+
   aggiorna() {
+    this.armaBattito();
     const r = riassunto();
     const ultima = attivitaFinite()[0];
     const el = this.el;
@@ -105,6 +119,8 @@ export class CentroAttivita {
       this.altre.textContent = r.righe > 1 ? `+${r.righe - 1}` : '';
       this.altre.title = r.righe > 1 ? `${r.righe - 1} altre attività in corso o in coda` : '';
     } else if (ultima && adesso() - ultima.fine < 7000) {
+      clearTimeout(this.riposo);
+      this.riposo = window.setTimeout(() => this.aggiorna(), 7000 - (adesso() - ultima.fine) + 50);
       el.classList.remove('att-ferma', 'indeterminata');
       el.classList.add('att-fatto');
       this.testo.textContent = `${ultima.stato === 'errore' ? '✕' : '✓'} ${ultima.titolo}${ultima.messaggio ? ' · ' + ultima.messaggio : ''}`;
@@ -139,6 +155,7 @@ export class CentroAttivita {
     this.pannello?.remove();
     this.pannello = null;
     this.vive.clear();
+    this.firmaFinite = null;
   }
 
   private disegnaPannello() {
@@ -173,11 +190,16 @@ export class CentroAttivita {
         ? 'Il montaggio sta suonando: le copie e le conversioni aspettano che ti fermi, per non rubare il decoder.'
         : '';
     this.nota.style.display = this.nota.textContent ? '' : 'none';
+    // le finite: l'ora e la durata sono scritte una volta, l'elenco si rifà solo se è cambiato
     const fin = attivitaFinite();
-    this.listaFinite.replaceChildren(...(fin.length ? fin.map((a) => h('div', { class: 'att-f ' + a.stato },
+    const firma = fin.map((a) => a.id + a.stato + a.finitaAlle).join('|');
+    if (firma === this.firmaFinite) return;
+    this.firmaFinite = firma;
+    const ora = (t: number) => new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    this.listaFinite.replaceChildren(...(fin.length ? fin.map((a) => h('div', { class: 'att-f ' + a.stato, title: `Finita alle ${ora(a.finitaAlle)}` },
       h('span', { class: 'att-f-seg' }, a.stato === 'finita' ? '✓' : a.stato === 'errore' ? '✕' : '–'),
-      h('span', { class: 'att-f-nome' }, a.titolo),
-      h('span', { class: 'att-f-msg' }, a.messaggio),
-      h('span', { class: 'att-f-quando' }, durataTesto(Math.max(0, (adesso() - a.fine) / 1000)) + ' fa'))) : [h('p', { class: 'att-vuoto' }, 'Ancora niente.')]));
+      h('span', { class: 'att-f-nome' }, a.titolo, a.esito && a.stato !== 'annullata' ? h('em', { class: 'att-f-msg' }, ' · ' + a.esito) : null),
+      h('span', { class: 'att-f-dur' }, a.stato === 'annullata' ? 'fermata' : `${a.stato === 'errore' ? 'si è fermata dopo' : 'ci ha messo'} ${durataTesto(a.durata)}`),
+      h('span', { class: 'att-f-quando' }, ora(a.finitaAlle)))) : [h('p', { class: 'att-vuoto' }, 'Ancora niente.')]));
   }
 }

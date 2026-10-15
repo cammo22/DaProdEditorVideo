@@ -23,7 +23,9 @@ import { CHIAVI, coloriChiave, QUALITA_RITAGLIO, SPILL0 } from '../core/sfondo';
 import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritaglio';
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
-import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
+import { cosaCiMetto } from './seguiMenu';
+import type { ModoSfondo } from './sfondo';
+import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
 
@@ -164,18 +166,23 @@ export class Ispettore {
 
       // — gli effetti e i look: miniature vere, applicate al fotogramma dove sei
       const tutti = EFFETTI_VIDEO.filter((e) => adatte(e, video).length);
+      // le famiglie: meno miniature alla volta, e si capisce a cosa servono
+      const FAMIGLIA: Record<string, string> = {
+        auto: 'colore', vivace: 'colore', luminoso: 'colore', caldo: 'colore', freddo: 'colore', pop: 'colore', contrasto: 'colore',
+        cinema: 'atmosfera', tramonto: 'atmosfera', notte: 'atmosfera', gelo: 'atmosfera', sbiadito: 'atmosfera', sogno: 'atmosfera',
+        bn: 'vecchio', seppia: 'vecchio', pellicola: 'vecchio', vhs: 'vecchio', crt: 'vecchio',
+      };
       const grid = tessere([
         { id: 'nessuno', nome: 'Com\'è', info: 'toglie tutti gli effetti rapidi', nessuna: true, provino: scenaRitocco(() => {}), acceso: () => !tutti.some((e) => adatte(e, vive()).some((c) => e.acceso(c, store.doc))), clic: () => store.edit('Toglie gli effetti rapidi', (pp) => { for (const c of pp.clips) if (ids.includes(c.id)) for (const e of tutti) if (e.acceso(c, pp)) e.metti(c, false, pp); }) },
         ...tutti.map((e) => ({
-          id: e.id, nome: e.nome, info: e.info,
+          id: e.id, nome: e.nome, info: e.info, gruppo: FAMIGLIA[e.id] ?? 'altro',
           provino: scenaRitocco((c, pp) => e.metti(c, true, pp)),
           acceso: () => { const q = adatte(e, vive()); return q.length > 0 && q.every((c) => e.acceso(c, store.doc)); },
           clic: () => alternaEffetto(e.id, ids),
         })),
-      ]);
+      ], { gruppi: [['colore', 'Colore'], ['atmosfera', 'Atmosfera'], ['vecchio', 'Vintage'], ['altro', 'Altro']] });
       this.campi.push({ el: grid.el, aggiorna: grid.aggiorna });
       out.push(this.gruppo('fxv', 'Effetti e look', [
-        h('p', { class: 'nota' }, 'Ogni miniatura è il fotogramma dove sei, con quell\'effetto. Un clic accende o spegne (si possono sommare).'),
         grid.el,
       ]));
       out.push(this.sfondoGruppo(video));
@@ -271,7 +278,7 @@ export class Ispettore {
     const a0 = an[0].gen!.anim!;
     const def = animazione(a0.id);
     const righe: (HTMLElement | null)[] = [];
-    righe.push(this.scelta('Animazione', GRUPPI_ANIM.flatMap((g) => CATALOGO_ANIM.filter((a) => a.gruppo === g.id).map((a) => [a.id, `${g.nome} · ${a.nome}`] as [string, string])),
+    righe.push(this.scelta('Animazione', GRUPPI_ANIM.filter((g) => g.id !== 'segui' || def?.gruppo === 'segui').flatMap((g) => CATALOGO_ANIM.filter((a) => a.gruppo === g.id).map((a) => [a.id, `${g.nome} · ${a.nome}`] as [string, string])),
       (c) => c.gen?.anim?.id ?? '', (c, v) => {
         if (!c.gen?.anim || c.gen.anim.id === v) return;
         // si cambia animazione tenendo i testi (nome, ruolo, titolo…) e dove sta e quanto è grande: i colori e il carattere sono quelli pensati per la nuova
@@ -320,11 +327,19 @@ export class Ispettore {
     const modo = modoSfondo(c0);
     const righe: (HTMLElement | null)[] = [];
     righe.push(h('label', { class: 'etichetta' }, 'Come lo tolgo?'));
+    // la differenza fra i modi con l'AI, scritta chiara
+    const spiegaAI = (m: ModoSfondo) => (m === 'soggetto' || m === 'persona' || m === 'oggetti' ? h('p', { class: 'nota sf-spiega' }, SPIEGA_MODO[m]) : null);
     righe.push(h('div', { class: 'isp-chips' }, modiPossibili(c0).map((m) => h('button', {
       class: 'chip' + (m === modo ? ' acceso' : ''), title: NOMI_MODO[m], on: { click: () => { if (m !== modo) impostaModo(ids, m); } },
     }, NOMI_MODO[m]))));
+    righe.push(spiegaAI(modo));
+    if (modo === 'soggetto' || modo === 'persona') righe.push(this.pulsanti([['🖱 Voglio scegliere io chi tenere', () => impostaModo(ids, 'oggetti')]]));
     if (modo === 'nessuno') {
-      righe.push(h('p', { class: 'nota' }, 'Scegli come togliere lo sfondo: col colore se hai girato su un fondale verde o blu, con la luce per un fondo nero o bianco, oppure lascia fare all\'AI (una persona, un soggetto qualunque, o l\'oggetto che clicchi). Quello che togli diventa trasparente: metti un\'altra clip sotto.'));
+      righe.push(
+        h('p', { class: 'nota' }, 'Colore: se hai girato su un fondale verde o blu. Luce: per un fondo nero o bianco. Con l\'AI non serve il fondale:'),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Automatico'), ' — ', SPIEGA_MODO.soggetto),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Persone'), ' — ', SPIEGA_MODO.persona),
+        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Clicca tu'), ' — ', SPIEGA_MODO.oggetti));
     }
     if (modo === 'colori') {
       const colori = coloriChiave(c0.fx);
@@ -365,14 +380,14 @@ export class Ispettore {
       if (modo === 'oggetti') {
         const punti = r.punti ?? [];
         righe.push(this.pulsanti([
-          ['🖱 Clicca l\'oggetto sul monitor', () => scegliOggetto(c0.id)],
+          ['🖱 Clicca la persona o l\'oggetto sul monitor', () => scegliOggetto(c0.id)],
           ['Prova su questo fotogramma', () => void provaOggetto(c0.id)],
           ...(punti.length ? [['Toglie i clic', () => azzeraPunti(c0.id)] as [string, () => void]] : []),
         ]));
         righe.push(punti.length
           ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
-          : h('p', { class: 'nota' }, 'Metti il cursore su un fotogramma dove l\'oggetto si vede bene, premi "Clicca l\'oggetto" e clicca sopra (più clic se serve). Alt+clic su una parte che NON è l\'oggetto.'));
-        righe.push(this.spunta('Segui l\'oggetto nel video', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video));
+          : h('p', { class: 'nota' }, 'Metti il cursore su un fotogramma dove si vede bene, premi "Clicca la persona o l\'oggetto" e clicca sopra (più clic se serve). Alt+clic su una parte che NON va tenuta. Dopo l\'ultimo clic il programma lo segue da solo per tutta la clip: non devi premere altro.'));
+        righe.push(this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video));
       }
       const lav = lavoroDi(c0.id);
       const inCorso = !!lav && !lav.finito;
@@ -425,13 +440,8 @@ export class Ispettore {
       if (tr) {
         righe.push(h('p', { class: 'nota' }, `Oggetto seguito: ${tr.punti.length} punti, sicurezza ${Math.round(tr.fiducia * 100)}%. Il percorso azzurro si vede sul monitor.`));
         righe.push(this.spunta('Tieni ferma la ripresa sull\'oggetto (stabilizza)', (c) => !!c.stabilizza, (c, v) => { c.stabilizza = v || undefined; }, [c0]));
-        // e una volta tracciato? Si mette qualcosa che lo segue: mirino, cerchio, freccia, etichetta…
-        righe.push(h('label', { class: 'etichetta' }, 'Metti qualcosa che lo segue'));
-        righe.push(h('div', { class: 'seg-griglia' }, SEGNALINI_RAPIDI.map(([id, nome, simbolo]) => h('button', {
-          class: 'seg-tessera', title: `${nome}: si mette sopra questa ripresa e segue l'oggetto per tutta la sua durata`,
-          on: { click: () => aggiungiSegnalino(c0.id, id) },
-        }, h('i', null, simbolo), h('span', null, nome)))));
-        righe.push(h('p', { class: 'nota' }, 'Il segnalino è una clip a parte sopra questa: cambia colore e testo nelle sue Proprietà, o sposta la sua posizione rispetto all\'oggetto trascinandolo sul monitor. Anche titoli, immagini e il centro degli effetti possono seguire l\'oggetto: scegli "Segue" nelle loro Proprietà.'));
+        // e una volta tracciato? Si mette qualcosa che lo segue: testo, immagine, segnali, effetti (src/ui/seguiMenu.ts)
+        righe.push(...cosaCiMetto(c0));
         righe.push(this.pulsanti([['Togli il tracking', () => store.edit('Toglie il tracking', (pp) => { for (const z of pp.clips) { if (z.id === c0.id) { delete z.traccia; delete z.stabilizza; } if (z.segue === c0.id) delete z.segue; if (z.fxb?.segue === c0.id) delete z.fxb.segue; } })]]));
       } else righe.push(h('p', { class: 'nota' }, 'Metti il cursore dove l\'oggetto si vede bene, premi il tasto e trascina il mirino sopra: il programma lo segue per tutta la ripresa.'));
     }
@@ -442,7 +452,8 @@ export class Ispettore {
       righe.push(this.scelta('Segue', opz, get, (c, v) => agganciaSegue(store.doc, c, v), cs));
       if (get(c0)) righe.push(h('p', { class: 'nota' }, 'Segue l\'oggetto: trascinandolo sul monitor lo sposti rispetto a lui (lo scarto).'));
     }
-    return righe.length ? this.gruppo('segui', 'Segui un oggetto', righe) : null;
+    // con un oggetto tracciato questa è la sezione che serve: parte aperta
+    return righe.length ? this.gruppo('segui', 'Segui un oggetto', righe, !!c0.traccia) : null;
   }
 
   /** come entra e come esce la clip: la dissolvenza (appare e sparisce piano) e le transizioni con la clip vicina */
@@ -855,29 +866,6 @@ function mettiDietro(srcId: string, cosa: { colore?: string; colore2?: string; m
       pp.clips.push(c);
     } else pp.clips.push(newClip('color', track, a, src.len, { name: cosa.nome ?? 'Sfondo', gen: { color: cosa.colore ?? '#000000', ...(cosa.colore2 ? { color2: cosa.colore2 } : {}) } }));
   });
-}
-
-/** i segnalini che si mettono con un clic sull'oggetto tracciato: (id dell'animazione, nome, simbolo) */
-const SEGNALINI_RAPIDI: [string, string, string][] = [
-  ['sg-mirino', 'Mirino', '⌖'], ['sg-cerchio', 'Cerchio', '◯'], ['sg-freccia', 'Freccia', '➜'], ['sg-etichetta', 'Etichetta', '🏷'], ['sg-nome', 'Nome sopra', '💬'], ['sg-onde', 'Onde', '◎'],
-];
-
-/** mette sopra la ripresa tracciata un segnalino (una animazione del catalogo) che segue l'oggetto per tutta la clip */
-function aggiungiSegnalino(sorgente: string, animId: string) {
-  const def = animazione(animId);
-  if (!def) return;
-  let nuova = '';
-  store.edit('Segnalino: ' + def.nome, (pp) => {
-    const src = clipById(pp, sorgente);
-    if (!src) return;
-    const track = M.tracciaLibera(pp, 'video', src.track, src.start, end(src), undefined, new Set([src.track]));
-    const c = newClip('title', track, src.start, src.len, { name: def.nome, gen: { anim: nuovaAnim(animId) } });
-    // il centro del segnalino va a finire sull'oggetto, e lo segue (lo scarto è zero: sta proprio sopra)
-    c.segue = src.id;
-    pp.clips.push(c);
-    nuova = c.id;
-  });
-  if (nuova) { store.select([nuova]); avviso(`${def.nome}: ora segue l'oggetto. Cambialo dalle sue Proprietà.`, 'ok', 2600); }
 }
 
 /** la clip (o il centro dell'effetto) comincia o smette di seguire un oggetto tracciato, senza che salti: resta dov'è adesso */

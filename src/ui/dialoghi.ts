@@ -134,6 +134,7 @@ export async function esportaFotogramma() {
 export function finestraProgetto() {
   const p = store.doc;
   const d = dialogo('Impostazioni del progetto');
+  d.el.classList.add('medio');
   const nome = h('input', { class: 'campo-testo', value: p.name }) as HTMLInputElement;
   const a = sceltaDa(p.w, p.h, p.rate);
   const attuale = `Attuale · ${p.w}×${p.h} ${(p.rate.num / p.rate.den).toFixed(2)} fps`;
