@@ -166,18 +166,23 @@ export class Ispettore {
 
       // — gli effetti e i look: miniature vere, applicate al fotogramma dove sei
       const tutti = EFFETTI_VIDEO.filter((e) => adatte(e, video).length);
+      // le famiglie: meno miniature alla volta, e si capisce a cosa servono
+      const FAMIGLIA: Record<string, string> = {
+        auto: 'colore', vivace: 'colore', luminoso: 'colore', caldo: 'colore', freddo: 'colore', pop: 'colore', contrasto: 'colore',
+        cinema: 'atmosfera', tramonto: 'atmosfera', notte: 'atmosfera', gelo: 'atmosfera', sbiadito: 'atmosfera', sogno: 'atmosfera',
+        bn: 'vecchio', seppia: 'vecchio', pellicola: 'vecchio', vhs: 'vecchio', crt: 'vecchio',
+      };
       const grid = tessere([
         { id: 'nessuno', nome: 'Com\'è', info: 'toglie tutti gli effetti rapidi', nessuna: true, provino: scenaRitocco(() => {}), acceso: () => !tutti.some((e) => adatte(e, vive()).some((c) => e.acceso(c, store.doc))), clic: () => store.edit('Toglie gli effetti rapidi', (pp) => { for (const c of pp.clips) if (ids.includes(c.id)) for (const e of tutti) if (e.acceso(c, pp)) e.metti(c, false, pp); }) },
         ...tutti.map((e) => ({
-          id: e.id, nome: e.nome, info: e.info,
+          id: e.id, nome: e.nome, info: e.info, gruppo: FAMIGLIA[e.id] ?? 'altro',
           provino: scenaRitocco((c, pp) => e.metti(c, true, pp)),
           acceso: () => { const q = adatte(e, vive()); return q.length > 0 && q.every((c) => e.acceso(c, store.doc)); },
           clic: () => alternaEffetto(e.id, ids),
         })),
-      ]);
+      ], { gruppi: [['colore', 'Colore'], ['atmosfera', 'Atmosfera'], ['vecchio', 'Vintage'], ['altro', 'Altro']] });
       this.campi.push({ el: grid.el, aggiorna: grid.aggiorna });
       out.push(this.gruppo('fxv', 'Effetti e look', [
-        h('p', { class: 'nota' }, 'Ogni miniatura è il fotogramma dove sei, con quell\'effetto. Un clic accende o spegne (si possono sommare).'),
         grid.el,
       ]));
       out.push(this.sfondoGruppo(video));
