@@ -8,7 +8,7 @@ import { EFFETTI_TEMPO } from '../core/blocchi';
 import { TENDINE, EFFETTI as TRANSIZIONI_DVE } from '../render/transizioni';
 import { EFFETTI as EFFETTI_CLIP, adatte, alternaEffetto } from '../effetti';
 import { PRESET_TITOLI } from '../core/generatori';
-import { ANIMAZIONI, GRUPPI_ANIM } from '../core/animazioni';
+import { ANIM_LIBRERIA, GRUPPI_ANIM } from '../core/animazioni';
 import { STILI_CONTO } from '../render/grafica';
 import { avviso } from './dom';
 import { fonteCerca, type VoceCerca } from './cerca';
@@ -56,6 +56,6 @@ fonteCerca(() => EFFETTI_CLIP.map((e): VoceCerca => ({
 // i titoli pronti, le animazioni e i countdown: al cursore
 fonteCerca(() => [
   ...PRESET_TITOLI.map((t): VoceCerca => ({ id: 'tit:' + t.id, titolo: 'Titolo ' + t.nome, sotto: 'al cursore', cat: 'Titoli', parole: 'titolo testo scritta ' + t.gruppo, fn: () => { inserisciGeneratore('title', undefined, undefined, { titolo: t.id }); } })),
-  ...ANIMAZIONI.map((a): VoceCerca => ({ id: 'anim:' + a.id, titolo: a.nome, sotto: `animazione · ${GRUPPI_ANIM.find((g) => g.id === a.gruppo)?.nome ?? ''} · al cursore`, cat: 'Animazioni', parole: 'animazione sottopancia ' + a.gruppo, fn: () => { inserisciGeneratore('anim', undefined, undefined, { anim: a.id }); } })),
+  ...ANIM_LIBRERIA.map((a): VoceCerca => ({ id: 'anim:' + a.id, titolo: a.nome, sotto: `animazione · ${GRUPPI_ANIM.find((g) => g.id === a.gruppo)?.nome ?? ''} · al cursore`, cat: 'Animazioni', parole: 'animazione sottopancia ' + a.gruppo, fn: () => { inserisciGeneratore('anim', undefined, undefined, { anim: a.id }); } })),
   ...STILI_CONTO.map((s): VoceCerca => ({ id: 'conto:' + s.id, titolo: 'Countdown ' + s.nome, sotto: `${s.secondi}…1 al cursore`, cat: 'Generatori', parole: 'conto alla rovescia countdown numeri', fn: () => { inserisciGeneratore('countdown', undefined, undefined, { conto: { stile: s.id, secondi: s.secondi } }); } })),
 ]);

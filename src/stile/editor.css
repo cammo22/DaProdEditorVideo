@@ -1360,6 +1360,26 @@ html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo
 .home-col { overflow: auto; }
 .seg-griglia { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .seg-tessera { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 3px 5px; border-radius: 7px; background: #23212b; border: 1px solid #000; color: var(--testo2); font: 700 10.5px var(--ui); cursor: pointer; }
-.seg-tessera i { font-style: normal; font-size: 20px; line-height: 1; color: var(--oro); }
+.seg-tessera i { font-style: normal; font-size: 24px; line-height: 1; color: var(--oro); }
+.seg-tessera { min-height: 58px; justify-content: center; cursor: pointer; }
+.seg-tessera span { text-align: center; line-height: 1.15; }
+.seg-blocco { margin-bottom: 8px; }
+.seg-blocco .etichetta { display: block; margin: 2px 0 4px; }
+.seg-intro { margin: 0 0 8px; color: var(--testo); font-weight: 600; }
 .seg-tessera:hover { background: #2e2c37; color: var(--testo); }
 .isp-azioni { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+
+/* il pallino della rotella: un anello che si carica mentre il puntatore sta fermo su un campo; pieno e dorato = la rotella lo cambia */
+.rotella-pallino { position: fixed; left: 0; top: 0; z-index: 99999; width: 22px; height: 22px; pointer-events: none; opacity: 0; transition: opacity 0.12s; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7)); }
+.rotella-pallino.visibile { opacity: 1; }
+.rotella-pallino svg { display: block; }
+.rotella-pallino circle { fill: none; }
+.rotella-pallino .rp-fondo { stroke: rgba(255, 255, 255, 0.22); stroke-width: 3; fill: rgba(14, 13, 18, 0.55); }
+.rotella-pallino .rp-anello { stroke: var(--oro, #ffd54a); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transform: rotate(-90deg); transform-origin: 50% 50%; }
+.rotella-pallino.carica .rp-anello { animation: rp-carica var(--rp-ms, 1500ms) linear forwards; }
+.rotella-pallino .rp-punto { fill: var(--oro, #ffd54a); opacity: 0; }
+.rotella-pallino.pronto .rp-anello { stroke-dashoffset: 0; stroke: var(--oro, #ffd54a); }
+.rotella-pallino.pronto .rp-punto { opacity: 1; animation: rp-pronto 0.35s ease-out; }
+@keyframes rp-carica { to { stroke-dashoffset: 0; } }
+@keyframes rp-pronto { from { transform: scale(0.3); transform-origin: 50% 50%; } to { transform: scale(1); transform-origin: 50% 50%; } }
+@media (prefers-reduced-motion: reduce) { .rotella-pallino.carica .rp-anello { animation-duration: 0.01ms; } }

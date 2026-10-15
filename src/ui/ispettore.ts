@@ -23,6 +23,7 @@ import { CHIAVI, coloriChiave, QUALITA_RITAGLIO, SPILL0 } from '../core/sfondo';
 import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritaglio';
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
+import { cosaCiMetto } from './seguiMenu';
 import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
@@ -271,7 +272,7 @@ export class Ispettore {
     const a0 = an[0].gen!.anim!;
     const def = animazione(a0.id);
     const righe: (HTMLElement | null)[] = [];
-    righe.push(this.scelta('Animazione', GRUPPI_ANIM.flatMap((g) => CATALOGO_ANIM.filter((a) => a.gruppo === g.id).map((a) => [a.id, `${g.nome} · ${a.nome}`] as [string, string])),
+    righe.push(this.scelta('Animazione', GRUPPI_ANIM.filter((g) => g.id !== 'segui' || def?.gruppo === 'segui').flatMap((g) => CATALOGO_ANIM.filter((a) => a.gruppo === g.id).map((a) => [a.id, `${g.nome} · ${a.nome}`] as [string, string])),
       (c) => c.gen?.anim?.id ?? '', (c, v) => {
         if (!c.gen?.anim || c.gen.anim.id === v) return;
         // si cambia animazione tenendo i testi (nome, ruolo, titolo…) e dove sta e quanto è grande: i colori e il carattere sono quelli pensati per la nuova
@@ -425,13 +426,8 @@ export class Ispettore {
       if (tr) {
         righe.push(h('p', { class: 'nota' }, `Oggetto seguito: ${tr.punti.length} punti, sicurezza ${Math.round(tr.fiducia * 100)}%. Il percorso azzurro si vede sul monitor.`));
         righe.push(this.spunta('Tieni ferma la ripresa sull\'oggetto (stabilizza)', (c) => !!c.stabilizza, (c, v) => { c.stabilizza = v || undefined; }, [c0]));
-        // e una volta tracciato? Si mette qualcosa che lo segue: mirino, cerchio, freccia, etichetta…
-        righe.push(h('label', { class: 'etichetta' }, 'Metti qualcosa che lo segue'));
-        righe.push(h('div', { class: 'seg-griglia' }, SEGNALINI_RAPIDI.map(([id, nome, simbolo]) => h('button', {
-          class: 'seg-tessera', title: `${nome}: si mette sopra questa ripresa e segue l'oggetto per tutta la sua durata`,
-          on: { click: () => aggiungiSegnalino(c0.id, id) },
-        }, h('i', null, simbolo), h('span', null, nome)))));
-        righe.push(h('p', { class: 'nota' }, 'Il segnalino è una clip a parte sopra questa: cambia colore e testo nelle sue Proprietà, o sposta la sua posizione rispetto all\'oggetto trascinandolo sul monitor. Anche titoli, immagini e il centro degli effetti possono seguire l\'oggetto: scegli "Segue" nelle loro Proprietà.'));
+        // e una volta tracciato? Si mette qualcosa che lo segue: testo, immagine, segnali, effetti (src/ui/seguiMenu.ts)
+        righe.push(...cosaCiMetto(c0));
         righe.push(this.pulsanti([['Togli il tracking', () => store.edit('Toglie il tracking', (pp) => { for (const z of pp.clips) { if (z.id === c0.id) { delete z.traccia; delete z.stabilizza; } if (z.segue === c0.id) delete z.segue; if (z.fxb?.segue === c0.id) delete z.fxb.segue; } })]]));
       } else righe.push(h('p', { class: 'nota' }, 'Metti il cursore dove l\'oggetto si vede bene, premi il tasto e trascina il mirino sopra: il programma lo segue per tutta la ripresa.'));
     }
@@ -442,7 +438,8 @@ export class Ispettore {
       righe.push(this.scelta('Segue', opz, get, (c, v) => agganciaSegue(store.doc, c, v), cs));
       if (get(c0)) righe.push(h('p', { class: 'nota' }, 'Segue l\'oggetto: trascinandolo sul monitor lo sposti rispetto a lui (lo scarto).'));
     }
-    return righe.length ? this.gruppo('segui', 'Segui un oggetto', righe) : null;
+    // con un oggetto tracciato questa è la sezione che serve: parte aperta
+    return righe.length ? this.gruppo('segui', 'Segui un oggetto', righe, !!c0.traccia) : null;
   }
 
   /** come entra e come esce la clip: la dissolvenza (appare e sparisce piano) e le transizioni con la clip vicina */
@@ -855,29 +852,6 @@ function mettiDietro(srcId: string, cosa: { colore?: string; colore2?: string; m
       pp.clips.push(c);
     } else pp.clips.push(newClip('color', track, a, src.len, { name: cosa.nome ?? 'Sfondo', gen: { color: cosa.colore ?? '#000000', ...(cosa.colore2 ? { color2: cosa.colore2 } : {}) } }));
   });
-}
-
-/** i segnalini che si mettono con un clic sull'oggetto tracciato: (id dell'animazione, nome, simbolo) */
-const SEGNALINI_RAPIDI: [string, string, string][] = [
-  ['sg-mirino', 'Mirino', '⌖'], ['sg-cerchio', 'Cerchio', '◯'], ['sg-freccia', 'Freccia', '➜'], ['sg-etichetta', 'Etichetta', '🏷'], ['sg-nome', 'Nome sopra', '💬'], ['sg-onde', 'Onde', '◎'],
-];
-
-/** mette sopra la ripresa tracciata un segnalino (una animazione del catalogo) che segue l'oggetto per tutta la clip */
-function aggiungiSegnalino(sorgente: string, animId: string) {
-  const def = animazione(animId);
-  if (!def) return;
-  let nuova = '';
-  store.edit('Segnalino: ' + def.nome, (pp) => {
-    const src = clipById(pp, sorgente);
-    if (!src) return;
-    const track = M.tracciaLibera(pp, 'video', src.track, src.start, end(src), undefined, new Set([src.track]));
-    const c = newClip('title', track, src.start, src.len, { name: def.nome, gen: { anim: nuovaAnim(animId) } });
-    // il centro del segnalino va a finire sull'oggetto, e lo segue (lo scarto è zero: sta proprio sopra)
-    c.segue = src.id;
-    pp.clips.push(c);
-    nuova = c.id;
-  });
-  if (nuova) { store.select([nuova]); avviso(`${def.nome}: ora segue l'oggetto. Cambialo dalle sue Proprietà.`, 'ok', 2600); }
 }
 
 /** la clip (o il centro dell'effetto) comincia o smette di seguire un oggetto tracciato, senza che salti: resta dov'è adesso */

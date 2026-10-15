@@ -176,6 +176,11 @@ export const ANIMAZIONI: Anim[] = [
 export const animazione = (id: string) => ANIMAZIONI.find((a) => a.id === id);
 export const animazioniDi = (g: GruppoAnim) => ANIMAZIONI.filter((a) => a.gruppo === g);
 
+/** i segnalini che seguono un oggetto non stanno nella libreria delle animazioni: si mettono dal pannello Proprietà della ripresa tracciata
+ *  (Segui un oggetto → "Metti qualcosa che lo segue"). Qui sotto, quello che la libreria, i menu e la ricerca mostrano. */
+export const GRUPPI_LIBRERIA = GRUPPI_ANIM.filter((g) => g.id !== 'segui');
+export const ANIM_LIBRERIA = ANIMAZIONI.filter((a) => a.gruppo !== 'segui');
+
 /** i valori di partenza di un'animazione */
 export function valoriDiPartenza(a: Anim): Record<string, string | number | boolean> {
   return Object.fromEntries(a.campi.map((c) => [c.id, c.def]));

@@ -3,7 +3,7 @@
 // contesto che app.ts consegna. La barra che le apre è in barraMenu.ts.
 import { store } from '../core/store';
 import { azioni, inserisciGeneratore, modi } from '../azioni';
-import { animazioniDi, GRUPPI_ANIM } from '../core/animazioni';
+import { animazioniDi, GRUPPI_LIBRERIA } from '../core/animazioni';
 import { OBIETTIVI, formatoDa } from '../core/tipi';
 import { avviso, type VoceMenu } from './dom';
 import type { MenuBanco } from './barraMenu';
@@ -74,7 +74,7 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
     ]],
     ['Generatori', () => [
       voce('genBarre'), voce('genCountdown'), voce('genNero'), voce('genColore'), voce('genTitolo'), { sep: true },
-      { nome: 'Animazioni', sotto: GRUPPI_ANIM.map((g) => ({ nome: g.nome, sotto: animazioniDi(g.id).map((a) => ({ nome: a.nome, fn: () => { inserisciGeneratore('anim', undefined, undefined, { anim: a.id }); avviso(`${a.nome} al cursore`, 'ok', 1200); } })) })) },
+      { nome: 'Animazioni', sotto: GRUPPI_LIBRERIA.map((g) => ({ nome: g.nome, sotto: animazioniDi(g.id).map((a) => ({ nome: a.nome, fn: () => { inserisciGeneratore('anim', undefined, undefined, { anim: a.id }); avviso(`${a.nome} al cursore`, 'ok', 1200); } })) })) },
       voce('genAnimazione'),
     ]],
     ['AI', () => [

@@ -230,7 +230,11 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' })));
     await page.waitForTimeout(500);
     const nSeg = await page.evaluate(() => document.querySelectorAll('.seg-tessera').length);
-    prova('dopo il tracking compaiono i segnalini da mettere con un clic', nSeg === 6, String(nSeg));
+    prova('dopo il tracking compaiono tutte le cose da mettere sull\'oggetto (testo, segnali, immagine, emoji, effetti)', nSeg === 13, String(nSeg));
+    const aperta = await page.evaluate(() => document.querySelector('.isp-gruppo[data-g=segui]')?.open === true);
+    prova('la sezione "Segui un oggetto" è aperta da sola per una ripresa tracciata', aperta);
+    const inLibreria = await page.evaluate(() => ({ albero: [...document.querySelectorAll('.bin-cat')].some((b) => /^an:segui/.test(b.dataset.c ?? '')), segnalini: window.__dpvTest.AN ? window.__dpvTest.AN.ANIM_LIBRERIA.some((a) => a.id.startsWith('sg-')) : null }));
+    prova('i segnalini non stanno nella libreria delle animazioni (si mettono dal pannello del tracking)', inLibreria.albero === false && inLibreria.segnalini !== true, JSON.stringify(inLibreria));
     await page.evaluate(() => [...document.querySelectorAll('.seg-tessera')].find((b) => b.textContent.includes('Etichetta')).click());
     await page.waitForTimeout(500);
     const nuovo = await page.evaluate((id) => {
@@ -241,6 +245,27 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     }, tracciato);
     prova('un clic su "Etichetta" mette sopra la ripresa un segnalino che la segue per tutta la durata (su un\'altra traccia)', !!nuovo && nuovo.segue && nuovo.altraTraccia && nuovo.stessoTempo && nuovo.scelta, JSON.stringify(nuovo));
     prova('il segnalino si sposta davvero con l\'oggetto (da sinistra a destra)', !!nuovo && nuovo.b[0] - nuovo.a[0] > 200, JSON.stringify(nuovo));
+
+    // testo, emoji, effetto: ognuno è una cosa nuova che segue la ripresa
+    await page.evaluate((id) => { window.__dpv.select([id]); document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' })); }, tracciato);
+    await page.waitForTimeout(500);
+    await page.evaluate(() => [...document.querySelectorAll('.seg-tessera')].find((b) => b.dataset.seg === 'Testo').click());
+    await page.waitForTimeout(400);
+    const testo = await page.evaluate((id) => { const d = window.__dpv.doc; const t = d.clips.find((c) => c.kind === 'title' && c.name === 'Testo'); return t ? { segue: t.segue === id, testo: t.gen?.title?.text, sopra: t.tf.y < 0, scelto: window.__dpv.sel.has(t.id), altra: t.track !== d.clips.find((c) => c.id === id).track } : null; }, tracciato);
+    prova('"Testo" mette un titolo sopra l\'oggetto, scelto e pronto da scrivere, che segue la ripresa', !!testo && testo.segue && testo.sopra && testo.scelto && testo.altra, JSON.stringify(testo));
+    await page.evaluate((id) => { window.__dpv.select([id]); document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' })); }, tracciato);
+    await page.waitForTimeout(500);
+    await page.evaluate(() => [...document.querySelectorAll('.seg-tessera')].find((b) => b.dataset.seg === 'Lente').click());
+    await page.waitForTimeout(400);
+    const lente = await page.evaluate((id) => { const d = window.__dpv.doc; const b = d.clips.find((c) => c.kind === 'fx' && c.fxb?.id === 'bolla'); const s = d.clips.find((c) => c.id === id); return b ? { segue: b.fxb.segue === id, tempo: b.start === s.start && b.len === s.len } : null; }, tracciato);
+    prova('"Lente" mette un effetto il cui centro segue l\'oggetto per tutta la ripresa', !!lente && lente.segue && lente.tempo, JSON.stringify(lente));
+    await page.evaluate((id) => { window.__dpv.select([id]); document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' })); }, tracciato);
+    await page.waitForTimeout(500);
+    await page.evaluate(() => [...document.querySelectorAll('.seg-tessera')].find((b) => b.dataset.seg === 'Emoji').click());
+    await page.waitForTimeout(300);
+    const nEmoji = await page.evaluate(() => document.querySelectorAll('.menu-contesto .voce, .menu .voce, [role=menu] [role=menuitem]').length);
+    prova('"Emoji" apre l\'elenco delle emoji da scegliere', nEmoji >= 8, String(nEmoji));
+    await page.keyboard.press('Escape');
 
     // sfondo: cosa metto dietro
     await page.evaluate((id) => { window.__dpv.select([id]); }, tracciato);

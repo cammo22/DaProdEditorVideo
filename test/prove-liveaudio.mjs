@@ -332,6 +332,7 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
 
     // il volume dalla striscia (con la rotella) cambia il livello dal vivo; il muto lo spegne
     const f0 = await page.evaluate(() => Number(document.querySelector('.la-fader[data-canale=voce]').value));
+    await page.evaluate(() => localStorage.setItem('dpv-rotella-attesa', '0'));
     await page.hover('.la-fader[data-canale=voce]');
     await page.mouse.wheel(0, -100);
     await page.waitForTimeout(600);
