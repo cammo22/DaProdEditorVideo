@@ -7,7 +7,7 @@
 import { Ricampionatore, lunghezzaUscita } from '../core/ricampiona';
 import { PulitoreMono, PulitoreStereo, type FiltroTrama, SR_DF } from '../core/rumore';
 import { DEMUCS, SeparatoreDemucs, SeparatoreRapido, modelloFinto, type EseguiModello } from '../core/separa';
-import { CDN_DEEPFILTERNET, CDN_ORT, dispositivi, erroreDellaScheda, testoErrore, type Dispositivo } from './libreriaAI';
+import { CDN_DEEPFILTERNET, CDN_ORT, applicaPotenza, applicaThread, dispositivi, erroreDellaScheda, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda } from './libreriaAI';
 import { ottieniModello, type ModelloAudio } from './modelliAudio';
 import { spiegaErroreAI } from './erroriAI';
 
@@ -18,7 +18,7 @@ export interface InizioSepara {
   totale: number;
   /** media e deviazione standard del brano (mono), per normalizzare l'ingresso di Demucs */
   media: number; dev: number;
-  base: string; scheda: boolean;
+  base: string; scheda: boolean; hw?: ImpostazioneScheda;
   modello: ModelloAudio;
   /** 'auto' = il modello, e se non va il ripiego rapido; 'solo' = solo il ripiego rapido; 'mai' = solo il modello */
   ripiego: 'auto' | 'solo' | 'mai';
@@ -32,6 +32,7 @@ export type DaPagina = Inizio | { tipo: 'dati'; ch: Float32Array[] } | { tipo: '
 export type DaWorker =
   | { tipo: 'stato'; testo: string; k?: number }
   | { tipo: 'avviso'; msg: string }
+  | { tipo: 'scheda-guasta' }
   | { tipo: 'pronto'; motore: 'deepfilternet' | 'demucs' | 'rapido'; dispositivo?: Dispositivo | 'finta' }
   | { tipo: 'uscita'; nome: 'pulito' | 'voce' | 'base'; ch: Float32Array[] }
   | { tipo: 'ricevuto' }
@@ -99,12 +100,15 @@ async function caricaOrt(base: string): Promise<any> {
   ort.env.wasm.wasmPaths = locale
     ? { mjs: base + 'ort-wasm-simd-threaded.asyncify.mjs', wasm: base + 'ort-wasm-simd-threaded.asyncify.wasm' }
     : CDN_ORT;
+  applicaPotenza(ort.env);
+  applicaThread(ort.env.wasm);
   ortApi = ort;
   return ort;
 }
 
 /** crea la sessione di ONNX Runtime: scheda video prima (se c'è) e poi il processore */
 async function creaSessione(m: InizioSepara, modello: Uint8Array, conScheda: boolean) {
+  if (m.hw) usaImpostazioneScheda(m.hw);
   const ort = await caricaOrt(m.base);
   const devs = await dispositivi(conScheda);
   let ultimo: unknown = null;
@@ -143,6 +147,7 @@ function eseguiOrt(m: InizioSepara): EseguiModello {
       // la scheda video si è fermata a metà: si ricarica il modello sul processore e si rifà lo stesso segmento
       if (dispositivoOrt !== 'webgpu' || !erroreDellaScheda(e)) throw e;
       manda({ tipo: 'avviso', msg: 'La scheda video si è fermata: continuo col processore (più lento)' });
+      manda({ tipo: 'scheda-guasta' });
       await sessione.release?.().catch?.(() => {});
       const bytes = await ottieniModello(m.modello);
       await creaSessione({ ...m, scheda: false }, bytes, false);

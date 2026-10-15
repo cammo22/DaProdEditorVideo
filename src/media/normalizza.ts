@@ -110,6 +110,14 @@ const assicuraAac = () => aacPronto ??= import('@mediabunny/aac-encoder').then((
 
 /** rifà il file a velocità costante; ritorna il file nuovo (stesso nome, estensione del nuovo contenitore) */
 export async function converti(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale?: AbortSignal): Promise<FileScelto> {
+  // il video si rifà prima con la scheda video (molto più veloce, il processore resta libero); se non si può o sbaglia, col processore
+  if (v.vfr) {
+    try { return await convertiCon(sel, v, avanza, segnale, 'prefer-hardware'); } catch (e) { if (segnale?.aborted || (e instanceof Error && e.message === 'fermato')) throw e; avanza(0); }
+  }
+  return convertiCon(sel, v, avanza, segnale, 'no-preference');
+}
+
+async function convertiCon(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale: AbortSignal | undefined, hw: 'prefer-hardware' | 'no-preference'): Promise<FileScelto> {
   const input = new Input({ source: sorgenteDi(sel), formats: ALL_FORMATS });
   const base = sel.name.replace(/\.[^.]+$/, '');
   await assicuraAac();
@@ -132,7 +140,7 @@ export async function converti(sel: FileScelto, v: Verdetto, avanza: (k: number)
     try {
       const conv = await Conversion.init({
         input, output: out,
-        ...(v.vfr ? { video: { frameRate: v.fps, ...(vc ? { codec: vc } : {}), bitrate: new Quality('high') } } : { video: { discard: true } }),
+        ...(v.vfr ? { video: { frameRate: v.fps, ...(vc ? { codec: vc } : {}), bitrate: new Quality('high'), hardwareAcceleration: hw } } : { video: { discard: true } }),
         // l'audio a bitrate costante (192 kbit/s); se è già adatto resta com'è
         audio: { ...(ac ? { codec: ac } : {}), bitrate: new Quality({ quality: 'high', preferBitrate: true, bitrateMode: 'constant' }), ...(v.vbr ? { forceTranscode: true } : {}) },
       });

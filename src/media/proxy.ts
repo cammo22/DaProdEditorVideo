@@ -133,7 +133,23 @@ export async function accodaProxy(m: MediaItem, r: MediaRT, fonte: () => Source,
   }).then(() => { if (r.proxyStato === 'coda') { r.proxyStato = 'no'; avvisa(); } });
 }
 
+/** prima con la scheda video (il codificatore hardware è molto più veloce e il processore resta libero); se non c'è o sbaglia, col processore */
 async function creaProxy(m: MediaItem, r: MediaRT, fonte: () => Source, l: Lavoro): Promise<Proxy | null> {
+  for (const hw of ['prefer-hardware', 'no-preference'] as const) {
+    if (l.fermato) return null;
+    try {
+      const p = await creaProxyCon(m, r, fonte, l, hw);
+      if (p || hw === 'no-preference' || l.fermato) return p;
+    } catch (e) {
+      if (hw === 'no-preference' || l.fermato) throw e;
+    }
+    r.proxyProg = 0;
+    l.imposta(0, m.name);
+  }
+  return null;
+}
+
+async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: Lavoro, hw: 'prefer-hardware' | 'no-preference'): Promise<Proxy | null> {
   const k = Math.min(1, LATO / Math.max(m.width, m.height, 1));
   const w = Math.max(2, Math.round((m.width * k) / 2) * 2), h = Math.max(2, Math.round((m.height * k) / 2) * 2);
   const codec = await getFirstEncodableVideoCodec(['avc', 'vp9', 'vp8'], { width: w, height: h });
@@ -143,7 +159,7 @@ async function creaProxy(m: MediaItem, r: MediaRT, fonte: () => Source, l: Lavor
   try {
     const conv = await Conversion.init({
       input, output, tracks: 'primary',
-      video: { width: w, height: h, fit: 'fill', codec, keyFrameInterval: 0.5, quality: QUALITY_MEDIUM, forceTranscode: true },
+      video: { width: w, height: h, fit: 'fill', codec, keyFrameInterval: 0.5, quality: QUALITY_MEDIUM, forceTranscode: true, hardwareAcceleration: hw },
       audio: { discard: true },
     });
     if (!conv.isValid) return null;

@@ -6,7 +6,7 @@ import type { Clip } from '../core/tipi';
 import { registra as reg } from '../azioni';
 import { avviso, h } from './dom';
 import {
-  haOriginale, installaSeparazione, lavoriAudioAI, possibilita, separaVoceBase, statoAudioAI, tornaOriginale, togliRumore, type Forza,
+  avanzamentoAudioAI, haOriginale, installaSeparazione, lavoriAudioAI, possibilita, separaVoceBase, statoAudioAI, tornaOriginale, togliRumore, type Forza,
 } from '../media/audioAI';
 
 const RAPIDO = 'dpv-audioai-rapido';
@@ -68,30 +68,77 @@ export function vociMenuAudioAI(c: Clip): { nome: string; fn: () => void; disatt
   ];
 }
 
+/** quale bottone si è premuto (per scrivere "in corso" proprio su quello) */
+let premuto = '';
+
 /** la sezione "Pulisci e separa l'audio" delle Proprietà: due schede grandi, poche parole */
 export function righeAudioAI(c: Clip): HTMLElement[] {
   const poss = possibilita(c);
-  const lavora = [...lavoriAudioAI().values()];
-  const occupata = lavora.length > 0;
-  const scheda = (icona: string, titolo: string, sotto: string, bottoni: HTMLElement[]) => h('div', { class: 'aai-scheda' },
-    h('div', { class: 'aai-testa' }, h('i', null, icona), h('div', null, h('b', null, titolo), h('span', null, sotto))),
-    h('div', { class: 'aai-bottoni' }, bottoni));
-  const bottone = (testo: string, info: string, fn: () => void, primario = false) => h('button', {
-    class: 'aai-bottone' + (primario ? ' primario' : ''), title: info, disabled: !poss.rumore || occupata, on: { click: fn },
-  }, testo);
+  const bottoni: { el: HTMLButtonElement; chiave: string; tipo: 'rumore' | 'separa'; testo: string }[] = [];
+  const stati: { el: HTMLElement; tipo: 'rumore' | 'separa' }[] = [];
+  const scheda = (tipo: 'rumore' | 'separa', icona: string, titolo: string, sotto: string, voci: HTMLElement[]) => {
+    const stato = h('div', { class: 'aai-stato', hidden: true }) as HTMLElement;
+    stati.push({ el: stato, tipo });
+    return h('div', { class: 'aai-scheda', 'data-aai': tipo },
+      h('div', { class: 'aai-testa' }, h('i', null, icona), h('div', null, h('b', null, titolo), h('span', null, sotto))),
+      h('div', { class: 'aai-bottoni' }, voci), stato);
+  };
+  const bottone = (tipo: 'rumore' | 'separa', chiave: string, testo: string, info: string, fn: () => void, primario = false) => {
+    const el = h('button', {
+      class: 'aai-bottone' + (primario ? ' primario' : ''), title: info, disabled: !poss.rumore, 'data-chiave': chiave,
+      on: { click: () => { premuto = chiave; fn(); aggiorna(); avviaControllo(); } },
+    }, testo) as HTMLButtonElement;
+    bottoni.push({ el, chiave, tipo, testo });
+    return el;
+  };
+  // a che punto siamo: il bottone premuto diventa "In corso… 42 %", gli altri si spengono, sotto compare la barra
+  const aggiorna = () => {
+    const lavori = [...avanzamentoAudioAI().values()];
+    const occupata = lavori.length > 0;
+    for (const b of bottoni) {
+      const mio = occupata && premuto === b.chiave && lavori.some((l) => l.tipo === b.tipo);
+      b.el.classList.toggle('lavora', mio);
+      b.el.disabled = !poss.rumore || occupata;
+      b.el.textContent = mio ? (lavori.find((l) => l.tipo === b.tipo)?.inCoda ? '⏳ In coda…' : `⏳ In corso${(() => { const k = lavori.find((l) => l.tipo === b.tipo)?.k; return k === null || k === undefined ? '…' : ` ${Math.round(k * 100)}%`; })()}`) : b.testo;
+    }
+    for (const st of stati) {
+      const l = lavori.find((x) => x.tipo === st.tipo);
+      st.el.hidden = !l;
+      if (!l) { st.el.replaceChildren(); continue; }
+      const k = l.k === null ? null : Math.round(l.k * 100);
+      st.el.replaceChildren(
+        h('div', { class: 'aai-testo' }, l.inCoda ? 'Aspetto il mio turno… (altri lavori pesanti sono prima)' : (l.testo || 'Sto lavorando…')),
+        h('div', { class: 'aai-barra' + (k === null ? ' indeterminata' : '') }, h('i', { style: k === null ? '' : `width:${k}%` })),
+        h('div', { class: 'aai-nota' }, 'Puoi continuare a montare: il lavoro va avanti dietro le quinte (Centro attività, in basso a destra).'));
+    }
+  };
+  // finché c'è un lavoro la sezione si aggiorna da sola; quando il lavoro finisce (o la sezione sparisce) il controllo si ferma
+  let timer = 0;
+  const sentinella = h('span', { hidden: true }) as HTMLElement;
+  const tutteLeSchedeSparite = () => !(stati[0]?.el.isConnected);
+  const avviaControllo = () => {
+    if (timer) return;
+    timer = window.setInterval(() => {
+      if (!sentinella.isConnected && tutteLeSchedeSparite()) { clearInterval(timer); timer = 0; return; }
+      aggiorna();
+      if (lavoriAudioAI().size === 0) { clearInterval(timer); timer = 0; }
+    }, 350);
+  };
   const righe: HTMLElement[] = [];
   if (!poss.rumore) righe.push(h('p', { class: 'nota avviso-rosso' }, poss.perche ?? 'Su questa clip non si può'));
   righe.push(
-    scheda('🎙', 'Togli i rumori', 'Una voce con fruscio, ventola o rumore di fondo: il rumore va via e la voce resta.',
-      FORZE.map(([f, nome, info]) => bottone(nome, info, () => void faiTogliRumore(c.id, f), f === 'media'))),
-    scheda('🎤', 'Separa voce e musica', 'Da una canzone: la voce da una parte e la base (lo strumentale) dall\'altra, su due tracce nuove.',
+    scheda('rumore', '🎙', 'Togli i rumori', 'Una voce con fruscio, ventola o rumore di fondo: il rumore va via e la voce resta.',
+      FORZE.map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'media'))),
+    scheda('separa', '🎤', 'Separa voce e musica', 'Da una canzone: la voce da una parte e la base (lo strumentale) dall\'altra, su due tracce nuove.',
       [
-        bottone('Voce e base', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),
-        bottone('Solo voce', 'Tiene solo la voce (acapella)', () => void faiSeparaVoce(c.id, 'voce')),
-        bottone('Solo base', 'Tiene solo lo strumentale', () => void faiSeparaVoce(c.id, 'base')),
+        bottone('separa', 'separa:entrambe', 'Voce e base', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),
+        bottone('separa', 'separa:voce', 'Solo voce', 'Tiene solo la voce (acapella)', () => void faiSeparaVoce(c.id, 'voce')),
+        bottone('separa', 'separa:base', 'Solo base', 'Tiene solo lo strumentale', () => void faiSeparaVoce(c.id, 'base')),
       ]));
-  if (occupata) righe.push(h('p', { class: 'nota' }, 'Sto lavorando: la barra è nel Centro attività (in basso a destra). Puoi continuare a montare.'));
   if (haOriginale(c)) righe.push(h('div', { class: 'isp-azioni' }, h('button', { class: 'btn-mini', title: 'Rimette l\'audio com\'era prima di togliere i rumori', on: { click: () => tornaOriginale(c.id) } }, '↩ Audio originale')));
+  righe.push(sentinella);
+  // se la sezione si apre mentre un lavoro già gira (ci si è spostati su un'altra clip e poi tornati), si vede subito
+  queueMicrotask(() => { aggiorna(); if (lavoriAudioAI().size) avviaControllo(); });
   // lo stato dei modelli, e la scelta "rapido senza AI" in Avanzate
   const stato = h('p', { class: 'nota' }, '');
   void statoAudioAI().then((s) => {

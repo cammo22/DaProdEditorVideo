@@ -4,6 +4,7 @@
 import { baseLocaleAI } from './libreriaAI';
 import { spiegaErroreAI } from './erroriAI';
 import { motoreNemo, type StatoMotore } from './nemo';
+import { rilevaHardware, type Hardware } from './hardware';
 
 export interface ProvaLibreria { ok: boolean; dove: string; ms: number; msg: string }
 
@@ -76,12 +77,16 @@ export interface Diagnosi {
   libreria: ProvaLibreria;
   internet: boolean;
   scheda: string | null;
+  /** tutte le schede che il sistema offre, la prova di ognuna e quella scelta (src/media/hardware.ts) */
+  hardware: Hardware | null;
   modelli: Map<string, number>;
   nvidia: StatoMotore | null;
 }
 
 /** tutto insieme (le prove vanno in parallelo) */
 export async function diagnosi(): Promise<Diagnosi> {
-  const [libreria, internet, scheda, modelli, nvidia] = await Promise.all([provaLibreria(), provaInternet(), schedaVideo(), modelliScaricati(), statoNvidia()]);
-  return { libreria, internet, scheda, modelli, nvidia };
+  const [libreria, internet, scheda, modelli, nvidia, hardware] = await Promise.all([
+    provaLibreria(), provaInternet(), schedaVideo(), modelliScaricati(), statoNvidia(), rilevaHardware(true).catch(() => null),
+  ]);
+  return { libreria, internet, scheda, hardware, modelli, nvidia };
 }

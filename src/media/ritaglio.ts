@@ -16,7 +16,8 @@ import { mediaRT } from './libreria';
 import { misuraPer, pixelAl, type Pixel } from './campiona';
 import { impostaMaschere, potaMaschere, type Maschere } from './maschere';
 import { spiegaErroreAI } from './erroriAI';
-import { baseLocaleAI, usaSchedaAI } from './libreriaAI';
+import { baseLocaleAI } from './libreriaAI';
+import { messaggioScheda, schedaGuasta } from './hardware';
 
 export interface ModelloRitaglio {
   id: string;
@@ -67,6 +68,7 @@ function lavoratore(): Worker {
       for (const [x, y] of scaricati.values()) { a += x; b += y; }
       caricamento.stato(`Scarico il modello: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
     } else if (m.tipo === 'avviso') { caricamento?.stato(m.msg ?? '', 0); }
+    else if (m.tipo === 'scheda-guasta') schedaGuasta();
     else if (m.tipo === 'pronto') { caricamento?.ok((m.repo ? m.repo + ' · ' : '') + (m.device ?? '')); caricamento = null; }
     else if (m.tipo === 'maschera') { attese.get(m.id!)?.ok(m.dati!); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
@@ -89,7 +91,8 @@ const conIlWorker: Segmentatore = {
   carica: (m, stato) => new Promise((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
-    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usaSchedaAI() });
+    const hw = messaggioScheda();
+    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: hw.scheda, hw });
   }),
   maschera: (px, o) => new Promise((ok, no) => {
     const id = ++seq;

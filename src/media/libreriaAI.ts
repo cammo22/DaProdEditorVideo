@@ -36,6 +36,32 @@ export function impostaSchedaAI(on: boolean) {
 }
 
 export type Dispositivo = 'webgpu' | 'wasm';
+
+/** cosa ha deciso il rilevatore dell'hardware (src/media/hardware.ts, solo nella pagina) per i worker, che non hanno localStorage:
+ *  arriva nei messaggi `carica` e si ricorda qui. `potenza` = quale scheda chiedere al sistema (alte prestazioni / basso consumo). */
+export interface ImpostazioneScheda { scheda?: boolean; potenza?: '' | 'high-performance' | 'low-power'; f16?: boolean; thread?: number }
+let potenzaScelta: '' | 'high-performance' | 'low-power' = '';
+let f16Scheda = true;
+let threadScelti = 0;
+export function usaImpostazioneScheda(m: ImpostazioneScheda) {
+  if (m.potenza !== undefined) potenzaScelta = m.potenza;
+  if (m.f16 !== undefined) f16Scheda = m.f16;
+  if (m.thread) threadScelti = m.thread;
+}
+export const schedaF16 = () => f16Scheda;
+/** i tipi di modello da provare sulla scheda: mezza precisione solo se la scheda la sa fare */
+export const tipiScheda = (): string[] => (f16Scheda ? ['fp16', 'fp32'] : ['fp32']);
+/** dice al motore ONNX quale scheda chiedere */
+export function applicaPotenza(env: { webgpu?: { powerPreference?: string } } | undefined) {
+  try { if (potenzaScelta && env?.webgpu) env.webgpu.powerPreference = potenzaScelta; } catch { /* niente */ }
+}
+/** i thread del processore per il motore wasm: tutti meno uno (se il programma ne consente più d'uno) */
+export function applicaThread(wasm: { numThreads?: number } | undefined) {
+  try {
+    const n = threadScelti || Math.max(1, Math.min(8, ((typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 4) - 1));
+    if (wasm && n > 1) wasm.numThreads = n;
+  } catch { /* niente */ }
+}
 export type Tipo = string | Record<string, string>;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -69,6 +95,8 @@ export function libreria(base?: string): Promise<{ T: LibreriaAI; dove: 'locale'
     }
     if (!T) T = (await import(/* @vite-ignore */ CDN_LIBRERIA)) as LibreriaAI;
     T.env.allowLocalModels = false;
+    applicaPotenza(T.env.backends?.onnx);
+    applicaThread(T.env.backends?.onnx?.wasm);
     // il motore (wasm) dai file dell'app: niente CDN nemmeno per lui. Safari prima della 26 senza scheda vuole un'altra
     // versione del motore: lì si lascia scegliere alla libreria (dalla CDN).
     const wasm = T.env.backends?.onnx?.wasm;
@@ -86,8 +114,8 @@ export function libreria(base?: string): Promise<{ T: LibreriaAI; dove: 'locale'
 /** scheda video prima (se c'è e non è stata spenta), poi il processore */
 export async function dispositivi(conScheda = true): Promise<Dispositivo[]> {
   if (!conScheda) return ['wasm'];
-  const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu;
-  const adattatore = gpu ? await gpu.requestAdapter().catch(() => null) : null;
+  const gpu = (navigator as unknown as { gpu?: { requestAdapter: (o?: unknown) => Promise<unknown> } }).gpu;
+  const adattatore = gpu ? await (gpu.requestAdapter as (o?: unknown) => Promise<unknown>)(potenzaScelta ? { powerPreference: potenzaScelta } : undefined).catch(() => null) : null;
   return adattatore ? ['webgpu', 'wasm'] : ['wasm'];
 }
 

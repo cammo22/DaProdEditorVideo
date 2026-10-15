@@ -303,7 +303,7 @@ export class Timeline {
       bar.addEventListener('pointermove', mv);
       bar.addEventListener('pointerup', up);
     });
-    bar.addEventListener('wheel', (e) => { e.preventDefault(); this.scorriY(this.scrollY + e.deltaY * 0.6); }, { passive: false });
+    bar.addEventListener('wheel', (e) => { e.preventDefault(); if (e.ctrlKey || e.metaKey) { this.zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18); return; } this.scorriY(this.scrollY + e.deltaY * 0.6); }, { passive: false });
   }
 
   /** i blocchetti FX di una traccia video, ognuno sulla sua corsia (se si sovrappongono si mettono uno sopra l'altro) */
@@ -1217,8 +1217,10 @@ export class Timeline {
 
   private onda(ctx: CanvasRenderingContext2D, c: Clip, x: number, w: number, y: number, hh: number, peaks: Float32Array, pronti: number, xl: number, xr: number, r: number) {
     const mid = y + hh / 2;
-    let gain = dbToGain(c.gain);
-    ctx.fillStyle = 'rgba(200,255,225,.75)';
+    // l'originale di una canzone separata va a −60 dB: la sua forma d'onda si vede com'era (più smorta), se no sparirebbe
+    const orig = c.afx?.separata?.ruolo === 'originale';
+    let gain = dbToGain(orig ? c.afx?.separata?.gain ?? 0 : c.gain);
+    ctx.fillStyle = orig ? 'rgba(200,255,225,.38)' : 'rgba(200,255,225,.75)';
     const a = Math.max(Math.floor(xl), Math.floor(x)), b = Math.min(Math.ceil(xr), Math.ceil(x + w));
     for (let px = a; px < b; px++) {
       const f0 = this.xF(px), f1 = this.xF(px + 1);
@@ -1227,7 +1229,7 @@ export class Timeline {
       if (i0 >= pronti) break;
       let mx = 0;
       for (let i = i0; i < i1 && i < peaks.length; i++) if (peaks[i] > mx) mx = peaks[i];
-      if (c.gainKeys.length) gain = dbToGain(keyValue(c.gainKeys, f0 - c.start, c.gain));
+      if (!orig && c.gainKeys.length) gain = dbToGain(keyValue(c.gainKeys, f0 - c.start, c.gain));
       const v = Math.min(1, mx * gain) * hh * 0.48;
       if (v > 0.3) ctx.fillRect(px, mid - v, 1, v * 2);
     }
@@ -1646,7 +1648,7 @@ export class Timeline {
       }
       this.sporca();
     }, { passive: false });
-    this.testate.addEventListener('wheel', (e) => { e.preventDefault(); this.scorriY(this.scrollY + e.deltaY * 0.6); }, { passive: false });
+    this.testate.addEventListener('wheel', (e) => { e.preventDefault(); if (e.ctrlKey || e.metaKey) { this.zoom(e.deltaY < 0 ? 1.18 : 1 / 1.18); return; } this.scorriY(this.scrollY + e.deltaY * 0.6); }, { passive: false });
     this.eventiNav();
     this.eventiVbar();
     // trascinamento dal contenitore (col puntatore: vedi trascina.ts)

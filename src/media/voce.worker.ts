@@ -2,7 +2,7 @@
 // browser) gira qui, lontano dall'interfaccia. La libreria (transformers.js) sta dentro l'app (src/media/libreriaAI.ts,
 // con la CDN di riserva); il modello si scarica da Hugging Face una volta e resta nella cache del browser/app. L'audio
 // non esce mai dal computer: tutto il lavoro si fa qui.
-import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, type Dispositivo, type Tipo } from './libreriaAI';
+import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type Tipo } from './libreriaAI';
 
 type Pipeline = (audio: Float32Array, opz: Record<string, unknown>) => Promise<{ text: string; chunks?: { timestamp: [number, number | null]; text: string }[] }>;
 
@@ -45,6 +45,7 @@ async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean
     // la scheda video si è fermata a metà: si ricarica il modello sul processore e si rifà lo stesso pezzo
     if (dispositivo !== 'webgpu' || !erroreDellaScheda(e)) throw e;
     manda({ tipo: 'avviso', msg: 'La scheda video si è fermata: continuo col processore (più lento)' });
+    manda({ tipo: 'scheda-guasta' });
     asr = null;
     await carica(caricato, false);
     return await asr!(audio, opz);
@@ -52,9 +53,10 @@ async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean
 }
 
 self.onmessage = async (e: MessageEvent) => {
-  const m = e.data as { tipo: string; id?: number; modello?: string; audio?: Float32Array; lingua?: string; traduci?: boolean; base?: string; scheda?: boolean };
+  const m = e.data as { tipo: string; id?: number; modello?: string; audio?: Float32Array; lingua?: string; traduci?: boolean; base?: string; scheda?: boolean; hw?: ImpostazioneScheda };
   try {
     if (m.base !== undefined) base = m.base;
+    if (m.hw) usaImpostazioneScheda(m.hw);
     if (m.tipo === 'carica') await carica(m.modello!, m.scheda !== false);
     else if (m.tipo === 'trascrivi') {
       const out = await trascrivi(m.audio!, m.lingua, m.traduci);

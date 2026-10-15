@@ -164,6 +164,11 @@ export async function proveAiuto({ page: paginaDi, prova }) {
           manca: EA.spiegaErroreAI('Could not locate file: "https://huggingface.co/Xenova/modnet/resolve/main/onnx/model_quantized.onnx".'),
           memoria: EA.spiegaErroreAI('RangeError: Array buffer allocation failed'),
           scheda: EA.spiegaErroreAI('GPUDevice was lost: device lost'),
+          // l'errore vero di chi ha due schede video (NVIDIA + quella del processore AMD): prima non si riconosceva come "della scheda"
+          setPipeline: EA.erroreDellaScheda("Failed to execute 'setPipeline' on 'GPUComputePassEncoder': parameter 1 is not of type 'GPUComputePipeline'."),
+          setPipelineFrase: EA.spiegaErroreAI("Failed to execute 'setPipeline' on 'GPUComputePassEncoder': parameter 1 is not of type 'GPUComputePipeline'."),
+          altri: ['Validation error: wgsl compile failed', 'GPUBuffer is destroyed', '[WebGPU] createBuffer failed', 'mapAsync failed'].map((t) => EA.erroreDellaScheda(t)),
+          noScheda: EA.erroreDellaScheda('Could not locate file: model.onnx'),
           nostra: EA.spiegaErroreAI('Non ho sentito parole'),
         };
       });
@@ -171,7 +176,41 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       prova('"Could not locate file" → il modello non si trova', /non si trova su Hugging Face/.test(frasi.manca), frasi.manca);
       prova('memoria finita → scegli il modello più leggero', /memoria non basta/.test(frasi.memoria), frasi.memoria);
       prova('scheda video persa → si userà il processore', /processore/.test(frasi.scheda), frasi.scheda);
+      prova('"setPipeline … GPUComputePipeline" (due schede video) è un errore della scheda: si riprova sul processore, con la frase giusta', frasi.setPipeline && /processore/.test(frasi.setPipelineFrase) && frasi.altri.every(Boolean) && !frasi.noScheda, JSON.stringify(frasi));
       prova('le frasi già in italiano restano come sono', frasi.nostra === 'Non ho sentito parole', frasi.nostra);
+
+      console.log('▶ Aiuto: il rilevatore dell\'hardware (due schede video, scheda che sbaglia)');
+      const hw = await page.evaluate(async () => {
+        const { HW } = window.__dpvTest;
+        const sc = (v, potenze, prova = 'si', extra = {}) => ({ potenze, vendor: v, arch: '', descr: v, prova, f16: true, software: false, ms: 5, ...extra });
+        const nvidiaAmd = [sc('AMD', ['low-power']), sc('NVIDIA', ['high-performance'])];
+        const out = {
+          migliore: HW.scegli(nvidiaAmd),
+          guasta: HW.scegli([sc('AMD', ['low-power']), sc('NVIDIA', ['high-performance'], 'si', { guasta: true })]),
+          provaNo: HW.scegli([sc('AMD', ['low-power']), sc('NVIDIA', ['high-performance'], 'no')]),
+          nessuna: HW.scegli([sc('AMD', ['low-power'], 'no'), sc('NVIDIA', ['high-performance'], 'no')]),
+          software: HW.scegli([sc('SwiftShader', [''], 'si', { software: true })]),
+          vuoto: HW.scegli([]),
+        };
+        // il rilevatore vero (qui senza scheda vera: deve dare una risposta e non bloccarsi)
+        const t0 = performance.now();
+        const h = await HW.rilevaHardware(true);
+        out.rileva = { ms: Math.round(performance.now() - t0), cpu: h.cpu > 0, schede: h.schede.length, scelta: h.scelta, gpuApi: h.gpuApi, righe: HW.raccontaHardware(h).length };
+        // le prove riempiono la memoria come farebbe una scheda vera
+        localStorage.setItem('dpv-hardware', JSON.stringify({ firma: 'x', quando: 0, cpu: 8, ram: 8, gpuApi: true, schede: nvidiaAmd, scelta: 1 }));
+        out.msg1 = HW.messaggioScheda();
+        HW.schedaGuasta();
+        out.msg2 = HW.messaggioScheda();
+        HW.schedaGuasta();
+        out.msg3 = HW.messaggioScheda();
+        localStorage.setItem('dpv-ai-scheda', 'no');
+        out.spenta = HW.messaggioScheda();
+        localStorage.removeItem('dpv-ai-scheda');
+        localStorage.removeItem('dpv-hardware');
+        return out;
+      });
+      prova('con NVIDIA e AMD (cavo sul processore) sceglie la scheda NVIDIA "alte prestazioni"; se sbaglia a metà lavoro tocca all\'altra; se sbaglia anche quella, al processore', hw.migliore === 1 && hw.guasta === 0 && hw.provaNo === 0 && hw.nessuna === -1 && hw.software === -1 && hw.vuoto === -1 && hw.msg1.scheda && hw.msg1.potenza === 'high-performance' && hw.msg2.scheda && hw.msg2.potenza === 'low-power' && !hw.msg3.scheda, JSON.stringify(hw));
+      prova('la scheda spenta nelle impostazioni resta spenta; il rilevatore risponde subito anche senza scheda video', !hw.spenta.scheda && hw.rileva.ms < 12000 && hw.rileva.cpu && hw.rileva.righe >= 1, JSON.stringify(hw.rileva));
       prova('nessun errore nelle prove della ricerca, della guida e del Centro AI', errori.length === 0, errori.slice(0, 5).join(' | '));
     } finally {
       await contesto.close();

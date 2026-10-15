@@ -3,11 +3,11 @@
 // pannello con tutte le righe: a che punto sono, quanto è passato, quanto manca, cosa è in coda, cosa è finito da poco.
 // I dati stanno in src/media/attivita.ts (il registro e le code); qui si disegna e basta.
 import {
-  attivitaFinite, attivitaInCorso, fermaRiga, inAttesaPerRiproduzione, inPausa, pausaLavori, puliscoFinite, quandoAttivita, riassunto,
+  attivitaFinite, attivitaInCorso, fermaRiga, inAttesaPerRiproduzione, inPausa, inSovraccarico, limitiForti, pausaLavori, puliscoFinite, quandoAttivita, riassunto, sovraccarica,
   type Attivita, type Categoria,
 } from '../media/attivita';
 import { durataTesto } from '../core/stima';
-import { h } from './dom';
+import { avviso, h } from './dom';
 
 const ICONE: Record<Categoria, string> = { file: '📂', analisi: '📊', proxy: '🎞', conversione: '🔧', ai: '✨', esporta: '📤', altro: '⚙' };
 const adesso = () => performance.now();
@@ -74,11 +74,22 @@ export class CentroAttivita {
   private nota = h('p', { class: 'att-nota' });
   private firmaFinite: string | null = null;
   private bPausa = h('button', { class: 'btn piccolo', on: { click: () => { pausaLavori(!inPausa()); this.aggiorna(); } } });
+  private bForza = h('button', {
+    class: 'btn piccolo att-forza',
+    title: 'Mette tutto il computer (processore e scheda video) a fare le copie e le conversioni, più file insieme e senza aspettare quando il montaggio suona. Utile all\'inizio, quando carichi tanti file. Si spegne da solo quando finisce.',
+    on: { click: () => { sovraccarica(!inSovraccarico()); this.aggiorna(); } },
+  });
 
   constructor() {
     this.el = h('button', { class: 'att att-ferma', title: 'Cosa sta facendo il programma · clic per i dettagli e i tempi', on: { click: () => { this.alterna(); this.el.blur(); } } },
       this.led, this.testo, this.pista, this.tempo, this.altre);
     quandoAttivita(() => this.aggiorna());
+    document.addEventListener('dpv:sovraccarico', (e) => {
+      const d = (e as CustomEvent<{ on: boolean; daSolo: boolean }>).detail;
+      if (d.on) avviso('⚡ Sovraccarica: tutto il computer lavora per le conversioni', 'info', 2600);
+      else if (d.daSolo) avviso('⚡ Finito: Sovraccarica si è spento da solo', 'ok', 3200);
+      this.aggiorna();
+    });
     // i secondi passano solo mentre si lavora: a lavoro finito nessun timer resta acceso (l'elenco delle finite ha l'ora e
     // la durata scritte una volta sola, non un "x fa" che cammina)
     document.addEventListener('pointerdown', (e) => {
@@ -108,6 +119,7 @@ export class CentroAttivita {
     const ultima = attivitaFinite()[0];
     const el = this.el;
     const attesa = inAttesaPerRiproduzione();
+    el.classList.toggle('sovraccarico', inSovraccarico());
     el.classList.toggle('att-pausa', r.righe > 0 && (r.inPausa || (attesa && r.principale?.categoria === 'proxy')));
     if (r.righe && r.principale) {
       const p = r.principale;
@@ -143,7 +155,7 @@ export class CentroAttivita {
   apri() {
     if (this.pannello) return;
     this.pannello = h('section', { class: 'att-pannello', role: 'dialog', 'aria-label': 'Attività del programma' },
-      h('header', { class: 'att-p-testa' }, h('b', null, 'Attività'), h('span', { class: 'att-p-sotto' }), this.bPausa,
+      h('header', { class: 'att-p-testa' }, h('b', null, 'Attività'), h('span', { class: 'att-p-sotto' }), this.bForza, this.bPausa,
         h('button', { class: 'btn piccolo', title: 'Toglie dall\'elenco quelle già finite', on: { click: () => puliscoFinite() } }, 'Pulisci'),
         h('button', { class: 'btn-icona piccolo', title: 'Chiudi (Esc)', on: { click: () => this.chiudi() } }, '✕')),
       this.nota, this.listaVive, h('h5', { class: 'att-p-titolo' }, 'Finite da poco'), this.listaFinite);
@@ -182,11 +194,15 @@ export class CentroAttivita {
     } else this.listaVive.querySelector('.att-vuoto')?.remove();
     const rs = riassunto();
     (p.querySelector('.att-p-sotto') as HTMLElement).textContent = attuali.length ? `${rs.inCorso} al lavoro · ${rs.inCoda} in coda` : '';
+    this.bForza.textContent = inSovraccarico() ? '⚡ Sovraccarico acceso' : '⚡ Sovraccarica';
+    this.bForza.classList.toggle('acceso', inSovraccarico());
     this.bPausa.textContent = inPausa() ? '▶ Riprendi' : '⏸ Pausa';
     this.bPausa.title = inPausa() ? 'Fa ripartire i lavori in coda' : 'Non parte nessun lavoro nuovo (quelli al lavoro finiscono)';
     this.nota.textContent = inPausa()
       ? 'In pausa: i lavori in coda aspettano. Quelli già partiti finiscono.'
-      : inAttesaPerRiproduzione() && attuali.some((a) => a.categoria === 'proxy' || a.categoria === 'conversione')
+      : inSovraccarico()
+        ? `Sovraccarico: fino a ${limitiForti().pesante} conversioni e ${limitiForti().leggero} analisi insieme, senza aspettare il montaggio. Si spegne da solo quando finisce.`
+        : inAttesaPerRiproduzione() && attuali.some((a) => a.categoria === 'proxy' || a.categoria === 'conversione')
         ? 'Il montaggio sta suonando: le copie e le conversioni aspettano che ti fermi, per non rubare il decoder.'
         : '';
     this.nota.style.display = this.nota.textContent ? '' : 'none';

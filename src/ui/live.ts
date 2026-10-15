@@ -33,7 +33,7 @@ import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
 import { PannelloAudio } from './liveAudio';
 import { MixerLive } from '../media/liveAudio';
-import { copiaImpostazioni, IMPOSTAZIONI0, unisciImpostazioni, type ImpostazioniAudio } from '../core/liveAudio';
+import { copiaImpostazioni, IMPOSTAZIONI0, type ImpostazioniAudio } from '../core/liveAudio';
 
 // per le prove: i conti puri dell'audio e il mixer, raggiungibili da `__dpvTest.LV`
 export * as liveAudioPuro from '../core/liveAudio';
@@ -262,7 +262,8 @@ const OPZ0: Opzioni = {
 function leggiOpzioni(): Opzioni {
   try {
     const salvate = JSON.parse(localStorage.getItem('dpv-live') || '{}');
-    return { ...OPZ0, ...salvate, audio: unisciImpostazioni(salvate?.audio) };
+    // i filtri e il mixer non fanno più parte di LIVE (l'audio si lavora dopo, nel montaggio): le scelte vecchie non valgono più
+    return { ...OPZ0, ...salvate, audio: copiaImpostazioni(IMPOSTAZIONI0) };
   } catch { return { ...OPZ0, audio: copiaImpostazioni(IMPOSTAZIONI0) }; }
 }
 const QUALITA: [number, string][] = [[720, '720p'], [1080, '1080p'], [1440, '1440p'], [2160, '4K']];
@@ -351,7 +352,12 @@ export class Live {
   /** il pezzo che si sta registrando adesso, e i tratti (uno per ogni pezzo fra le pause), dello schermo e della webcam */
   private pezzo: { chiudi: () => void } | null = null;
   private pezzi: Promise<Tratto>[] = [];
-  private pezziCam: Promise<Tratto>[] = [];
+  /** la webcam si può accendere e spegnere anche mentre si registra: ogni stretto in cui resta accesa è un segmento (un file suo, che parte da `da` secondi di registrazione) */
+  private segCam: { da: number; pezzi: Promise<Tratto>[] }[] = [];
+  private segCamAperto: { da: number; pezzi: Promise<Tratto>[] } | null = null;
+  /** il registratore della webcam nel pezzo di adesso, e quando è partito */
+  private nastroCam: { n: Nastro; t0: number } | null = null;
+  private bCam: HTMLButtonElement;
   /** il microfono registrato a parte (audio separato) */
   private pezziMic: Promise<Tratto>[] = [];
   private micSep: MediaStream | null = null;
@@ -382,6 +388,7 @@ export class Live {
     this.bPausa = h('button', { class: 'live-btn', disabled: true, title: 'Pausa e riprendi (Spazio o P)', on: { click: () => this.pausa() } }, '❚❚ PAUSA') as HTMLButtonElement;
     this.bFerma = h('button', { class: 'live-btn ferma', disabled: true, title: 'Ferma: finisce nel contenitore (F)', on: { click: () => this.ferma() } }, '■ FERMA') as HTMLButtonElement;
     this.bSegna = h('button', { class: 'live-btn segna', disabled: true, title: 'Un segno qui: nella timeline diventa un marcatore (M)', on: { click: () => this.segna() } }, icona('marcatore', 14), 'SEGNA') as HTMLButtonElement;
+    this.bCam = h('button', { class: 'live-btn cam', title: 'Accendi o spegni la webcam, anche mentre registri (C)', on: { click: () => this.commutaCam() } }, icona('webcam', 15), 'WEBCAM') as HTMLButtonElement;
     const bTele = h('button', { class: 'live-btn tele', title: 'Il telecomando resta sopra le altre finestre mentre registri', on: { click: () => void this.apriTelecomando() } }, icona('telecomando', 15), 'TELECOMANDO');
     this.elFonti = h('div', { class: 'live-fonti' });
     this.bAggiungi = h('button', { class: 'live-btn', disabled: true, title: 'Aggiungi un\'altra finestra o schermo (N)', on: { click: () => void this.aggiungiFinestra() } }, '＋ FINESTRA') as HTMLButtonElement;
@@ -403,7 +410,7 @@ export class Live {
 
     // ——— le scelte ———
     const salva = () => this.salvaOpzioni();
-    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'cam', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre']);
+    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre']);
     const cambia = <K extends keyof Opzioni>(k: K, v: Opzioni[K]) => {
       if (this.fase !== 'fermo' && fisse.has(k)) { avviso('Questo si cambia prima di registrare', 'info'); this.sinc.forEach((f) => f()); return false; }
       this.opz[k] = v;
@@ -433,6 +440,7 @@ export class Live {
       this.sinc.push(() => b.classList.toggle('acceso', this.opz.sfondo === x.id));
       return b;
     }));
+    this.sinc.push(() => this.bCam.classList.toggle('acceso', this.opz.cam));
     this.sinc.push(() => {
       this.camVideo.dataset.angolo = this.opz.camAngolo;
       this.camVideo.classList.toggle('tonda', this.opz.camTonda);
@@ -449,14 +457,14 @@ export class Live {
     const sezione = (t: string) => h('h4', { class: 'live-sez' }, t);
     this.el = h('section', { class: 'pannello live' },
       h('header', { class: 'fin-testa' }, h('span', { class: 'live-marchio' }, h('i'), 'LIVE'), h('span', null, 'registra lo schermo e mettilo nel montaggio'),
-        h('span', { class: 'live-tastiera' }, h('kbd', null, 'R'), ' registra ', h('kbd', null, 'Spazio'), ' pausa ', h('kbd', null, 'M'), ' segno ', h('kbd', null, '1-9'), ' finestra ', h('kbd', null, 'N'), ' nuova ', h('kbd', null, 'F'), ' ferma')),
+        h('span', { class: 'live-tastiera' }, h('kbd', null, 'R'), ' registra ', h('kbd', null, 'Spazio'), ' pausa ', h('kbd', null, 'M'), ' segno ', h('kbd', null, '1-9'), ' finestra ', h('kbd', null, 'N'), ' nuova ', h('kbd', null, 'C'), ' webcam ', h('kbd', null, 'F'), ' ferma')),
       h('div', { class: 'live-dentro' },
         h('div', { class: 'live-schermo' }, h('div', { class: 'live-quadro' }, vuoto, this.video), this.camVideo, this.contoEl),
         h('div', { class: 'live-comandi' },
           h('div', { class: 'live-regia' },
             this.tempo, this.stato, this.info,
             h('div', { class: 'live-tasti' }, this.bReg, this.bPausa, this.bFerma),
-            h('div', { class: 'live-tasti due' }, this.bSegna, bTele),
+            h('div', { class: 'live-tasti tre' }, this.bSegna, this.bCam, bTele),
             h('div', { class: 'live-tasti due' }, this.bAggiungi, this.bProssima),
             this.elFonti,
             this.audio.compatto),
@@ -464,11 +472,10 @@ export class Live {
           h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
           interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
           interruttore('separato', null, 'Voce e computer separati', 'Se registri tutti e due, il microfono va in un file suo e su una traccia audio a parte: dopo puoi livellare i volumi di voce e computer uno per uno'),
-          h('div', { class: 'live-riga' }, interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra', () => { if (this.opz.cam) void this.apriCam(); else this.chiudiCam(); }), this.selCam),
+          h('div', { class: 'live-riga' }, interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra. Si accende e si spegne anche mentre registri (tasto C)', () => { if (this.opz.cam) void this.accendiCam(); else this.spegniCam(); }), this.selCam),
           h('div', { class: 'live-riga cam-scelte' },
             chips('camAngolo', ANGOLI.map(([a, s]): [Angolo, string, string] => [a, s, 'La webcam in questo angolo'])),
             chips('camTonda', [[true, 'Bolla', 'Tonda'], [false, 'Riquadro', 'Un riquadro con gli angoli tondi']])),
-          this.audio.el,
           sezione('Finestre'),
           interruttore('finestre', null, 'Più finestre al volo (nuovo)', 'Aggiungi altre finestre o schermi e passa dall\'una all\'altra mentre registri: il video resta uno solo. Va acceso prima di registrare; il video passa da una tela intermedia, quindi con una finestra sola e senza cambi meglio lasciarlo spento'),
           chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
@@ -526,6 +533,7 @@ export class Live {
     if (k === 'r' && this.fase === 'fermo') void this.registra();
     else if ((k === ' ' || k === 'p') && (this.fase === 'registra' || this.fase === 'pausa')) this.pausa();
     else if (k === 'm' && this.fase === 'registra') this.segna();
+    else if (k === 'c') this.commutaCam();
     else if (/^[1-9]$/.test(k) && this.regia && this.fase !== 'fermo') this.passaA(Number(k) - 1);
     else if (k === 'n' && this.fase !== 'fermo') void this.aggiungiFinestra();
     else if (k === 'l' && this.regia && this.fase !== 'fermo') this.ciclaLayout();
@@ -702,13 +710,8 @@ export class Live {
     const t0 = performance.now();
     const n = nastro(this.flusso!, this.tipo, bitrate(this.opz.qualita, this.opz.fps));
     this.pezzi.push(n.fatto);
-    let c: Nastro | null = null;
-    if (this.cam) {
-      try {
-        c = nastro(this.cam, this.tipoCam, 4_000_000);
-        this.pezziCam.push(c.fatto);
-      } catch { /* la webcam no, lo schermo sì */ }
-    }
+    // la webcam parte con lo schermo solo se è accesa; dopo una pausa riprende nel suo segmento
+    if (this.cam && this.opz.cam) this.avviaNastroCam(this.fase === 'pausa' ? this.fatto / 1000 : 0);
     let mc: Nastro | null = null;
     if (this.micSep) {
       try {
@@ -716,7 +719,54 @@ export class Live {
         this.pezziMic.push(mc.fatto);
       } catch { /* il microfono a parte no: resta muto, lo schermo va lo stesso */ }
     }
-    this.pezzo = { chiudi: () => { const t = (performance.now() - t0) / 1000; n.ferma(t); c?.ferma(t); mc?.ferma(t); } };
+    this.pezzo = { chiudi: () => { const t = (performance.now() - t0) / 1000; n.ferma(t); this.fermaNastroCam(); mc?.ferma(t); } };
+  }
+
+  /** la webcam registra da adesso (`da` = a che punto della registrazione, in secondi): un segmento nuovo, o quello aperto */
+  private avviaNastroCam(da: number) {
+    if (!this.cam || this.nastroCam) return;
+    try {
+      const n = nastro(this.cam, this.tipoCam, 4_000_000);
+      if (!this.segCamAperto) { this.segCamAperto = { da, pezzi: [] }; this.segCam.push(this.segCamAperto); }
+      this.segCamAperto.pezzi.push(n.fatto);
+      this.nastroCam = { n, t0: performance.now() };
+    } catch { /* la webcam no, lo schermo sì */ }
+  }
+
+  /** la webcam smette di registrare questo pezzo; con `chiudiSegmento` (l'hai spenta) il prossimo pezzo apre un segmento nuovo */
+  private fermaNastroCam(chiudiSegmento = false) {
+    const x = this.nastroCam;
+    this.nastroCam = null;
+    x?.n.ferma((performance.now() - x.t0) / 1000);
+    if (chiudiSegmento) this.segCamAperto = null;
+  }
+
+  /** quanti secondi di registrazione (senza le pause) ci sono adesso */
+  private secondiRegistrati() { return (this.fatto + (this.fase === 'registra' ? performance.now() - this.da : 0)) / 1000; }
+
+  /** webcam accesa: si apre, e se si sta già registrando comincia a registrare da qui */
+  private async accendiCam() {
+    const s = await this.apriCam();
+    if (!s) return;
+    if (this.fase === 'registra') this.avviaNastroCam(this.secondiRegistrati());
+    if (this.fase !== 'fermo') this.stato.textContent = '● Webcam accesa';
+    this.aggiornaTempo();
+  }
+
+  /** webcam spenta: finisce il suo segmento (nel montaggio resta un buco) e la luce si spegne */
+  private spegniCam() {
+    this.fermaNastroCam(true);
+    this.chiudiCam();
+    if (this.fase !== 'fermo') this.stato.textContent = '● Webcam spenta';
+    this.aggiornaTempo();
+  }
+
+  /** i tasti e il tasto C accendono o spengono la webcam, anche mentre si registra */
+  private commutaCam() {
+    this.opz.cam = !this.opz.cam;
+    this.salvaOpzioni();
+    this.sinc.forEach((f) => f());
+    if (this.opz.cam) void this.accendiCam(); else this.spegniCam();
   }
 
   async registra() {
@@ -835,7 +885,9 @@ export class Live {
       this.regia.disegna();
     }
     this.pezzi = [];
-    this.pezziCam = [];
+    this.segCam = [];
+    this.segCamAperto = null;
+    this.nastroCam = null;
     this.pezziMic = [];
     this.segni = [];
     try {
@@ -853,7 +905,26 @@ export class Live {
     this.aggiornaTasti();
     this.stato.textContent = '● Sto registrando';
     this.giro = window.setInterval(() => this.aggiornaTempo(), 250);
+    if (!sorgenteProva) window.setTimeout(() => this.controllaImmagine(), 3000);
     avviso('● Registro: PAUSA quando vuoi, M per un segno, FERMA e finisce nel contenitore', 'ok', 2400);
+  }
+
+  /** dopo qualche secondo guarda se quello che arriva dallo schermo è un'immagine vera: tutta bianca o tutta nera vuol dire che la cattura non funziona */
+  private controllaImmagine() {
+    if (this.fase === 'fermo') return;
+    const v = this.video;
+    if (!v.videoWidth) { avviso('Dallo schermo non arriva nessuna immagine: ferma e riprova, scegliendo una finestra o lo schermo', 'errore', 8000); return; }
+    try {
+      const c = document.createElement('canvas');
+      c.width = 32; c.height = 18;
+      const x = c.getContext('2d', { willReadFrequently: true })!;
+      x.drawImage(v, 0, 0, 32, 18);
+      const d = x.getImageData(0, 0, 32, 18).data;
+      let min = 255, max = 0;
+      for (let i = 0; i < d.length; i += 4) { const l = (d[i] + d[i + 1] + d[i + 2]) / 3; if (l < min) min = l; if (l > max) max = l; }
+      if (min > 250) avviso('Lo schermo che registri risulta tutto bianco. Può succedere con due schede video (quella del monitor e quella del programma sono diverse): prova a registrare una sola finestra, oppure in Windows → Impostazioni → Sistema → Schermo → Grafica scegli per DaProd Video la scheda a cui è collegato il monitor.', 'errore', 14000);
+      else if (max < 3) avviso('Lo schermo che registri risulta tutto nero: prova a registrare una sola finestra invece dello schermo intero.', 'errore', 9000);
+    } catch { /* non si può guardare: pazienza */ }
   }
 
   pausa() {
@@ -951,7 +1022,7 @@ export class Live {
     this.stato.textContent = 'Metto in ordine la registrazione…';
     const foto = this.foto();
     const durata = this.durataUltima = this.fatto;
-    const pezzi = this.pezzi, pezziCam = this.pezziCam, pezziMic = this.pezziMic, segni = this.segni, flussi = this.flussi, mix = this.mixer;
+    const pezzi = this.pezzi, segCam = this.segCam, pezziMic = this.pezziMic, segni = this.segni, flussi = this.flussi, mix = this.mixer;
     // la regia disegna finché l'ultimo pezzo non ha dato tutto
     const regia = this.regia;
     this.regia = null;
@@ -959,7 +1030,8 @@ export class Live {
     this.disegnaFonti();
     this.aggiornaTasti();
     this.pezzi = [];
-    this.pezziCam = [];
+    this.segCam = [];
+    this.segCamAperto = null;
     this.pezziMic = [];
     this.micSep = null;
     this.segni = [];
@@ -971,14 +1043,14 @@ export class Live {
     this.flusso = null;
     this.ultima = (async () => {
       // i flussi si spengono solo quando l'ultimo pezzo ha dato tutto
-      const [tratti, trattiCam, trattiMic] = await Promise.all([Promise.all(pezzi), Promise.all(pezziCam), Promise.all(pezziMic)]);
+      const [tratti, segmentiCam, trattiMic] = await Promise.all([Promise.all(pezzi), Promise.all(segCam.map(async (g) => ({ da: g.da, tratti: await Promise.all(g.pezzi) }))), Promise.all(pezziMic)]);
       this.diagnosi = tratti.map((x, i) => `tratto ${i + 1}: ${Math.round(x.blob.size / 1024)} kB, ${x.nota}`);
       regia?.ferma();
       this.chiudiFlussi(flussi, mix);
       if (this.fase === 'fermo') this.video.srcObject = null;
       // la webcam resta accesa per l'anteprima solo se si è ancora su LIVE
       if (!this.visibile) this.chiudiCam();
-      await this.consegna(tratti.filter((x) => x.blob.size), trattiCam.filter((x) => x.blob.size), trattiMic.filter((x) => x.blob.size), durata, segni, foto);
+      await this.consegna(tratti.filter((x) => x.blob.size), segmentiCam.map((g) => ({ da: g.da, tratti: g.tratti.filter((x) => x.blob.size) })).filter((g) => g.tratti.length), trattiMic.filter((x) => x.blob.size), durata, segni, foto);
     })().catch((e) => {
       this.stato.textContent = 'Non sono riuscito a mettere via la registrazione';
       avviso('La registrazione non si salva: ' + String(e), 'errore', 4000);
@@ -995,17 +1067,19 @@ export class Live {
   }
 
   /** la registrazione finita: cucita, sul disco (nell'app), nel contenitore e in fondo alla timeline */
-  private async consegna(tratti: Tratto[], trattiCam: Tratto[], trattiMic: Tratto[], durata: number, segni: number[], foto: string) {
+  private async consegna(tratti: Tratto[], segmentiCam: { da: number; tratti: Tratto[] }[], trattiMic: Tratto[], durata: number, segni: number[], foto: string) {
     if (!tratti.length) { this.stato.textContent = 'La registrazione è vuota'; return; }
     const mp4 = /mp4/.test(tratti[0].blob.type);
     // di solito un file solo; se la cucitura non riesce, i pezzi vanno uno dopo l'altro (sempre senza buchi)
     const cucito = await cuci(tratti, mp4, this.diagnosi);
     const files = cucito ? [cucito] : await Promise.all(tratti.map((x) => rimetteInOrdine(x.blob, mp4)));
-    let camBlob: Blob | null = null;
-    if (trattiCam.length) {
+    // la webcam: un file per ogni segmento (se l'hai accesa e spenta più volte), ognuno con il punto da cui parte
+    const camBlob: { blob: Blob; da: number }[] = [];
+    for (const g of segmentiCam) {
       const note: string[] = [];
-      const camMp4 = /mp4/.test(trattiCam[0].blob.type);
-      camBlob = await cuci(trattiCam, camMp4, note) ?? (trattiCam.length === 1 ? await rimetteInOrdine(trattiCam[0].blob, camMp4) : null);
+      const camMp4 = /mp4/.test(g.tratti[0].blob.type);
+      const b = await cuci(g.tratti, camMp4, note) ?? (g.tratti.length === 1 ? await rimetteInOrdine(g.tratti[0].blob, camMp4) : null);
+      if (b) camBlob.push({ blob: b, da: g.da });
       this.diagnosi.push(...note.map((x) => 'webcam ' + x));
     }
     // il microfono a parte: un file audio solo (o pezzo per pezzo, come lo schermo)
@@ -1039,8 +1113,13 @@ export class Live {
       const m = await importa(`${radice} microfono${micFiles.length > 1 ? ` parte ${i + 1}` : ''}.${estAudio(blob)}`, blob);
       if (m) mics.push(m);
     }
-    const mCam = camBlob ? await importa(`${radice} webcam.${/mp4/.test(camBlob.type) ? 'mp4' : 'webm'}`, camBlob) : undefined;
-    const ids = this.opz.timeline ? this.inTimeline(schermi, mCam ?? null, segni, mics) : [];
+    const cams: { m: MediaItem; da: number }[] = [];
+    for (const [i, g] of camBlob.entries()) {
+      const m = await importa(`${radice} webcam${camBlob.length > 1 ? ` ${i + 1}` : ''}.${/mp4/.test(g.blob.type) ? 'mp4' : 'webm'}`, g.blob);
+      if (m) cams.push({ m, da: g.da });
+    }
+    const mCam = cams[0]?.m;
+    const ids = this.opz.timeline ? this.inTimeline(schermi, cams, segni, mics) : [];
     if (ids.length) store.select(ids);
     const { id, name: nome } = schermi[0];
     this.stato.textContent = `Fatto: ${nome}`;
@@ -1057,12 +1136,12 @@ export class Live {
    * In fondo alla timeline, dal basso: lo sfondo (stile presentazione), lo schermo, la webcam sopra. Se le tracce
    * video non bastano se ne aggiungono. Tutto legato insieme, così si sposta in un colpo; i segni diventano marcatori.
    */
-  private inTimeline(schermi: MediaItem[], cam: MediaItem | null, segni: number[], mics: MediaItem[] = []): string[] {
+  private inTimeline(schermi: MediaItem[], cams: { m: MediaItem; da: number }[], segni: number[], mics: MediaItem[] = []): string[] {
     const o = this.opz;
     return store.edit('Registrazione in timeline', (p) => {
       const inizio = projectEnd(p);
       const vt = p.tracks.filter((t) => t.kind === 'video' && !t.lock);
-      const servono = 1 + (o.presentazione ? 1 : 0) + (cam ? 1 : 0);
+      const servono = 1 + (o.presentazione ? 1 : 0) + (cams.length ? 1 : 0);
       while (vt.length < servono) {
         const nt = newTrack('video', nextTrackName(p, 'video'));
         p.tracks.unshift(nt);
@@ -1072,7 +1151,7 @@ export class Live {
       let k = 0;
       const tSfondo = o.presentazione ? dalBasso[k++].id : null;
       const tSchermo = dalBasso[k++].id;
-      const tCam = cam ? dalBasso[k++].id : null;
+      const tCam = cams.length ? dalBasso[k++].id : null;
       const a = p.tracks.find((t) => t.kind === 'audio' && !t.lock)?.id;
       // il microfono a parte va su un'altra traccia audio (se serve se ne fa una nuova), così ha il suo fader
       let tMic: string | null = null;
@@ -1106,11 +1185,14 @@ export class Live {
         p.clips.push(c);
         ids.push(c.id);
       }
-      if (cam && tCam) {
-        const nuovi = M.placeSource(p, { mediaId: cam.id, srcIn: cam.t0 || 0, srcOut: cam.duration }, inizio, null, { video: tCam, audio: [] }, 'libero');
-        // la webcam finisce con lo schermo (il suo registratore consegna un fotogramma in più)
-        for (const c of p.clips) if (nuovi.includes(c.id)) { c.tf = bolla(p, cam, o.camAngolo, 0.3, o.camTonda); c.link = link; if (f > inizio) c.len = Math.min(c.len, f - inizio); }
-        ids.push(...nuovi);
+      if (cams.length && tCam) {
+        // ogni segmento della webcam parte dal punto in cui l'hai accesa; finisce con lo schermo (il suo registratore consegna un fotogramma in più)
+        for (const { m: cam, da } of cams) {
+          const da0 = inizio + Math.round(da * fps(p.rate));
+          const nuovi = M.placeSource(p, { mediaId: cam.id, srcIn: cam.t0 || 0, srcOut: cam.duration }, da0, null, { video: tCam, audio: [] }, 'libero');
+          for (const c of p.clips) if (nuovi.includes(c.id)) { c.tf = bolla(p, cam, o.camAngolo, 0.3, o.camTonda); c.link = link; if (f > da0) c.len = Math.min(c.len, f - da0); }
+          ids.push(...nuovi);
+        }
       }
       const r = fps(p.rate);
       segni.forEach((t, i) => p.markers.push({ id: uid('k'), f: inizio + Math.round(t * r), name: `Segno ${i + 1}`, color: '#ff4d6d' }));

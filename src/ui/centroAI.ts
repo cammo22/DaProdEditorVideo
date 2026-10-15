@@ -15,6 +15,7 @@ import { MODELLO_SEPARAZIONE, installaSeparazione, possibilita, statoAudioAI, to
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, statoNvidia, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
 import { impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
+import { raccontaHardware } from '../media/hardware';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { avviso, conferma, dialogo, evidenzia, h } from './dom';
 import { vaiFinale, vaiPagina, vaiSezione } from './guida';
@@ -250,7 +251,10 @@ function disegnaDiagnosi(el: HTMLElement, g: Diagnosi) {
     riga(g.libreria.ok, 'Motore AI', g.libreria.ok
       ? `parte (${g.libreria.dove === 'locale' ? 'dai file dell\'app' : 'dalla CDN'}, ${(g.libreria.ms / 1000).toFixed(1).replace('.', ',')} s)`
       : `non parte: ${g.libreria.msg}`),
-    riga(g.scheda ? true : null, 'Scheda video', g.scheda ? `${g.scheda}: l'AI la usa quando può${usaSchedaAI() ? '' : ' (adesso è spenta nelle impostazioni)'}` : 'non disponibile per l\'AI: si usa il processore (va bene, solo più lento)'),
+    ...(g.hardware && g.hardware.gpuApi && g.hardware.schede.length
+      ? [riga(g.hardware.scelta >= 0 ? true : null, 'Scheda video', usaSchedaAI() ? (g.hardware.scelta >= 0 ? 'ho provato quelle del computer: l\'AI usa la migliore (qui sotto)' : 'nessuna ha superato la prova: l\'AI usa il processore') : 'adesso è spenta nelle impostazioni: l\'AI usa il processore'),
+        ...raccontaHardware(g.hardware).map((r) => riga(r.ok, r.titolo, r.testo))]
+      : [riga(g.scheda ? true : null, 'Scheda video', g.scheda ? `${g.scheda}: l'AI la usa quando può${usaSchedaAI() ? '' : ' (adesso è spenta nelle impostazioni)'}` : 'non disponibile per l\'AI: si usa il processore (va bene, solo più lento)')]),
     riga(g.internet, 'Hugging Face', g.internet ? 'si raggiunge: i modelli si possono scaricare' : 'non si raggiunge: i modelli già scaricati vanno, per gli altri serve internet (o una rete che non blocchi huggingface.co)'),
     riga(g.modelli.size > 0 ? true : null, 'Modelli sul computer', g.modelli.size ? `${[...g.modelli.keys()].map((k) => k.split('/')[1]).join(', ')} · ${mb(tot)}` : 'nessuno ancora: ognuno si scarica la prima volta che serve'),
     g.nvidia ? riga(g.nvidia.installato ? true : null, 'Motore NVIDIA', g.nvidia.installato ? `installato (${g.nvidia.backend}${g.nvidia.nvidia ? ', scheda NVIDIA trovata' : ''})` : `non ancora: si scarica la prima volta (versione ${g.nvidia.consigliato === 'cuda' ? 'per la scheda NVIDIA' : g.nvidia.consigliato === 'metal' ? 'per il Mac' : 'per il processore'})`) : riga(null, 'Motore NVIDIA', 'solo nell\'app per Windows e Mac: qui si usano Whisper e gli altri modelli'),
