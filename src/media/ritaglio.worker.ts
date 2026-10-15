@@ -77,11 +77,13 @@ async function maschera(m: Msg): Promise<Uint8Array> {
   }
   if (!sam) throw new Error('modello non caricato');
   const opz: Record<string, unknown> = {};
+  // il riquadro e i punti si danno insieme: nei fotogrammi dopo il primo il riquadro dice dove sta l'oggetto e i punti (nel cuore
+  // della maschera di prima) dicono quale, anche se nel riquadro c'è un'altra persona
   if (m.riquadro) opz.input_boxes = [[m.riquadro.map((v, i) => v * (i % 2 ? h : w))]];
-  else {
-    const pts = (m.punti ?? []).map((p) => [p.x * w, p.y * h]);
+  if (m.punti?.length) {
+    const pts = m.punti.map((p) => [p.x * w, p.y * h]);
     opz.input_points = [pts];
-    opz.input_labels = [(m.punti ?? []).map((p) => (p.dentro ? 1 : 0))];
+    opz.input_labels = [m.punti.map((p) => (p.dentro ? 1 : 0))];
   }
   const inputs = await sam.processor(img, opz);
   const out = await sam.model(inputs);

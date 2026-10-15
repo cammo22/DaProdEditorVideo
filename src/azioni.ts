@@ -297,6 +297,8 @@ reg({ id: 'annulla', nome: 'Annulla', gruppo: 'Modifica', tasti: ['Ctrl+Z'], fn:
 reg({ id: 'ripeti', nome: 'Ripeti', gruppo: 'Modifica', tasti: ['Ctrl+Y', 'Ctrl+Shift+Z'], fn: () => { const l = store.doRedo(); avviso(l ? `↷ Ripetuto: ${l}` : 'Niente da ripetere', 'info', 1200); } });
 
 let appunti: Clip[] = [];
+/** Duplica incolla subito dopo sulle stesse tracce: le tracce accese non c'entrano */
+let incollaSenzaTracce = false;
 /** per ogni blocchetto FX copiato, la clip su cui stava: incollando la segue (anche se finisce su un'altra traccia) */
 let padreDi = new Map<string, string>();
 reg({
@@ -318,19 +320,36 @@ reg({
 });
 reg({
   id: 'incolla', nome: 'Incolla al cursore', gruppo: 'Modifica', tasti: ['Ctrl+V'],
+  info: 'Incolla le clip copiate dove sta il cursore. Se hai scelto una traccia (clic sul suo nome) le incolla in quella traccia; se è occupata, nella più vicina libera.',
   fn: () => {
     if (!appunti.length) return;
     const f = head();
     const min = Math.min(...appunti.map((c) => c.start));
+    const accese = incollaSenzaTracce ? null : tracceAttive();
+    let spostate = 0;
     const ids = store.edit('Incolla', (p) => {
       const links = new Map<string, string>();
       const daVecchio = new Map<string, Clip>();
+      // se hai scelto una traccia (clic sul suo nome) si incolla lì: le clip video su quelle video accese, l'audio su quelle audio accese.
+      // Con più tracce accese dello stesso tipo, la prima traccia di origine va sulla prima accesa, la seconda sulla seconda, e così via.
+      const doveInColla = new Map<string, string>();
+      if (accese) {
+        for (const tipo of ['video', 'audio'] as const) {
+          const lit = p.tracks.filter((t) => t.kind === tipo && accese.has(t.id) && !t.lock);
+          if (!lit.length) continue;
+          const origini = p.tracks.map((t) => t.id).filter((id) => appunti.some((c) => c.track === id && (c.kind === 'fx' || isVideoClip(c) ? 'video' : 'audio') === tipo));
+          const ignote = [...new Set(appunti.filter((c) => !p.tracks.some((t) => t.id === c.track) && (c.kind === 'fx' || isVideoClip(c) ? 'video' : 'audio') === tipo).map((c) => c.track))];
+          [...origini, ...ignote].forEach((id, i) => doveInColla.set(id, lit[Math.min(i, lit.length - 1)].id));
+        }
+      }
       const nuove = appunti.map((c) => {
         const n = structuredClone(c);
         n.id = uid('c');
         n.start = c.start - min + f;
         if (c.link) { if (!links.has(c.link)) links.set(c.link, uid('l')); n.link = links.get(c.link); }
-        if (!p.tracks.some((t) => t.id === n.track)) n.track = p.tracks.find((t) => t.kind === (c.kind === 'fx' || isVideoClip(c) ? 'video' : 'audio'))!.id;
+        const scelta = doveInColla.get(c.track);
+        if (scelta) n.track = scelta;
+        else if (!p.tracks.some((t) => t.id === n.track)) n.track = p.tracks.find((t) => t.kind === (c.kind === 'fx' || isVideoClip(c) ? 'video' : 'audio'))!.id;
         daVecchio.set(c.id, n);
         return n;
       });
@@ -342,7 +361,9 @@ reg({
       } else {
         // niente viene coperto: se la traccia è occupata la clip va su una libera
         for (const c of nuove.filter(M.solida)) {
+          const voluta = c.track;
           c.track = M.tracciaLibera(p, trackOf(p, c.track).kind, c.track, c.start, end(c));
+          if (accese && c.track !== voluta) spostate++;
           p.clips.push(c);
         }
         // i blocchetti FX stanno sopra le clip: seguono la loro clip (o restano sulla loro traccia)
@@ -357,6 +378,7 @@ reg({
     });
     store.select(ids);
     store.setHead(f + Math.max(...appunti.map((c) => end(c))) - min);
+    if (spostate) avviso(`${spostate === 1 ? 'Una clip è finita' : spostate + ' clip sono finite'} su un'altra traccia: quella che avevi scelto era occupata lì`, 'info', 3200);
   },
 });
 reg({
@@ -369,7 +391,8 @@ reg({
     const fine = Math.max(...p.clips.filter((c) => ids.has(c.id) && M.solida(c)).map((c) => end(c)));
     esegui('copia');
     store.setHead(fine);
-    esegui('incolla');
+    incollaSenzaTracce = true;
+    try { esegui('incolla'); } finally { incollaSenzaTracce = false; }
   },
 });
 reg({ id: 'tutto', nome: 'Seleziona tutto', gruppo: 'Modifica', tasti: ['Ctrl+A'], fn: () => store.select(store.doc.clips.map((c) => c.id)) });

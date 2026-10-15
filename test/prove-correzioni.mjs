@@ -49,6 +49,24 @@ export async function proveCorrezioni({ page: paginaDi, prova }) {
     prova('Shift+C taglia tutte le tracce sotto il cursore', /ALTO@0\+50/.test(tutte) && /BASSO@0\+50/.test(tutte) && /MUSICA@0\+50/.test(tutte), tutte);
     await page.keyboard.press('Control+z'); await page.waitForTimeout(150);
 
+    // incolla: con una traccia scelta (accesa) le clip vanno in quella traccia
+    console.log('▶ Correzioni: incolla nella traccia scelta');
+    await page.evaluate(() => { const d = window.__dpv.doc; window.__dpv.select([d.clips.find((c) => c.name === 'ALTO').id]); });
+    await page.keyboard.press('Control+c'); await page.waitForTimeout(100);
+    const tracce = await page.evaluate(() => { const d = window.__dpv.doc; const v = d.tracks.filter((t) => t.kind === 'video'); return { alto: d.clips.find((c) => c.name === 'ALTO').track, basso: d.clips.find((c) => c.name === 'BASSO').track, v: v.map((t) => t.id) }; });
+    await page.evaluate(() => { window.__dpv.select([]); window.__motore.vaiA(300); });
+    await page.keyboard.press('Control+v'); await page.waitForTimeout(200);
+    const senza = await page.evaluate(() => { const d = window.__dpv.doc; const n = d.clips.filter((c) => c.name === 'ALTO' && c.start === 300); return n.map((c) => c.track); });
+    prova('senza tracce scelte incolla sulla traccia di partenza', senza.length === 1 && senza[0] === tracce.alto, JSON.stringify({ senza, tracce }));
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(150);
+    await page.evaluate((id) => { window.__dpvTest.Z.modi.attive.add(id); window.__dpv.select([]); window.__motore.vaiA(300); }, tracce.basso);
+    await page.keyboard.press('Control+v'); await page.waitForTimeout(200);
+    const con = await page.evaluate(() => { const d = window.__dpv.doc; return d.clips.filter((c) => c.name === 'ALTO' && c.start === 300).map((c) => c.track); });
+    prova('con una traccia scelta (accesa) incolla in quella traccia', con.length === 1 && con[0] === tracce.basso, JSON.stringify({ con, tracce }));
+    await page.keyboard.press('Control+z'); await page.waitForTimeout(150);
+    await page.evaluate(() => { window.__dpvTest.Z.modi.attive.clear(); window.__motore.vaiA(50); window.__dpvTest.ui().tl.adattaTutto(); });
+    await page.waitForTimeout(600);
+
     // ———————————————————————————————————————————————————————————
     console.log('▶ Correzioni: un clic sulla linea del volume mette un punto');
     await page.evaluate(() => { window.__dpv.select([]); window.__motore.vaiA(0); });
@@ -129,7 +147,7 @@ export async function proveCorrezioni({ page: paginaDi, prova }) {
     const d1 = await campo('subito');
     prova('appena il puntatore arriva sul campo parte il pallino che si carica, e la rotella non cambia niente (scorre la pagina)', d1.a.acceso && d1.a.inCarica && !d1.a.pronto && !d1.fermata && !d1.cambiato, JSON.stringify(d1));
     await page.evaluate(() => { const r = [...document.querySelectorAll('.isp-riga')].find((x) => x.querySelector('label')?.textContent === 'Opacità')?.querySelector('input[type=range]'); const b = r.getBoundingClientRect(); r.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: b.left + 5, clientY: b.top + 3, pointerType: 'mouse' })); });
-    await page.waitForTimeout(650);
+    await page.waitForFunction(() => window.__rotella.stato().pronto, null, { timeout: 8000 }).catch(() => {});
     const d2 = await campo('pronto');
     prova('dopo l\'attesa il pallino è pieno e la rotella cambia il valore', d2.a.pronto && d2.fermata && d2.cambiato, JSON.stringify(d2));
     const d3 = await campo('muovi');

@@ -5,13 +5,13 @@
 // così anche l'annulla vede un colpo solo per tutta la girata.
 //
 // Per non cambiare i valori per sbaglio mentre si scorre il pannello, un campo risponde alla rotella solo dopo che il
-// puntatore è rimasto fermo su di lui per 1,5 secondi: mentre aspetta compare vicino al puntatore un pallino che si
+// puntatore è rimasto fermo su di lui per 1 secondo: mentre aspetta compare vicino al puntatore un pallino che si
 // carica (un anello che si riempie); quando è pieno e dorato la rotella cambia il valore. Se il puntatore si muove,
 // o la pagina scorre, si ricomincia da capo, e finché non è pronto la rotella fa scorrere il pannello come sempre.
 
 const DOPO_MS = 350;
 /** quanto si aspetta, fermi sul campo, prima che la rotella lo cambi (di prova si può mettere a 0: localStorage `dpv-rotella-attesa`, in millisecondi) */
-export const ATTESA_MS = 1500;
+export const ATTESA_MS = 1000;
 const MOVIMENTO_MAX = 5;
 const PASSO_PIXEL = 40;
 
@@ -82,7 +82,7 @@ function attesa(): number {
   return ATTESA_MS;
 }
 
-/** il pallino che si carica: un anello che si riempie in 1,5 s, poi un punto dorato "pronto" */
+/** il pallino che si carica: un anello che si riempie in 1 s, poi un punto dorato "pronto" */
 class Pallino {
   private el: HTMLElement | null = null;
   private pos = (x: number, y: number) => {

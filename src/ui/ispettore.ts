@@ -24,8 +24,10 @@ import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritagl
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
 import { cosaCiMetto } from './seguiMenu';
+import { righeAudioAI } from './audioAI';
+import { possibilita as audioAIPossibile } from '../media/audioAI';
 import type { ModoSfondo } from './sfondo';
-import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, provaOggetto, scegliColore, scegliOggetto, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
+import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, avviaAI, cliccaCosaTenere, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
 
@@ -71,7 +73,7 @@ export class Ispettore {
   private costruisci() {
     const cs = this.sel();
     // si ricostruisce se cambia la scelta o se cambiano i blocchi FX (le transizioni della clip scelta)
-    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : ''))
+    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.afx?.pulito ? 'p' + c.afx.pulito.forza : '') + (c.afx?.separata?.ruolo ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : ''))
       .join(',') + '|' + store.doc.clips.filter((c) => c.kind === 'fx').map((c) => c.id + c.start + ':' + c.len + (c.fxb?.id ?? '')).join(',');
     if (firma === this.firma && this.campi.length) { for (const c of this.campi) c.aggiorna(); return; }
     this.firma = firma;
@@ -207,6 +209,9 @@ export class Ispettore {
       ], true));
       out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti rapidi', [chips(EFFETTI_AUDIO, audio)]));
     }
+    // l'audio con l'AI: togliere i rumori e separare voce e base. Per l'audio sta aperto (è quello che si cerca); per una ripresa con audio sta chiuso
+    const conAudio = audio.find((c) => c.kind === 'media') ?? video.find((c) => c.kind === 'media' && audioAIPossibile(c).rumore);
+    if (conAudio) out.push(this.gruppo('audioai', 'Audio: pulisci e separa (AI)', righeAudioAI(conAudio), audio.length > 0));
     out.push(this.gruppo('durata', 'Durata e velocità', [this.durata(cs.filter((c) => c.kind !== 'fx'))]));
     if (video.length) out.push(this.transizioniClip(video[0]));
     const gen = cs.filter((c) => c.kind === 'color' || c.kind === 'bars' || c.kind === 'tone' || c.kind === 'beep');
@@ -327,19 +332,19 @@ export class Ispettore {
     const modo = modoSfondo(c0);
     const righe: (HTMLElement | null)[] = [];
     righe.push(h('label', { class: 'etichetta' }, 'Come lo tolgo?'));
-    // la differenza fra i modi con l'AI, scritta chiara
-    const spiegaAI = (m: ModoSfondo) => (m === 'soggetto' || m === 'persona' || m === 'oggetti' ? h('p', { class: 'nota sf-spiega' }, SPIEGA_MODO[m]) : null);
-    righe.push(h('div', { class: 'isp-chips' }, modiPossibili(c0).map((m) => h('button', {
-      class: 'chip' + (m === modo ? ' acceso' : ''), title: NOMI_MODO[m], on: { click: () => { if (m !== modo) impostaModo(ids, m); } },
-    }, NOMI_MODO[m]))));
-    righe.push(spiegaAI(modo));
-    if (modo === 'soggetto' || modo === 'persona') righe.push(this.pulsanti([['🖱 Voglio scegliere io chi tenere', () => impostaModo(ids, 'oggetti')]]));
+    // con l'AI c'è una sola scelta: fa tutto da solo, e se serve si clicca su quello che si vuole tenere
+    const AI3 = ['soggetto', 'persona', 'oggetti'];
+    const inAI = AI3.includes(modo);
+    const scelte: [string, string, boolean][] = [];
+    for (const m of modiPossibili(c0)) {
+      if (AI3.includes(m)) { if (!scelte.some((x) => x[0] === 'ai')) scelte.push(['ai', 'AI · automatico', inAI]); } else scelte.push([m, NOMI_MODO[m], m === modo]);
+    }
+    righe.push(h('div', { class: 'isp-chips' }, scelte.map(([m, nome, acceso]) => h('button', {
+      class: 'chip' + (acceso ? ' acceso' : ''), title: m === 'ai' ? 'Toglie lo sfondo da solo (persone, oggetti, animali): niente fondale, niente impostazioni' : nome,
+      on: { click: () => { if (acceso) return; if (m === 'ai') avviaAI(ids); else impostaModo(ids, m as ModoSfondo); } },
+    }, nome))));
     if (modo === 'nessuno') {
-      righe.push(
-        h('p', { class: 'nota' }, 'Colore: se hai girato su un fondale verde o blu. Luce: per un fondo nero o bianco. Con l\'AI non serve il fondale:'),
-        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Automatico'), ' — ', SPIEGA_MODO.soggetto),
-        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Persone'), ' — ', SPIEGA_MODO.persona),
-        h('p', { class: 'nota sf-spiega' }, h('b', null, 'Clicca tu'), ' — ', SPIEGA_MODO.oggetti));
+      righe.push(h('p', { class: 'nota' }, 'Colore: se hai girato su un fondale verde o blu · Luce: per un fondo nero o bianco · AI: senza fondale, fa tutto da solo (poi clicchi su quello che vuoi tenere, se serve).'));
     }
     if (modo === 'colori') {
       const colori = coloriChiave(c0.fx);
@@ -374,34 +379,38 @@ export class Ispettore {
     if (modo === 'persona' || modo === 'soggetto' || modo === 'oggetti') {
       const r = c0.ritaglio!;
       const mod = modelloRitaglio(r.modello);
-      righe.push(
-        this.scelta('Modello', modelliPer(modo).map((m) => [m.id, `${m.nome} — ${m.info}`] as [string, string]), (c) => c.ritaglio?.modello ?? '', (c, v) => { if (c.ritaglio) c.ritaglio.modello = v; }, video),
-        this.scelta('Precisione', QUALITA_RITAGLIO.map((q, i) => [String(i), `${q.nome} (${q.hz} fotogrammi al secondo)`] as [string, string]), (c) => String(c.ritaglio?.qualita ?? 1), (c, v) => { if (c.ritaglio) c.ritaglio.qualita = Number(v); }, video));
-      if (modo === 'oggetti') {
-        const punti = r.punti ?? [];
-        righe.push(this.pulsanti([
-          ['🖱 Clicca la persona o l\'oggetto sul monitor', () => scegliOggetto(c0.id)],
-          ['Prova su questo fotogramma', () => void provaOggetto(c0.id)],
-          ...(punti.length ? [['Toglie i clic', () => azzeraPunti(c0.id)] as [string, () => void]] : []),
-        ]));
-        righe.push(punti.length
-          ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
-          : h('p', { class: 'nota' }, 'Metti il cursore su un fotogramma dove si vede bene, premi "Clicca la persona o l\'oggetto" e clicca sopra (più clic se serve). Alt+clic su una parte che NON va tenuta. Dopo l\'ultimo clic il programma lo segue da solo per tutta la clip: non devi premere altro.'));
-        righe.push(this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video));
-      }
       const lav = lavoroDi(c0.id);
       const inCorso = !!lav && !lav.finito;
-      righe.push(this.pulsanti([
-        [inCorso ? '⏹ Ferma' : '✂ Togli lo sfondo', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }],
-      ]));
-      if (lav) righe.push(h('div', { class: 'sf-lavoro' }, ...lav.barra.elementi));
       const st = statoMaschere(c0);
-      righe.push(h('p', { class: 'nota' + (st.ok ? ' ok' : '') }, st.testo));
+      const punti = r.punti ?? [];
+      // la parte semplice: cosa sta succedendo, e una sola azione (cliccare su quello che si vuole tenere)
       righe.push(
+        h('p', { class: 'nota sf-spiega' }, modo === 'oggetti'
+          ? 'Hai scelto tu cosa tenere: il programma lo segue per tutta la clip. Per cambiare scelta clicca su un altro punto.'
+          : 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o ci sono più persone e ne vuoi una), clicca su quello che vuoi tenere: capisce da solo se è una persona o un oggetto.'),
+        this.pulsanti([['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)], [inCorso ? '⏹ Ferma' : '↻ Rifai', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }]]));
+      if (lav) righe.push(h('div', { class: 'sf-lavoro' }, ...lav.barra.elementi));
+      righe.push(h('p', { class: 'nota' + (st.ok ? ' ok' : '') }, st.testo));
+      // tutto il resto sta nascosto
+      righe.push(h('details', { class: 'pp-piu' }, h('summary', null, 'Avanzate'),
+        h('div', { class: 'isp-riga' }, h('label', null, 'Cosa tolgo'),
+          h('select', { class: 'mini-select', title: 'Il modo con cui l\'AI sceglie cosa tenere', on: { change: (e: Event) => impostaModo([c0.id], (e.target as HTMLSelectElement).value as ModoSfondo) } },
+            (['soggetto', 'persona', 'oggetti'] as const).map((m) => h('option', { value: m, selected: m === modo, title: SPIEGA_MODO[m] }, NOMI_MODO[m])))),
+        h('p', { class: 'nota' }, SPIEGA_MODO[modo as 'soggetto' | 'persona' | 'oggetti']),
+        this.scelta('Modello', modelliPer(modo).map((m) => [m.id, `${m.nome} — ${m.info}`] as [string, string]), (c) => c.ritaglio?.modello ?? '', (c, v) => { if (c.ritaglio) c.ritaglio.modello = v; }, video),
+        this.scelta('Precisione', QUALITA_RITAGLIO.map((q, i) => [String(i), `${q.nome} (${q.hz} fotogrammi al secondo)`] as [string, string]), (c) => String(c.ritaglio?.qualita ?? 1), (c, v) => { if (c.ritaglio) c.ritaglio.qualita = Number(v); }, video),
+        modo === 'oggetti' ? this.pulsanti([
+          ['Prova su questo fotogramma', () => void provaOggetto(c0.id)],
+          ...(punti.length ? [['Toglie i clic', () => azzeraPunti(c0.id)] as [string, () => void]] : []),
+        ]) : null,
+        modo === 'oggetti' && punti.length
+          ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
+          : null,
+        modo === 'oggetti' ? this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video) : null,
         this.cursore('Bordo', -100, 100, 1, (c) => Math.round((c.ritaglio?.bordo ?? 0) * 100), (c, v) => { if (c.ritaglio) c.ritaglio.bordo = v / 100; }, '', video),
         this.cursore('Morbidezza', 0, 100, 1, (c) => Math.round((c.ritaglio?.morbido ?? 0) * 100), (c, v) => { if (c.ritaglio) c.ritaglio.morbido = v / 100; }, '', video),
         this.spunta('Inverti: tieni lo sfondo', (c) => !!c.ritaglio?.inverti, (c, v) => { if (c.ritaglio) c.ritaglio.inverti = v || undefined; }, video),
-        h('p', { class: 'nota' }, `Il modello${mod ? ' ' + mod.nome + ' (licenza ' + mod.licenza + ')' : ''} si scarica da Hugging Face la prima volta e poi resta nel computer; le immagini non escono mai. Guarda il risultato col tasto SFONDO sopra il monitor. La velocità dipende dalla scheda video: senza, scegli "Veloce".`));
+        h('p', { class: 'nota' }, `Il modello${mod ? ' ' + mod.nome + ' (licenza ' + mod.licenza + ')' : ''} si scarica da Hugging Face la prima volta e poi resta nel computer; le immagini non escono mai. Guarda il risultato col tasto SFONDO sopra il monitor.`)));
     }
     if (modo !== 'nessuno') {
       // guardare il risultato e metterci qualcosa dietro, senza uscire dal pannello

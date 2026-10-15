@@ -4,6 +4,26 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.0] — 2026-10-15 · L'audio con l'AI nel montaggio, lo sfondo che segue meglio 🎙️
+
+### Audio: togli i rumori e separa voce e musica (e non solo in LIVE)
+- **Proprietà → "Audio: pulisci e separa (AI)"**: scegli una clip audio (o una ripresa con l'audio) e trovi due schede grandi. **Togli i rumori** (Leggera / Media / Forte): fruscio, ventole e rumore di fondo vanno via e la voce resta. **Separa voce e musica**: da una canzone fa due tracce nuove, *Voce* e *Base* (lo strumentale), con l'originale muto; ci sono anche "Solo voce" e "Solo base".
+- Lo stesso si trova col **tasto destro sulla clip**, nel menu **Montaggio**, nel menu **AI**, nel **Centro AI** e con **Ctrl+K** ("rumori", "separa voce").
+- Lavora solo sulla parte della clip che usi (più un secondo per lato), in secondo piano con la barra nel Centro attività: puoi continuare a montare. Il risultato è un file nuovo nel contenitore (cartella "Audio lavorato"); **Ctrl+Z** rimette tutto, e "Audio originale" torna al suono di prima.
+- **Togli i rumori** usa **DeepFilterNet3**, che sta dentro il programma (34 MB, niente da scaricare). **Separa voce e musica** usa **Demucs**: il modello (172 MB) si scarica la prima volta, poi resta nel computer. Se non si scarica, parte da sola una **separazione rapida** senza AI (dal centro dello stereo: meno precisa) e te lo dice.
+
+### Togli lo sfondo con l'AI: più semplice e più stabile
+- **Una scelta sola, "AI · automatico"**: parte da sola. Se ha tenuto la cosa sbagliata, **"Clicca su cosa tenere"**: capisce da solo se è una persona o un oggetto e lo segue per tutta la clip (dopo l'ultimo clic rifà il lavoro da solo). Modello, precisione, bordo e gli altri modi stanno in **Avanzate**.
+- **Dopo il primo fotogramma la maschera non va più a pezzi**: ogni fotogramma riceve il riquadro e anche qualche punto nel cuore della maschera di prima (il modello sa quale oggetto è anche con un'altra persona vicino), i buchi dentro il soggetto si riempiono, le isole sparse si tolgono e un buco che c'è in un fotogramma solo si riempie guardando prima e dopo.
+
+### Altre cose
+- **La rotella cambia un valore dopo 1 secondo** col mouse fermo (prima 1,5): con l'anello che si carica.
+- **Incolla (Ctrl+V) nella traccia scelta**: se hai acceso una traccia (clic sul suo nome), le clip copiate vanno lì (se è occupata, nella più vicina libera e te lo dice). Duplica (Ctrl+D) resta sulle stesse tracce.
+
+### Per chi ha curiosità
+- Nuovi: `src/media/audioAI.ts` (+ `audioAI.worker.ts`, `modelliAudio.ts`), `src/core/rumore.ts`, `src/core/separa.ts`, `src/core/ricampiona.ts`, `src/ui/audioAI.ts`; `pulisciMaschera`, `votoTemporale`, `puntiNucleo` in `src/core/sfondo.ts`. `scripts/ai-locale.mjs` porta in `public/ai/` anche DeepFilterNet e il motore ONNX per la scheda video (l'app cresce di circa 35 MB; su Pages no, lì si va sulla CDN).
+- **Non provato con i modelli veri**: Demucs (il container non raggiunge Hugging Face: le prove usano un modello finto con le stesse forme), la qualità a orecchio di DeepFilterNet e della separazione rapida, WebGPU, e il tracciamento "Clicca tu" su riprese vere.
+
 ## [1.4.2] — 2026-10-15 · Il tracking che si completa, la rotella con la pausa, lo sfondo che segue 🎯
 
 ### Segui un oggetto: e poi?

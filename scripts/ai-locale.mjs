@@ -3,6 +3,9 @@
 // aziendale, CDN lenta, versione sparita) l'AI non partiva. Adesso, prima di ogni build (npm run build lo chiama da solo),
 // questo script prende i file giusti dal registro npm, controlla l'impronta (sha512) e li mette in public/ai/: Vite li
 // copia in dist/ai/ e i worker li caricano da lì. Se qualcosa va storto non si ferma la build: l'app userà la CDN.
+// Per l'audio AI (src/media/audioAI.ts) ci sono anche: DeepFilterNet3 per togliere i rumori (deepfilternet/index.js e il suo
+// df_bg.wasm da 34 MB, coi pesi del modello dentro), l'API di ONNX Runtime con la scheda video (ort.webgpu.min.mjs: parla con
+// il motore asyncify che c'è già) per Demucs, e le licenze (DeepFilterNet MIT/Apache-2.0, demucs-web MIT).
 //   node scripts/ai-locale.mjs        (non rifà niente se i file della versione giusta ci sono già)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -40,17 +43,30 @@ async function pacchetto(nome, versione) {
   return { meta, file: out };
 }
 
-async function main() {
-  const segno = path.join(DEST, 'versione.json');
-  try {
-    const v = JSON.parse(fs.readFileSync(segno, 'utf8'));
-    if (v.transformers === TRANSFORMERS && fs.existsSync(path.join(DEST, 'ort-wasm-simd-threaded.asyncify.wasm'))) { console.log(`ai-locale: transformers.js ${TRANSFORMERS} già pronto`); return; }
-  } catch { /* da fare */ }
+/** i file dell'audio AI (togliere i rumori con DeepFilterNet, separare voce e base con Demucs): sale se cambiano */
+export const AUDIO = 1;
+/** DeepFilterNet3 per il browser (i pesi stanno dentro il wasm): MIT oppure Apache-2.0 */
+export const DEEPFILTERNET = '0.1.0';
+/** il codice di riferimento di Demucs nel browser: qui si prende solo la licenza, il codice è riscritto in src/core/separa.ts */
+export const DEMUCS_WEB = '1.0.2';
+
+const SEGNO = path.join(DEST, 'versione.json');
+const leggiSegno = () => { try { return JSON.parse(fs.readFileSync(SEGNO, 'utf8')); } catch { return {}; } };
+const scriviSegno = (x) => { fs.mkdirSync(DEST, { recursive: true }); fs.writeFileSync(SEGNO, JSON.stringify({ ...leggiSegno(), ...x }, null, 2)); };
+const esiste = (f) => fs.existsSync(path.join(DEST, f));
+const copia = (p, da, a) => {
+  const b = p.file.get(da);
+  if (!b) throw new Error('manca ' + da);
+  const dove = path.join(DEST, a ?? path.basename(da));
+  fs.mkdirSync(path.dirname(dove), { recursive: true });
+  fs.writeFileSync(dove, b);
+};
+
+async function transformers() {
   const tr = await pacchetto('@huggingface/transformers', TRANSFORMERS);
   const ortVer = tr.meta.dependencies['onnxruntime-web'];
   const ort = await pacchetto('onnxruntime-web', ortVer);
   fs.mkdirSync(DEST, { recursive: true });
-  const copia = (p, da, a) => { const b = p.file.get(da); if (!b) throw new Error('manca ' + da); fs.writeFileSync(path.join(DEST, a ?? path.basename(da)), b); };
   copia(tr, 'dist/transformers.min.js');
   copia(tr, 'LICENSE', 'LICENSE-transformers.txt');
   // il motore: la versione "asyncify" è quella che transformers.js 4 usa sia col processore sia con la scheda video
@@ -58,8 +74,42 @@ async function main() {
   copia(ort, 'dist/ort-wasm-simd-threaded.asyncify.wasm');
   // ONNX Runtime non mette il file della licenza nel pacchetto: è MIT (Microsoft), lo si scrive qui
   fs.writeFileSync(path.join(DEST, 'LICENSE-onnxruntime.txt'), `onnxruntime-web ${ortVer} · MIT License · Copyright (c) Microsoft Corporation\nhttps://github.com/microsoft/onnxruntime/blob/main/LICENSE\n`);
-  fs.writeFileSync(segno, JSON.stringify({ transformers: TRANSFORMERS, ort: ortVer }, null, 2));
+  scriviSegno({ transformers: TRANSFORMERS, ort: ortVer });
   console.log(`ai-locale: transformers.js ${TRANSFORMERS} e onnxruntime-web ${ortVer} in public/ai/`);
+  return ort;
+}
+
+/** l'audio AI: DeepFilterNet (JS + wasm coi pesi), l'API di ONNX Runtime (per Demucs, fuori da transformers.js) e le licenze */
+async function audio(ortGia) {
+  const ortVer = leggiSegno().ort;
+  if (!ortVer) throw new Error('manca la versione di onnxruntime-web');
+  const ort = ortGia ?? await pacchetto('onnxruntime-web', ortVer);
+  const df = await pacchetto('@lofcz/deepfilternet-web', DEEPFILTERNET);
+  const dm = await pacchetto('demucs-web', DEMUCS_WEB);
+  // l'API di ONNX Runtime con la scheda video (WebGPU) e il processore: carica da sola ort-wasm-simd-threaded.asyncify.* qui accanto
+  copia(ort, 'dist/ort.webgpu.min.mjs');
+  copia(df, 'dist/index.js', 'deepfilternet/index.js');
+  copia(df, 'dist/df_bg.wasm', 'deepfilternet/df_bg.wasm');
+  copia(df, 'LICENSE-MIT', 'LICENSE-deepfilternet-MIT.txt');
+  copia(df, 'LICENSE-APACHE', 'LICENSE-deepfilternet-Apache-2.0.txt');
+  copia(dm, 'LICENSE', 'LICENSE-demucs-web.txt');
+  scriviSegno({ audio: AUDIO, deepfilternet: DEEPFILTERNET });
+  console.log(`ai-locale: DeepFilterNet ${DEEPFILTERNET} e l'API di ONNX Runtime ${ortVer} in public/ai/`);
+}
+
+async function main() {
+  const v = leggiSegno();
+  const haTransformers = v.transformers === TRANSFORMERS && esiste('ort-wasm-simd-threaded.asyncify.wasm');
+  const haAudio = v.audio === AUDIO && esiste('ort.webgpu.min.mjs') && esiste('deepfilternet/df_bg.wasm') && esiste('deepfilternet/index.js');
+  if (haTransformers && haAudio) { console.log(`ai-locale: transformers.js ${TRANSFORMERS} e l'audio AI già pronti`); return; }
+  let ort = null;
+  if (!haTransformers) {
+    try { ort = await transformers(); } catch (e) { console.warn('ai-locale: non riesco a preparare la libreria AI locale (' + (e?.message ?? e) + '): l\'app userà la CDN'); }
+  }
+  if (!haAudio) {
+    // ogni parte per conto suo: se una non si prepara, l'app usa la CDN solo per quella
+    try { await audio(ort); } catch (e) { console.warn('ai-locale: non riesco a preparare i file dell\'audio AI (' + (e?.message ?? e) + '): l\'app userà la CDN'); }
+  }
 }
 
 main().catch((e) => {

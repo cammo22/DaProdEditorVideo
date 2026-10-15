@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { leggi, vicino, apriGruppi } from './aiuti.mjs';
 export { leggi, vicino };
 
-export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio']) {
+export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai']) {
   const { page, prova, OUT } = ctx;
   if (quali.includes('sfondo')) await proveSfondo({ page, prova, OUT });
   if (quali.includes('animazioni')) { const m = await import('./prove-animazioni.mjs').catch(() => null); if (m) await m.proveAnimazioni({ page, prova, OUT }); }
@@ -23,6 +23,8 @@ export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage'
   if (quali.includes('rifiniture')) { const m = await import('./prove-rifiniture.mjs').catch((e) => { console.log('  ✗ prove-rifiniture:', e.message); return null; }); if (m) await m.proveRifiniture({ page, prova, OUT }); }
   if (quali.includes('banco')) { const m = await import('./prove-banco.mjs').catch((e) => { console.log('  ✗ prove-banco:', e.message); return null; }); if (m) await m.proveBanco({ page, prova, OUT }); }
   if (quali.includes('liveaudio')) { const m = await import('./prove-liveaudio.mjs').catch((e) => { console.log('  ✗ prove-liveaudio:', e.message); return null; }); if (m) await m.proveLiveAudio({ page, prova, OUT }); }
+  if (quali.includes('audioui')) { const m = await import('./prove-audioui.mjs').catch((e) => { console.log('  ✗ prove-audioui:', e.message); return null; }); if (m) await m.proveAudioUI({ page, prova, OUT }); }
+  if (quali.includes('audioai')) { const m = await import('./prove-audioai.mjs').catch((e) => { console.log('  ✗ prove-audioai:', e.message); return null; }); if (m) await m.proveAudioAI({ page, prova, OUT }); }
   if (quali.includes('correzioni')) { const m = await import('./prove-correzioni.mjs').catch((e) => { console.log('  ✗ prove-correzioni:', e.message); return null; }); if (m) await m.proveCorrezioni({ page, prova, OUT }); }
   if (quali.includes('proprieta')) { const m = await import('./prove-proprieta.mjs').catch((e) => { console.log('  ✗ prove-proprieta:', e.message); return null; }); if (m) await m.proveProprieta({ page, prova, OUT }); }
   if (quali.includes('montage')) { const m = await import('./prove-montage.mjs').catch(() => null); if (m) await m.proveMontage({ page, prova, OUT }); }
@@ -66,6 +68,34 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('la levigatura calma il tremolio ma non mangia un movimento vero', pure.l1 === 115 && pure.l2 === 255, `${pure.l1} ${pure.l2}`);
   prova('una maschera si ingrandisce con la bilineare (0 → 255 in quattro passi)', pure.grande.length === 16 && pure.grande[0] === 0 && pure.grande[3] === 255 && pure.grande[1] > 0 && pure.grande[1] < 128 && pure.grande[2] > 128 && pure.grande[2] < 255, JSON.stringify(pure.grande));
   prova('al massimo tre colori della chiave', pure.cols.length === 3 && pure.cols[0] === '#111111' && pure.cols[2] === '#333333', JSON.stringify(pure.cols));
+  // maschere più pulite: buchi, isole, un fotogramma che sbaglia da solo, punti nel cuore
+  const pul = await page.evaluate(() => {
+    const { SF } = window.__dpvTest;
+    const w = 80, h = 60;
+    const nuova = () => new Uint8Array(w * h);
+    const disco = (m, cx, cy, r, v = 255) => { for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (Math.hypot(x - cx, y - cy) <= r) m[y * w + x] = v; };
+    const quadrato = (m, x0, y0, x1, y1, v) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) m[y * w + x] = v; };
+    const conta = (m, x0, y0, x1, y1) => { let n = 0; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (m[y * w + x] >= 128) n++; return n; };
+    // il soggetto (disco a sinistra) con un buco dentro, un'isola piccola, e un'altra persona a destra
+    const m = nuova(); disco(m, 22, 30, 16); quadrato(m, 18, 26, 25, 33, 0); quadrato(m, 70, 5, 72, 7, 255); disco(m, 60, 30, 14);
+    const a = SF.pulisciMaschera(m, w, h);
+    const prima = nuova(); disco(prima, 22, 30, 16);
+    const b = SF.pulisciMaschera(m, w, h, { vicino: prima, soloConnessi: true });
+    const c = SF.pulisciMaschera(m, w, h, { tieni: [[60 / w, 30 / h]], soloConnessi: true });
+    // un buco in un fotogramma solo si riempie (ma un oggetto veloce che compare in uno solo non sparisce)
+    const f0 = nuova(), f1 = nuova(), f2 = nuova(); for (const f of [f0, f1, f2]) disco(f, 40, 30, 15); quadrato(f1, 36, 26, 44, 34, 0);
+    SF.votoTemporale([f0, f1, f2]);
+    const nucleo = SF.puntiNucleo(m, w, h).map((q) => ({ x: Math.round(q.x * w), y: Math.round(q.y * h), dentro: m[Math.round(q.y * h) * w + Math.round(q.x * w)] >= 128 }));
+    return {
+      buco: conta(m, 18, 26, 25, 33), bucoDopo: conta(a, 18, 26, 25, 33), isola: conta(a, 70, 5, 72, 7), altra: conta(a, 46, 16, 74, 44) > 400,
+      soloLei: conta(b, 46, 16, 74, 44) === 0 && conta(b, 6, 14, 38, 46) > 600, ConClic: conta(c, 46, 16, 74, 44) > 400 && conta(c, 6, 14, 38, 46) === 0,
+      voto: conta(f1, 36, 26, 44, 34), nucleo,
+    };
+  });
+  prova('la pulizia riempie i buchi dentro il soggetto e toglie le isole piccole', pul.buco === 0 && pul.bucoDopo === 49 && pul.isola === 0, JSON.stringify(pul));
+  prova('un\'altra persona resta se è grande; con "solo quello che tocca il fotogramma di prima" va via; coi clic resta quella cliccata', pul.altra && pul.soloLei && pul.ConClic, JSON.stringify(pul));
+  prova('un buco che c\'è in un fotogramma solo si riempie guardando prima e dopo', pul.voto === 64, JSON.stringify(pul));
+  prova('i punti nel cuore della maschera stanno dentro (almeno uno)', pul.nucleo.length >= 1 && pul.nucleo.every((q) => q.dentro), JSON.stringify(pul.nucleo));
 
   console.log('▶ Togliere lo sfondo: green screen col colore');
   // un'immagine con il fondale verde e un disco rosso; sotto un colore magenta
@@ -128,7 +158,7 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.select([c.id]); window.__motore.vaiA(10); });
   await page.waitForTimeout(300);
   await apriGruppi(page);
-  prova('nelle proprietà c\'è "Togli lo sfondo" con tutti i modi', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip').count()) >= 6);
+  prova('nelle proprietà c\'è "Togli lo sfondo" con tutti i modi', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · automatico")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip').count()) >= 4);
   prova('con la chiave a colori si vedono contagocce, colori pronti e i cursori', (await page.locator('button:has-text("Contagocce")').count()) === 1 && (await page.locator('button:has-text("Trovalo da solo")').count()) === 1 && (await page.locator('.isp-riga:has(label:has-text("Via il riflesso"))').count()) === 1);
   // il contagocce: un clic sull'angolo verde del monitor mette quel colore
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Colore sbagliato', () => { c.fx.keyColor = '#ff0000'; }); });
@@ -153,19 +183,27 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForTimeout(200);
   let d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
   prova('"Niente" spegne la chiave', d.fx.key === 'none' && !d.ritaglio);
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Persone")');
+  // l'AI è una scelta sola: parte da sola (qui con un modello finto, niente rete) e il resto sta in "Avanzate"
+  await page.evaluate(() => {
+    window.__dpvTest.RT.impostaSegmentatore({
+      carica: async () => 'finto',
+      maschera: async (px) => { const m = new Uint8Array(px.w * px.h); for (let y = 0; y < px.h; y++) for (let x = 0; x < px.w; x++) if (Math.hypot(x / px.w - 0.5, (y / px.h - 0.5) * 0.56) < 0.2) m[y * px.w + x] = 255; return m; },
+    });
+  });
+  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · automatico")');
   await page.waitForTimeout(700);
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Persone" mette il ritaglio col modello veloce per le persone', d.ritaglio?.modo === 'persona' && d.ritaglio.modello === 'modnet' && d.fx.key === 'none', JSON.stringify(d.ritaglio));
-  prova('si vede il pulsante per togliere lo sfondo e il nome del modello', (await page.locator('button:has-text("Togli lo sfondo")').count()) >= 1 && (await page.locator('.isp-gruppo select option:has-text("MODNet")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Automatico")');
-  await page.waitForTimeout(500);
-  d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Automatico" parte da BEN2 (la più precisa)', d.ritaglio?.modo === 'soggetto' && d.ritaglio.modello === 'ben2');
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · Clicca tu")');
-  await page.waitForTimeout(500);
-  d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
-  prova('"AI · Clicca tu" mette i clic da fare e il segui acceso', d.ritaglio?.modo === 'oggetti' && Array.isArray(d.ritaglio.punti) && d.ritaglio.segui === true && d.ritaglio.modello === 'sam2');
+  prova('"AI · automatico" mette lo sfondo tolto da solo, col modello più preciso (BEN2), senza chiave a colori', d.ritaglio?.modo === 'soggetto' && d.ritaglio.modello === 'ben2' && d.fx.key === 'none', JSON.stringify(d.ritaglio));
+  await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
+  const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
+  prova('scegliendo "AI" il lavoro parte da solo (nessun altro pulsante da premere)', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
+  prova('la parte semplice ha "Clicca su cosa tenere"; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('button:has-text("Clicca su cosa tenere")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu select option:has-text("BEN2")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
+  const cambia = async (modo) => { await page.evaluate((m) => { const sel = [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] select')].find((x) => [...x.options].some((o) => o.value === 'persona')); sel.value = m; sel.dispatchEvent(new Event('change', { bubbles: true })); }, modo); await page.waitForTimeout(500); return page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').ritaglio); };
+  let r2 = await cambia('persona');
+  prova('"Solo persone" (da Avanzate) mette il modello veloce per le persone (MODNet)', r2?.modo === 'persona' && r2.modello === 'modnet', JSON.stringify(r2));
+  r2 = await cambia('oggetti');
+  prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam2', JSON.stringify(r2));
+  await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
   await page.evaluate(() => {
@@ -332,9 +370,9 @@ async function proveSfondo({ page, prova, OUT }) {
     // senza clic: dice cosa fare
     window.__dpv.edit('Niente clic', () => { window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti = []; });
     const es3 = await RT.elaboraRitaglio(window.__dpv.doc, window.__dpv.doc.clips.find((x) => x.name === 'Pallina'), {});
-    return { ok: es.ok, n: prima?.n, primaClic: chiamate[0], dopo: chiamate.slice(1).every((q) => q.riquadro && q.punti === 0), tutte: chiamate.length, ok2: es2.ok, solo, motivo3: es3.motivo, ok3: es3.ok };
+    return { ok: es.ok, n: prima?.n, primaClic: chiamate[0], dopo: chiamate.slice(1).every((q) => q.riquadro && q.punti >= 1), tutte: chiamate.length, ok2: es2.ok, solo, motivo3: es3.motivo, ok3: es3.ok };
   });
-  prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
+  prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro e coi punti nel cuore della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
   // un clic sull'oggetto dal monitor: dopo una pausa parte da solo il lavoro su TUTTA la clip (non resta un fotogramma solo)
