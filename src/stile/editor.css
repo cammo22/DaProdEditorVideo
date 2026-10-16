@@ -422,6 +422,9 @@ button svg { pointer-events: none; }
 .gen-anteprima.barre { background: linear-gradient(90deg, #c0c0c0 0 14.3%, #c0c000 0 28.6%, #00c0c0 0 42.9%, #00c000 0 57.1%, #c000c0 0 71.4%, #c00000 0 85.7%, #0000c0 0); }
 .gen-anteprima.countdown { background: radial-gradient(circle, transparent 38%, #eee 39% 41%, transparent 42%), conic-gradient(#6b6b6b 0 70%, #1a1a1a 0), #1a1a1a; }
 .gen-anteprima.nero { background: #000; box-shadow: inset 0 0 0 1px #333; }
+.gen-anteprima.sott-anteprima { background: linear-gradient(#23384f, #0d1520); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 4px; padding-bottom: 10px; }
+.gen-anteprima.sott-anteprima span { font-size: 22px; }
+.gen-anteprima.sott-anteprima b { background: rgba(0,0,0,.65); color: #fff; font: 600 11px Rajdhani, sans-serif; padding: 1px 8px; border-radius: 3px; }
 .gen-anteprima.colore { background: linear-gradient(135deg, #1b3a8f, #8a2cff); }
 .gen-anteprima.titolo { background: #000 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 43'%3E%3Ctext x='38' y='27' font-family='Arial Black' font-size='13' fill='%23ffd54a' text-anchor='middle'%3ETitolo%3C/text%3E%3C/svg%3E"); }
 .gen-anteprima.sottopancia { background: #234 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 76 43'%3E%3Crect x='6' y='28' width='48' height='10' fill='%23000' opacity='.7'/%3E%3Crect x='6' y='28' width='2' height='10' fill='%23ffd54a'/%3E%3Ctext x='11' y='36' font-family='Arial' font-size='7' fill='white'%3EMario Rossi%3C/text%3E%3C/svg%3E"); }

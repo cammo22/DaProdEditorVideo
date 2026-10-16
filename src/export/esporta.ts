@@ -14,7 +14,7 @@ import { mediaRT } from '../media/libreria';
 import { caricaFontAnimazioni } from '../render/font';
 import { Compositore } from '../render/compositore';
 import { pianoVideo, type Sorgente } from '../render/piano';
-import { dialogoSalva, invoke, isTauri, nomeDaPercorso, scarica } from '../platform';
+import { dialogoSalva, invoke, isTauri, nomeDaPercorso, scarica, type FileScelto } from '../platform';
 import type { Fotogramma } from '../media/fotogrammi';
 
 export type Formato = 'mp4' | 'mov' | 'webm' | 'wav';
@@ -27,6 +27,9 @@ export interface Opzioni {
   qualita: Qualita;
   soloInOut: boolean;
   nome: string;
+  /** un file per il programma stesso (Rendi clip unica): nell'app va nella cartella Video/DaProd Video senza chiedere,
+   *  nel browser resta in memoria; arriva a `file` quando è finito */
+  interna?: { file: (f: FileScelto) => void };
 }
 
 export interface Avanzamento { fatti: number; totale: number; fase: string; fpsResa: number }
@@ -103,6 +106,28 @@ async function destinazione(nome: string, mime: string, estensione: string): Pro
   };
 }
 
+/** la destinazione di un file per il programma: nessuna domanda, e alla fine il file si consegna */
+async function destinazioneInterna(nome: string, mime: string, consegna: (f: FileScelto) => void): Promise<Destinazione> {
+  if (isTauri) {
+    const path = await invoke<string>('registrazione_percorso', { name: nome });
+    const id = await invoke<number>('export_apri', { path });
+    const ws = new WritableStream<StreamTargetChunk>({
+      write: async (chunk) => { await invoke('export_scrivi', chunk.data, { headers: { 'x-id': String(id), 'x-pos': String(chunk.position) } }); },
+    });
+    return {
+      target: new StreamTarget(ws, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
+      chiudi: async () => { await invoke('export_chiudi', { id }); consegna({ name: nomeDaPercorso(path), path }); return nomeDaPercorso(path); },
+      annulla: async () => { await invoke('export_chiudi', { id }).catch(() => {}); },
+    };
+  }
+  const target = new BufferTarget();
+  return {
+    target,
+    chiudi: async () => { consegna({ name: nome, file: new File([target.buffer!], nome, { type: mime, lastModified: Date.now() }) }); return nome; },
+    annulla: async () => {},
+  };
+}
+
 /** legge i fotogrammi esatti per l'export: un lettore in avanti per ogni clip */
 export class Lettori {
   private l = new Map<string, { it: AsyncGenerator<VideoSample>; cur: VideoSample | null; next: VideoSample | null; fine: boolean; usato: number }>();
@@ -167,7 +192,7 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
   const { v, a: ac } = await scegliCodec(o.formato, w, h);
   if (o.formato !== 'wav' && !v) throw new Error(`Questo sistema non sa codificare video in ${o.formato.toUpperCase()}. Prova WebM o MP4.`);
   const mime = o.formato === 'webm' ? 'video/webm' : o.formato === 'mov' ? 'video/quicktime' : o.formato === 'wav' ? 'audio/wav' : 'video/mp4';
-  const dest = await destinazione(o.nome, mime, o.formato);
+  const dest = o.interna ? await destinazioneInterna(o.nome, mime, o.interna.file) : await destinazione(o.nome, mime, o.formato);
   if (!dest) return null;
   const format = o.formato === 'webm' ? new WebMOutputFormat() : o.formato === 'mov' ? new MovOutputFormat() : o.formato === 'wav' ? new WavOutputFormat() : new Mp4OutputFormat({ fastStart: dest.target instanceof BufferTarget ? 'in-memory' : false });
   const out = new Output({ format, target: dest.target });

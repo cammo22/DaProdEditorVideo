@@ -75,6 +75,7 @@ export interface LibreriaAI {
   AutoProcessor: any;
   SamModel: any;
   Sam2Model?: any;
+  Sam3TrackerModel?: any;
   [k: string]: any;
 }
 
@@ -143,13 +144,13 @@ export interface Caricato<V> { v: V; repo: string; device: Dispositivo; dtype: T
  * niente, si rilancia l'errore più utile (quello che non è un semplice "file mancante", se c'è).
  */
 export async function caricaConRipieghi<V>(
-  repo: string[], devices: Dispositivo[], tipi: (d: Dispositivo) => Tipo[],
+  repo: string[], devices: Dispositivo[], tipi: (d: Dispositivo, repo: string) => Tipo[],
   fn: (repo: string, device: Dispositivo, dtype: Tipo) => Promise<V>,
 ): Promise<Caricato<V>> {
   let utile: unknown = null, ultimo: unknown = new Error('nessun modello da provare');
   for (const r of repo) {
     for (const device of devices) {
-      for (const dtype of tipi(device)) {
+      for (const dtype of tipi(device, r)) {
         try {
           return { v: await fn(r, device, dtype), repo: r, device, dtype };
         } catch (e) {

@@ -38,7 +38,7 @@ const TIPI: Ramo[] = [
 
 const LIBRERIA: Ramo[] = [
   { id: 'transizioni', nome: 'Transizioni', icona: 'transizione', figli: [['tr:dissolvenze', 'Dissolvenze'], ['tr:movimento', 'Movimento'], ['tr:3d', '3D e forme'], ['tr:luce', 'Luce'], ['tr:stile', 'Stile'], ['tr:tendine', 'Tendine SMPTE']] },
-  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
+  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
   { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
   { id: 'effetti', nome: 'Effetti', icona: 'effetti', figli: [['fx:rapidi', 'Rapidi'], ['fx:lunghi', 'Lunghi'], ['fx:luci', 'Luci'], ['fx:distorsioni', 'Distorsioni'], ['fx:colore', 'Colore'], ['fx:particelle', 'Particelle'], ['fx:clip', 'Stile della clip'], ['fx:audio', 'Audio']] },
 ];
@@ -696,8 +696,21 @@ export class Contenitore {
       anteprima: h('div', { class: 'gen-anteprima ' + cls }), provino: scenaSala(kind), dato: 'g:' + kind, etichetta: '📺 ' + nome,
       clic: () => { inserisciGeneratore(kind); avviso(`${nome} al cursore`, 'ok', 1000); },
     });
+    // i sottotitoli: generarli, una riga a mano, la voce che li legge, dove stanno (le righe si muovono nella riga SOTT)
+    const sott = (nome: string, icona: string, info: string, fai: (m: typeof import('./sottotitoliRapidi')) => void) => this.cartaLibreria({
+      cls: 'gen gen-voce gen-sott', nome, titolo: `${nome}\n${info}`,
+      anteprima: h('div', { class: 'gen-anteprima sott-anteprima' }, h('span', null, icona), h('b', null, 'Sottotitolo')),
+      clic: () => void import('./sottotitoliRapidi').then(fai),
+    });
+    const voceSott = [
+      sott('Sottotitoli con l\'AI', '✨', 'Ascolta il montaggio e scrive le righe (riga SOTT della timeline). Per una clip sola: tasto destro sulla clip', (m) => void m.generaSottotitoli()),
+      sott('Riga al cursore', '📝', 'Una riga nuova dove sta il cursore, col testo da scrivere', (m) => void m.nuovaRigaQui()),
+      sott('Fai parlare (voce AI)', '🗣', 'Una voce AI legge i sottotitoli: una clip per frase sulla traccia "Voce AI" (nell\'app)', (m) => void m.faiParlareSottotitoli()),
+      sott('Posizione e grandezza', '⚙', 'In basso o in alto, grandezza, fascia, nel video o solo .srt', (m) => m.stileSottotitoli()),
+    ].filter((c) => !this.filtro || (c.textContent ?? '').toLowerCase().includes(this.filtro.toLowerCase()));
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' }, ...this.sezioni('titoli', [
       ['tit:titoli', 'Titoli', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'titoli')).map((x) => titolo(x.id, x.nome))],
+      ['tit:sott', 'Sottotitoli', voceSott],
       ['tit:tv', 'TV e social', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'tv')).map((x) => titolo(x.id, x.nome))],
       ['tit:conto', 'Countdown', this.filtra(STILI_CONTO).map(conto)],
       ['tit:sala', 'Macchine della sala', this.filtra([{ nome: 'Barre + tono', k: 'bars' as const, c: 'barre' }, { nome: 'Nero', k: 'nero' as const, c: 'nero' }, { nome: 'Colore pieno', k: 'color' as const, c: 'colore' }]).map((x) => sala(x.k, x.nome, x.c))],

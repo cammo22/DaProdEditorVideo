@@ -6,7 +6,6 @@
 // memoria non c'è mai più di un pezzo) e riceve quello che esce (messaggio "uscita"). Tutto sul computer di chi monta.
 import { Ricampionatore, lunghezzaUscita } from '../core/ricampiona';
 import { PulitoreMono, PulitoreStereo, type FiltroTrama, SR_DF } from '../core/rumore';
-import { CatenaVoce } from '../core/catenaVoce';
 import { DEMUCS, SeparatoreDemucs, SeparatoreRapido, modelloFinto, type EseguiModello } from '../core/separa';
 import { CDN_DEEPFILTERNET, CDN_ORT, applicaPotenza, applicaThread, dispositivi, erroreDellaScheda, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda } from './libreriaAI';
 import { ottieniModello, type ModelloAudio } from './modelliAudio';
@@ -14,10 +13,6 @@ import { spiegaErroreAI } from './erroriAI';
 
 export interface InizioRumore {
   tipo: 'inizia'; lavoro: 'rumore'; sr: number; canali: 1 | 2; mescola: number; base: string;
-  /** il post-filtro di DeepFilterNet (0 = spento) */
-  postfiltro?: number;
-  /** la catena della voce dopo il filtro (passa-alto, EQ, compressore, limitatore), col guadagno d'ingresso in dB; null = niente */
-  catena?: { preDb: number } | null;
   /** "voce isolata": prima Demucs tiene solo la voce (via musica, TV, rumori), poi il filtro. Come per la separazione */
   isola?: Omit<InizioSepara, 'tipo' | 'lavoro' | 'emetti' | 'ripiego'> | null;
 }
@@ -45,8 +40,6 @@ export type DaWorker =
   | { tipo: 'pronto'; motore: 'deepfilternet' | 'demucs' | 'rapido' | 'voce'; dispositivo?: Dispositivo | 'finta' }
   | { tipo: 'uscita'; nome: 'pulito' | 'voce' | 'base'; ch: Float32Array[] }
   | { tipo: 'ricevuto' }
-  /** com'è venuta la voce pulita (livello del parlato e picco, in dBFS): la pagina ne fa il volume della clip */
-  | { tipo: 'misura'; parlato: number | null; picco: number }
   | { tipo: 'finito' }
   | { tipo: 'errore'; msg: string };
 
@@ -74,21 +67,17 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
   const { crea } = await caricaDeepFilter(m.base);
   const filtri: any[] = [await crea()];
   if (m.canali === 2) filtri.push(await crea());
-  for (const f of filtri) if (m.postfiltro) f.setPostFilterBeta?.(m.postfiltro);
   let k = 0;
   const mono = m.canali === 1 ? new PulitoreMono(filtri[0] as FiltroTrama, m.mescola) : null;
   const stereo = m.canali === 2 ? new PulitoreStereo(() => filtri[k++] as FiltroTrama, m.mescola) : null;
-  const catena = m.catena ? new CatenaVoce(SR_DF, m.canali, m.catena.preDb) : null;
   const esce = (ch: Float32Array[]) => {
     if (!ch[0].length) return;
-    catena?.processa(ch);
     manda({ tipo: 'uscita', nome: 'pulito', ch }, ch.map((x) => x.buffer));
   };
   /** dai al filtro l'audio a 48 kHz (già coi canali della clip) */
   const filtra = (r: Float32Array[]) => esce(mono ? [mono.push(r[0])] : [...stereo!.push(r[0], r[1])]);
   const chiudiFiltro = () => {
     esce(mono ? [mono.fine()] : [...stereo!.fine()]);
-    if (catena) manda({ tipo: 'misura', parlato: catena.livello.parlato, picco: catena.livello.piccoDb });
     for (const f of filtri) f.destroy?.();
   };
 

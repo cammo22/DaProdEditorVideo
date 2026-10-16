@@ -17,13 +17,15 @@ export const RITARDO_DF = 1440;
 export const SR_DF = 48000;
 
 /**
- * Quanto dell'uscita pulita si mescola all'originale. Fino alla 1.5.2 "leggera" e "media" lasciavano il 40% e il 15%
- * dell'originale: il rumore si sentiva ancora, solo più basso ("li attenua"). Ora solo "leggera" lascia un filo d'ambiente;
- * media e forte tengono soltanto la voce (e passano anche dalla catena della voce, src/core/catenaVoce.ts).
+ * Le sei scelte del togli rumori (dalla 1.5.4). Le prime tre sono DeepFilterNet com'era nella 1.5.2 (il pulito mescolato con
+ * l'originale: leggera lascia l'ambiente, forte toglie tutto quello che il modello toglie); "isolata" passa prima da Demucs
+ * (tiene solo la voce); "podcast" e "naturale" sono Clear (src/media/clear.ts): rumore ed eco via, voce da podcast, volume giusto.
+ * (La catena voce della 1.5.3, compressore e silenzio fra le parole, è stata tolta: suonava peggio.)
  */
-export const MESCOLA: Record<ForzaRumore, number> = { leggera: 0.88, media: 1, forte: 1 };
-/** il post-filtro di DeepFilterNet (beta): toglie ancora il rumore che resta fra le parole. 0 = spento */
-export const POSTFILTRO: Record<ForzaRumore, number> = { leggera: 0, media: 0.02, forte: 0.03 };
+export const MESCOLA: Record<ForzaRumore, number> = { leggera: 0.6, media: 0.85, forte: 1, isolata: 1, podcast: 1, naturale: 1 };
+/** Clear: quanto della voce rifatta e a che volume (LUFS) */
+export const PODCAST: Partial<Record<ForzaRumore, { forza: number; lufs: number }>> = { podcast: { forza: 1, lufs: -19 }, naturale: { forza: 0.8, lufs: -19 } };
+export const NOMI_FORZA: Record<ForzaRumore, string> = { leggera: 'Rumore tolto (leggera)', media: 'Rumore tolto (media)', forte: 'Rumore tolto (forte)', isolata: 'Voce isolata', podcast: 'Voce da podcast', naturale: 'Voce da podcast, naturale' };
 export const mescolaDi = (f: ForzaRumore | undefined) => MESCOLA[f ?? 'media'] ?? MESCOLA.media;
 
 /** una coda di campioni che si riempie in fondo e si svuota davanti */

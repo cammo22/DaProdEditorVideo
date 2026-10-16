@@ -176,14 +176,25 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   troncamento): i byte dei media già dentro non si spostano (chi legge con `m.dentro` continua a leggere), si scrivono solo i file nuovi, il progetto e un
   indice nuovo; se si ferma a metà si rimette l'indice di prima. `dentroDap` (= `ricordaDap`) ricorda cosa c'è dentro; `indicePacchetto` ritrova la
   fine buona anche con byte in più in fondo (`trovaFine`). `dpv-percorso` in localStorage = il .dap per `riprendi`. Il `.dpv` e il `.daprod` si aprono
-  ancora. **Togli i rumori** = 3 forze nuove (`MESCOLA`/`POSTFILTRO` in `core/rumore.ts`): leggera (DFN 0,88), "voce pulita" (DFN pieno + post-filtro +
-  `CatenaVoce` di `src/core/catenaVoce.ts`: guadagno d'ingresso, passa-alto 80 Hz, EQ, compressore legato, limitatore morbido), "voce isolata" (Demucs
-  voce → DFN → catena, nel worker `avviaRumore` con `isola`; se Demucs non parte, solo DFN + catena). Il volume giusto (`volumeFinale`, parlato a −16 dBFS
-  all'85° percentile) va in `c.gain` e in `afx.pulito.piu` (tolto da `tornaOriginale`). **Conversioni solo se servono** (`esamina` in `normalizza.ts`):
+  ancora. **Conversioni solo se servono** (`esamina` in `normalizza.ts`):
   video solo se `underlyingFrameRate` è null (`vfrVero`), audio solo MP3 a bitrate variabile (`mp3Variabile`), l'audio dei video si copia; le registrazioni
   del LIVE non si controllano (`importaFile(…, {controlla: false})`). Centro attività: `chiudi()` svuota anche `listaVive` (prima le righe restavano
   ferme). Timeline: il contorno delle clip scelte si disegna dopo tutte le clip (`contorniScelte`). Prove: `test/prove-dap.mjs` (chiave `dap`);
   banco d'ascolto con voce vera `test/_banco-voce.mjs`. `vite.config.ts` usa `fileURLToPath` (percorsi con spazi).
+- **1.5.4**: **Togli i rumori** = 6 forze (`ForzaRumore`, `MESCOLA`/`PODCAST`/`NOMI_FORZA` in `core/rumore.ts`): leggera/media/forte = DeepFilterNet
+  mescolato 0,6/0,85/1 (come la 1.5.2: la catena voce della 1.5.3 è stata tolta perché suonava peggio), `isolata` = Demucs voce → DFN (worker
+  `avviaRumore` con `isola`), `podcast`/`naturale` = **Clear** di Desert Ant Labs (`src/media/clear.ts`, npm `@desert-ant-labs/clear` 3.6.0, LiteRT.js in
+  `public/ai/litert/` da `scripts/ai-locale.mjs`; **solo sul processore** `accelerator: 'wasm'`: su WebGPU LiteRT non sa fare alcune operazioni e fallisce;
+  `strength` 1/0,8, −19 LUFS; licenza source-available con "Powered by Desert Ant Labs" in `finestraInfo`; l'SDK manda un conteggio d'uso anonimo).
+  `impostaClearFinto` per le prove. **Sfondo AI "scegli tu"**: `punti[].g` = oggetto (`gruppiDi`, maschere unite con `unisci`), `ritaglio.oggetto` =
+  dove vanno i clic nuovi (`altroOggetto`); i clic fanno solo la prova su un fotogramma; `elaboraClip(id, true)` = anteprima di `SECONDI_ANTEPRIMA` s con
+  firma `…|anteprima` (`FIRMA_ANTEPRIMA`), poi "Genera tutta la clip"; `riprovaOggetti`, `togliSfondoAI` (e `impostaModo('nessuno')` rimette la vista del
+  monitor a 0). **SAM 3** = `onnx-community/sam3-tracker-ONNX` (`Sam3TrackerModel`, pesi q4f16/q4 sulla scheda, q8 sul processore: `tipi(d, repo)`;
+  `caricaConRipieghi` passa il repo ai tipi), modello di partenza per gli oggetti, ripiego SAM 2.1; banco `test/_banco-sam3.mjs` (RTX 4060: ~1,4 s a
+  fotogramma). **Scarto del taglio** in vista: `scartoInVista()` in `azioni.ts`, disegnato come una scelta. **Rendi clip unica** (`src/ui/clipUnica.ts`,
+  comando `clipUnica`, Ctrl+Alt+U): `progettoDelPezzo` → `esporta(…, { interna })` (Opzioni.interna: file senza dialogo, `destinazioneInterna`) → una
+  clip video + audio legate, cartella "Clip uniche". **Sottotitoli dal montaggio** (`src/ui/sottotitoliRapidi.ts`): `generaSottotitoli(clip?)`,
+  `faiParlareSottotitoli`, `nuovaRigaQui`, `stileSottotitoli`; tasto destro su clip e riga SOTT, Titoli → `tit:sott`.
 - **Cursore che si aggancia** (`agganciaCursore` in `src/ui/timeline.ts`): sul righello si aggancia sempre (calamita `N`), Alt lo lascia libero.
 - **Motore NVIDIA** (`src-tauri/src/motori.rs` + `src/media/nemo.ts`): NeMo-Speech.cpp **0.2.0** (Apache-2.0; la 0.1.0 non aveva gli archivi), programma a parte che l'app
   scarica dalla release di NVIDIA (`nemo-speech-<versione>-{windows,macos,linux}-{x86_64,aarch64}-{cpu,cuda,vulkan,metal}`, `.sha256` a fianco) in

@@ -124,6 +124,102 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
       try { const v = await PK.indicePacchetto({ file: sporco }); return { ok: v.has('progetto.json'), n: v.size }; } catch (e) { return { ok: false, e: String(e) }; }
     });
     prova('un .dap con dei byte in più in fondo (salvataggio interrotto) si apre lo stesso: si ritrova l\'indice buono', rotto.ok, JSON.stringify(rotto));
+    // ——— 1.5.4 ———
+    console.log('▶ 1.5.4: il pezzo che il 2 toglie si vede, clip unica, sottotitoli di una clip, Sottotitoli nei Titoli');
+    const scarto = await page.evaluate(async () => {
+      const { importaFile, ripresaDiProva, P } = window.__dpvTest;
+      window.__dpv.dirty = false;
+      await window.__dpvTest.PR.nuovo();
+      const f = await ripresaDiProva(4, 25);
+      const [m] = await importaFile([{ name: f.name, file: f }], { chiediFormato: false });
+      const d = window.__dpv.doc;
+      const tv = d.tracks.find((t) => t.kind === 'video'), ta = d.tracks.find((t) => t.kind === 'audio');
+      window.__dpv.edit('Metti', (p) => { p.clips.push(P.newClip('media', tv.id, 0, 100, { media: m.id, name: 'Ripresa', link: 'L1' }), P.newClip('media', ta.id, 0, 100, { media: m.id, name: 'Ripresa', link: 'L1' })); });
+      window.__dpvTest.ui().tl.adattaTutto();
+      window.__dpv.select([]);
+      window.__motore.vaiA(30);
+      return m.id;
+    });
+    await page.waitForTimeout(300);
+    await page.keyboard.press('1');
+    await page.waitForTimeout(500);
+    const vista = await page.evaluate(() => ({ sel: window.__dpv.sel.size, scarto: [...window.__dpvTest.ui().tl.scarto ?? []].length, contorni: window.__dpvTest.ui().tl.contorniScelte.length }));
+    prova('subito dopo il taglio il pezzo che il 2 toglie è evidenziato (video e audio legato), anche se niente è selezionato', vista.sel === 0 && vista.scarto === 2 && vista.contorni === 2, JSON.stringify(vista));
+    await page.keyboard.press('2');
+    await page.waitForTimeout(300);
+    const dopo2 = await page.evaluate(() => window.__dpv.doc.clips.filter((c) => c.name === 'Ripresa').map((c) => [c.start, c.len]));
+    prova('e il 2 toglie proprio quello (il più corto, a sinistra)', dopo2.length === 2 && dopo2.every(([s, l]) => s === 30 && l === 70), JSON.stringify(dopo2));
+
+    // Rendi clip unica: due pezzi (con il buco in mezzo) e il loro audio → una clip video + una audio, legate, su un file nuovo
+    const unica = await page.evaluate(async () => {
+      const { P, CU } = window.__dpvTest;
+      const d = window.__dpv.doc;
+      const m = d.media[0];
+      const tv = d.tracks.find((t) => t.kind === 'video'), ta = d.tracks.find((t) => t.kind === 'audio');
+      window.__dpv.edit('Due pezzi', (p) => { p.clips = [P.newClip('media', tv.id, 0, 25, { media: m.id, name: 'A', link: 'LA' }), P.newClip('media', ta.id, 0, 25, { media: m.id, name: 'A', link: 'LA' }), P.newClip('media', tv.id, 40, 25, { media: m.id, name: 'B', srcIn: 2, link: 'LB' }), P.newClip('media', ta.id, 40, 25, { media: m.id, name: 'B', srcIn: 2, link: 'LB' })]; });
+      const prima = window.__dpv.doc.clips.length;
+      await CU.rendiClipUnica(window.__dpv.doc.clips.map((c) => c.id));
+      const d2 = window.__dpv.doc;
+      const cs = d2.clips.map((c) => ({ kind: c.kind, track: d2.tracks.find((t) => t.id === c.track).kind, start: c.start, len: c.len, media: c.media, link: c.link }));
+      const nuovo = d2.media.find((x) => x.id === cs[0]?.media);
+      const r = { prima, cs, nome: nuovo?.name, cartella: d2.cartelle?.find((k) => k.id === nuovo?.cartella)?.nome, dur: nuovo?.duration, audio: nuovo?.hasAudio };
+      window.__dpv.doUndo();
+      r.annulla = window.__dpv.doc.clips.length;
+      return r;
+    });
+    prova('"Rendi clip unica": al posto di 4 clip (2 pezzi e il loro audio) una clip video e una audio, legate, da 0 a 65, su un file nuovo nella cartella "Clip uniche"', unica.prima === 4 && unica.cs.length === 2 && unica.cs.every((c) => c.start === 0 && c.len === 65 && c.media === unica.cs[0].media && c.link && c.link === unica.cs[0].link) && unica.cs.some((c) => c.track === 'video') && unica.cs.some((c) => c.track === 'audio') && unica.cartella === 'Clip uniche' && Math.abs(unica.dur - 65 / 25) < 0.15, JSON.stringify(unica));
+    prova('Ctrl+Z dopo "Rendi clip unica" rimette le 4 clip', unica.annulla === 4, JSON.stringify(unica.annulla));
+
+    // sottotitoli di una clip sola: le righe nuove vanno nel suo pezzo, quelle fuori restano
+    const sott = await page.evaluate(async () => {
+      const { V, SR } = window.__dpvTest;
+      const d = window.__dpv.doc;
+      window.__dpv.edit('Una riga fuori', (p) => { p.sottotitoli = { righe: [{ id: 'fuori', da: 200, a: 240, testo: 'resta' }], nelVideo: true, dimensione: 46, fascia: true, alto: false, lingua: 'it' }; });
+      V.impostaTrascrittore({ carica: async () => 'finto', trascrivi: async () => [{ da: 0.2, a: 0.9, testo: 'Ciao a tutti' }, { da: 1.8, a: 2.4, testo: 'seconda' }] });
+      const b = window.__dpv.doc.clips.find((c) => c.name === 'B' && d.tracks.find((t) => t.id === c.track).kind === 'audio');
+      await SR.generaSottotitoli([b.id]);
+      V.impostaTrascrittore(null);
+      return window.__dpv.doc.sottotitoli.righe.map((r) => [r.testo, r.da, r.a]);
+    });
+    prova('tasto destro → "Genera i sottotitoli di questa clip": righe solo dentro la clip (da 40 a 65), quella fuori resta', sott.some((r) => r[0] === 'resta') && sott.filter((r) => r[0] !== 'resta').length >= 1 && sott.filter((r) => r[0] !== 'resta').every((r) => r[1] >= 40 && r[2] <= 65), JSON.stringify(sott));
+    const menuClip = await page.evaluate(() => {
+      const tl = window.__dpvTest.ui().tl, d = window.__dpv.doc;
+      tl.righe(d);
+      const c = d.clips.find((x) => x.name === 'A' && d.tracks.find((t) => t.id === x.track).kind === 'video');
+      const r = tl.riga(c.track);
+      const box = tl.cv.getBoundingClientRect();
+      return { x: box.left + tl.fX(c.start + c.len / 2), y: box.top + r.y + r.h / 2 };
+    });
+    await page.mouse.click(menuClip.x, menuClip.y, { button: 'right' });
+    await page.waitForTimeout(300);
+    const voci = await page.evaluate(() => [...document.querySelectorAll('.menu-contesto *')].map((x) => x.textContent).join('|'));
+    await page.keyboard.press('Escape');
+    prova('nel tasto destro della clip ci sono "Rendi clip unica" e "Genera i sottotitoli di questa clip"', /Rendi clip unica/.test(voci) && /Genera i sottotitoli di questa clip/.test(voci), voci.slice(0, 300));
+    // la sezione Sottotitoli nei Titoli del contenitore
+    await page.evaluate(() => document.querySelector('.bin-cat[data-c="tit:sott"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    await page.waitForTimeout(400);
+    const carte = await page.evaluate(() => [...document.querySelectorAll('.gen-sott .carta-nome')].map((x) => x.textContent));
+    prova('Titoli → Sottotitoli: genera con l\'AI, riga al cursore, fai parlare, posizione e grandezza', carte.length === 4 && carte.some((t) => /AI/.test(t)) && carte.some((t) => /parlare/.test(t)), JSON.stringify(carte));
+    // "Podcast" del togli rumori: passa da Clear (qui finto: dimezza il volume) e la clip va sul file nuovo
+    const pod = await page.evaluate(async () => {
+      const { CL, AA, importaFile, P } = window.__dpvTest;
+      CL.impostaClearFinto({ enhance: async (s) => ({ channels: (Array.isArray(s) ? s : [s]).map((x) => x.map((v) => v * 0.5)), sampleRate: 48000, measuredLUFS: -20, measuredTruePeakDBFS: -2 }), dispose: () => {} });
+      const sr = 48000, n = sr * 3;
+      const b = new ArrayBuffer(44 + n * 2), d = new DataView(b);
+      const w = (o, t) => [...t].forEach((c, i) => d.setUint8(o + i, c.charCodeAt(0)));
+      w(0, 'RIFF'); d.setUint32(4, 36 + n * 2, true); w(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, sr, true); d.setUint32(28, sr * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); w(36, 'data'); d.setUint32(40, n * 2, true);
+      for (let i = 0; i < n; i++) d.setInt16(44 + i * 2, Math.round(Math.sin(i / 20) * 16000), true);
+      const [m] = await importaFile([{ name: 'Voce.wav', file: new File([b], 'Voce.wav', { type: 'audio/wav' }) }], { chiediFormato: false });
+      for (let i = 0; i < 50 && !window.__dpvTest.mediaRT(m.id)?.a; i++) await new Promise((r) => setTimeout(r, 100));
+      const ta = window.__dpv.doc.tracks.find((t) => t.kind === 'audio');
+      let id = '';
+      window.__dpv.edit('Voce', (p) => { const c = P.newClip('media', ta.id, 300, 50, { media: m.id, name: 'Voce' }); p.clips.push(c); id = c.id; });
+      try { await AA.togliRumore(id, 'podcast'); } catch (e) { CL.impostaClearFinto(null); return { errore: String(e) }; }
+      CL.impostaClearFinto(null);
+      const c = window.__dpv.doc.clips.find((x) => x.id === id);
+      return { forza: c.afx?.pulito?.forza, cambiato: c.media !== m.id, nome: window.__dpv.doc.media.find((x) => x.id === c.media)?.name };
+    });
+    prova('togli rumori "Podcast": passa da Clear e la clip va sul file nuovo, "torna all\'originale" lo ricorda', pod.forza === 'podcast' && pod.cambiato && /pulito/.test(pod.nome ?? ''), JSON.stringify(pod));
     prova('nessun errore nella console (attività, timeline, .dap)', errori.length === 0, errori.slice(0, 4).join(' | '));
   } catch (e) {
     prova('le prove della 1.5.3 non si sono fermate', false, String(e && e.stack || e));

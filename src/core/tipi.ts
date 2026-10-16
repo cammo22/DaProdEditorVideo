@@ -125,7 +125,9 @@ export interface Ritaglio {
   /** il modello usato (src/media/ritaglio.ts MODELLI_RITAGLIO) */
   modello: string;
   /** oggetti: i clic sull'immagine (frazioni 0..1 dall'angolo in alto a sinistra): dentro = è l'oggetto, fuori = non lo è */
-  punti?: { x: number; y: number; dentro: boolean }[];
+  punti?: { x: number; y: number; dentro: boolean; /** quale oggetto (0, 1, 2…): si possono tenere più persone e cose insieme */ g?: number }[];
+  /** oggetti: a quale oggetto vanno i clic nuovi (dopo "＋ Un altro oggetto") */
+  oggetto?: number;
   /** oggetti: l'istante della sorgente (secondi) dove hai messo i clic */
   da?: number;
   /** oggetti: i clic valgono per tutta la ripresa (camera ferma) o si seguono da un fotogramma all'altro */
@@ -207,7 +209,7 @@ export interface AudioFx {
 }
 
 /** quanto togliere del rumore: leggera tiene un po' d'ambiente, forte toglie tutto quello che l'AI toglie */
-export type ForzaRumore = 'leggera' | 'media' | 'forte';
+export type ForzaRumore = 'leggera' | 'media' | 'forte' | 'isolata' | 'podcast' | 'naturale';
 
 export interface Transform {
   /** spostamento in pixel del progetto, dal centro */

@@ -35,6 +35,7 @@ export const MODELLI_RITAGLIO: ModelloRitaglio[] = [
   { id: 'birefnet', nome: 'BiRefNet', info: 'alta risoluzione, molto pulita sui contorni netti', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet-ONNX', 'onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'birefnet-lite', nome: 'BiRefNet Lite', info: 'più leggera e veloce, per i computer senza scheda video', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'modnet', nome: 'MODNet', info: 'persone e ritratti, velocissima anche senza scheda video', modi: ['persona'], famiglia: 'sfondo', repo: ['Xenova/modnet'], licenza: 'Apache-2.0' },
+  { id: 'sam3', nome: 'SAM 3', info: 'il più preciso a seguire quello che clicchi (Meta, 2025): la prima volta scarica ~300 MB; se non parte usa SAM 2.1', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
   { id: 'sam2', nome: 'SAM 2.1', info: 'clicchi sull\'oggetto e lo ritaglia (se non c\'è usa SlimSAM)', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
   { id: 'slimsam', nome: 'SlimSAM', info: 'la versione più piccola, per i computer più lenti', modi: ['oggetti'], famiglia: 'sam', repo: ['Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
 ];
@@ -138,6 +139,8 @@ export const impostaSegmentatore = (s: Segmentatore | null) => { segmentatore = 
 export interface OpzioniElabora {
   /** una frase e una frazione 0..1 per la barra */
   stato?: (fase: string, k: number) => void;
+  /** anteprima: solo questi secondi dal clic (per vedere se segue bene prima di fare tutta la clip) */
+  anteprima?: number;
   /** chi mette true ferma il lavoro (non si salva niente) */
   ferma?: () => boolean;
 }
@@ -213,7 +216,13 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   // la parte di ripresa che serve: tutto quello che la clip mostra, con un fotogramma di margine
   const { da: da0, a: a0 } = immagine ? { da: 0, a: 0 } : trattoSorgente(c, rate);
   const t00 = media!.t0 || 0;
-  const da = immagine ? 0 : Math.max(t00, da0 - 1 / rate), a = immagine ? 0 : Math.min(media!.duration || a0, a0 + 1 / rate);
+  let da = immagine ? 0 : Math.max(t00, da0 - 1 / rate), a = immagine ? 0 : Math.min(media!.duration || a0, a0 + 1 / rate);
+  // l'anteprima: un pezzo breve dal punto dove hai cliccato, per vedere se segue bene
+  if (o.anteprima && !immagine) {
+    const tc = Math.max(da, Math.min(a, r.da ?? da));
+    da = Math.max(da, tc - 0.5);
+    a = Math.min(a, tc + o.anteprima);
+  }
   const lato = immagine ? Math.max(q.lato, 768) : q.lato;
   const piccola = misuraPer(media!.width, media!.height, lato);
   // per gli oggetti si tengono in memoria tutti i fotogrammi (si va avanti e indietro dal clic): il budget è più stretto
@@ -234,25 +243,33 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
       let i0 = 0;
       for (let i = 1; i < px.length; i++) if (Math.abs(piano.t0 + i * piano.dt - tClic) < Math.abs(piano.t0 + i0 * piano.dt - tClic)) i0 = i;
       let fatti = 0;
-      const tot = px.length;
-      const clic: [number, number][] = (r.punti ?? []).filter((q) => q.dentro).map((q) => [q.x, q.y]);
-      const passo = async (i: number, prec: Uint8Array | null, ultimoBuono: [number, number, number, number] | null) => {
-        const hint = r.segui !== false && prec ? (suggerimento(prec, w, h) ?? ultimoBuono) : null;
-        // dopo il primo fotogramma: il riquadro (dov'è) e qualche punto nel cuore della maschera di prima (quale)
-        const nucleo = hint && prec ? puntiNucleo(prec, w, h) : [];
-        const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}) } : { punti: r.punti });
-        // buchi riempiti e isole tolte: si tiene quello che tocca il fotogramma di prima (o i clic nel primo)
-        const m = pulisciMaschera(grezza, w, h, { vicino: hint ? prec : null, tieni: hint ? undefined : clic, soloConnessi: true });
-        dati[i] = m;
-        fatti++;
-        avanza(0.15 + 0.85 * (fatti / tot), `Seguo l'oggetto: fotogramma ${fatti} di ${tot}`);
-        return { m, buono: suggerimento(m, w, h) ?? ultimoBuono };
-      };
-      let s = await passo(i0, null, null);
-      let prec = s.m, buono = s.buono;
-      for (let i = i0 + 1; i < px.length && !ferma(); i++) { s = await passo(i, prec, buono); prec = s.m; buono = s.buono; }
-      prec = dati[i0]; buono = suggerimento(prec, w, h);
-      for (let i = i0 - 1; i >= 0 && !ferma(); i--) { s = await passo(i, prec, buono); prec = s.m; buono = s.buono; }
+      // più oggetti (una persona e una cosa, due persone…): ognuno si segue per conto suo, poi le maschere si sommano
+      const gruppi = gruppiDi(r.punti ?? []);
+      const tot = px.length * gruppi.length;
+      for (const [gi, punti] of gruppi.entries()) {
+        const clic: [number, number][] = punti.filter((q) => q.dentro).map((q) => [q.x, q.y]);
+        const suoi: Uint8Array[] = new Array(px.length);
+        const nome = gruppi.length > 1 ? `oggetto ${gi + 1} di ${gruppi.length}, ` : '';
+        const passo = async (i: number, prec: Uint8Array | null, ultimoBuono: [number, number, number, number] | null) => {
+          const hint = r.segui !== false && prec ? (suggerimento(prec, w, h) ?? ultimoBuono) : null;
+          // dopo il primo fotogramma: il riquadro (dov'è) e qualche punto nel cuore della maschera di prima (quale)
+          const nucleo = hint && prec ? puntiNucleo(prec, w, h) : [];
+          const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}) } : { punti });
+          // buchi riempiti e isole tolte: si tiene quello che tocca il fotogramma di prima (o i clic nel primo)
+          const m = pulisciMaschera(grezza, w, h, { vicino: hint ? prec : null, tieni: hint ? undefined : clic, soloConnessi: true });
+          suoi[i] = m;
+          fatti++;
+          avanza(0.15 + 0.85 * (fatti / tot), `Seguo ${nome}fotogramma ${fatti} di ${tot}`);
+          return { m, buono: suggerimento(m, w, h) ?? ultimoBuono };
+        };
+        let s = await passo(i0, null, null);
+        let prec = s.m, buono = s.buono;
+        for (let i = i0 + 1; i < px.length && !ferma(); i++) { s = await passo(i, prec, buono); prec = s.m; buono = s.buono; }
+        prec = suoi[i0]; buono = suggerimento(prec, w, h);
+        for (let i = i0 - 1; i >= 0 && !ferma(); i--) { s = await passo(i, prec, buono); prec = s.m; buono = s.buono; }
+        for (let i = 0; i < px.length; i++) dati[i] = dati[i] ? unisci(dati[i], suoi[i]) : suoi[i];
+        if (ferma()) break;
+      }
     } else if (immagine) {
       const px = await leggiCampioni(c.media, 0, 0, 1, lato, () => {}, ferma);
       if (!px.length) return { ok: false, motivo: 'Non riesco a leggere l\'immagine' };
@@ -279,7 +296,8 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   if (completi.length !== piano.n) return { ok: false, motivo: 'Qualche fotogramma non è venuto' };
   // un buco che c'è in un fotogramma solo si riempie (guardando prima e dopo), poi la levigatura dei bordi
   if (!immagine) { votoTemporale(dati); levigaMaschere(dati); }
-  const firma = firmaRitaglio(c.media, r);
+  // l'anteprima ha la sua firma: non passa mai per il lavoro fatto su tutta la clip
+  const firma = firmaRitaglio(c.media, r) + (o.anteprima && !immagine ? FIRMA_ANTEPRIMA : '');
   const m: Maschere = { firma, w, h, t0: piano.t0, dt: piano.dt, n: piano.n, hz: piano.hz, dati };
   impostaMaschere(m);
   // quelle di prima che nessuna clip usa più vanno via (la nuova non ha ancora la firma nella clip: si tiene a parte)
@@ -297,9 +315,31 @@ export async function provaRitaglio(p: Project, c: Clip, t: number, stato?: (fas
   const q = QUALITA_RITAGLIO[Math.max(0, Math.min(QUALITA_RITAGLIO.length - 1, r.qualita))];
   const px = await pixelAl(c.media, t, q.lato);
   if (!px) return null;
-  const grezza = await segmentatore.maschera(px, r.modo === 'oggetti' ? { punti: r.punti } : undefined);
-  const mask = pulisciMaschera(grezza, px.w, px.h, { tieni: r.modo === 'oggetti' ? (r.punti ?? []).filter((q) => q.dentro).map((q): [number, number] => [q.x, q.y]) : undefined, soloConnessi: r.modo === 'oggetti' });
-  return { px, mask };
+  if (r.modo !== 'oggetti') return { px, mask: pulisciMaschera(await segmentatore.maschera(px), px.w, px.h, {}) };
+  // un oggetto alla volta, poi tutti insieme
+  let mask: Uint8Array | null = null;
+  for (const punti of gruppiDi(r.punti ?? [])) {
+    const m = pulisciMaschera(await segmentatore.maschera(px, { punti }), px.w, px.h, { tieni: punti.filter((q) => q.dentro).map((q): [number, number] => [q.x, q.y]), soloConnessi: true });
+    mask = mask ? unisci(mask, m) : m;
+  }
+  return mask ? { px, mask } : null;
+}
+
+/** la firma dell'anteprima (pochi secondi): finisce così */
+export const FIRMA_ANTEPRIMA = '|anteprima';
+
+/** i clic divisi per oggetto (solo gli oggetti con almeno un punto "tieni") */
+export function gruppiDi(punti: NonNullable<Ritaglio['punti']>): NonNullable<Ritaglio['punti']>[] {
+  const per = new Map<number, NonNullable<Ritaglio['punti']>>();
+  for (const q of punti) { const g = q.g ?? 0; if (!per.has(g)) per.set(g, []); per.get(g)!.push(q); }
+  return [...per.entries()].sort((a, b) => a[0] - b[0]).map((x) => x[1]).filter((l) => l.some((q) => q.dentro));
+}
+
+/** due maschere insieme: resta quello che sta in almeno una */
+function unisci(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const o = new Uint8Array(a.length);
+  for (let i = 0; i < a.length; i++) o[i] = a[i] > b[i] ? a[i] : b[i];
+  return o;
 }
 
 /** i parametri sono quelli con cui sono state fatte le maschere? */

@@ -124,7 +124,8 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       // "Usa" sullo sfondo con il cursore su una clip: la sceglie e apre la sua sezione
       await page.evaluate(() => { window.__dpv.select([]); window.__dpv.setHead(20); });
       await page.click('.ai-carta[data-ai="sfondo"] .ai-usa');
-      await page.waitForTimeout(500);
+      // dopo "Controlla l'AI" il computer è carico: si aspetta che la sezione si apra (fino a 4 s) invece di mezzo secondo fisso
+      await page.waitForFunction(() => !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]'), null, { timeout: 4000 }).catch(() => {});
       const sez = await page.evaluate(() => ({ scelta: [...window.__dpv.sel].map((id) => window.__dpv.doc.clips.find((c) => c.id === id)?.name), aperta: !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]') }));
       prova('"Usa" su "Togli lo sfondo": sceglie la clip sotto il cursore e apre la sua sezione', sez.scelta[0] === 'Rosso' && sez.aperta, JSON.stringify(sez));
 

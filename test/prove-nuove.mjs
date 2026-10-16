@@ -199,12 +199,12 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
   const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
   prova('scegliendo "AI" il lavoro parte da solo (nessun altro pulsante da premere)', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
-  prova('la parte semplice ha "Clicca su cosa tenere"; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('button:has-text("Clicca su cosa tenere")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu select option:has-text("BEN2")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
+  prova('la parte semplice ha "Scegli tu cosa tenere"; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('button:has-text("Scegli tu cosa tenere")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu select option:has-text("BEN2")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
   const cambia = async (modo) => { await page.evaluate((m) => { const sel = [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] select')].find((x) => [...x.options].some((o) => o.value === 'persona')); sel.value = m; sel.dispatchEvent(new Event('change', { bubbles: true })); }, modo); await page.waitForTimeout(500); return page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').ritaglio); };
   let r2 = await cambia('persona');
   prova('"Solo persone" (da Avanzate) mette il modello veloce per le persone (MODNet)', r2?.modo === 'persona' && r2.modello === 'modnet', JSON.stringify(r2));
   r2 = await cambia('oggetti');
-  prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam2', JSON.stringify(r2));
+  prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM 3', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam3', JSON.stringify(r2));
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
@@ -377,9 +377,9 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro e coi punti nel cuore della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
-  // un clic sull'oggetto dal monitor: dopo una pausa parte da solo il lavoro su TUTTA la clip (non resta un fotogramma solo)
+  // un clic sull'oggetto dal monitor: subito la prova su un fotogramma; poi l'ANTEPRIMA (pochi secondi), e solo se va bene tutta la clip
   const clicco = await page.evaluate(async () => {
-    const { MK, USF } = window.__dpvTest;
+    const { MK, USF, RT } = window.__dpvTest;
     const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
     window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam2', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
     let sc = null;
@@ -388,12 +388,40 @@ async function proveSfondo({ page, prova, OUT }) {
     if (!sc) return { errore: 'niente scelta' };
     window.__chiamateAI = [];
     sc.clic(0.4, 0.5, false);
-    const firmaProva = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if (m || performance.now() - t0 > 6000) ok(m ? m.n : 0); else setTimeout(g, 100); }; g(); });
-    const tutta = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if ((m && m.n > 1) || performance.now() - t0 > 20000) ok(m ? m.n : 0); else setTimeout(g, 150); }; g(); });
+    const firma = () => window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio?.firma;
+    const firmaProva = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const m = MK.maschereDi(firma()); if (m || performance.now() - t0 > 6000) ok(m ? m.n : 0); else setTimeout(g, 100); }; g(); });
+    // da solo NON parte più tutta la clip
+    await new Promise((r) => setTimeout(r, 2500));
+    const dopoAttesa = MK.maschereDi(firma())?.n ?? 0;
+    // l'anteprima: pochi secondi, con la sua firma
+    await USF.elaboraClip(c0.id, true);
+    const ant = { n: MK.maschereDi(firma())?.n ?? 0, firma: firma(), stato: USF.statoMaschere(window.__dpv.doc.clips.find((x) => x.name === 'Pallina')).testo, vista: window.__motore.rec?.vistaChiave };
+    // va bene: tutta la clip
+    await USF.elaboraClip(c0.id);
+    const tutta = MK.maschereDi(firma())?.n ?? 0;
     const c1 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
-    return { firmaProva, tutta, chiamate: window.__chiamateAI.length, punti: c1.ritaglio.punti.length, ok: MK.maschereDi(c1.ritaglio.firma)?.n > 1 };
+    // due oggetti: il secondo gruppo di clic si segue per conto suo e le maschere si sommano
+    const gruppi = RT.gruppiDi([{ x: 0.1, y: 0.1, dentro: true }, { x: 0.9, y: 0.9, dentro: true, g: 1 }, { x: 0.5, y: 0.5, dentro: false, g: 1 }]).map((g) => g.length);
+    return { firmaProva, dopoAttesa, ant, tutta, chiamate: window.__chiamateAI.length, punti: c1.ritaglio.punti.length, firmaTutta: c1.ritaglio.firma, gruppi };
   });
-  prova('un clic sull\'oggetto: prima la prova su un fotogramma, poi da solo tutta la clip (maschere per tutta la durata)', clicco.firmaProva >= 1 && clicco.tutta > 1 && clicco.ok && clicco.punti === 1, JSON.stringify(clicco));
+  prova('un clic sull\'oggetto: subito la prova su un fotogramma, e il lavoro su tutta la clip NON parte da solo', clicco.firmaProva === 1 && clicco.dopoAttesa === 1 && clicco.punti === 1, JSON.stringify(clicco));
+  prova('"Anteprima": qualche secondo di maschere con la sua firma, il monitor passa sugli scacchi e il testo dice cosa fare', clicco.ant.n > 1 && /anteprima$/.test(clicco.ant.firma) && clicco.ant.vista === 2 && /Genera tutta la clip/.test(clicco.ant.stato), JSON.stringify(clicco.ant));
+  prova('"Genera tutta la clip": più maschere dell\'anteprima, firma normale', clicco.tutta > clicco.ant.n && !/anteprima$/.test(clicco.firmaTutta), JSON.stringify(clicco));
+  prova('più oggetti: i clic si dividono per oggetto (una persona e una cosa)', JSON.stringify(clicco.gruppi) === '[1,2]', JSON.stringify(clicco.gruppi));
+  // "Togli lo sfondo AI": la clip torna com'era e il monitor sull'immagine normale (anche se era su Maschera o Scacchi)
+  const torna = await page.evaluate(async () => {
+    const { USF } = window.__dpvTest;
+    const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 1 }));
+    USF.togliSfondoAI([c0.id]);
+    await new Promise((r) => setTimeout(r, 200));
+    const c1 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    const r = { ritaglio: !!c1.ritaglio, key: c1.fx.key, vista: window.__motore.rec?.vistaChiave };
+    window.__dpv.doUndo();
+    r.annulla = !!window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio;
+    return r;
+  });
+  prova('"Togli lo sfondo AI": niente più ritaglio, la vista del monitor torna all\'immagine; Ctrl+Z lo rimette', !torna.ritaglio && torna.key === 'none' && torna.vista === 0 && torna.annulla, JSON.stringify(torna));
   // clic sinistro aggiunge un punto, clic destro lo toglie (sopra il punto; altrove non toglie niente)
   const punti = await page.evaluate(async () => {
     const { USF } = window.__dpvTest;

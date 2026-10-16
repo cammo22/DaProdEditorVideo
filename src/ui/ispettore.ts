@@ -20,14 +20,14 @@ import { MOVIMENTI, movimentoPronto, SFONDI } from '../core/cornici';
 import { motore } from '../motore';
 import { ANIMAZIONI as CATALOGO_ANIM, GRUPPI_ANIM, animazione, nuovaAnim, valoriDi, type CampoAnim } from '../core/animazioni';
 import { CHIAVI, coloriChiave, QUALITA_RITAGLIO, SPILL0 } from '../core/sfondo';
-import { modelliPer, modelloRitaglio, maschereAggiornate } from '../media/ritaglio';
+import { modelliPer, modelloRitaglio, maschereAggiornate, FIRMA_ANTEPRIMA } from '../media/ritaglio';
 import { miniQuadro, posizioniPronte, disegnino } from './miniQuadro';
 import { tessere } from './tessere';
 import { cosaCiMetto } from './seguiMenu';
 import { righeAudioAI } from './audioAI';
 import { possibilita as audioAIPossibile } from '../media/audioAI';
 import type { ModoSfondo } from './sfondo';
-import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, avviaAI, cliccaCosaTenere, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore } from './sfondo';
+import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, NOMI_MODO, SPIEGA_MODO, avviaAI, cliccaCosaTenere, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore, altroOggetto, oggettiDi, riprovaOggetti, togliSfondoAI, SECONDI_ANTEPRIMA } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
 
@@ -337,11 +337,13 @@ export class Ispettore {
     const inAI = AI3.includes(modo);
     const scelte: [string, string, boolean][] = [];
     for (const m of modiPossibili(c0)) {
-      if (AI3.includes(m)) { if (!scelte.some((x) => x[0] === 'ai')) scelte.push(['ai', 'AI · automatico', inAI]); } else scelte.push([m, NOMI_MODO[m], m === modo]);
+      if (AI3.includes(m)) {
+        if (!scelte.some((x) => x[0] === 'ai')) scelte.push(['ai', 'AI · automatico', inAI && modo !== 'oggetti'], ['scegli', 'AI · scegli tu', modo === 'oggetti']);
+      } else scelte.push([m, NOMI_MODO[m], m === modo]);
     }
     righe.push(h('div', { class: 'isp-chips' }, scelte.map(([m, nome, acceso]) => h('button', {
-      class: 'chip' + (acceso ? ' acceso' : ''), title: m === 'ai' ? 'Toglie lo sfondo da solo (persone, oggetti, animali): niente fondale, niente impostazioni' : nome,
-      on: { click: () => { if (acceso) return; if (m === 'ai') avviaAI(ids); else impostaModo(ids, m as ModoSfondo); } },
+      class: 'chip' + (acceso ? ' acceso' : ''), title: m === 'ai' ? 'Toglie lo sfondo da solo (persone, oggetti, animali): niente fondale, niente impostazioni' : m === 'scegli' ? 'Clicchi tu una o più persone e cose da tenere, guardi l\'anteprima e poi generi tutta la clip' : nome,
+      on: { click: () => { if (acceso) return; if (m === 'ai') avviaAI(ids); else if (m === 'scegli') cliccaCosaTenere(c0.id); else impostaModo(ids, m as ModoSfondo); } },
     }, nome))));
     if (modo === 'nessuno') {
       righe.push(h('p', { class: 'nota' }, 'Colore: se hai girato su un fondale verde o blu · Luce: per un fondo nero o bianco · AI: senza fondale, fa tutto da solo (poi clicchi su quello che vuoi tenere, se serve).'));
@@ -384,11 +386,31 @@ export class Ispettore {
       const st = statoMaschere(c0);
       const punti = r.punti ?? [];
       // la parte semplice: cosa sta succedendo, e una sola azione (cliccare su quello che si vuole tenere)
-      righe.push(
-        h('p', { class: 'nota sf-spiega' }, modo === 'oggetti'
-          ? 'Hai scelto tu cosa tenere: il programma lo segue per tutta la clip. Per cambiare scelta clicca su un altro punto.'
-          : 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o ci sono più persone e ne vuoi una), clicca su quello che vuoi tenere: capisce da solo se è una persona o un oggetto.'),
-        this.pulsanti([['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)], [inCorso ? '⏹ Ferma' : '↻ Rifai', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }]]));
+      if (modo === 'oggetti') {
+        // scegli (uno o più oggetti) → anteprima di pochi secondi → tutta la clip, o riprova; e sempre un modo per tornare indietro
+        const ogg = oggettiDi(c0);
+        const prova = !!r.firma?.endsWith(FIRMA_ANTEPRIMA);
+        righe.push(
+          h('p', { class: 'nota sf-spiega' }, '1 · Clicca sul monitor quello che vuoi tenere · 2 · "＋ Un altro oggetto" per tenerne altri (una persona e una cosa, due persone…) · 3 · "Anteprima" per vedere come lo segue · 4 · Va bene? "Genera tutta la clip".'),
+          ogg.length ? h('div', { class: 'isp-chips' }, ogg.map((o, i) => h('span', { class: 'chip acceso', title: `${o.n} clic su questo oggetto` }, `Oggetto ${i + 1} · ${o.punti} clic`))) : null,
+          this.pulsanti([
+            ['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)],
+            ...(ogg.length ? [['＋ Un altro oggetto', () => altroOggetto(c0.id)] as [string, () => void]] : []),
+          ]),
+          this.pulsanti(inCorso
+            ? [['⏹ Ferma', () => fermaClip(c0.id)]]
+            : [
+              ...(ogg.length ? [['👀 Anteprima (' + SECONDI_ANTEPRIMA + ' s)', () => void elaboraClip(c0.id, true)] as [string, () => void]] : []),
+              ...(ogg.length && (prova || st.ok) ? [['✔ Genera tutta la clip', () => void elaboraClip(c0.id)] as [string, () => void]] : []),
+              ...(ogg.length ? [['↺ Riprova', () => riprovaOggetti(c0.id)] as [string, () => void]] : []),
+            ]),
+          this.pulsanti([['✕ Togli lo sfondo AI (torna com\'era)', () => togliSfondoAI(ids)]]));
+      } else {
+        righe.push(
+          h('p', { class: 'nota sf-spiega' }, 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o vuoi scegliere tu una o più persone e cose), clicca su quello che vuoi tenere.'),
+          this.pulsanti([['🖱 Scegli tu cosa tenere', () => cliccaCosaTenere(c0.id)], [inCorso ? '⏹ Ferma' : '↻ Rifai', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }]]),
+          this.pulsanti([['✕ Togli lo sfondo AI (torna com\'era)', () => togliSfondoAI(ids)]]));
+      }
       if (lav) righe.push(h('div', { class: 'sf-lavoro' }, ...lav.barra.elementi));
       righe.push(h('p', { class: 'nota' + (st.ok ? ' ok' : '') }, st.testo));
       // tutto il resto sta nascosto
