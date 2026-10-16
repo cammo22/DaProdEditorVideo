@@ -40,7 +40,7 @@ export const rgbHex = (r: number, g: number, b: number) => '#' + [r, g, b].map((
 export function firmaRitaglio(media: string, r: Ritaglio): string {
   // (l'oggetto si scrive solo dal secondo in poi: le firme delle maschere già fatte con un oggetto solo restano uguali)
   const punti = r.modo === 'oggetti' ? (r.punti ?? []).map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)},${p.dentro ? 1 : 0}${p.g ? ':' + p.g : ''}`).join(';') : '';
-  return [media, r.modo, r.modello, r.qualita, punti, r.modo === 'oggetti' ? (r.da ?? 0).toFixed(2) : '', r.segui ? 's' : ''].join('|');
+  return [media, r.modo, r.modello, r.qualita, punti, r.modo === 'oggetti' ? (r.da ?? 0).toFixed(2) : '', r.segui ? 's' : '', r.modo === 'oggetti' && r.persona ? 'p' : ''].join('|');
 }
 
 /** i fotogrammi da elaborare: da "da" a "a" (secondi della sorgente), ogni 1/hz, abbassando hz se le maschere

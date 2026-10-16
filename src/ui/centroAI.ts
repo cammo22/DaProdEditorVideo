@@ -95,7 +95,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'sfondo', nome: 'Togli lo sfondo', icona: '🪄', dove: 'tutto',
     cosaFa: 'Stacca la persona o il soggetto dallo sfondo, anche senza green screen; o un oggetto coi clic.',
-    come: ['Scegli la clip (o metti il cursore sopra)', 'Proprietà → Togli lo sfondo → AI · automatico (parte da sola) o AI · scegli tu (clicchi una o più persone e cose, Anteprima, poi Genera tutta la clip)', 'Guarda il risultato col tasto SFONDO del monitor'],
+    come: ['Scegli la clip (o metti il cursore sopra)', 'Proprietà → Togli lo sfondo → AI · automatico (parte da sola) o AI · scegli tu (clicchi: la selezione compare subito; premi OK per la clip intera, oppure Anteprima e poi Genera tutta la clip)', 'Persona/Oggetto nella barra del monitor cambia il tipo di selezione; guarda il risultato col tasto SFONDO'],
     modelli: MODELLI_RITAGLIO.map((m) => ({ repo: m.repo[0], nome: m.nome })),
     manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una clip video o un\'immagine nella timeline (o mettici sopra il cursore)'),
     apri: () => { clipVideoDaUsare(true); vaiSezione('sfondo'); },

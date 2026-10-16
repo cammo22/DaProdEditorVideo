@@ -35,12 +35,17 @@ export const MODELLI_RITAGLIO: ModelloRitaglio[] = [
   { id: 'birefnet', nome: 'BiRefNet', info: 'alta risoluzione, molto pulita sui contorni netti', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet-ONNX', 'onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'birefnet-lite', nome: 'BiRefNet Lite', info: 'più leggera e veloce, per i computer senza scheda video', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'modnet', nome: 'MODNet', info: 'persone e ritratti, velocissima anche senza scheda video', modi: ['persona'], famiglia: 'sfondo', repo: ['Xenova/modnet'], licenza: 'Apache-2.0' },
-  { id: 'sam3', nome: 'SAM 3', info: 'il più preciso a seguire quello che clicchi (Meta, 2025): la prima volta scarica ~300 MB; se non parte usa SAM 2.1', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
+  { id: 'sam3', nome: 'SAM 3', info: 'il modello più nuovo: clicchi su una persona o un oggetto e lo segue (Meta, 2025); la prima volta scarica ~300 MB, poi ripiega su SAM 2.1 o SlimSAM', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
   { id: 'sam2', nome: 'SAM 2.1', info: 'clicchi sull\'oggetto e lo ritaglia (se non c\'è usa SlimSAM)', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
   { id: 'slimsam', nome: 'SlimSAM', info: 'la versione più piccola, per i computer più lenti', modi: ['oggetti'], famiglia: 'sam', repo: ['Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
 ];
 
 export const modelloRitaglio = (id: string) => MODELLI_RITAGLIO.find((m) => m.id === id);
+/** il modello che lavora per questa scelta: con "persona" il modello delle persone, se no quello della clip */
+export function modelloDi(r: Ritaglio): ModelloRitaglio {
+  if (r.modo === 'oggetti' && r.persona) return modelloRitaglio('modnet')!;
+  return modelloRitaglio(r.modello) ?? modelloRitaglio(modelloDiPartenza(r.modo))!;
+}
 export const modelliPer = (modo: Ritaglio['modo']) => MODELLI_RITAGLIO.filter((m) => m.modi.includes(modo));
 export const modelloDiPartenza = (modo: Ritaglio['modo']) => modelliPer(modo)[0].id;
 
@@ -200,7 +205,7 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   const r = c.ritaglio;
   const media = mediaOf(p, c);
   if (!r || !c.media || !puoRitagliare(media)) return { ok: false, motivo: 'Questa clip non si può ritagliare' };
-  const mod = modelloRitaglio(r.modello) ?? modelloRitaglio(modelloDiPartenza(r.modo))!;
+  const mod = modelloDi(r);
   const stato = o.stato ?? (() => {});
   const ferma = o.ferma ?? (() => false);
   if (r.modo === 'oggetti' && !(r.punti ?? []).some((q) => q.dentro)) return { ok: false, motivo: 'Clicca prima sull\'oggetto da tenere' };
@@ -306,11 +311,18 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   return { ok: true, maschere: m, ms: performance.now() - t0, dispositivo };
 }
 
+/** carica il modello della clip in anticipo (quando si comincia a cliccare): al primo clic la selezione è già pronta, senza aspettare il caricamento */
+export async function scaldaRitaglio(c: Clip, stato?: (fase: string, k: number) => void): Promise<string | null> {
+  const r = c.ritaglio;
+  if (!r) return null;
+  return segmentatore.carica(modelloDi(r), (fase, k) => stato?.(fase, k));
+}
+
 /** una prova su un fotogramma solo (per vedere l'oggetto scelto coi clic prima di fare tutta la clip) */
 export async function provaRitaglio(p: Project, c: Clip, t: number, stato?: (fase: string, k: number) => void): Promise<{ px: Pixel; mask: Uint8Array } | null> {
   const r = c.ritaglio;
   if (!r || !c.media) return null;
-  const mod = modelloRitaglio(r.modello) ?? modelloRitaglio(modelloDiPartenza(r.modo))!;
+  const mod = modelloDi(r);
   await segmentatore.carica(mod, (fase, k) => stato?.(fase, k));
   const q = QUALITA_RITAGLIO[Math.max(0, Math.min(QUALITA_RITAGLIO.length - 1, r.qualita))];
   const px = await pixelAl(c.media, t, q.lato);

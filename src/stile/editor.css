@@ -475,9 +475,16 @@ button svg { pointer-events: none; }
 .pos-tappe { display: inline-flex; gap: 3px; }
 .pos-mira { display: inline-flex; align-items: center; gap: 4px; }
 .pos-mira[hidden] { display: none; }
-.pos-mira-testo { font: 700 11px var(--ui); color: #35e8ff; margin-right: 2px; }
+.pos-mira-testo { font: 700 11px var(--ui); color: #35e8ff; margin-right: 2px; white-space: normal; text-align: center; }
+.pos-mira-stato { font: 800 11px var(--ui); color: #5dd39e; margin: 0 4px; white-space: nowrap; }
+.pos-modi { display: inline-flex; gap: 3px; }
+.pos-modi[hidden] { display: none; }
+.pos-btn.ok { background: linear-gradient(180deg, #7af0b4, #2fae74); color: #04170d; border-color: #0b5a38; }
+.pos-btn.ok:disabled { background: #26242f; color: var(--testo3); border-color: #000; }
 .pos-barra { flex-wrap: nowrap; justify-content: center; }
 .pos-barra.in-mira { flex-wrap: wrap; }
+.pos-barra.in-mira > .pos-mira { flex: 1 1 100%; min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: center; }
+.pos-barra.in-mira .pos-mira-testo { flex: 1 1 100%; }
 .pos-barra.in-mira > .pos-btn, .pos-barra.in-mira > .pos-tappe { display: none; }
 .monitor.sorgente .pos-barra { display: none; }
 .schermo::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), transparent 30%); }
