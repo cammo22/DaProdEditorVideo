@@ -391,7 +391,7 @@ export class Ispettore {
         const ogg = oggettiDi(c0);
         const prova = !!r.firma?.endsWith(FIRMA_ANTEPRIMA);
         righe.push(
-          h('p', { class: 'nota sf-spiega' }, '1 · Clicca sul monitor quello che vuoi tenere · 2 · "＋ Un altro oggetto" per tenerne altri (una persona e una cosa, due persone…) · 3 · "Anteprima" per vedere come lo segue · 4 · Va bene? "Genera tutta la clip".'),
+          h('p', { class: 'nota sf-spiega' }, 'Clicca sul monitor: la selezione compare subito. Puoi premere ✔ OK per tutta la clip, oppure aggiungere altri oggetti e guardare prima l\'Anteprima; poi scegli "Genera tutta la clip" o "Riprova".'),
           ogg.length ? h('div', { class: 'isp-chips' }, ogg.map((o, i) => h('span', { class: 'chip acceso', title: `${o.n} clic su questo oggetto` }, `Oggetto ${i + 1} · ${o.punti} clic`))) : null,
           this.pulsanti([
             ['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)],
@@ -407,7 +407,7 @@ export class Ispettore {
           this.pulsanti([['✕ Togli lo sfondo AI (torna com\'era)', () => togliSfondoAI(ids)]]));
       } else {
         righe.push(
-          h('p', { class: 'nota sf-spiega' }, 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o vuoi scegliere tu una o più persone e cose), clicca su quello che vuoi tenere.'),
+          h('p', { class: 'nota sf-spiega' }, 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata, clicca su quello che vuoi tenere: la selezione compare subito. Puoi confermare con OK o guardare prima l\'Anteprima.'),
           this.pulsanti([['🖱 Scegli tu cosa tenere', () => cliccaCosaTenere(c0.id)], [inCorso ? '⏹ Ferma' : '↻ Rifai', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }]]),
           this.pulsanti([['✕ Togli lo sfondo AI (torna com\'era)', () => togliSfondoAI(ids)]]));
       }

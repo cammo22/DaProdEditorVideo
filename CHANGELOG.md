@@ -13,7 +13,8 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 
 ### Togli lo sfondo con l'AI
 - **"✕ Togli lo sfondo AI (torna com'era)"** sempre in vista. Prima, se avevi la vista Maschera o Scacchi accesa e sceglievi "Niente", il monitor restava sulla maschera e sembrava impossibile tornare indietro.
-- **"AI · scegli tu"**: clicchi la persona o la cosa da tenere, con **"＋ Un altro oggetto"** ne aggiungi altre (una persona e un oggetto, due persone…), poi **Anteprima** (4 secondi, sugli scacchi): se va bene **Genera tutta la clip**, se no **Riprova**. Non parte più niente da solo dopo i clic.
+- **"AI · scegli tu"**: clicchi la persona o la cosa da tenere e la selezione compare subito sul monitor; puoi premere **✔ OK** per elaborare tutta la clip, oppure guardare prima un'**Anteprima** di 4 secondi sugli scacchi. Con **"＋ Un altro oggetto"** ne aggiungi altri (una persona e una cosa, due persone…); se il risultato non va, premi **Riprova**. Dopo i clic non parte da solo il lavoro sull'intera clip.
+- Nella barra del monitor puoi scegliere **🧍 Persona** (MODNet seleziona una persona) o **📦 Oggetto** (SAM); il modello si carica mentre prepari i clic e la selezione si disegna in verde con un bordo bianco.
 - **SAM 3** di Meta è il modello di partenza per "scegli tu" (la versione per il browser, ~300 MB la prima volta): sulla RTX 4060 circa 1,4 secondi per fotogramma. Se non parte si usa SAM 2.1.
 
 ### Montaggio
