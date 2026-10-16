@@ -386,8 +386,8 @@ export class Ispettore {
       // la parte semplice: cosa sta succedendo, e una sola azione (cliccare su quello che si vuole tenere)
       righe.push(
         h('p', { class: 'nota sf-spiega' }, modo === 'oggetti'
-          ? 'Hai scelto tu cosa tenere: il programma lo segue per tutta la clip. Per cambiare scelta clicca su un altro punto.'
-          : 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o ci sono più persone e ne vuoi una), clicca su quello che vuoi tenere: capisce da solo se è una persona o un oggetto.'),
+          ? 'Clicca sul monitor su quello che vuoi tenere: la selezione compare subito (verde). Se è giusta premi OK e lo segue per tutta la clip. Se sbaglia, scegli 🧍 Persona o 📦 Oggetto nella barra sul monitor.'
+          : 'Lo sfondo lo toglie da solo. Se ha tenuto la cosa sbagliata (o ci sono più persone e ne vuoi una), clicca su quello che vuoi tenere: la selezione compare subito, poi premi OK.'),
         this.pulsanti([['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)], [inCorso ? '⏹ Ferma' : '↻ Rifai', () => { if (inCorso) fermaClip(c0.id); else void elaboraClip(c0.id); }]]));
       if (lav) righe.push(h('div', { class: 'sf-lavoro' }, ...lav.barra.elementi));
       righe.push(h('p', { class: 'nota' + (st.ok ? ' ok' : '') }, st.testo));

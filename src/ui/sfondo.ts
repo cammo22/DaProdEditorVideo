@@ -7,7 +7,7 @@ import { clipById, mediaOf, srcTimeAt } from '../core/progetto';
 import { coloreDominante, firmaRitaglio, puoRitagliare, RITAGLIO0, rgbHex } from '../core/sfondo';
 import { motore } from '../motore';
 import { pixelAl, coloreIn } from '../media/campiona';
-import { elaboraRitaglio, modelloDiPartenza, provaRitaglio } from '../media/ritaglio';
+import { elaboraRitaglio, modelloDiPartenza, modelloRitaglio, provaRitaglio, scaldaRitaglio } from '../media/ritaglio';
 import { impostaMaschere, maschereDi, potaMaschere, ripristinaMaschere } from '../media/maschere';
 import { avviso } from './dom';
 import { BarraLavoro } from './lavoro';
@@ -125,32 +125,30 @@ export function togliColoreExtra(id: string, i: number) {
 
 // ——— i clic dell'oggetto ———
 const mioR = (c: Clip | undefined): Ritaglio | undefined => c?.ritaglio;
-let prova = 0;
 
-/** a ogni clic si rifà la prova sul fotogramma, così si vede subito l'oggetto scelto */
-function ritardaProva(id: string) {
-  const mio = ++prova;
-  setTimeout(() => { if (mio === prova) void provaOggetto(id); }, 220);
-  // e subito dopo, da solo, tutta la clip
-  elaboraDopoClic(id);
-}
+/**
+ * Il clic parte SUBITO: si prova sul fotogramma dove sei e la selezione si vede sopra l'immagine (verde, col bordo bianco).
+ * Una prova alla volta: se intanto arriva un altro clic, finita questa si rifà con tutti i clic di adesso.
+ * Quando la selezione è giusta si preme OK e il programma fa tutta la clip.
+ */
+let provaInCorso = false;
+let provaDaRifare: string | null = null;
+const avvisaScelta = () => document.dispatchEvent(new CustomEvent('dpv:scegli-aggiorna'));
+export const cercando = () => provaInCorso;
 
-/** dopo l'ultimo clic (una pausa) parte da solo il lavoro su tutta la clip: l'oggetto scelto si segue per tutta la durata, senza altri pulsanti */
-let attesaLavoro = 0;
-function elaboraDopoClic(id: string) {
-  const mio = ++attesaLavoro;
-  setTimeout(() => {
-    void (async () => {
-      if (mio !== attesaLavoro) return;
-      const l = lavori.get(id);
-      // se stava già lavorando con i clic di prima, si ferma e si ricomincia con quelli nuovi
-      if (l && !l.finito) { l.ferma = true; for (let i = 0; i < 50 && lavori.get(id)?.finito === false; i++) await new Promise((r) => setTimeout(r, 100)); }
-      if (mio !== attesaLavoro) return;
-      const c = clipById(store.doc, id);
-      if (!c?.ritaglio || c.ritaglio.modo !== 'oggetti' || !(c.ritaglio.punti ?? []).some((q) => q.dentro)) return;
-      await elaboraClip(id);
-    })();
-  }, 1800);
+function provaSubito(id: string) {
+  if (provaInCorso) { provaDaRifare = id; return; }
+  provaInCorso = true;
+  avvisaScelta();
+  void (async () => {
+    try { await provaOggetto(id); } finally {
+      provaInCorso = false;
+      const di = provaDaRifare;
+      provaDaRifare = null;
+      avvisaScelta();
+      if (di) provaSubito(di);
+    }
+  })();
 }
 
 /** "AI · automatico": si sceglie il modo che fa tutto da solo e parte subito il lavoro su tutta la clip */
@@ -166,12 +164,28 @@ export function cliccaCosaTenere(id: string) {
   scegliOggetto(id);
 }
 
+/** il clic sceglie una persona o un oggetto? (i due tasti nella barra sul monitor) */
+export function impostaPersona(id: string, persona: boolean) {
+  store.edit(persona ? 'Il clic sceglie una persona' : 'Il clic sceglie un oggetto', (pp) => {
+    const z = clipById(pp, id);
+    if (!z?.ritaglio) return;
+    z.ritaglio.persona = persona;
+    // un oggetto qualunque lo fa SAM: se il modello di prima non era uno di loro si torna al primo
+    if (!persona && modelloRitaglio(z.ritaglio.modello)?.famiglia !== 'sam') z.ritaglio.modello = modelloDiPartenza('oggetti');
+    delete z.ritaglio.firma;
+  });
+  if ((clipById(store.doc, id)?.ritaglio?.punti ?? []).some((q) => q.dentro)) provaSubito(id);
+  else avvisaScelta();
+}
+
 export function scegliOggetto(id: string) {
   const c = clipById(store.doc, id);
   if (!mioR(c) || c!.ritaglio!.modo !== 'oggetti') return;
+  // il modello si carica adesso, mentre guardi l'immagine: al primo clic la selezione arriva subito
+  void scaldaRitaglio(c!, (fase) => avviso(fase, 'info', 1200)).catch(() => { /* se non si carica lo dirà la prova */ });
   const sc: SceltaImmagine = {
     id, continua: true,
-    testo: '🖱 Clic sinistro = aggiungi un punto sulla persona o sull\'oggetto da tenere (verde) · clic destro = togli un punto · Alt+clic = questa parte NON si tiene (rosso)',
+    testo: '🖱 Clic = scegli · destro = togli · Alt+clic = NON questo',
     punti: () => clipById(store.doc, id)?.ritaglio?.punti ?? [],
     clic: (x, y, alt) => {
       store.edit('Clic sull\'oggetto', (pp) => {
@@ -182,7 +196,7 @@ export function scegliOggetto(id: string) {
         if (z.ritaglio.da === undefined || Math.abs(z.ritaglio.da - t) > 0.05) { z.ritaglio.punti = []; z.ritaglio.da = t; }
         (z.ritaglio.punti ??= []).push({ x, y, dentro: !alt });
       });
-      ritardaProva(id);
+      provaSubito(id);
     },
     // tasto destro: toglie il punto più vicino (entro un po' di spazio da dove hai cliccato)
     destro: (x, y) => {
@@ -191,6 +205,27 @@ export function scegliOggetto(id: string) {
       if (i < 0) { avviso('Qui non c\'è nessun punto da togliere: clic sinistro ne aggiunge uno, clic destro sopra un punto lo toglie', 'info', 2600); return; }
       togliPunto(id, i);
     },
+    // la selezione di prova, da disegnare sopra l'immagine (c'è solo quella di un fotogramma: la prova)
+    maschera: () => {
+      const r = clipById(store.doc, id)?.ritaglio;
+      const m = r?.firma ? maschereDi(r.firma) : null;
+      return m && m.n === 1 ? { w: m.w, h: m.h, dati: m.dati[0] } : null;
+    },
+    stato: () => {
+      const r = clipById(store.doc, id)?.ritaglio;
+      const ci = (r?.punti ?? []).some((q) => q.dentro);
+      if (provaInCorso) return '⏳ Cerco…';
+      if (!ci) return 'Clicca su quello che vuoi tenere';
+      return r?.firma && maschereDi(r.firma)?.n === 1 ? '✔ Selezionato: se è giusto premi OK' : 'Clicca su quello che vuoi tenere';
+    },
+    modi: [
+      { id: 'persona', nome: '🧍 Persona', info: 'Il clic sceglie una PERSONA: il programma trova le persone e tiene quella che hai cliccato (anche con più persone nel quadro)' },
+      { id: 'oggetto', nome: '📦 Oggetto', info: 'Il clic sceglie un OGGETTO (o qualunque cosa): SAM, il modello dei clic, ritaglia quello che hai toccato' },
+    ],
+    modoAttuale: () => (clipById(store.doc, id)?.ritaglio?.persona ? 'persona' : 'oggetto'),
+    scegliModo: (m) => impostaPersona(id, m === 'persona'),
+    // OK: la selezione è giusta, si fa tutta la clip
+    conferma: () => { void elaboraClip(id); },
   };
   document.dispatchEvent(new CustomEvent('dpv:scegli', { detail: sc }));
 }
@@ -204,7 +239,8 @@ export function puntoVicino(punti: { x: number; y: number }[], x: number, y: num
 
 export function togliPunto(id: string, i: number) {
   store.edit('Toglie un clic', (pp) => { const z = clipById(pp, id); z?.ritaglio?.punti?.splice(i, 1); });
-  ritardaProva(id);
+  if ((clipById(store.doc, id)?.ritaglio?.punti ?? []).some((q) => q.dentro)) provaSubito(id);
+  else avvisaScelta();
 }
 
 export function azzeraPunti(id: string) {

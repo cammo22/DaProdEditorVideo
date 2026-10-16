@@ -162,7 +162,7 @@ export const ARGOMENTI: Argomento[] = [
     riassunto: 'colore, contagocce, o l\'AI senza fondale', parole: 'sfondo green screen chroma key scontorna ritaglia persona soggetto oggetto ai',
     passi: [
       'Scegli la clip nella timeline.',
-      '**Proprietà → Togli lo sfondo**: *Colore* per il green screen (contagocce, fino a 3 colori), oppure *AI · automatico*: toglie lo sfondo da solo, senza fondale. Se ha tenuto la cosa sbagliata clicchi su quello che vuoi tenere (una persona o un oggetto) e lo segue per tutta la clip. Modello, precisione e bordo stanno in *Avanzate*.',
+      '**Proprietà → Togli lo sfondo**: *Colore* per il green screen (contagocce, fino a 3 colori), oppure *AI · automatico*: toglie lo sfondo da solo, senza fondale. Se ha tenuto la cosa sbagliata clicchi su quello che vuoi tenere (una persona o un oggetto): la selezione compare subito, se è giusta premi *OK* e lo segue per tutta la clip. Se sbaglia scegli *Persona* o *Oggetto* nella barra sul monitor. Modello, precisione e bordo stanno in *Avanzate*.',
       'Non devi premere altro: scelta l\'AI parte da sola, e dopo l\'ultimo clic rifà il lavoro su tutta la clip. La prima volta il modello si scarica, poi lavora sul tuo computer.',
       'Il tasto **SFONDO** sul monitor mostra la maschera o gli scacchi per controllare.',
     ],

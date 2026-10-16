@@ -41,7 +41,7 @@ async function carica(famiglia: string, repo: string[], conScheda = true) {
   const ok = await caricaConRipieghi(repo, await dispositivi(conScheda), tipi, async (r, device, dtype) => {
     if (famiglia === 'sam') {
       const processor = await T!.AutoProcessor.from_pretrained(r, { progress_callback });
-      const Classe = /sam2|edgetam/i.test(r) && T!.Sam2Model ? T!.Sam2Model : T!.SamModel;
+      const Classe = /sam3/i.test(r) && T!.Sam3TrackerModel ? T!.Sam3TrackerModel : /sam2|edgetam/i.test(r) && T!.Sam2Model ? T!.Sam2Model : T!.SamModel;
       const model = await Classe.from_pretrained(r, { device, dtype, progress_callback });
       return { sam: { model, processor } as { model: ModelloSam; processor: Elaboratore } };
     }

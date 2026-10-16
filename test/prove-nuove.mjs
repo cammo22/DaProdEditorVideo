@@ -203,7 +203,7 @@ async function proveSfondo({ page, prova, OUT }) {
   let r2 = await cambia('persona');
   prova('"Solo persone" (da Avanzate) mette il modello veloce per le persone (MODNet)', r2?.modo === 'persona' && r2.modello === 'modnet', JSON.stringify(r2));
   r2 = await cambia('oggetti');
-  prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam2', JSON.stringify(r2));
+  prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM 3', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam3', JSON.stringify(r2));
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
@@ -376,23 +376,67 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro e coi punti nel cuore della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
-  // un clic sull'oggetto dal monitor: dopo una pausa parte da solo il lavoro su TUTTA la clip (non resta un fotogramma solo)
+  // un clic sull'oggetto dal monitor: la selezione arriva SUBITO (una prova sul fotogramma, disegnata sopra), e solo con OK parte tutta la clip
   const clicco = await page.evaluate(async () => {
-    const { MK, USF } = window.__dpvTest;
+    const { MK, USF, RT } = window.__dpvTest;
     const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
-    window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam2', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
+    window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
+    // il segmentatore finto ricorda con che modello è stato caricato (il modello si carica in anticipo, appena si comincia a cliccare)
+    window.__caricati = [];
+    const vecchio = RT.impostaSegmentatore;
     let sc = null;
     document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
     USF.scegliOggetto(c0.id);
     if (!sc) return { errore: 'niente scelta' };
     window.__chiamateAI = [];
+    const prima = { stato: sc.stato(), maschera: !!sc.maschera(), modi: sc.modi.map((m) => m.id), attuale: sc.modoAttuale() };
+    const t0 = performance.now();
     sc.clic(0.4, 0.5, false);
-    const firmaProva = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if (m || performance.now() - t0 > 6000) ok(m ? m.n : 0); else setTimeout(g, 100); }; g(); });
-    const tutta = await new Promise((ok) => { const t0 = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if ((m && m.n > 1) || performance.now() - t0 > 20000) ok(m ? m.n : 0); else setTimeout(g, 150); }; g(); });
+    const firmaProva = await new Promise((ok) => { const t = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if (m || performance.now() - t > 6000) ok(m ? m.n : 0); else setTimeout(g, 50); }; g(); });
+    const tempoProva = performance.now() - t0;
+    const dopoClic = { stato: sc.stato(), maschera: !!sc.maschera() };
+    // passa un po' di tempo: NON parte da solo tutta la clip (serve OK)
+    await new Promise((r) => setTimeout(r, 2600));
     const c1 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
-    return { firmaProva, tutta, chiamate: window.__chiamateAI.length, punti: c1.ritaglio.punti.length, ok: MK.maschereDi(c1.ritaglio.firma)?.n > 1 };
+    const senzaOk = MK.maschereDi(c1.ritaglio.firma)?.n ?? 0;
+    const chiamateSenzaOk = window.__chiamateAI.length;
+    sc.conferma();
+    const tutta = await new Promise((ok) => { const t = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if ((m && m.n > 1) || performance.now() - t > 20000) ok(m ? m.n : 0); else setTimeout(g, 150); }; g(); });
+    const c2 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    return { prima, firmaProva, tempoProva: Math.round(tempoProva), dopoClic, senzaOk, chiamateSenzaOk, tutta, punti: c2.ritaglio.punti.length, ok: MK.maschereDi(c2.ritaglio.firma)?.n > 1 };
   });
-  prova('un clic sull\'oggetto: prima la prova su un fotogramma, poi da solo tutta la clip (maschere per tutta la durata)', clicco.firmaProva >= 1 && clicco.tutta > 1 && clicco.ok && clicco.punti === 1, JSON.stringify(clicco));
+  prova('un clic sull\'oggetto: la selezione arriva subito (una prova, subito, senza aspettare) e dice "Selezionato"; prima del clic non c\'è niente', clicco.prima.maschera === false && /Clicca/.test(clicco.prima.stato) && clicco.firmaProva === 1 && clicco.tempoProva < 1500 && clicco.dopoClic.maschera && /Selezionato/.test(clicco.dopoClic.stato), JSON.stringify(clicco));
+  prova('senza OK non parte tutta la clip (solo la prova di un fotogramma); con OK si fa tutta la clip (maschere per tutta la durata)', clicco.senzaOk === 1 && clicco.chiamateSenzaOk === 1 && clicco.tutta > 1 && clicco.ok && clicco.punti === 1, JSON.stringify(clicco));
+  prova('la barra della scelta ha i due tasti 🧍 Persona e 📦 Oggetto (acceso: Oggetto)', clicco.prima.modi.join() === 'persona,oggetto' && clicco.prima.attuale === 'oggetto', JSON.stringify(clicco.prima));
+  // i due tasti: Persona usa il modello delle persone (MODNet) e tiene la persona cliccata; Oggetto torna a SAM
+  const duePulsanti = await page.evaluate(async () => {
+    const { MK, USF } = window.__dpvTest;
+    const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    window.__dpv.select([c0.id]);
+    window.__dpv.setHead(c0.start + 2);
+    window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
+    let sc = null;
+    document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
+    USF.scegliOggetto(c0.id);
+    await new Promise((r) => setTimeout(r, 500));
+    sc.clic(0.4, 0.5, false);
+    await new Promise((r) => setTimeout(r, 900));
+    const firmaOggetto = window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.firma;
+    const bar = [...document.querySelectorAll('.pos-modi button')].map((b) => ({ t: b.textContent, acceso: b.classList.contains('acceso') }));
+    const ok = document.querySelector('.pos-btn.ok');
+    const okAcceso = !!ok && !ok.disabled && ok.offsetParent !== null;
+    document.querySelector('.pos-modi button[data-modo=persona]')?.click();
+    await new Promise((r) => setTimeout(r, 900));
+    const dopoPersona = JSON.parse(JSON.stringify(window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio));
+    const barPersona = [...document.querySelectorAll('.pos-modi button')].map((b) => ({ t: b.textContent, acceso: b.classList.contains('acceso') }));
+    document.querySelector('.pos-modi button[data-modo=oggetto]')?.click();
+    await new Promise((r) => setTimeout(r, 900));
+    const dopoOggetto = JSON.parse(JSON.stringify(window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio));
+    return { bar, okAcceso, persona: dopoPersona.persona, firmaCambia: dopoPersona.firma !== firmaOggetto, punti: dopoPersona.punti.length, haMaschera: !!MK.maschereDi(dopoPersona.firma), barPersona, tornaOggetto: !dopoOggetto.persona, modello: dopoOggetto.modello };
+  });
+  await page.screenshot({ path: path.join(OUT, 'sfondo-selezione.png') });
+  prova('sul monitor ci sono i tasti Persona/Oggetto e OK; "Persona" cambia modo (e rifà la selezione coi punti di prima), "Oggetto" torna com\'era', duePulsanti.bar.length === 2 && duePulsanti.bar[1].acceso && duePulsanti.okAcceso && duePulsanti.persona === true && duePulsanti.firmaCambia && duePulsanti.punti === 1 && duePulsanti.haMaschera && duePulsanti.barPersona[0].acceso && duePulsanti.tornaOggetto && /sam/.test(duePulsanti.modello), JSON.stringify(duePulsanti));
+  await page.keyboard.press('Escape');
   // clic sinistro aggiunge un punto, clic destro lo toglie (sopra il punto; altrove non toglie niente)
   const punti = await page.evaluate(async () => {
     const { USF } = window.__dpvTest;
@@ -467,6 +511,10 @@ export const AutoProcessor = { from_pretrained: async (repo) => {
   };
   return p;
 } };
+export class Sam3TrackerModel { static async from_pretrained(repo, opz) {
+  if (repo.includes('manca')) throw new Error('404 ' + repo);
+  return async () => ({ pred_masks: 'x', iou_scores: { dims: [1, 1, 3], data: [0.1, 0.95, 0.4] } });
+} }
 export class SamModel { static async from_pretrained(repo, opz) {
   if (repo.includes('sam2.1') || repo.includes('manca')) throw new Error('404 ' + repo);
   return async () => ({ pred_masks: 'x', iou_scores: { dims: [1, 1, 3], data: [0.1, 0.95, 0.4] } });
@@ -493,6 +541,14 @@ export class SamModel { static async from_pretrained(repo, opz) {
     m = es.maschere;
     const a = (x, y) => m.dati[0][Math.floor(y * m.h) * m.w + Math.floor(x * m.w)];
     out.sam = { ok: es.ok, motivo: es.motivo, disp: es.dispositivo, sulPunto: a(0.25, 0.5), lontano: a(0.9, 0.9), w: m?.w };
+    // 2b) SAM 3 (il tracker): se c'è si usa lui (Sam3TrackerModel), se non si carica si ripiega sul successivo
+    es = await fai({ modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.3, qualita: 1, punti: [{ x: 0.25, y: 0.5, dentro: true }], da: 0, segui: true });
+    m = es.maschere;
+    out.sam3 = { ok: es.ok, motivo: es.motivo, disp: es.dispositivo, sulPunto: m?.dati[0][Math.floor(0.5 * m.h) * m.w + Math.floor(0.25 * m.w)] };
+    RT.MODELLI_RITAGLIO.push({ id: 'finto-sam3', nome: 'Finto', info: '', modi: ['oggetti'], famiglia: 'sam', repo: ['x/sam3-manca', 'Xenova/slimsam-77-uniform'], licenza: '-' });
+    es = await fai({ modo: 'oggetti', modello: 'finto-sam3', bordo: 0, morbido: 0.3, qualita: 1, punti: [{ x: 0.25, y: 0.5, dentro: true }], da: 0, segui: true });
+    out.sam3Rotto = { ok: es.ok, motivo: es.motivo, disp: es.dispositivo };
+    RT.MODELLI_RITAGLIO.pop();
     // 3) un modello che non c'è da nessuna parte: l'errore si capisce
     RT.MODELLI_RITAGLIO.push({ id: 'finto-manca', nome: 'Manca', info: '', modi: ['soggetto'], famiglia: 'sfondo', repo: ['x/manca', 'y/manca'], licenza: '-' });
     es = await fai({ modo: 'soggetto', modello: 'finto-manca', bordo: 0, morbido: 0.3, qualita: 1 });
@@ -503,6 +559,7 @@ export class SamModel { static async from_pretrained(repo, opz) {
   });
   prova('il worker: BEN2 (pipeline background-removal) dà la maschera, con l\'immagine data in RGB', vero.sfondo.ok && vero.sfondo.angolo === 0 && vero.sfondo.centro === 255 && vero.sfondo.w === 640 && /BEN2/i.test(vero.sfondo.disp), JSON.stringify(vero.sfondo));
   prova('il worker: SAM 2.1 non c\'è, si ripiega su SlimSAM; il clic diventa la maschera dell\'oggetto', vero.sam.ok && vero.sam.sulPunto === 255 && vero.sam.lontano === 0 && /slimsam/i.test(vero.sam.disp), JSON.stringify(vero.sam));
+  prova('il worker: SAM 3 (Sam3TrackerModel) si carica e ritaglia al clic; se non si carica si ripiega su SlimSAM', vero.sam3.ok && vero.sam3.sulPunto === 255 && /sam3-tracker/i.test(vero.sam3.disp) && vero.sam3Rotto.ok && /slimsam/i.test(vero.sam3Rotto.disp), JSON.stringify([vero.sam3, vero.sam3Rotto]));
   prova('il worker: se nessun indirizzo risponde, l\'errore è chiaro (detto in parole: il modello non si trova)', !vero.manca.ok && /Non riesco a caricare il modello/.test(vero.manca.motivo) && /non si trova su Hugging Face/.test(vero.manca.motivo), JSON.stringify(vero.manca));
   await page.context().unroute('https://cdn.jsdelivr.net/npm/@huggingface/transformers@*/dist/transformers.min.js');
   await page.context().unroute('**/ai/transformers.min.js');

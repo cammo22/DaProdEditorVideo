@@ -113,8 +113,39 @@ export interface SceltaImmagine {
   punti?: () => { x: number; y: number; dentro: boolean }[];
   /** tasto destro: toglie il punto più vicino a dove hai cliccato (frazioni 0..1) */
   destro?: (x: number, y: number) => void;
+  /** la selezione di prova (w×h byte, >127 = scelto): si disegna sopra l'immagine in verde col bordo bianco */
+  maschera?: () => { w: number; h: number; dati: Uint8Array } | null;
+  /** una frase che dice a che punto si è ("Cerco…", "Selezionato: se è giusto premi OK") */
+  stato?: () => string;
+  /** i tasti per scegliere come si cerca (per esempio Persona / Oggetto) e quale è acceso */
+  modi?: { id: string; nome: string; info: string }[];
+  modoAttuale?: () => string;
+  scegliModo?: (id: string) => void;
+  /** il tasto OK: la selezione è giusta, si procede (la scelta si chiude) */
+  conferma?: () => void;
   /** resta aperta dopo il primo clic */
   continua: boolean;
+}
+
+/** la selezione di prova come immagine: dentro verde trasparente, sul bordo bianco pieno */
+function tintaDa(m: { w: number; h: number; dati: Uint8Array }): HTMLCanvasElement {
+  const tela = document.createElement('canvas');
+  tela.width = m.w; tela.height = m.h;
+  const x = tela.getContext('2d')!;
+  const im = x.createImageData(m.w, m.h);
+  const d = m.dati, w = m.w, hh = m.h;
+  for (let y = 0; y < hh; y++) {
+    for (let xx = 0; xx < w; xx++) {
+      const i = y * w + xx;
+      if (d[i] <= 127) continue;
+      const bordo = xx === 0 || y === 0 || xx === w - 1 || y === hh - 1 || d[i - 1] <= 127 || d[i + 1] <= 127 || d[i - w] <= 127 || d[i + w] <= 127;
+      const o = i * 4;
+      if (bordo) { im.data[o] = 255; im.data[o + 1] = 255; im.data[o + 2] = 255; im.data[o + 3] = 255; }
+      else { im.data[o] = 93; im.data[o + 1] = 211; im.data[o + 2] = 158; im.data[o + 3] = 105; }
+    }
+  }
+  x.putImageData(im, 0, 0);
+  return tela;
 }
 
 /** la mira del tracking: dove hai segnato l'oggetto da seguire */
@@ -140,6 +171,11 @@ export class Posiziona {
   private mira: Mira | null = null;
   private scelta: SceltaImmagine | null = null;
   private bScelta: HTMLElement;
+  private sceltaStato!: HTMLElement;
+  private sceltaModi!: HTMLElement;
+  private bOk!: HTMLButtonElement;
+  /** la selezione di prova disegnata (si rifà solo se cambia la maschera) */
+  private tintaScelta: { dati: Uint8Array; tela: HTMLCanvasElement } | null = null;
   private ferma = false;
   private firmaTappe = '';
 
@@ -160,12 +196,27 @@ export class Posiziona {
       h('span', { class: 'pos-mira-testo' }, 'Trascina il mirino sull\'oggetto'), ...lati,
       btn('▶ Avvia', 'Segue l\'oggetto dal fotogramma dove sei fino alla fine e all\'inizio della clip', () => void this.segui(), 'acceso'),
       btn('✕', 'Lascia stare', () => this.esciMira()));
+    // la barra della scelta coi clic: la frase, la selezione, i due modi (Persona / Oggetto), OK per procedere, ✕ per lasciare stare
+    this.sceltaStato = h('span', { class: 'pos-mira-stato' });
+    this.sceltaModi = h('span', { class: 'pos-modi' });
+    this.bOk = btn('✔ OK, ritaglia tutta la clip', 'La selezione è giusta: toglie lo sfondo a tutta la clip (Invio)', () => this.confermaScelta(), 'acceso ok');
     this.bScelta = h('span', { class: 'pos-mira', hidden: true },
       h('span', { class: 'pos-mira-testo' }),
-      btn('✓ Fatto', 'Finito di cliccare', () => this.esciScelta(), 'acceso'));
+      this.sceltaStato, this.sceltaModi, this.bOk,
+      btn('✕', 'Lascia stare (Esc)', () => this.esciScelta()));
     this.barra = h('div', { class: 'pos-barra' }, this.nome, this.bMoto, this.bInizio, this.tappeEl, this.bFine, this.bPiu, this.bMeno, this.bRitaglia, this.bSegui, this.bAdatta, this.bMira, this.bScelta);
     schermo.append(this.barra);
     schermo.addEventListener('pointerdown', (e) => this.giu(e));
+    // la ricerca finisce (o cambia un modo): la barra e la selezione si aggiornano
+    document.addEventListener('dpv:scegli-aggiorna', () => { if (this.scelta) { this.aggiornaScelta(); this.ridisegna(); } });
+    // Invio = OK, Esc = lascia stare (solo mentre si sceglie)
+    addEventListener('keydown', (e) => {
+      if (!this.scelta) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+      if (e.key === 'Enter' && this.scelta.conferma) { e.preventDefault(); e.stopPropagation(); this.confermaScelta(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.esciScelta(); }
+    }, true);
     // durante la scelta dei punti il tasto destro toglie un punto: niente menu del sistema
     schermo.addEventListener('contextmenu', (e) => { if (this.scelta) e.preventDefault(); });
     schermo.addEventListener('pointermove', (e) => { if (!this.trascina) this.cursore(e); });
@@ -232,6 +283,7 @@ export class Posiziona {
       this.bMira.hidden = true;
       this.nome.textContent = store.doc.clips.find((x) => x.id === this.scelta!.id)?.name ?? '';
       (this.bScelta.firstChild as HTMLElement).textContent = this.scelta!.testo;
+      this.aggiornaScelta();
       return;
     }
     if (mira) {
@@ -758,7 +810,36 @@ export class Posiziona {
   private esciScelta() {
     if (!this.scelta) return;
     this.scelta = null;
+    this.tintaScelta = null;
     this.ridisegna();
+  }
+
+  /** OK: la selezione è giusta, si procede e la scelta si chiude */
+  private confermaScelta() {
+    const sc = this.scelta;
+    if (!sc?.conferma) return;
+    if (!sc.maschera?.()) { avviso('Prima clicca su quello che vuoi tenere: appena è selezionato (verde) premi OK', 'info', 2600); return; }
+    this.esciScelta();
+    sc.conferma();
+  }
+
+  /** i tasti della barra della scelta: il modo acceso, la frase di stato, OK acceso solo se c'è una selezione */
+  private aggiornaScelta() {
+    const sc = this.scelta;
+    if (!sc) return;
+    this.sceltaStato.textContent = sc.stato?.() ?? '';
+    this.sceltaModi.hidden = !sc.modi?.length;
+    if (sc.modi?.length) {
+      const chiave = sc.modi.map((m) => m.id).join();
+      if (this.sceltaModi.dataset.chiave !== chiave) {
+        this.sceltaModi.dataset.chiave = chiave;
+        this.sceltaModi.replaceChildren(...sc.modi.map((m) => h('button', { class: 'pos-btn', 'data-modo': m.id, title: m.info, on: { click: () => sc.scegliModo?.(m.id) } }, m.nome)));
+      }
+      const acceso = sc.modoAttuale?.();
+      this.sceltaModi.querySelectorAll('button').forEach((b) => b.classList.toggle('acceso', (b as HTMLElement).dataset.modo === acceso));
+    }
+    this.bOk.hidden = !sc.conferma;
+    this.bOk.disabled = !sc.maschera?.();
   }
 
   private giuScelta(e: PointerEvent, x: number, y: number) {
@@ -795,6 +876,19 @@ export class Posiziona {
     const k = W / p.w, dpr = W / Math.max(1, this.sopra.getBoundingClientRect().width);
     const seg = spostaTraccia(p, c, f);
     ctx.save();
+    // la selezione di prova: verde trasparente con il bordo bianco, ben allineata all'immagine (anche se la clip è mossa o girata)
+    const mk = sc.maschera?.();
+    if (mk) {
+      const sul = (x: number, y: number) => { const o = sulQuadro(p, c, x, y, f); return o ? [(p.w / 2 + o[0] + seg.dx) * k, (p.h / 2 + o[1] + seg.dy) * k] : null; };
+      const A = sul(0, 0), B = sul(1, 0), C = sul(0, 1);
+      if (A && B && C) {
+        if (!this.tintaScelta || this.tintaScelta.dati !== mk.dati) this.tintaScelta = { dati: mk.dati, tela: tintaDa(mk) };
+        ctx.setTransform((B[0] - A[0]) / mk.w, (B[1] - A[1]) / mk.w, (C[0] - A[0]) / mk.h, (C[1] - A[1]) / mk.h, A[0], A[1]);
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(this.tintaScelta.tela, 0, 0);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+      }
+    }
     for (const pt of sc.punti?.() ?? []) {
       const o = sulQuadro(p, c, pt.x, pt.y, f);
       if (!o) continue;

@@ -4,6 +4,15 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.3] — 2026-10-16 · Sfondo AI: un clic, la selezione subito, poi OK 🎯
+
+### Togli lo sfondo con i clic
+- **Il clic parte subito**: appena clicchi su una persona o su un oggetto, la **selezione compare sull'immagine** (verde, col bordo bianco), come negli strumenti di selezione. Il modello si carica in anticipo, appena cominci a cliccare, così il primo clic non aspetta.
+- **Se la selezione è giusta premi ✔ OK** (o Invio): solo allora il programma toglie lo sfondo a tutta la clip e segue la persona o l'oggetto per tutta la durata. Prima partiva da solo dopo un paio di secondi, senza farti vedere se aveva preso la cosa giusta.
+- **Due tasti, 🧍 Persona e 📦 Oggetto**, nella barra sul monitor, per quando il primo tentativo sbaglia: *Persona* usa il modello delle persone e tiene quella che hai cliccato (anche con più persone nel quadro); *Oggetto* usa SAM e ritaglia quello che hai toccato. Cambiando tasto la selezione si rifà subito con gli stessi punti.
+- **SAM 3** è il modello di partenza dei clic (se non si carica, il programma passa da solo a SAM 2.1 e poi a SlimSAM e te lo dice). Clic sinistro aggiunge un punto, clic destro lo toglie, Alt+clic = "questa parte NO"; Esc lascia stare.
+- Non è stato provato con i modelli veri (dal container non si raggiunge Hugging Face): la libreria dentro l'app sa usare SAM 3 e il nome del modello è quello della demo ufficiale, ma va visto sul tuo computer.
+
 ## [1.5.2] — 2026-10-15 · Tracce sempre uguali, LIVE con i comandi in vista, sfondo AI che non si blocca più 🎯
 
 ### Timeline

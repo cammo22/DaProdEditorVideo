@@ -130,6 +130,8 @@ export interface Ritaglio {
   da?: number;
   /** oggetti: i clic valgono per tutta la ripresa (camera ferma) o si seguono da un fotogramma all'altro */
   segui?: boolean;
+  /** oggetti: il clic sceglie una PERSONA (il modello delle persone trova tutti, il clic dice quale) invece di un oggetto qualunque (SAM) */
+  persona?: boolean;
   /** restringe (−1) o allarga (+1) il bordo */
   bordo: number;
   /** quanto è morbido il bordo 0..1 */

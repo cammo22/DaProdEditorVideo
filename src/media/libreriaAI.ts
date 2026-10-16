@@ -75,6 +75,7 @@ export interface LibreriaAI {
   AutoProcessor: any;
   SamModel: any;
   Sam2Model?: any;
+  Sam3TrackerModel?: any;
   [k: string]: any;
 }
 
