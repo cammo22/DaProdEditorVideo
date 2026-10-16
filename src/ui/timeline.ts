@@ -14,7 +14,7 @@ import { SOTTO0, bordoRiga, dividiRiga, limitiRiga, unisciRighe } from '../core/
 import { ETICHETTE } from '../core/tipi';
 import { fps, frameToTc, f2s, tcBase } from '../core/timecode';
 import { miniatura, mediaRT, PEAKS_PER_SEC, quandoMiniature, quandoPicchi } from '../media/libreria';
-import { modi, esegui, montaDalPlayer, inserisciGeneratore, eliminaLato, mettiBlocco, bloccoNuovo } from '../azioni';
+import { modi, esegui, scartoInVista, montaDalPlayer, inserisciGeneratore, eliminaLato, mettiBlocco, bloccoNuovo } from '../azioni';
 import { cambiaModello, centro, durataBlocco, durataDelBlocco, nomeBlocco, nuovoBlocco, piccoDi, posaBlocco, postoBlocco, tagliFra, taglioDelBlocco, taglioVicino, tracciaPerBlocco, transizioneSul, transizioniSul, EFFETTI_TEMPO, type Dove, type Taglio } from '../core/blocchi';
 import { SUONI, suono } from '../core/suoni';
 import { attivaDi, eliminaSequenza, nuovaSequenza, passaA, rinominaSequenza, sequenzeDi } from '../core/sequenze';
@@ -685,6 +685,8 @@ export class Timeline {
     }
     // clip, e sopra i blocchetti FX (in basso sulla riga, una corsia per ogni sovrapposizione)
     this.contorniScelte = [];
+    // il pezzo che il 2 toglierebbe subito dopo un taglio: si vede come una clip scelta
+    this.scarto = scartoInVista();
     for (const { t, y, h: hh } of righe) {
       if (y > H || y + hh < RIGHELLO) continue;
       for (const c of p.clips) {
@@ -1019,7 +1021,12 @@ export class Timeline {
     ] : [
       { nome: 'Riga di sottotitolo al cursore', fn: () => this.rigaSottAlCursore() },
     ];
-    voci.push({ sep: true }, { nome: 'Tutti i sottotitoli (pagina Finale)…', fn: () => document.dispatchEvent(new CustomEvent('dpv:sottotitoli')) });
+    voci.push(
+      { sep: true },
+      { nome: '✨ Genera i sottotitoli con l\'AI (tutto il montaggio)', fn: () => void import('./sottotitoliRapidi').then((m) => m.generaSottotitoli()) },
+      { nome: '🗣 Fai parlare i sottotitoli (voce AI)', fn: () => void import('./sottotitoliRapidi').then((m) => m.faiParlareSottotitoli()) },
+      { nome: '⚙ Posizione e grandezza…', fn: () => void import('./sottotitoliRapidi').then((m) => m.stileSottotitoli()) },
+      { nome: 'Tutti i sottotitoli (pagina Finale)…', fn: () => document.dispatchEvent(new CustomEvent('dpv:sottotitoli')) });
     menuContesto(x, y, voci);
   }
 
@@ -1050,11 +1057,12 @@ export class Timeline {
 
   /** i contorni delle clip scelte, disegnati sopra a tutto alla fine del giro */
   private contorniScelte: { x: number; y: number; w: number; h: number; r: number }[] = [];
+  private scarto = new Set<string>();
 
   private disegnaClip(ctx: CanvasRenderingContext2D, p: Project, c: Clip, t: Track, y: number, hh: number, r: number) {
     const x = this.fX(c.start), w = Math.max(1, c.len * this.ppf);
     const { top, alt, testa, corpoY, corpoH } = this.geo(y, hh);
-    const sel = store.sel.has(c.id);
+    const sel = store.sel.has(c.id) || this.scarto.has(c.id);
     const m = mediaOf(p, c);
     const rt = c.media ? mediaRT(c.media) : undefined;
     const offline = c.kind === 'media' && (!rt || rt.stato !== 'ok');
@@ -2272,6 +2280,8 @@ export class Timeline {
         { nome: '⇤ Elimina lo scarto a sinistra di qui', tasto: 'Q', disattiva: !dentro, fn: () => eliminaLato('sinistra', f, clip) },
         { nome: '⇥ Elimina lo scarto a destra di qui', tasto: 'W', disattiva: !dentro, fn: () => eliminaLato('destra', f, clip) },
         { nome: clip.link && [...store.sel].every((id) => clipById(store.doc, id)?.link === clip.link) ? 'Separa (audio e video per conto loro)' : 'Unisci le selezionate in un gruppo', tasto: 'S', fn: () => esegui('separa') },
+        { nome: '🧩 Rendi clip unica (tutte le scelte in una clip sola)', tasto: 'Ctrl+Alt+U', fn: () => esegui('clipUnica') },
+        { nome: '📝 Genera i sottotitoli di questa clip (AI)', fn: () => { const ids = store.sel.has(clip.id) ? [...store.sel] : [clip.id]; void import('./sottotitoliRapidi').then((m) => m.generaSottotitoli(ids)); } },
         { sep: true },
         { nome: 'Transizione all\'inizio', sotto: trVoci('in') },
         { nome: 'Transizione alla fine', sotto: trVoci('out') },

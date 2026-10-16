@@ -20,7 +20,7 @@ await page.goto(srv.url + '/app/');
 await page.waitForSelector('.pulsantiera');
 await page.waitForTimeout(1000);
 const b64 = fs.readFileSync(voce).toString('base64');
-const ris = await page.evaluate(async ({ b64, musica }) => {
+const ris = await page.evaluate(async ({ b64, musica, forzeTutte, solaRosa }) => {
   const { AA, importaFile, mediaRT, P } = window.__dpvTest;
   const s = window.__dpv;
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -59,7 +59,7 @@ const ris = await page.evaluate(async ({ b64, musica }) => {
     const ronzio = 0.02 * Math.sin(2 * Math.PI * 100 * t) + 0.01 * Math.sin(2 * Math.PI * 200 * t) + 0.006 * Math.sin(2 * Math.PI * 300 * t);
     const fischio = 0.004 * Math.sin(2 * Math.PI * 2700 * t);
     const accordo = [220, 277.18, 329.63].reduce((a, f) => a + Math.sin(2 * Math.PI * f * t) * 0.008, 0) * (0.6 + 0.4 * Math.sin(2 * Math.PI * 0.5 * t)) * musica;
-    sporca[i] = conEco[i] * 0.8 + rosa + ronzio + fischio + accordo;
+    sporca[i] = conEco[i] * 0.8 + rosa + (solaRosa ? 0 : ronzio + fischio + accordo);
   }
   const wav = (x) => { const b = new ArrayBuffer(44 + x.length * 2), d = new DataView(b); const w = (o, t) => [...t].forEach((c, i) => d.setUint8(o + i, c.charCodeAt(0))); w(0, 'RIFF'); d.setUint32(4, 36 + x.length * 2, true); w(8, 'WAVEfmt '); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true); d.setUint32(24, sr, true); d.setUint32(28, sr * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); w(36, 'data'); d.setUint32(40, x.length * 2, true); for (let i = 0; i < x.length; i++) d.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true); return new Uint8Array(b); };
   const leggiWav = async (f) => { const a = new Uint8Array(await f.arrayBuffer()); const v = new DataView(a.buffer); let q = 12, ch = 1, bit = 16, da = 0, len = 0, r = 48000; while (q < a.length - 8) { const id = String.fromCharCode(...a.slice(q, q + 4)); const l = v.getUint32(q + 4, true); if (id === 'fmt ') { ch = v.getUint16(q + 10, true); r = v.getUint32(q + 12, true); bit = v.getUint16(q + 22, true); } if (id === 'data') { da = q + 8; len = l; break; } q += 8 + l; } const m = len / (bit / 8) / ch; const out = new Float32Array(m); for (let i = 0; i < m; i++) out[i] = bit === 16 ? v.getInt16(da + i * ch * 2, true) / 32768 : v.getFloat32(da + i * ch * 4, true); return { x: out, sr: r }; };
@@ -77,7 +77,7 @@ const ris = await page.evaluate(async ({ b64, musica }) => {
   const out = { sr, secondi: N / sr, ingresso: { sisdr: sisdr(sporca, secca).db, pausa: pausa(sporca) }, file: {} };
   out.file.pulita = wav(secca); out.file.sporca = wav(sporca);
   const tv = s.doc.tracks.find((t) => t.kind === 'audio');
-  for (const forza of ['leggera', 'media', 'forte']) {
+  for (const forza of forzeTutte) {
     const f = new File([wav(sporca)], `Banco ${forza}.wav`, { type: 'audio/wav' });
     const [m] = await importaFile([{ name: f.name, file: f }], { chiediFormato: false });
     for (let i = 0; i < 50 && !mediaRT(m.id)?.a; i++) await new Promise((r) => setTimeout(r, 100));
@@ -93,22 +93,13 @@ const ris = await page.evaluate(async ({ b64, musica }) => {
     const g = Math.pow(10, (c.afx?.pulito?.piu ?? 0) / 20);
     y = Float32Array.from(y, (v) => v * g);
     const sd = sisdr(y, secca);
-    // la voce pulita passata dalla STESSA catena (EQ, compressore): così si misura solo quanto rumore ed eco restano, non la catena
-    let conCatena = null;
-    if (forza !== 'leggera') {
-      const { CV } = window.__dpvTest;
-      const li = new CV.Livello(sr); li.aggiungi([sporca]);
-      const ref = Float32Array.from(secca);
-      new CV.CatenaVoce(sr, 1, CV.guadagnoIngresso(li.parlato)).processa([ref]);
-      conCatena = sisdr(y, ref).db;
-    }
-    out[forza] = { sisdr: sd.db, sisdrCatena: conCatena, lag: sd.lag, pausa: pausa(y), volume: c.afx?.pulito?.piu ?? 0, secondi: ms / 1000 };
+    out[forza] = { sisdr: sd.db, lag: sd.lag, pausa: pausa(y), volume: c.afx?.pulito?.piu ?? 0, secondi: ms / 1000 };
     out.file[forza] = wav(y);
   }
   // i file vanno al Node come array normali
   for (const k of Object.keys(out.file)) out.file[k] = Array.from(out.file[k]);
   return out;
-}, { b64, musica: Number(process.env.MUSICA || 1) });
+}, { b64, musica: Number(process.env.MUSICA || 1), solaRosa: process.env.RUMORE === 'rosa', forzeTutte: (process.env.FORZE || 'leggera,media,forte,isolata,podcast,naturale').split(',') });
 for (const [k, v] of Object.entries(ris.file)) fs.writeFileSync(path.join(fuori, `${k}.wav`), Buffer.from(v));
 delete ris.file;
 console.log(JSON.stringify(ris, null, 1));

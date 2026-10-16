@@ -95,7 +95,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'sfondo', nome: 'Togli lo sfondo', icona: '🪄', dove: 'tutto',
     cosaFa: 'Stacca la persona o il soggetto dallo sfondo, anche senza green screen; o un oggetto coi clic.',
-    come: ['Scegli la clip (o metti il cursore sopra)', 'Proprietà → Togli lo sfondo → AI · automatico (parte da sola; se serve clicchi su cosa tenere e lo segue per tutta la clip)', 'Guarda il risultato col tasto SFONDO del monitor'],
+    come: ['Scegli la clip (o metti il cursore sopra)', 'Proprietà → Togli lo sfondo → AI · automatico (parte da sola) o AI · scegli tu (clicchi una o più persone e cose, Anteprima, poi Genera tutta la clip)', 'Guarda il risultato col tasto SFONDO del monitor'],
     modelli: MODELLI_RITAGLIO.map((m) => ({ repo: m.repo[0], nome: m.nome })),
     manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una clip video o un\'immagine nella timeline (o mettici sopra il cursore)'),
     apri: () => { clipVideoDaUsare(true); vaiSezione('sfondo'); },
@@ -103,7 +103,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'rumore', nome: 'Togli i rumori', icona: '🎙', dove: 'tutto',
     cosaFa: 'Toglie il rumore di fondo da un parlato (ventola, fruscio, strada) e lascia la voce. È DeepFilterNet3, un\'AI fatta per la voce: lavora sul computer, senza scaricare niente.',
-    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli: Leggera, Voce pulita (va bene quasi sempre) o Voce isolata (rumori forti, musica sotto, eco)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
+    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli: Leggera, Media o Forte, Voce isolata (musica o TV sotto), Podcast o Podcast naturale (voce da studio, anche senza eco)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
     manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
     apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
   },

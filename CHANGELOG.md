@@ -4,6 +4,27 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.4] — 2026-10-16 · Sei modi di togliere i rumori, SAM 3, clip unica, sottotitoli dal montaggio 🎙
+
+### Togli i rumori: sei scelte
+- La "catena voce" della 1.5.3 (compressore, silenzio assoluto fra le parole, volume alzato) suonava peggio: **tolta**. **Leggera, Media e Forte tornano come nella 1.5.2** (DeepFilterNet).
+- **Voce isolata**: prima un modello AI tiene solo la voce (via musica, TV, gente), poi toglie il rumore.
+- **Podcast** e **Podcast naturale**: la voce rifatta da **Clear** di Desert Ant Labs (uscito quest'anno, aggiornato a ottobre): toglie rumore ed eco, porta avanti la voce e la mette al volume da podcast (−19 LUFS). "Naturale" lascia un po' del suono della stanza. Gira sul processore; la prima volta scarica il modello (~49 MB). Powered by Desert Ant Labs (licenza nelle Informazioni).
+
+### Togli lo sfondo con l'AI
+- **"✕ Togli lo sfondo AI (torna com'era)"** sempre in vista. Prima, se avevi la vista Maschera o Scacchi accesa e sceglievi "Niente", il monitor restava sulla maschera e sembrava impossibile tornare indietro.
+- **"AI · scegli tu"**: clicchi la persona o la cosa da tenere, con **"＋ Un altro oggetto"** ne aggiungi altre (una persona e un oggetto, due persone…), poi **Anteprima** (4 secondi, sugli scacchi): se va bene **Genera tutta la clip**, se no **Riprova**. Non parte più niente da solo dopo i clic.
+- **SAM 3** di Meta è il modello di partenza per "scegli tu" (la versione per il browser, ~300 MB la prima volta): sulla RTX 4060 circa 1,4 secondi per fotogramma. Se non parte si usa SAM 2.1.
+
+### Montaggio
+- **Il pezzo che il 2 toglie si vede**: subito dopo il taglio è evidenziato in giallo (video e audio legato), senza essere selezionato.
+- **🧩 Rendi clip unica** (tasto destro, o Ctrl+Alt+U): le clip scelte, con tutti i loro tagli, effetti e volumi, diventano una clip sola (video e audio legati) su un file nuovo nella cartella "Clip uniche". Ctrl+Z torna alle clip di prima.
+
+### Sottotitoli dal montaggio
+- Tasto destro su una clip → **"Genera i sottotitoli di questa clip"**: le righe vanno solo in quel pezzo, le altre restano.
+- Tasto destro sulla riga SOTT: genera con l'AI, **fai parlare i sottotitoli** (voce AI), posizione e grandezza.
+- Contenitore → Titoli → **Sottotitoli**: genera con l'AI, riga al cursore, fai parlare, posizione e grandezza.
+
 ## [1.5.3] — 2026-10-15 · Il progetto .dap con dentro tutto, voce pulita davvero, niente lavori fantasma 💾
 
 Una versione di sistemazione: nessuna funzione nuova, solo cose che devono andare al 100%.

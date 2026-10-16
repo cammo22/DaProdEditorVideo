@@ -83,6 +83,14 @@ const head = () => Math.round(store.head);
 /** il pezzo più corto dell'ultimo taglio (di solito lo scarto): dopo un taglio non resta niente di selezionato, ma "2" subito dopo lo toglie */
 let scartoDelTaglio: { id: string; f: number; revisione: number } | null = null;
 
+/** il pezzo che "2" toglierebbe adesso (con le sue legate), finché nessuno ha toccato niente dopo il taglio: la timeline
+ *  lo segna in giallo, così si vede cosa sparisce (prima non era evidenziato e sembrava che il 2 togliesse a caso) */
+export function scartoInVista(): Set<string> {
+  const s = scartoDelTaglio;
+  if (!s || store.sel.size || s.f !== head() || s.revisione !== store.revisione) return new Set();
+  return store.doc.clips.some((x) => x.id === s.id) ? M.withLinked(store.doc, [s.id]) : new Set();
+}
+
 function selezionateOSottoCursore(): Set<string> {
   if (store.sel.size) return M.withLinked(store.doc, store.sel);
   const s = scartoDelTaglio;
@@ -171,6 +179,11 @@ reg({
     const n = eliminaESeleziona('Elimina e chiudi', ids, true);
     avviso(`⇤ ${n} clip eliminate, buco chiuso`, 'tasto', 1200);
   },
+});
+reg({
+  id: 'clipUnica', nome: 'Rendi clip unica', gruppo: 'Montaggio', tasti: ['Ctrl+Alt+U'],
+  info: 'Le clip scelte (video e audio, con tutti i loro tagli, effetti e volumi) diventano una clip sola: il pezzo si rende in un file nuovo (cartella "Clip uniche") e al suo posto resta una clip col suo audio legato. Ctrl+Z torna indietro.',
+  fn: () => { if (!store.sel.size) { avviso('Scegli le clip da rendere una sola (Shift+clic o riquadro)', 'info', 2600); return; } const sel = [...store.sel]; void import('./ui/clipUnica').then((m) => m.rendiClipUnica(sel)); },
 });
 reg({
   id: 'separa', nome: 'Separa / unisci (gruppi di clip)', gruppo: 'Montaggio', tasti: ['S', '4', 'Alt+Y'],

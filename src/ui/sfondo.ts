@@ -7,7 +7,7 @@ import { clipById, mediaOf, srcTimeAt } from '../core/progetto';
 import { coloreDominante, firmaRitaglio, puoRitagliare, RITAGLIO0, rgbHex } from '../core/sfondo';
 import { motore } from '../motore';
 import { pixelAl, coloreIn } from '../media/campiona';
-import { elaboraRitaglio, modelloDiPartenza, provaRitaglio } from '../media/ritaglio';
+import { FIRMA_ANTEPRIMA, elaboraRitaglio, gruppiDi, modelloDiPartenza, provaRitaglio } from '../media/ritaglio';
 import { impostaMaschere, maschereDi, potaMaschere, ripristinaMaschere } from '../media/maschere';
 import { avviso } from './dom';
 import { BarraLavoro } from './lavoro';
@@ -25,12 +25,12 @@ export function modoSfondo(c: Clip): ModoSfondo {
 export const SPIEGA_MODO: Record<'soggetto' | 'persona' | 'oggetti', string> = {
   soggetto: 'Fa tutto da solo: trova chi o cosa sta davanti (una persona, un oggetto, un animale) e toglie il resto. Non devi cliccare niente.',
   persona: 'Fa tutto da solo ma cerca solo le persone: capelli e bordi più puliti, e tiene tutte le persone che vede. Veloce anche senza scheda video.',
-  oggetti: 'Scegli tu: clicchi sulla persona o sull\'oggetto che vuoi tenere (anche più clic) e il programma lo segue da solo per tutta la clip. Serve quando ci sono più persone o più cose e ne vuoi una sola. Clic sinistro aggiunge un punto, clic destro sopra un punto lo toglie.',
+  oggetti: 'Scegli tu: clicchi sulla persona o sull\'oggetto da tenere (anche più clic), con "＋ Un altro oggetto" ne aggiungi altri (una persona e una cosa, due persone…). Poi "Anteprima" ti fa vedere come lo segue per qualche secondo: se va bene "Genera tutta la clip", se no "Riprova". Clic sinistro aggiunge un punto, clic destro sopra un punto lo toglie.',
 };
 
 export const NOMI_MODO: Record<ModoSfondo, string> = {
   nessuno: 'Niente', colori: 'Colore (green screen)', luma: 'Luce (toglie nero o bianco)',
-  persona: 'AI · Persone (da solo)', soggetto: 'AI · Automatico', oggetti: 'AI · Clicca tu',
+  persona: 'AI · Persone (da solo)', soggetto: 'AI · Automatico', oggetti: 'AI · Scegli tu',
 };
 
 const IMMAGINE_O_VIDEO = (c: Clip) => c.kind === 'media' && puoRitagliare(mediaOf(store.doc, c));
@@ -43,6 +43,9 @@ export function modiPossibili(c: Clip): ModoSfondo[] {
 
 /** cambia il modo di tutte le clip scelte */
 export function impostaModo(ids: string[], modo: ModoSfondo) {
+  // tornando a "niente" la vista del monitor torna all'immagine: se restava su Maschera o Scacchi (i loro pulsanti
+  // spariscono) sembrava che lo sfondo non si potesse più togliere
+  if (modo === 'nessuno') { for (const id of ids) fermaClip(id); document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 0 })); }
   store.edit('Sfondo: ' + NOMI_MODO[modo], (pp) => {
     for (const id of ids) {
       const z = clipById(pp, id);
@@ -127,30 +130,41 @@ export function togliColoreExtra(id: string, i: number) {
 const mioR = (c: Clip | undefined): Ritaglio | undefined => c?.ritaglio;
 let prova = 0;
 
-/** a ogni clic si rifà la prova sul fotogramma, così si vede subito l'oggetto scelto */
+/** a ogni clic si rifà la prova sul fotogramma, così si vede subito cosa ha preso. Il lavoro su tutta la clip NON parte
+ *  da solo (dalla 1.5.4): prima l'anteprima, poi "Genera tutta la clip" se va bene */
 function ritardaProva(id: string) {
   const mio = ++prova;
   setTimeout(() => { if (mio === prova) void provaOggetto(id); }, 220);
-  // e subito dopo, da solo, tutta la clip
-  elaboraDopoClic(id);
 }
 
-/** dopo l'ultimo clic (una pausa) parte da solo il lavoro su tutta la clip: l'oggetto scelto si segue per tutta la durata, senza altri pulsanti */
-let attesaLavoro = 0;
-function elaboraDopoClic(id: string) {
-  const mio = ++attesaLavoro;
-  setTimeout(() => {
-    void (async () => {
-      if (mio !== attesaLavoro) return;
-      const l = lavori.get(id);
-      // se stava già lavorando con i clic di prima, si ferma e si ricomincia con quelli nuovi
-      if (l && !l.finito) { l.ferma = true; for (let i = 0; i < 50 && lavori.get(id)?.finito === false; i++) await new Promise((r) => setTimeout(r, 100)); }
-      if (mio !== attesaLavoro) return;
-      const c = clipById(store.doc, id);
-      if (!c?.ritaglio || c.ritaglio.modo !== 'oggetti' || !(c.ritaglio.punti ?? []).some((q) => q.dentro)) return;
-      await elaboraClip(id);
-    })();
-  }, 1800);
+/** "＋ Un altro oggetto": i clic dopo vanno a un oggetto nuovo (si tengono tutti insieme) */
+export function altroOggetto(id: string) {
+  const c = clipById(store.doc, id);
+  if (c?.ritaglio?.modo !== 'oggetti') { cliccaCosaTenere(id); return; }
+  const usati = (c.ritaglio.punti ?? []).map((q) => q.g ?? 0);
+  if (!usati.length) { scegliOggetto(id); return; }
+  store.edit('Un altro oggetto', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.oggetto = Math.max(...usati) + 1; });
+  avviso(`Oggetto ${Math.max(...usati) + 2}: clicca sul monitor sulla persona o la cosa da tenere`, 'info', 2600);
+  scegliOggetto(id);
+}
+
+/** quanti oggetti e quanti clic, per le Proprietà */
+export function oggettiDi(c: Clip): { n: number; punti: number }[] {
+  return gruppiDi(c.ritaglio?.punti ?? []).map((g) => ({ n: g.length, punti: g.filter((q) => q.dentro).length }));
+}
+
+/** "Togli lo sfondo AI": la clip torna com'era (e il monitor sull'immagine normale) */
+export function togliSfondoAI(ids: string[]) {
+  impostaModo(ids, 'nessuno');
+  avviso('Sfondo rimesso: la clip è tornata com\'era (Ctrl+Z per riavere il ritaglio)', 'ok', 2600);
+}
+
+/** "Riprova": via i clic e l'anteprima, si riclicca da capo */
+export function riprovaOggetti(id: string) {
+  fermaClip(id);
+  store.edit('Riprova', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) { z.ritaglio.punti = []; delete z.ritaglio.da; delete z.ritaglio.firma; delete z.ritaglio.oggetto; } });
+  document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 0 }));
+  scegliOggetto(id);
 }
 
 /** "AI · automatico": si sceglie il modo che fa tutto da solo e parte subito il lavoro su tutta la clip */
@@ -180,7 +194,8 @@ export function scegliOggetto(id: string) {
         const t = istanteQui(z);
         // i clic valgono per un solo fotogramma: se il cursore si è spostato, si ricomincia da qui
         if (z.ritaglio.da === undefined || Math.abs(z.ritaglio.da - t) > 0.05) { z.ritaglio.punti = []; z.ritaglio.da = t; }
-        (z.ritaglio.punti ??= []).push({ x, y, dentro: !alt });
+        const g = z.ritaglio.oggetto ?? 0;
+        (z.ritaglio.punti ??= []).push({ x, y, dentro: !alt, ...(g ? { g } : {}) });
       });
       ritardaProva(id);
     },
@@ -231,28 +246,36 @@ export async function provaOggetto(id: string) {
 }
 
 // ——— il lavoro lungo ———
-export interface Lavoro { barra: BarraLavoro; ferma: boolean; finito: boolean }
+export interface Lavoro { barra: BarraLavoro; ferma: boolean; finito: boolean; anteprima?: boolean }
 export const lavori = new Map<string, Lavoro>();
 const avvisaLavoro = () => document.dispatchEvent(new CustomEvent('dpv:lavoro-sfondo'));
 
 export function lavoroDi(id: string) { return lavori.get(id); }
 
-export async function elaboraClip(id: string) {
+/** quanti secondi dura l'anteprima degli oggetti */
+export const SECONDI_ANTEPRIMA = 4;
+
+export async function elaboraClip(id: string, anteprima = false) {
   const c = clipById(store.doc, id);
   if (!c?.ritaglio || lavori.get(id)?.finito === false) return;
-  const lav: Lavoro = { barra: new BarraLavoro('Tolgo lo sfondo', 'ai', () => { lav.ferma = true; }), ferma: false, finito: false };
+  const lav: Lavoro = { barra: new BarraLavoro(anteprima ? 'Anteprima dello sfondo' : 'Tolgo lo sfondo', 'ai', () => { lav.ferma = true; }), ferma: false, finito: false, anteprima };
   lavori.set(id, lav);
   lav.barra.avvia('Preparo…');
   avvisaLavoro();
   const esito = await elaboraRitaglio(store.doc, c, {
     stato: (fase, k) => lav.barra.imposta(fase, k),
     ferma: () => lav.ferma,
+    ...(anteprima ? { anteprima: SECONDI_ANTEPRIMA } : {}),
   });
   lav.finito = true;
   if (esito.ok && esito.maschere) {
-    lav.barra.fine(`Fatto: ${esito.maschere.n} maschere${esito.dispositivo ? ' · ' + esito.dispositivo : ''}`);
-    store.edit('Sfondo tolto con l\'AI', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.firma = esito.maschere!.firma; });
-    avviso('✂ Sfondo tolto: guarda il risultato con SFONDO sopra il monitor', 'ok', 3200);
+    lav.barra.fine(`${anteprima ? 'Anteprima pronta' : 'Fatto'}: ${esito.maschere.n} maschere${esito.dispositivo ? ' · ' + esito.dispositivo : ''}`);
+    store.edit(anteprima ? 'Anteprima dello sfondo' : 'Sfondo tolto con l\'AI', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.firma = esito.maschere!.firma; });
+    if (anteprima) {
+      // si guarda subito: il soggetto sugli scacchi, dal punto dove hai cliccato
+      document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 2 }));
+      avviso(`👀 Anteprima (${SECONDI_ANTEPRIMA} s): premi Play e guarda se segue bene. Va bene → "Genera tutta la clip"; no → "Riprova"`, 'ok', 6000);
+    } else avviso('✂ Sfondo tolto: guarda il risultato con SFONDO sopra il monitor', 'ok', 3200);
   } else {
     lav.barra.ferma(esito.motivo ?? 'Non riuscito');
     if (esito.motivo !== 'Fermato') avviso(esito.motivo ?? 'Non riesco a togliere lo sfondo', 'errore', 6000);
@@ -271,8 +294,13 @@ export function statoMaschere(c: Clip): { testo: string; ok: boolean } {
   const r = c.ritaglio;
   if (!r) return { testo: '', ok: false };
   const m = maschereDi(r.firma);
-  const attuale = !!c.media && r.firma === firmaRitaglio(c.media, r);
-  if (!m) return { testo: r.modo === 'oggetti' && !(r.punti ?? []).length ? 'Clicca sulla persona o sull\'oggetto da tenere: dopo l\'ultimo clic il programma lo segue da solo per tutta la clip.' : 'Da elaborare: premi "Togli lo sfondo".', ok: false };
+  const prova = !!r.firma?.endsWith(FIRMA_ANTEPRIMA);
+  const attuale = !!c.media && r.firma === firmaRitaglio(c.media, r) + (prova ? FIRMA_ANTEPRIMA : '');
+  if (!m) return { testo: r.modo === 'oggetti' && !(r.punti ?? []).length ? 'Clicca sulla persona o sull\'oggetto da tenere (con "＋ Un altro oggetto" ne aggiungi altri), poi "Anteprima".' : r.modo === 'oggetti' ? 'Premi "Anteprima" per vedere come segue quello che hai scelto.' : 'Da elaborare: premi "Rifai".', ok: false };
+  if (prova && attuale) {
+    const l = lavori.get(c.id);
+    return { testo: l && !l.finito ? 'Sto facendo l\'anteprima…' : `Anteprima pronta (${SECONDI_ANTEPRIMA} secondi dal clic): premi Play e guarda. Va bene? "Genera tutta la clip". No? "Riprova".`, ok: false };
+  }
   if (!attuale) return { testo: 'Hai cambiato modello, precisione o clic: rifai "Togli lo sfondo" per aggiornare.', ok: false };
   if (m.n === 1 && mediaOf(store.doc, c)?.type !== 'image') {
     const l = lavori.get(c.id);

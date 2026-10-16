@@ -124,8 +124,10 @@ import * as AAM from './media/modelliAudio';
 import * as AAS from './core/separa';
 import * as AAR from './core/rumore';
 import * as AAC from './core/ricampiona';
-import * as CV from './core/catenaVoce';
 import * as PX from './media/proxy';
+import * as CU from './ui/clipUnica';
+import * as SR from './ui/sottotitoliRapidi';
+import * as CL from './media/clear';
 (window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco };
 // l'audio con l'AI (togliere il rumore, separare voce e base): per le prove
-Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, CV, PX });
+Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL });

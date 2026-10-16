@@ -326,5 +326,5 @@ export function avvia(radice: HTMLElement) {
   // sul Mac, doppio clic su un progetto con l'app già aperta
   if (isTauri) void import('@tauri-apps/api/event').then(({ listen }) => listen<string>('apri-file', (e) => { void invoke<string | null>('file_di_avvio'); void apriFile({ path: e.payload }); })).catch(() => {});
   setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60);
-  return { tl, monitor, finale, live, montage, bin };
+  return { tl, monitor, finale, live, montage, bin, isp };
 }

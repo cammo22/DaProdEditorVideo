@@ -44,7 +44,9 @@ async function pacchetto(nome, versione) {
 }
 
 /** i file dell'audio AI (togliere i rumori con DeepFilterNet, separare voce e base con Demucs): sale se cambiano */
-export const AUDIO = 1;
+export const AUDIO = 2;
+/** LiteRT.js (Apache-2.0, Google): il motore di Clear ("Podcast" del togli rumori), i suoi wasm in public/ai/litert/ */
+export const LITERT = '2.5.3';
 /** DeepFilterNet3 per il browser (i pesi stanno dentro il wasm): MIT oppure Apache-2.0 */
 export const DEEPFILTERNET = '0.1.0';
 /** il codice di riferimento di Demucs nel browser: qui si prende solo la licenza, il codice è riscritto in src/core/separa.ts */
@@ -93,14 +95,18 @@ async function audio(ortGia) {
   copia(df, 'LICENSE-MIT', 'LICENSE-deepfilternet-MIT.txt');
   copia(df, 'LICENSE-APACHE', 'LICENSE-deepfilternet-Apache-2.0.txt');
   copia(dm, 'LICENSE', 'LICENSE-demucs-web.txt');
-  scriviSegno({ audio: AUDIO, deepfilternet: DEEPFILTERNET });
+  // LiteRT.js per Clear: tutti i wasm (semplice, con i thread, JSPI, compatibile) e la licenza
+  const lr = await pacchetto('@litertjs/core', LITERT);
+  for (const f of lr.file.keys()) if (f.startsWith('wasm/')) copia(lr, f, 'litert/' + f.slice(5));
+  if (lr.file.has('LICENSE')) copia(lr, 'LICENSE', 'LICENSE-litert.txt');
+  scriviSegno({ audio: AUDIO, deepfilternet: DEEPFILTERNET, litert: LITERT });
   console.log(`ai-locale: DeepFilterNet ${DEEPFILTERNET} e l'API di ONNX Runtime ${ortVer} in public/ai/`);
 }
 
 async function main() {
   const v = leggiSegno();
   const haTransformers = v.transformers === TRANSFORMERS && esiste('ort-wasm-simd-threaded.asyncify.wasm');
-  const haAudio = v.audio === AUDIO && esiste('ort.webgpu.min.mjs') && esiste('deepfilternet/df_bg.wasm') && esiste('deepfilternet/index.js');
+  const haAudio = v.audio === AUDIO && esiste('ort.webgpu.min.mjs') && esiste('deepfilternet/df_bg.wasm') && esiste('deepfilternet/index.js') && esiste('litert/litert_wasm_internal.wasm');
   if (haTransformers && haAudio) { console.log(`ai-locale: transformers.js ${TRANSFORMERS} e l'audio AI già pronti`); return; }
   let ort = null;
   if (!haTransformers) {
