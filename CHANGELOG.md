@@ -4,6 +4,13 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.5] — 2026-10-16 · Selezione dello sfondo AI più chiara 🎯
+
+### Togli lo sfondo con l'AI
+- Mentre scegli una persona o un oggetto, la maschera compare subito sul monitor: puoi controllare il risultato prima di confermare **OK** per tutta la clip o guardare l'anteprima di 4 secondi.
+- I tasti **Persona** e **Oggetto** sono nella barra del monitor; la selezione si può confermare anche con **Invio** e annullare con **Esc**.
+- La barra si dispone su più righe nei monitor stretti, così le istruzioni e i comandi restano visibili.
+
 ## [1.5.4] — 2026-10-16 · Sei modi di togliere i rumori, SAM 3, clip unica, sottotitoli dal montaggio 🎙
 
 ### Togli i rumori: sei scelte
