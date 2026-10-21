@@ -22,8 +22,8 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Le righe dell'AI arrivano in ordine** (`sistemaRighe`): mai una sopra l'altra, mai oltre la fine del montaggio, niente righe di sola punteggiatura, almeno due fotogrammi ciascuna.
 - **Whisper che si incanta** e ripete la stessa frase ("Grazie." "Grazie." "Grazie."…) sul silenzio o sul rumore: da tre uguali di fila restano due.
 - **Il riconoscimento non resta mai appeso**: un pezzo che non risponde per 10 minuti (scheda video bloccata) si butta e si rifà da un worker nuovo sul processore.
-- **Ferma** ferma davvero: oltre a fermare il giro chiude il worker (prima un modello in scarico andava avanti).
-- **Errore sistemato**: i "Sottotitoli con l'AI" dalla timeline ascoltavano con Whisper anche nell'app, dove il Finale (senza una scelta fatta) usa Nemotron di NVIDIA: ora la scelta è la stessa.
+- **Ferma** adesso ferma davvero: oltre a fermare il giro chiude il worker (prima un modello in scarico andava avanti).
+- **Errore sistemato**: i "Sottotitoli con l'AI" dalla timeline usavano Whisper anche nell'app, mentre il Finale (senza una scelta fatta) usa Nemotron di NVIDIA: ora la scelta è la stessa.
 - Guida (F1) e Centro AI aggiornati col nuovo modo di correggere. Prove: `test/prove-sottotitoli.mjs` (33), dentro `prove-nuove.mjs sottotitoli`.
 
 ### Niente più fotogrammi chiusi nel monitor e nell'export
