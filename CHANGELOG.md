@@ -4,6 +4,13 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.7] — 2026-10-21 · Il controllo aggiornamenti non dorme più 🔔
+
+- **Controlla da solo all'apertura e poi ogni 4 ore**, finché l'app resta aperta (prima una volta al giorno, e solo all'apertura).
+  Senza internet non dice niente e riprova dopo 20 minuti.
+- **Il tasto in alto dice la versione**: quando ne esce una nuova compare «Aggiornamento 1.5.8 disponibile» accanto all'icona;
+  un clic apre la finestra con le novità e il tasto per scaricare e installare. L'avviso a comparsa esce una volta sola per versione.
+
 ## [1.5.6] — 2026-10-21 · Sottotitoli che si correggono direttamente sulla timeline 💬
 
 ### Sottotitoli AI facili da inserire e da correggere

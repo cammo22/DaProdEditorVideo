@@ -943,6 +943,10 @@ button svg { pointer-events: none; }
 .tasto-aggiorna .aggiorna-punto { display: none; position: absolute; right: 2px; top: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--mag); box-shadow: 0 0 8px var(--mag); }
 .tasto-aggiorna.nuova { color: var(--oro); animation: agg-pulsa 1.6s ease-in-out infinite; }
 .tasto-aggiorna.nuova .aggiorna-punto { display: block; }
+.tasto-aggiorna .aggiorna-testo { display: none; }
+.tasto-aggiorna.nuova .aggiorna-testo { display: inline; margin-left: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tasto-aggiorna.nuova { width: auto; padding: 0 10px; }
+.stretto .tasto-aggiorna .aggiorna-testo { display: none; }
 @keyframes agg-pulsa { 50% { filter: drop-shadow(0 0 6px rgba(255, 213, 74, 0.8)); } }
 .novita .dlg-corpo { max-height: 68vh; overflow: auto; }
 .novita-titolo { font: 800 17px var(--ui); color: var(--oro); margin: 4px 0 8px; }
