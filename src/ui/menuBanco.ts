@@ -78,6 +78,14 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: 'Animazioni', sotto: GRUPPI_LIBRERIA.map((g) => ({ nome: g.nome, sotto: animazioniDi(g.id).map((a) => ({ nome: a.nome, fn: () => { inserisciGeneratore('anim', undefined, undefined, { anim: a.id }); avviso(`${a.nome} al cursore`, 'ok', 1200); } })) })) },
       voce('genAnimazione'),
     ]],
+    ['Sottotitoli', () => [
+      voce('sottGenera'), voce('sottNuova'), voce('sottModifica'), { sep: true },
+      voce('sottDividi'), voce('sottUnisci'), voce('sottElimina'), { sep: true },
+      voce('sottPrec'), voce('sottSucc'), voce('sottInizia'), voce('sottFinisci'), { sep: true },
+      voce('sottMostra'), voce('sottStile'), { sep: true },
+      voce('sottSrt'), voce('sottVtt'), voce('sottImporta'), { sep: true },
+      voce('sottParla'),
+    ]],
     ['AI', () => [
       { nome: 'Centro AI (tutte le funzioni, come si usano)…', fn: () => finestraCentroAI() },
       { sep: true },

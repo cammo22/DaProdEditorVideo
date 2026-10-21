@@ -5,15 +5,15 @@ import { store } from '../core/store';
 import type { Project, Sottotitoli, Sottotitolo } from '../core/tipi';
 import * as M from '../core/montaggio';
 import { end, uid } from '../core/progetto';
-import { SOTTO0, sottotitoliDi } from '../core/sottotitoli';
+import { SOTTO0, creaSrt, creaVtt, leggiSrt, sistemaRighe, sottotitoliDi } from '../core/sottotitoli';
 import { fps } from '../core/timecode';
-import { MODELLI, sottotitoliAI, type OpzioniVoce } from '../media/voce';
+import { MODELLI, fermaVoce, sottotitoliAI, type OpzioniVoce } from '../media/voce';
 import { VOCI_MAGPIE, motoreNemo } from '../media/nemo';
 import { doppia, linguaVoce, posaVoce } from '../media/doppiaggio';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { codificaWav } from '../media/wav';
 import { nuova } from '../media/attivita';
-import { salvaMediaSulDisco } from '../platform';
+import { salvaMediaSulDisco, salvaTesto } from '../platform';
 import { importaFile } from '../progetti';
 import { avviso, chiedi, conferma, dialogo, h } from './dom';
 
@@ -21,7 +21,9 @@ const leggi = <T extends object>(k: string, base: T): T => { try { return { ...b
 /** le scelte dell'AI del Finale (lingua, modello, motore) */
 export const opzioniAI = (): OpzioniVoce => {
   const o = leggi<OpzioniVoce>('dpv-ai', { lingua: 'it', traduci: false, modello: MODELLI[1]?.id ?? MODELLI[0].id });
-  return { ...o, motore: o.motore === 'nemotron' && motoreNemo() ? 'nemotron' : 'whisper' };
+  // come nel Finale (motoreAI): se non hai scelto, nell'app ascolta Nemotron; nel browser, o se il motore manca, Whisper
+  const scelto = o.motore ?? (motoreNemo() ? 'nemotron' : 'whisper');
+  return { ...o, motore: scelto === 'nemotron' && motoreNemo() ? 'nemotron' : 'whisper' };
 };
 const opzioniVoce = () => leggi('dpv-voce', { voce: 0, lingua: '', silenzia: true });
 
@@ -53,7 +55,7 @@ export async function generaSottotitoli(clip?: Iterable<string>) {
   }
   const ctrl = new AbortController();
   lavoroSott = ctrl;
-  const lav = nuova({ titolo: ids ? 'Sottotitoli della clip' : 'Sottotitoli con l\'AI', categoria: 'ai', alAnnulla: () => ctrl.abort() });
+  const lav = nuova({ titolo: ids ? 'Sottotitoli della clip' : 'Sottotitoli con l\'AI', categoria: 'ai', alAnnulla: () => { ctrl.abort(); fermaVoce(); } });
   const o = opzioniAI();
   try {
     const righe = await sottotitoliAI(p, o, (fase, k) => lav.imposta(k, fase), ctrl.signal);
@@ -155,4 +157,35 @@ export function stileSottotitoli() {
     h('label', { class: 'riga-spunta' }, nel, ' scritti nel video (se no escono solo nel file .srt)'),
     h('p', { class: 'nota' }, 'Le righe si spostano e si allungano nella riga SOTT della timeline; doppio clic su una riga per cambiarne il testo.'));
   d.piede.append(h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Fatto'));
+}
+
+/** i sottotitoli scritti in un file a parte: .srt (quasi tutti i programmi) o .vtt (il web) */
+export async function esportaSottotitoli(formato: 'srt' | 'vtt') {
+  const p = store.doc;
+  const testo = formato === 'srt' ? creaSrt(p) : creaVtt(p);
+  if (!testo.replace('WEBVTT', '').trim()) { avviso('Non ci sono sottotitoli scritti da esportare', 'info', 2400); return; }
+  const nome = p.name.replace(/[\\/:*?"<>|]/g, '_') + '_' + sottotitoliDi(p).lingua + '.' + formato;
+  const r = await salvaTesto(nome, testo, formato);
+  if (r) avviso(`💬 Sottotitoli salvati: ${r}`, 'ok', 3000);
+}
+
+/** apre un file .srt o .vtt e ne fa le righe (al posto di quelle che ci sono: Ctrl+Z le rimette) */
+export function importaSottotitoli() {
+  const file = document.createElement('input');
+  file.type = 'file';
+  file.accept = '.srt,.vtt,text/plain';
+  file.style.display = 'none';
+  document.body.appendChild(file);
+  file.addEventListener('change', async () => {
+    const f = file.files?.[0];
+    file.remove();
+    if (!f) return;
+    const righe = sistemaRighe(leggiSrt(await f.text(), store.doc), Infinity, 2, true);
+    if (!righe.length) { avviso('In questo file non ho trovato sottotitoli', 'errore', 3000); return; }
+    cambiaSott('Importa sottotitoli', (s) => { s.righe = righe; });
+    document.dispatchEvent(new CustomEvent('dpv:sott', { detail: 'mostra' }));
+    avviso(`💬 ${righe.length} righe importate (Ctrl+Z per tornare indietro)`, 'ok', 2800);
+  });
+  file.addEventListener('cancel', () => file.remove());
+  file.click();
 }

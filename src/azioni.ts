@@ -695,6 +695,30 @@ reg({ id: 'genNero', nome: 'Nero', gruppo: 'Generatori', fn: () => inserisciGene
 reg({ id: 'genColore', nome: 'Colore pieno', gruppo: 'Generatori', fn: () => inserisciGeneratore('color') });
 reg({ id: 'genCountdown', nome: 'Countdown da pellicola', gruppo: 'Generatori', tasti: ['Ctrl+Alt+C'], fn: () => inserisciGeneratore('countdown') });
 reg({ id: 'genTitolo', nome: 'Titolo', gruppo: 'Generatori', tasti: ['T', 'Ctrl+T'], fn: () => inserisciGeneratore('title') });
+// ——— sottotitoli: dalla timeline (riga SOTT) con la tastiera; il lavoro lo fa timeline.ts con l'evento dpv:sott ———
+const sott = (op: string) => () => { document.dispatchEvent(new CustomEvent('dpv:sott', { detail: op })); };
+const rapidi = (fn: (m: typeof import('./ui/sottotitoliRapidi')) => void) => () => { void import('./ui/sottotitoliRapidi').then(fn); };
+reg({
+  id: 'sottGenera', nome: 'Sottotitoli con l\'AI (dal montaggio o dalle clip scelte)', gruppo: 'Sottotitoli', tasti: ['Alt+G'],
+  info: 'L\'AI ascolta il montaggio (o solo le clip scelte) e scrive le righe nella riga SOTT della timeline. Poi si correggono lì: doppio clic per il testo, trascina per spostarle, tira i bordi per i tempi.',
+  fn: rapidi((m) => void m.generaSottotitoli(store.sel.size ? store.sel : undefined)),
+});
+reg({ id: 'sottNuova', nome: 'Sottotitolo nuovo al cursore', gruppo: 'Sottotitoli', tasti: ['Alt+N'], info: 'Una riga di 2,5 secondi dove sta il cursore, col testo da scrivere subito (Invio conferma, Tab passa alla riga dopo).', fn: sott('nuova') });
+reg({ id: 'sottModifica', nome: 'Scrivi / correggi il sottotitolo', gruppo: 'Sottotitoli', tasti: ['F2'], info: 'Apre il testo della riga scelta (o di quella sotto il cursore) direttamente sulla timeline. Ctrl+Invio divide la riga dove sta il cursore di scrittura.', fn: sott('modifica') });
+reg({ id: 'sottDividi', nome: 'Dividi il sottotitolo al cursore', gruppo: 'Sottotitoli', tasti: ['Alt+S'], info: 'Spezza la riga sotto il cursore in due: il testo si divide alla parola più vicina.', fn: sott('dividi') });
+reg({ id: 'sottUnisci', nome: 'Unisci i sottotitoli scelti', gruppo: 'Sottotitoli', tasti: ['Alt+J'], info: 'Le righe scelte (Maiusc+clic nella riga SOTT) diventano una riga sola; con una sola scelta si unisce alla dopo.', fn: sott('unisci') });
+reg({ id: 'sottElimina', nome: 'Togli i sottotitoli scelti', gruppo: 'Sottotitoli', info: 'Toglie le righe SOTT scelte (o quella sotto il cursore). Si può anche con Canc quando la riga è scelta.', fn: sott('elimina') });
+reg({ id: 'sottPrec', nome: 'Vai al sottotitolo prima', gruppo: 'Sottotitoli', tasti: ['Alt+PageUp'], fn: sott('prec') });
+reg({ id: 'sottSucc', nome: 'Vai al sottotitolo dopo', gruppo: 'Sottotitoli', tasti: ['Alt+PageDown'], fn: sott('succ') });
+reg({ id: 'sottInizia', nome: 'Il sottotitolo comincia al cursore', gruppo: 'Sottotitoli', fn: sott('inizia') });
+reg({ id: 'sottFinisci', nome: 'Il sottotitolo finisce al cursore', gruppo: 'Sottotitoli', fn: sott('finisci') });
+reg({ id: 'sottMostra', nome: 'Mostra la riga dei sottotitoli (SOTT)', gruppo: 'Sottotitoli', info: 'La riga SOTT compare anche se non ci sono ancora sottotitoli: da lì doppio clic o tasto destro.', fn: sott('mostra') });
+reg({ id: 'sottStile', nome: 'Sottotitoli: posizione, grandezza e fascia', gruppo: 'Sottotitoli', fn: rapidi((m) => m.stileSottotitoli()) });
+reg({ id: 'sottSrt', nome: 'Esporta i sottotitoli in un file .srt', gruppo: 'Sottotitoli', fn: rapidi((m) => void m.esportaSottotitoli('srt')) });
+reg({ id: 'sottVtt', nome: 'Esporta i sottotitoli in un file .vtt (web)', gruppo: 'Sottotitoli', fn: rapidi((m) => void m.esportaSottotitoli('vtt')) });
+reg({ id: 'sottImporta', nome: 'Importa i sottotitoli da un file .srt / .vtt', gruppo: 'Sottotitoli', fn: rapidi((m) => m.importaSottotitoli()) });
+reg({ id: 'sottParla', nome: 'Fai parlare i sottotitoli (voce AI)', gruppo: 'Sottotitoli', fn: rapidi((m) => void m.faiParlareSottotitoli()) });
+
 reg({ id: 'genAnimazione', nome: 'Animazione (sottopancia, testo che si muove…)', gruppo: 'Generatori', tasti: ['Ctrl+Alt+N'], fn: () => inserisciGeneratore('anim') });
 
 export { head as cursore };

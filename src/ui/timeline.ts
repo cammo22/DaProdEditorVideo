@@ -10,7 +10,7 @@ import { motore } from '../motore';
 import * as M from '../core/montaggio';
 import { CURVE, curvaFade, nomeCurva, clipById, dbToGain, end, isVideoClip, keyValue, mediaOf, newTrack, newTransition, nextTrackName, projectEnd, srcTimeAt, trackOf, ALTEZZA } from '../core/progetto';
 import type { Clip, Key, MediaItem, Project, Sottotitolo, Track, TrackKind } from '../core/tipi';
-import { SOTTO0, bordoRiga, dividiRiga, limitiRiga, unisciRighe } from '../core/sottotitoli';
+import { SOTTO0, bordoRiga, dividiRiga, limitiRiga, rigaAl, rigaVicina, sottotitoliDi, unisciRighe } from '../core/sottotitoli';
 import { ETICHETTE } from '../core/tipi';
 import { fps, frameToTc, f2s, tcBase } from '../core/timecode';
 import { miniatura, mediaRT, PEAKS_PER_SEC, quandoMiniature, quandoPicchi } from '../media/libreria';
@@ -159,6 +159,7 @@ export class Timeline {
     quandoMiniature(() => this.sporca());
     quandoPicchi(() => this.sporca());
     this.eventi();
+    document.addEventListener('dpv:sott', (e) => this.sottOp((e as CustomEvent<string>).detail));
     this.costruisciTestate();
     this.costruisciSchede();
     const loop = () => { if (this.sporco) { this.sporco = false; this.disegna(); } requestAnimationFrame(loop); };
@@ -191,7 +192,9 @@ export class Timeline {
   rigaSott: { y: number; h: number } | null = null;
   /** le righe dei sottotitoli scelte nella timeline */
   selSott = new Set<string>();
-  private conSott(p: Project) { return (p.sottotitoli?.righe.length ?? 0) > 0; }
+  /** la riga SOTT si vede anche vuota (comando "Mostra la riga dei sottotitoli"), così si può cominciare da lì */
+  mostraSott = false;
+  private conSott(p: Project) { return (p.sottotitoli?.righe.length ?? 0) > 0 || this.mostraSott; }
 
   /** zoom verticale (Ctrl+Shift+rotella): le tracce più alte o più basse, per tutte insieme */
   zoomV = (() => { try { return clamp(Number(localStorage.getItem('dpv-zoomv')) || 1, 0.6, 3); } catch { return 1; } })();
@@ -546,7 +549,7 @@ export class Timeline {
   private firmaTestate = '';
   private firma() {
     const s = store.doc.sottotitoli;
-    return this.kV() + '|' + store.doc.tracks.map((t) => [t.id, t.name, t.height, t.mute, t.solo, t.lock, t.opacity, t.volume, modi.attive.has(t.id)].join(',')).join(';') + '|' + this.scrollY + '|' + (s?.righe.length ? (s.nelVideo ? 2 : 1) : 0);
+    return this.kV() + '|' + store.doc.tracks.map((t) => [t.id, t.name, t.height, t.mute, t.solo, t.lock, t.opacity, t.volume, modi.attive.has(t.id)].join(',')).join(';') + '|' + this.scrollY + '|' + (s?.righe.length || this.mostraSott ? (s?.nelVideo ?? true ? 2 : 1) : 0);
   }
   /** le testate si rifanno solo se cambiano le tracce, non a ogni spostamento di clip */
   private testateSeCambiate() {
@@ -575,12 +578,13 @@ export class Timeline {
     let prima: Track | null = null;
     // la testata della riga dei sottotitoli: l'occhio li mostra o li nasconde nel video
     const testataSott = () => {
-      const s = p.sottotitoli!;
+      const s = sottotitoliDi(p);
       return h('div', { class: 'tl-testata sott' + (s.nelVideo ? '' : ' spenta'), style: `height:${SOTT_H}px` },
         h('div', { class: 'tt-riga' },
           h('span', { class: 'tt-nome sott', title: 'I sottotitoli: trascina per spostarli, tira i bordi per i tempi, doppio clic per scrivere, tasto destro per unire e dividere' }, icona('sottotitoli', 12), 'SOTT'),
-          h('button', { class: 'tt-btn' + (s.nelVideo ? '' : ' on-rosso'), title: 'Sottotitoli nel video sì / no', on: { click: () => store.edit('Sottotitoli nel video', (pp) => { pp.sottotitoli!.nelVideo = !pp.sottotitoli!.nelVideo; }) } }, icona('occhio', 13)),
-          h('button', { class: 'tt-btn', title: 'Una riga al cursore', on: { click: () => this.rigaSottAlCursore() } }, '+')));
+          h('button', { class: 'tt-btn' + (s.nelVideo ? '' : ' on-rosso'), title: 'Sottotitoli nel video sì / no', on: { click: () => store.edit('Sottotitoli nel video', (pp) => { pp.sottotitoli = { ...structuredClone(SOTTO0), ...(pp.sottotitoli ?? {}) }; pp.sottotitoli.nelVideo = !pp.sottotitoli.nelVideo; }) } }, icona('occhio', 13)),
+          h('button', { class: 'tt-btn', title: 'Una riga al cursore (Alt+N)', on: { click: () => this.sottOp('nuova') } }, '+'),
+          h('button', { class: 'tt-btn', title: 'Scrivi i sottotitoli con l\'AI (Alt+G): dal montaggio, o solo dalle clip scelte', on: { click: () => esegui('sottGenera') } }, '✨')));
     };
     for (const t of p.tracks) {
       if (prima && prima.kind !== 'audio' && t.kind === 'audio') {
@@ -932,7 +936,7 @@ export class Timeline {
   /** la riga dei sottotitoli: un blocchetto per ogni riga col suo testo (tratteggiato se è ancora da scrivere) */
   private disegnaSott(ctx: CanvasRenderingContext2D, p: Project, W: number) {
     const { y, h: hh } = this.rigaSott!;
-    const s = p.sottotitoli!;
+    const s = sottotitoliDi(p);
     ctx.fillStyle = '#121a1f';
     ctx.fillRect(0, y, W, hh);
     ctx.fillStyle = 'rgba(255,255,255,.035)';
@@ -940,6 +944,10 @@ export class Timeline {
     const top = y + 3, alt = hh - 6;
     ctx.font = '600 11.5px Rajdhani, sans-serif';
     ctx.textBaseline = 'middle';
+    if (!s.righe.length) {
+      ctx.fillStyle = 'rgba(200,230,245,.5)';
+      ctx.fillText('Nessun sottotitolo · doppio clic per scriverne uno · tasto destro: li scrive l\'AI (Alt+G)', 10, top + alt / 2 + 0.5);
+    }
     for (const r of s.righe) {
       const x0 = this.fX(r.da), x1 = this.fX(r.a);
       if (x1 < -2 || x0 > W + 2) continue;
@@ -971,14 +979,16 @@ export class Timeline {
     }
   }
 
-  /** una riga di sottotitolo di 2,5 secondi al cursore (fino alla dopo, se è più vicina) */
+  /** una riga di sottotitolo di 2,5 secondi al cursore (fino alla dopo, se è più vicina); se ce n'è già una, la apre per scriverla */
   rigaSottAlCursore() {
     const p = store.doc;
     const da = Math.round(store.head);
     const righe = p.sottotitoli?.righe ?? [];
-    if (righe.some((x) => x.da <= da && da < x.a)) { avviso('Qui c\'è già una riga: doppio clic per scriverla', 'info', 1600); return; }
+    const qui = righe.find((x) => x.da <= da && da < x.a);
+    if (qui) { void this.scriviSott(qui.id); return; }
     const dopo = righe.filter((x) => x.da > da).sort((a, b) => a.da - b.da)[0];
     const a = Math.max(da + 2, Math.min(da + Math.round(fps(p.rate) * 2.5), dopo ? dopo.da : Infinity));
+    if (dopo && a > dopo.da) { avviso('Non c\'è posto prima della riga dopo: spostala o accorciala', 'info', 2200); return; }
     let id = '';
     store.edit('Riga di sottotitolo', (pp) => {
       pp.sottotitoli = { ...structuredClone(SOTTO0), ...(pp.sottotitoli ?? {}) };
@@ -991,13 +1001,153 @@ export class Timeline {
     void this.scriviSott(id);
   }
 
-  /** scrivi o correggi il testo di una riga (Invio = a capo, cioè due righe insieme) */
-  async scriviSott(id: string) {
-    const r = store.doc.sottotitoli?.righe.find((x) => x.id === id);
-    if (!r) return;
-    const t = await chiedi('Sottotitolo', 'Il testo (può andare a capo)', r.testo, true);
-    if (t === null) return;
-    store.edit('Testo del sottotitolo', (pp) => { const z = pp.sottotitoli?.righe.find((x) => x.id === id); if (z) z.testo = t; });
+  /** l'editor aperto sulla riga (null = nessuno): chiudi(true) conferma il testo, chiudi(false) lo butta */
+  private editor: { id: string; chiudi: (conferma: boolean) => void } | null = null;
+
+  /**
+   * Scrivi o correggi il testo di una riga, direttamente sopra la timeline. Invio conferma, Maiusc+Invio va a capo
+   * (due righe insieme), Ctrl+Invio divide la riga dove sta il cursore di scrittura (e si continua con la seconda parte),
+   * Tab / Maiusc+Tab passano alla riga dopo / prima, Esc butta le modifiche.
+   */
+  scriviSott(id: string): Promise<void> {
+    this.editor?.chiudi(true);
+    const r0 = store.doc.sottotitoli?.righe.find((x) => x.id === id);
+    this.righe(store.doc); // (la posizione della riga SOTT si ricalcola qui: la riga può essere appena nata)
+    const rs = this.rigaSott;
+    if (!r0 || !rs) return Promise.resolve();
+    this.selSott = new Set([id]);
+    // la riga in vista (se sta fuori o troppo al bordo si porta il righello lì)
+    const xv = this.fX(r0.da);
+    if (xv < 20 || xv > this.W - 150) this.scrollF = Math.max(0, r0.da - (this.W * 0.25) / this.ppf);
+    this.sporca();
+    const larg = Math.round(clamp(this.fX(r0.a) - this.fX(r0.da), 300, 480));
+    const alto = 64;
+    const sotto = rs.y + rs.h + 3;
+    const ta = h('textarea', {
+      class: 'tl-sott-editor', rows: '2', spellcheck: 'true', 'data-id': id,
+      placeholder: 'Scrivi il sottotitolo…  Invio conferma · Maiusc+Invio a capo · Ctrl+Invio divide qui · Tab riga dopo · Esc annulla',
+      style: `left:${Math.round(clamp(this.fX(r0.da), 4, Math.max(4, this.W - larg - 4)))}px;top:${sotto + alto > this.H ? Math.max(0, rs.y - alto - 3) : sotto}px;width:${larg}px;height:${alto}px`,
+    }) as HTMLTextAreaElement;
+    ta.value = r0.testo;
+    this.area.appendChild(ta);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+    return new Promise<void>((ok) => {
+      let chiuso = false;
+      const chiudi = (conferma: boolean) => {
+        if (chiuso) return;
+        chiuso = true;
+        this.editor = null;
+        const testo = ta.value.replace(/\s+$/, '');
+        ta.remove();
+        if (conferma && testo !== r0.testo) store.edit('Testo del sottotitolo', (pp) => { const z = pp.sottotitoli?.righe.find((x) => x.id === id); if (z) z.testo = testo; });
+        this.cv.focus({ preventScroll: true });
+        this.sporca();
+        ok();
+      };
+      this.editor = { id, chiudi };
+      ta.addEventListener('keydown', (e) => {
+        e.stopPropagation(); // i tasti del montaggio qui non c'entrano
+        if (e.key === 'Escape') { e.preventDefault(); chiudi(false); }
+        else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          const car = ta.selectionStart, testo = ta.value;
+          let nuova = null as string | null;
+          store.edit('Dividi sottotitolo', (pp) => {
+            const s = pp.sottotitoli, z = s?.righe.find((x) => x.id === id);
+            if (!s || !z) return;
+            z.testo = testo;
+            // al cursore del montaggio se cade dentro la riga; se no dove sta la lettera, in proporzione
+            let fr = Math.round(store.head);
+            if (!(fr > z.da + 1 && fr < z.a - 1)) fr = Math.round(z.da + ((z.a - z.da) * car) / Math.max(1, testo.length));
+            fr = Math.max(z.da + 2, Math.min(z.a - 2, fr));
+            nuova = dividiRiga(s, id, fr, car);
+          });
+          if (!nuova) { avviso('La riga è troppo corta per dividerla', 'info', 1800); return; }
+          chiuso = true; this.editor = null; ta.remove();
+          this.selSott = new Set([nuova]);
+          ok();
+          void this.scriviSott(nuova);
+          const z = store.doc.sottotitoli?.righe.find((x) => x.id === nuova);
+          if (z) store.setHead(z.da);
+        } else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); chiudi(true); }
+        else if (e.key === 'Tab') {
+          e.preventDefault();
+          chiudi(true);
+          const v = rigaVicina(sottotitoliDi(store.doc), id, e.shiftKey ? -1 : 1);
+          if (v) { store.setHead(v.da); void this.scriviSott(v.id); }
+        }
+      });
+      ta.addEventListener('blur', () => {
+        // se è la finestra a perdere il fuoco (un altro programma, il tasto Alt) l'editor resta e riprende al ritorno
+        if (!document.hasFocus()) { window.addEventListener('focus', () => { if (!chiuso) ta.focus(); }, { once: true }); return; }
+        chiudi(true);
+      });
+      ta.addEventListener('pointerdown', (e) => e.stopPropagation());
+    });
+  }
+
+  /** unisce le righe scelte (o la riga sotto il cursore con la dopo) in una riga sola */
+  private unisciSott() {
+    const righe = sottotitoliDi(store.doc).righe.slice().sort((a, b) => a.da - b.da);
+    let scelte = [...this.selSott].filter((z) => righe.some((x) => x.id === z));
+    if (!scelte.length) { const q = rigaAl(sottotitoliDi(store.doc), Math.round(store.head)); if (q) scelte = [q.id]; }
+    if (!scelte.length) { avviso('Scegli due o più righe SOTT (Maiusc+clic)', 'info', 2000); return; }
+    if (scelte.length === 1 && righe[righe.length - 1]?.id === scelte[0]) { avviso('È l\'ultima riga: non c\'è una dopo con cui unirla', 'info', 2000); return; }
+    let rimasta = null as string | null;
+    store.edit('Unisci sottotitoli', (pp) => { if (pp.sottotitoli) rimasta = unisciRighe(pp.sottotitoli, scelte); });
+    if (rimasta) this.selSott = new Set([rimasta]);
+  }
+
+  /** divide la riga scelta (o quella sotto il cursore) dove sta il cursore del montaggio */
+  private dividiSott() {
+    const s = sottotitoliDi(store.doc);
+    const f = Math.round(store.head);
+    const r = [...this.selSott].map((id) => s.righe.find((x) => x.id === id)).find((x) => x && x.da < f && f < x.a) ?? rigaAl(s, f);
+    if (!r || !(f > r.da + 1 && f < r.a - 1)) { avviso('Metti il cursore dentro una riga SOTT per dividerla lì', 'info', 2200); return; }
+    let nuova = null as string | null;
+    store.edit('Dividi sottotitolo', (pp) => { if (pp.sottotitoli) nuova = dividiRiga(pp.sottotitoli, r.id, f); });
+    if (nuova) this.selSott = new Set([nuova]);
+  }
+
+  /** i comandi dei sottotitoli (azioni.ts li manda con l'evento dpv:sott) */
+  private sottOp(op: string) {
+    const p = store.doc;
+    const s = sottotitoliDi(p);
+    const f = Math.round(store.head);
+    const ord = s.righe.slice().sort((a, b) => a.da - b.da);
+    const bersagli = () => {
+      const sc = ord.filter((z) => this.selSott.has(z.id));
+      if (sc.length) return sc;
+      const q = rigaAl(s, f);
+      return q ? [q] : [];
+    };
+    if (op === 'mostra') { this.mostraSott = true; this.costruisciTestate(); this.sporca(); return; }
+    if (op === 'nuova') { this.mostraSott = true; this.rigaSottAlCursore(); return; }
+    if (op === 'modifica') { const b = bersagli(); if (b[0]) void this.scriviSott(b[0].id); else this.rigaSottAlCursore(); return; }
+    if (op === 'dividi') { this.dividiSott(); return; }
+    if (op === 'unisci') { this.unisciSott(); return; }
+    if (op === 'elimina') {
+      const via = new Set(bersagli().map((z) => z.id));
+      if (!via.size) { avviso('Nessuna riga SOTT scelta', 'info', 1600); return; }
+      store.edit('Togli sottotitoli', (pp) => { if (pp.sottotitoli) pp.sottotitoli.righe = pp.sottotitoli.righe.filter((z) => !via.has(z.id)); });
+      this.selSott.clear();
+      return;
+    }
+    if (op === 'prec' || op === 'succ') {
+      const v = op === 'succ' ? ord.find((z) => z.da > f) : ord.slice().reverse().find((z) => z.da < f);
+      if (!v) { avviso(op === 'succ' ? 'Non ci sono righe dopo' : 'Non ci sono righe prima', 'info', 1400); return; }
+      this.selSott = new Set([v.id]);
+      motore.setMonitor('recorder');
+      store.setHead(v.da);
+      this.sporca();
+      return;
+    }
+    if (op === 'inizia' || op === 'finisci') {
+      const b = bersagli()[0];
+      if (!b) { avviso('Metti il cursore su una riga SOTT', 'info', 1600); return; }
+      store.edit(op === 'inizia' ? 'Inizio del sottotitolo' : 'Fine del sottotitolo', (pp) => { if (pp.sottotitoli) bordoRiga(pp.sottotitoli, b.id, op === 'inizia' ? 'da' : 'a', f); });
+    }
   }
 
   /** tasto destro su una riga dei sottotitoli */
@@ -1008,10 +1158,10 @@ export class Timeline {
     const cambia = (label: string, fn: (s: NonNullable<Project['sottotitoli']>) => void) => store.edit(label, (pp) => { if (pp.sottotitoli) fn(pp.sottotitoli); });
     const scelte = [...this.selSott].filter((z) => righe.some((x) => x.id === z));
     const voci: VoceMenu[] = r ? [
-      { nome: 'Scrivi / correggi il testo…', tasto: 'doppio clic', fn: () => void this.scriviSott(r.id) },
-      { nome: scelte.length > 1 ? `Unisci le ${scelte.length} righe scelte (appaiono insieme)` : 'Unisci con la riga dopo (appaiono insieme)', disattiva: scelte.length < 2 && righe[righe.length - 1]?.id === r.id,
-        fn: () => { let rimasta: string | null = null; cambia('Unisci sottotitoli', (s) => { rimasta = unisciRighe(s, scelte.length > 1 ? scelte : [r.id]); }); if (rimasta) this.selSott = new Set([rimasta]); } },
-      { nome: 'Dividi qui', disattiva: !(f > r.da + 1 && f < r.a - 1), fn: () => cambia('Dividi sottotitolo', (s) => { dividiRiga(s, r.id, Math.round(f)); }) },
+      { nome: 'Scrivi / correggi il testo…', tasto: 'doppio clic · F2', fn: () => void this.scriviSott(r.id) },
+      { nome: scelte.length > 1 ? `Unisci le ${scelte.length} righe scelte (appaiono insieme)` : 'Unisci con la riga dopo (appaiono insieme)', tasto: 'Alt+J', disattiva: scelte.length < 2 && righe[righe.length - 1]?.id === r.id,
+        fn: () => this.unisciSott() },
+      { nome: 'Dividi qui', tasto: 'Alt+S', disattiva: !(f > r.da + 1 && f < r.a - 1), fn: () => this.dividiSott() },
       { sep: true },
       { nome: '⇤ Inizia al cursore', fn: () => cambia('Inizio del sottotitolo', (s) => bordoRiga(s, r.id, 'da', store.head)) },
       { nome: '⇥ Finisci al cursore', fn: () => cambia('Fine del sottotitolo', (s) => bordoRiga(s, r.id, 'a', store.head)) },
@@ -1026,6 +1176,10 @@ export class Timeline {
       { nome: '✨ Genera i sottotitoli con l\'AI (tutto il montaggio)', fn: () => void import('./sottotitoliRapidi').then((m) => m.generaSottotitoli()) },
       { nome: '🗣 Fai parlare i sottotitoli (voce AI)', fn: () => void import('./sottotitoliRapidi').then((m) => m.faiParlareSottotitoli()) },
       { nome: '⚙ Posizione e grandezza…', fn: () => void import('./sottotitoliRapidi').then((m) => m.stileSottotitoli()) },
+      { sep: true },
+      { nome: 'Esporta i sottotitoli .srt', fn: () => void import('./sottotitoliRapidi').then((m) => m.esportaSottotitoli('srt')) },
+      { nome: 'Esporta i sottotitoli .vtt (web)', fn: () => void import('./sottotitoliRapidi').then((m) => m.esportaSottotitoli('vtt')) },
+      { nome: 'Importa un file .srt / .vtt…', fn: () => void import('./sottotitoliRapidi').then((m) => m.importaSottotitoli()) },
       { nome: 'Tutti i sottotitoli (pagina Finale)…', fn: () => document.dispatchEvent(new CustomEvent('dpv:sottotitoli')) });
     menuContesto(x, y, voci);
   }
