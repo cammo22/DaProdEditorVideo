@@ -132,6 +132,8 @@ async function destinazioneInterna(nome: string, mime: string, consegna: (f: Fil
 export class Lettori {
   private l = new Map<string, { it: AsyncGenerator<VideoSample>; cur: VideoSample | null; next: VideoSample | null; fine: boolean; usato: number }>();
   private sinks = new Map<string, VideoSampleSink>();
+  /** i fotogrammi superati in questo giro: si chiudono a fotogramma disegnato (pulisci), non mentre si raccolgono gli strati */
+  private vecchi: VideoSample[] = [];
 
   async prendi(c: Clip, t: number, giro: number): Promise<Fotogramma | null> {
     const r = c.media ? mediaRT(c.media) : undefined;
@@ -153,7 +155,7 @@ export class Lettori {
         if (n.done) { s.fine = true; break; }
         s.next = n.value;
       }
-      if (s.next.timestamp <= t + 1e-4) { s.cur?.close(); s.cur = s.next; s.next = null; }
+      if (s.next.timestamp <= t + 1e-4) { if (s.cur) this.vecchi.push(s.cur); s.cur = s.next; s.next = null; }
       else break;
     }
     return s.cur ?? s.next;
@@ -165,19 +167,22 @@ export class Lettori {
   }
 
   pulisci(giro: number) {
+    for (const v of this.vecchi) v.close();
+    this.vecchi.length = 0;
     for (const [id, s] of this.l) if (giro - s.usato > 2) this.chiudi(id);
   }
 
   private chiudi(id: string) {
     const s = this.l.get(id);
     if (!s) return;
-    s.cur?.close();
-    s.next?.close();
+    // (anche qui a fine fotogramma: chiudi() si chiama pure mentre si raccolgono gli strati, tornando indietro)
+    if (s.cur) this.vecchi.push(s.cur);
+    if (s.next) this.vecchi.push(s.next);
     void s.it.return(undefined as never).catch(() => {});
     this.l.delete(id);
   }
 
-  tutto() { for (const id of [...this.l.keys()]) this.chiudi(id); }
+  tutto() { for (const id of [...this.l.keys()]) this.chiudi(id); for (const v of this.vecchi) v.close(); this.vecchi.length = 0; }
 }
 
 export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) => void, annullato: () => boolean): Promise<string | null> {

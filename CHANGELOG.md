@@ -4,6 +4,11 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.6] — 2026-10-21 · Niente più fotogrammi chiusi nel monitor e nell'export 🎞
+
+- **Monitor**: a volte, mentre il montaggio suonava, compariva l'errore "VideoSample is closed" e un fotogramma non si disegnava. Succedeva quando nello stesso disegno la stessa clip veniva chiesta due volte (una transizione, il movimento fluido) o un flusso veniva buttato: il fotogramma già preso si chiudeva prima di finire sullo schermo. Adesso si chiude solo a disegno finito.
+- **Export e istantanee**: stessa cosa quando si raccolgono gli strati di un fotogramma; i fotogrammi superati si chiudono dopo averlo disegnato.
+
 ## [1.5.5] — 2026-10-16 · Selezione dello sfondo AI più chiara 🎯
 
 ### Togli lo sfondo con l'AI
