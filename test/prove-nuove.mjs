@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { leggi, vicino, apriGruppi } from './aiuti.mjs';
 export { leggi, vicino };
 
-export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai', 'live', 'dap']) {
+export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai', 'live', 'dap', 'sottotitoli']) {
   const { page, prova, OUT } = ctx;
   if (quali.includes('sfondo')) await proveSfondo({ page, prova, OUT });
   if (quali.includes('animazioni')) { const m = await import('./prove-animazioni.mjs').catch(() => null); if (m) await m.proveAnimazioni({ page, prova, OUT }); }
@@ -28,6 +28,7 @@ export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage'
   if (quali.includes('audioai')) { const m = await import('./prove-audioai.mjs').catch((e) => { console.log('  ✗ prove-audioai:', e.message); return null; }); if (m) await m.proveAudioAI({ page, prova, OUT }); }
   if (quali.includes('correzioni')) { const m = await import('./prove-correzioni.mjs').catch((e) => { console.log('  ✗ prove-correzioni:', e.message); return null; }); if (m) await m.proveCorrezioni({ page, prova, OUT }); }
   if (quali.includes('proprieta')) { const m = await import('./prove-proprieta.mjs').catch((e) => { console.log('  ✗ prove-proprieta:', e.message); return null; }); if (m) await m.proveProprieta({ page, prova, OUT }); }
+  if (quali.includes('sottotitoli')) { const m = await import('./prove-sottotitoli.mjs').catch((e) => { console.log('  ✗ prove-sottotitoli:', e.message); return null; }); if (m) await m.proveSottotitoli({ page, prova, OUT }); }
   if (quali.includes('dap')) { const m = await import('./prove-dap.mjs').catch((e) => { console.log('  ✗ prove-dap:', e.message); return null; }); if (m) await m.proveDap({ page, prova, OUT }); }
   if (quali.includes('montage')) { const m = await import('./prove-montage.mjs').catch(() => null); if (m) await m.proveMontage({ page, prova, OUT }); }
 }
@@ -598,7 +599,7 @@ export class SamModel { static async from_pretrained(repo, opz) {
 //  da soli
 // ——————————————————————————————————————————————————————————————————————
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const DIST = path.join(ROOT, 'dist');
+  const DIST = process.env.DPV_DIST ? path.resolve(process.env.DPV_DIST) : path.join(ROOT, 'dist');
   if (!fs.existsSync(path.join(DIST, 'app/index.html'))) { console.error('manca dist/: prima npm run build'); process.exit(1); }
   const OUT = path.join(ROOT, 'test/.out');
   fs.mkdirSync(OUT, { recursive: true });

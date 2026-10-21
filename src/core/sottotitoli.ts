@@ -97,17 +97,28 @@ export function righeDaiDialoghi(p: Project): number {
 
 // ——— il file .srt ———
 
-function tcSrt(sec: number): string {
+function tcSrt(sec: number, sep = ','): string {
   const ms = Math.max(0, Math.round(sec * 1000));
   const hh = Math.floor(ms / 3600000), mm = Math.floor((ms % 3600000) / 60000), ss = Math.floor((ms % 60000) / 1000), mi = ms % 1000;
   const d = (x: number, n = 2) => String(x).padStart(n, '0');
-  return `${d(hh)}:${d(mm)}:${d(ss)},${d(mi, 3)}`;
+  return `${d(hh)}:${d(mm)}:${d(ss)}${sep}${d(mi, 3)}`;
 }
+
+/** le righe da scrivere nei file: solo quelle col testo, in ordine di tempo */
+const righeScritte = (p: Project) => sottotitoliDi(p).righe.filter((x) => x.testo.trim()).sort((a, b) => a.da - b.da);
 
 export function creaSrt(p: Project): string {
   const r = fps(p.rate);
-  return sottotitoliDi(p).righe.filter((x) => x.testo.trim()).sort((a, b) => a.da - b.da)
+  return righeScritte(p)
     .map((x, i) => `${i + 1}\n${tcSrt(x.da / r)} --> ${tcSrt(x.a / r)}\n${x.testo.trim()}\n`).join('\n');
+}
+
+/** il file .vtt (WebVTT, quello dei video sul web): stessi tempi, il punto al posto della virgola e il testo senza < > & */
+export function creaVtt(p: Project): string {
+  const r = fps(p.rate);
+  const pulito = (t: string) => t.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n\s*\n+/g, '\n');
+  return 'WEBVTT\n\n' + righeScritte(p)
+    .map((x, i) => `${i + 1}\n${tcSrt(x.da / r, '.')} --> ${tcSrt(x.a / r, '.')}\n${pulito(x.testo)}\n`).join('\n');
 }
 
 /** legge un .srt (o un .vtt): ritorna le righe in fotogrammi */
@@ -145,20 +156,85 @@ export function unisciRighe(s: Sottotitoli, ids: string[]): string | null {
   return unita.id;
 }
 
-/** divide una riga al fotogramma f: il testo si spezza alla parola più vicina a quel punto */
-export function dividiRiga(s: Sottotitoli, id: string, f: number): string | null {
+/**
+ * divide una riga al fotogramma f: il testo si spezza alla parola più vicina a quel punto, oppure (`car`) proprio dove
+ * sta il cursore di scrittura (la lettera numero `car`: scrivendo, Ctrl+Invio divide lì)
+ */
+export function dividiRiga(s: Sottotitoli, id: string, f: number, car?: number): string | null {
   const r = s.righe.find((x) => x.id === id);
   if (!r || f <= r.da + 1 || f >= r.a - 1) return null;
-  const k = (f - r.da) / (r.a - r.da);
-  const parole = r.testo.split(/\s+/).filter(Boolean);
-  let taglio = Math.round(parole.length * k);
-  if (parole.length > 1) taglio = Math.max(1, Math.min(parole.length - 1, taglio));
-  const dopo = { id: uid('s'), da: f, a: r.a, testo: parole.slice(taglio).join(' ') };
+  let prima: string, dopoTesto: string;
+  if (car !== undefined && car > 0 && car < r.testo.length) {
+    prima = r.testo.slice(0, car).trim();
+    dopoTesto = r.testo.slice(car).trim();
+  } else {
+    const k = (f - r.da) / (r.a - r.da);
+    const parole = r.testo.split(/\s+/).filter(Boolean);
+    let taglio = Math.round(parole.length * k);
+    if (parole.length > 1) taglio = Math.max(1, Math.min(parole.length - 1, taglio));
+    prima = parole.slice(0, taglio).join(' ');
+    dopoTesto = parole.slice(taglio).join(' ');
+  }
+  const dopo = { id: uid('s'), da: f, a: r.a, testo: dopoTesto };
   r.a = f;
-  r.testo = parole.slice(0, taglio).join(' ');
+  r.testo = prima;
   s.righe.push(dopo);
   s.righe.sort((x, y) => x.da - y.da);
   return dopo.id;
+}
+
+/** la riga che sta sotto il fotogramma f (la prima, se si sovrappongono) */
+export const rigaAl = (s: Sottotitoli, f: number): Sottotitolo | undefined =>
+  s.righe.slice().sort((x, y) => x.da - y.da).find((r) => r.da <= f && f < r.a);
+
+/** la riga prima o dopo quella data (in ordine di tempo) */
+export function rigaVicina(s: Sottotitoli, id: string, verso: 1 | -1): Sottotitolo | undefined {
+  const ord = s.righe.slice().sort((x, y) => x.da - y.da);
+  const i = ord.findIndex((x) => x.id === id);
+  return i < 0 ? undefined : ord[i + verso];
+}
+
+/**
+ * Mette in ordine le righe appena uscite dall'AI o da un file: in ordine di tempo, mai prima dello zero né oltre la
+ * fine (se la fine si conosce), nessuna sopra la vicina, almeno `minimo` fotogrammi ciascuna; le righe che non ci
+ * stanno più si scartano. Le righe di sola punteggiatura o vuote restano (da scrivere) solo se `tieniVuote`.
+ */
+export function sistemaRighe(righe: Sottotitolo[], fine = Infinity, minimo = 2, tieniVuote = false): Sottotitolo[] {
+  const ord = righe.map((r) => ({ ...r })).filter((r) => Number.isFinite(r.da) && Number.isFinite(r.a) && (tieniVuote || /[\p{L}\p{N}]/u.test(r.testo)))
+    .sort((x, y) => x.da - y.da || x.a - y.a);
+  const out: Sottotitolo[] = [];
+  for (const r of ord) {
+    r.da = Math.max(0, Math.round(r.da));
+    r.a = Math.round(r.a);
+    const prima = out[out.length - 1];
+    if (prima && r.da < prima.a) {
+      // la vicina arriva fino a qui: o si accorcia lei, o (se resterebbe troppo corta) si sposta questa
+      if (r.da - prima.da >= minimo) prima.a = r.da; else r.da = prima.a;
+    }
+    r.a = Math.min(r.a, fine);
+    if (r.a - r.da < minimo) { if (r.da + minimo <= fine) r.a = r.da + minimo; else continue; }
+    out.push(r);
+  }
+  return out;
+}
+
+/** sposta le righe scelte di `d` fotogrammi tutte insieme; si fermano contro le altre righe e lo zero. Ritorna di quanto si sono mosse. */
+export function spostaRighe(s: Sottotitoli, ids: Set<string>, d: number): number {
+  const mosse = s.righe.filter((r) => ids.has(r.id));
+  const ferme = s.righe.filter((r) => !ids.has(r.id));
+  if (!mosse.length || !d) return 0;
+  let lo = -Infinity, hi = Infinity;
+  for (const m of mosse) {
+    lo = Math.max(lo, -m.da);
+    for (const f of ferme) {
+      if (f.a <= m.da) lo = Math.max(lo, f.a - m.da);
+      else if (f.da >= m.a) hi = Math.min(hi, f.da - m.a);
+    }
+  }
+  const dd = Math.max(lo, Math.min(hi, Math.round(d)));
+  for (const m of mosse) { m.da += dd; m.a += dd; }
+  s.righe.sort((x, y) => x.da - y.da);
+  return dd;
 }
 
 /** i limiti di una riga: non entra nella precedente né nella successiva */

@@ -7,6 +7,7 @@
 import type { Project, Sottotitolo } from '../core/tipi';
 import { end, projectEnd, uid } from '../core/progetto';
 import { f2s, fps } from '../core/timecode';
+import { sistemaRighe } from '../core/sottotitoli';
 import { mixaggio } from './audio';
 import { assicuraMotore, motoreNemo } from './nemo';
 import { spiegaErroreAI } from './erroriAI';
@@ -98,10 +99,20 @@ function caricaNelWorker(modello: string, stato: (fase: string, prog: number) =>
   });
 }
 
+/** un pezzo di un minuto non deve mai metterci più di così: se il worker non risponde (scheda video appesa) si rifà */
+export const ATTESA_PEZZO_MS = { valore: 10 * 60 * 1000 };
+
 function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: boolean): Promise<Pezzo[]> {
   return new Promise((ok, no) => {
     const id = ++seq;
-    attese.set(id, { ok, no });
+    const orologio = setTimeout(() => {
+      if (!attese.has(id)) return;
+      attese.delete(id);
+      const err: Error & { schedaGuasta?: boolean } = new Error('Il riconoscimento non risponde da troppo tempo');
+      err.schedaGuasta = true; // si riparte da un worker nuovo, sul processore
+      no(err);
+    }, ATTESA_PEZZO_MS.valore);
+    attese.set(id, { ok: (p) => { clearTimeout(orologio); ok(p); }, no: (e) => { clearTimeout(orologio); no(e); } });
     lavoratore().postMessage({ tipo: 'trascrivi', id, audio, lingua, traduci }, [audio.buffer]);
   });
 }
@@ -193,7 +204,7 @@ const RUMORI = /^[\s[(♪*-]*(musica|music|applausi|applause|risate|laughter|sil
 /** i pezzi di Whisper diventano righe: niente "[Musica]", le frasi lunghe spezzate (una riga si legge in fretta) */
 export function righeDaPezzi(pezzi: Pezzo[], p: Project): Sottotitolo[] {
   const r = fps(p.rate);
-  const buoni = pezzi.map((x) => ({ ...x, testo: x.testo.replace(/\s+/g, ' ').trim() })).filter((x) => x.testo && !RUMORI.test(x.testo) && Number.isFinite(x.da));
+  const buoni = togliRipetizioni(pezzi.map((x) => ({ ...x, testo: x.testo.replace(/\s+/g, ' ').trim() })).filter((x) => x.testo && !RUMORI.test(x.testo) && Number.isFinite(x.da)));
   const out: Sottotitolo[] = [];
   buoni.forEach((x, i) => {
     const parole = x.testo.split(' ');
@@ -222,6 +233,26 @@ export function righeDaPezzi(pezzi: Pezzo[], p: Project): Sottotitolo[] {
       t = t1;
     }
   });
+  // in ordine, mai sopra la vicina, dentro il montaggio (Whisper a volte sbaglia un tempo di qualche decimo)
+  return sistemaRighe(out, Math.max(projectEnd(p), ...p.clips.map(end)) || Infinity);
+}
+
+/**
+ * Whisper, quando l'audio è muto o pieno di rumore, a volte si incanta e ripete la stessa frase all'infinito
+ * ("Grazie." "Grazie." "Grazie."…): da tre uguali di fila in poi restano solo i primi due.
+ */
+export function togliRipetizioni(pezzi: Pezzo[]): Pezzo[] {
+  const chiave = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const out: Pezzo[] = [];
+  let giri = 0;
+  for (const x of pezzi) {
+    const prec = out[out.length - 1];
+    if (prec && chiave(prec.testo) === chiave(x.testo)) {
+      giri++;
+      if (giri >= 2) continue;
+    } else giri = 0;
+    out.push(x);
+  }
   return out;
 }
 

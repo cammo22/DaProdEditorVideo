@@ -899,6 +899,9 @@ button svg { pointer-events: none; }
 .sott-tc small { color: var(--testo3); font-size: 10px; }
 .sott-testo { resize: vertical; min-height: 30px; background: #0e0d12; border: 1px solid #000; border-radius: 6px; padding: 5px 7px; color: var(--testo); font: 600 13px var(--ui); user-select: text; -webkit-user-select: text; }
 .sott-testo:focus { outline: 1px solid var(--oro); }
+/* il testo di un sottotitolo scritto sopra la timeline (doppio clic sulla riga SOTT) */
+.tl-sott-editor { position: absolute; z-index: 30; box-sizing: border-box; resize: none; background: #0e1a21; border: 2px solid var(--oro); border-radius: 6px; padding: 6px 8px; color: #eaf6ff; font: 600 14px/1.25 var(--ui); user-select: text; -webkit-user-select: text; box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6); outline: none; }
+.tl-sott-editor::placeholder { color: rgba(200, 230, 245, 0.45); font-size: 11px; font-weight: 500; }
 .sott-via { width: 22px; height: 20px; border-radius: 6px; border: 1px solid #000; background: #25232d; color: var(--testo3); padding: 0; }
 .sott-via:hover { color: var(--rosso); }
 .fin-sezione { background: #1a1920; border: 1px solid #000; border-radius: 10px; padding: 9px 11px; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
@@ -940,6 +943,10 @@ button svg { pointer-events: none; }
 .tasto-aggiorna .aggiorna-punto { display: none; position: absolute; right: 2px; top: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--mag); box-shadow: 0 0 8px var(--mag); }
 .tasto-aggiorna.nuova { color: var(--oro); animation: agg-pulsa 1.6s ease-in-out infinite; }
 .tasto-aggiorna.nuova .aggiorna-punto { display: block; }
+.tasto-aggiorna .aggiorna-testo { display: none; }
+.tasto-aggiorna.nuova .aggiorna-testo { display: inline; margin-left: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tasto-aggiorna.nuova { width: auto; padding: 0 10px; }
+.stretto .tasto-aggiorna .aggiorna-testo { display: none; }
 @keyframes agg-pulsa { 50% { filter: drop-shadow(0 0 6px rgba(255, 213, 74, 0.8)); } }
 .novita .dlg-corpo { max-height: 68vh; overflow: auto; }
 .novita-titolo { font: 800 17px var(--ui); color: var(--oro); margin: 4px 0 8px; }

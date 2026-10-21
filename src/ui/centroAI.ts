@@ -72,7 +72,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'sottotitoli', nome: 'Sottotitoli automatici', icona: '💬', dove: 'tutto',
     cosaFa: 'Ascolta i dialoghi del montaggio e scrive i sottotitoli con i loro tempi.',
-    come: ['Metti in timeline i video con l\'audio', 'Scegli la lingua e premi "Scrivi i sottotitoli"', 'Correggi le righe e, se vuoi, esporta il .srt'],
+    come: ['Metti in timeline i video con l\'audio', 'Scegli la lingua e premi "Scrivi i sottotitoli"', 'Correggi le righe nella riga SOTT della timeline (doppio clic sul testo) ed esporta il .srt o il .vtt'],
     modelli: [...MODELLI.map((m) => ({ repo: m.id, nome: `Whisper ${m.nome}`, mb: m.mb }))],
     manca: () => (haAudio() ? null : 'Metti in timeline un video con l\'audio dei dialoghi'),
     apri: () => { vaiFinale('sottotitoli'); evidenzia('[data-ai="sottotitoli"]'); },

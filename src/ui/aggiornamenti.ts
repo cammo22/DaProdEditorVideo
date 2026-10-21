@@ -1,6 +1,6 @@
 // Aggiornamenti e novità. Nell'app installata il tasto in alto controlla l'ultima release su GitHub: se c'è una
-// versione nuova la fa vedere (con le sue novità) e la scarica e la apre con un clic. Una volta al giorno controlla
-// da sola e, se c'è, il tasto si accende. Dopo un aggiornamento, alla prima apertura, compaiono le novità della
+// versione nuova la fa vedere (con le sue novità) e la scarica e la apre con un clic. Controlla da sola all'apertura
+// e poi ogni 4 ore: se c'è, il tasto si accende e dice «Aggiornamento X.Y.Z disponibile». Dopo un aggiornamento, alla prima apertura, compaiono le novità della
 // versione (dal CHANGELOG che viaggia dentro l'app).
 import CHANGELOG from '../../CHANGELOG.md?raw';
 import { avviso, dialogo, h } from './dom';
@@ -9,6 +9,8 @@ import { apriLink, invoke, isAndroid, isTauri } from '../platform';
 
 const API = 'https://api.github.com/repos/cammo22/DaProdVideo/releases/latest';
 const PAGINA = 'https://github.com/cammo22/DaProdVideo/releases/latest';
+const CONTROLLO_OGNI = 4 * 3600 * 1000;
+const DOPO_ERRORE = 20 * 60 * 1000;
 
 interface Asset { name: string; browser_download_url: string; size: number }
 export interface Release { versione: string; titolo: string; note: string; assets: Asset[]; pagina: string }
@@ -125,22 +127,23 @@ let trovata: Release | null = null;
 /** il tasto in alto (solo nell'app): controlla, e si accende se c'è una versione nuova */
 export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement): HTMLElement | null {
   if (!isTauri) return null;
-  tasto = h('button', { class: 'btn-icona tasto-aggiorna', title: 'Aggiornamenti e novità', on: { click: () => void finestraAggiornamenti() } }, icona('aggiorna', 18), h('span', { class: 'aggiorna-punto' }));
-  // una volta al giorno controlla da solo, qualche secondo dopo l'apertura
-  setTimeout(() => {
-    let ultima = 0;
-    try { ultima = Number(localStorage.getItem('dpv-controllo') || 0); } catch { /* niente */ }
-    if (Date.now() - ultima < 20 * 3600 * 1000) { try { const t = localStorage.getItem('dpv-nuova'); if (t && piuNuova(t, VERSIONE)) tasto?.classList.add('nuova'); } catch { /* niente */ } return; }
+  const testo = h('span', { class: 'aggiorna-testo' });
+  tasto = h('button', { class: 'btn-icona tasto-aggiorna', title: 'Aggiornamenti e novità', on: { click: () => void finestraAggiornamenti() } }, icona('aggiorna', 18), h('span', { class: 'aggiorna-punto' }), testo);
+  // all'apertura (dopo qualche secondo) e poi ogni 4 ore: senza internet si riprova dopo 20 minuti, senza dire niente
+  let avvisata = '';
+  const controlla = () => {
     ultimaRelease().then((r) => {
-      try { localStorage.setItem('dpv-controllo', String(Date.now())); localStorage.setItem('dpv-nuova', r.versione); } catch { /* niente */ }
       if (piuNuova(r.versione, VERSIONE)) {
         trovata = r;
         tasto?.classList.add('nuova');
+        testo.textContent = `Aggiornamento ${r.versione} disponibile`;
         tasto?.setAttribute('title', `È uscita la versione ${r.versione}: clic per le novità e per aggiornare`);
-        avviso(`⬆ È uscita DaProd Video ${r.versione}: clic sul tasto in alto per aggiornare`, 'info', 5000);
+        if (avvisata !== r.versione) { avvisata = r.versione; avviso(`⬆ È uscita DaProd Video ${r.versione}: clic sul tasto in alto per aggiornare`, 'info', 5000); }
       }
-    }).catch(() => { /* senza internet si riprova la volta dopo */ });
-  }, 6000);
+      setTimeout(controlla, CONTROLLO_OGNI);
+    }).catch(() => { setTimeout(controlla, DOPO_ERRORE); });
+  };
+  setTimeout(controlla, 6000);
   return tasto;
 }
 
@@ -162,6 +165,7 @@ export async function finestraAggiornamenti() {
   if (!piuNuova(r.versione, VERSIONE)) {
     stato.replaceChildren(h('span', { class: 'agg-ok' }, '✓'), ` Hai l'ultima versione (${VERSIONE}).`);
     tasto?.classList.remove('nuova');
+    tasto?.querySelector('.aggiorna-testo')?.replaceChildren();
     return;
   }
   const v = await laVariante();

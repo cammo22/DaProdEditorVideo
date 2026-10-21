@@ -141,9 +141,11 @@ export const ARGOMENTI: Argomento[] = [
     riassunto: 'ascolta i dialoghi e scrive le righe coi tempi', parole: 'sottotitoli srt trascrizione whisper nemotron parlato dialoghi ai',
     passi: [
       'Metti in timeline i video **con l\'audio** dei dialoghi.',
-      'Finale → **Sottotitoli** → scegli in che lingua si parla e premi **✨ Scrivi i sottotitoli con l\'AI**.',
+      'Premi **Alt+G** (o **✨** nella riga SOTT della timeline, o il menu **Sottotitoli**): l\'AI ascolta tutto il montaggio, oppure solo le clip che hai scelto. Dal Finale → **Sottotitoli** scegli anche la lingua.',
       'La prima volta il modello si scarica (serve internet), poi resta sul computer. Nell\'app usa il motore NVIDIA, e se non parte passa da solo a Whisper.',
-      'Correggi le righe nella lista; nella timeline stanno nella riga **SOTT**. Esporta il .srt dal Finale.',
+      'Le righe compaiono nella riga **SOTT** della timeline. **Doppio clic** (o **F2**) per correggere il testo: Invio conferma, Maiusc+Invio va a capo, **Ctrl+Invio divide** la riga dove sta il cursore di scrittura, **Tab** passa alla riga dopo.',
+      'Trascina una riga per spostarla, tira i bordi per i tempi. **Alt+S** divide sotto il cursore, **Alt+J** unisce le righe scelte (Maiusc+clic), **Alt+N** ne aggiunge una, Canc la toglie.',
+      'Esporta il **.srt** o il **.vtt** (menu Sottotitoli o Finale). Se sono "scritti nel video" escono anche bruciati nel filmato esportato.',
     ],
     vai: { nome: 'Apri i sottotitoli', fn: () => vaiFinale('sottotitoli') },
   },

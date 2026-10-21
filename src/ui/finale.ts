@@ -6,14 +6,14 @@ import type { LookFinale, Master, Project, Sottotitoli } from '../core/tipi';
 import { MASTER0, TITLE0, end, isVideoClip, masterDi, newClip, projectEnd, trackOf, uid } from '../core/progetto';
 import * as M from '../core/montaggio';
 import { nuovoBlocco, posaBlocco } from '../core/blocchi';
-import { LINGUE, SOTTO0, bordoRiga, creaSrt, dividiRiga, leggiSrt, righeDaiDialoghi, sottotitoliDi, unisciRighe } from '../core/sottotitoli';
+import { LINGUE, SOTTO0, bordoRiga, dividiRiga, leggiSrt, righeDaiDialoghi, sottotitoliDi, unisciRighe } from '../core/sottotitoli';
 import { MODELLI, fermaVoce, sottotitoliAI, type OpzioniVoce } from '../media/voce';
 import { LINGUE_MOTORE, LINGUE_PARLATE, LINGUE_VOCE, VOCI_MAGPIE, motoreNemo } from '../media/nemo';
 import { LINGUE_TRADUZIONE, fermaTraduzione, sappiamoTradurre, traduciTesti } from '../media/traduci';
 import { doppia, linguaVoce, posaVoce } from '../media/doppiaggio';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { codificaWav } from '../media/wav';
-import { salvaMediaSulDisco, salvaTesto } from '../platform';
+import { salvaMediaSulDisco } from '../platform';
 import { importaDialogo, importaFile } from '../progetti';
 import { BarraLavoro } from './lavoro';
 import { durataUmana, f2s, fps, frameToTc } from '../core/timecode';
@@ -169,7 +169,8 @@ export class Finale {
       h('div', { class: 'fin-altri' },
         h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
         h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
-        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt')),
+        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
+        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
       h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.'));
     return pagina(sez('Esporta', 'esporta', esporta));
   }
@@ -202,8 +203,9 @@ export class Finale {
         h('div', { class: 'isp-pulsanti' },
           h('button', { class: 'btn-mini oro', title: 'Il programma ascolta dove si parla e prepara le righe vuote al punto giusto: resta solo da scrivere', on: { click: () => this.dialoghi() } }, '🎙 Prepara i tempi dai dialoghi'),
           h('button', { class: 'btn-mini', title: 'Una riga di 2,5 secondi dove sta il cursore', on: { click: () => this.rigaAlCursore() } }, '+ Riga al cursore'),
-          h('button', { class: 'btn-mini', on: { click: () => file.click() } }, 'Importa .srt'),
+          h('button', { class: 'btn-mini', on: { click: () => file.click() } }, 'Importa .srt / .vtt'),
           h('button', { class: 'btn-mini', on: { click: () => void this.esportaSrt() } }, 'Esporta .srt'),
+          h('button', { class: 'btn-mini', title: 'WebVTT: il formato dei sottotitoli sul web', on: { click: () => void this.esportaSrt('vtt') } }, 'Esporta .vtt'),
           h('button', { class: 'btn-mini', on: { click: () => { if (s().righe.length) this.cambiaSott('Togli i sottotitoli', (x) => { x.righe = []; }); } } }, 'Togli tutti')),
         file,
         stile('Grandezza', [['36', 'Piccoli'], ['46', 'Medi'], ['60', 'Grandi']], () => String(s().dimensione), (x, v) => { x.dimensione = Number(v); }),
@@ -481,13 +483,8 @@ export class Finale {
     setTimeout(() => (this.listaSott?.querySelector(`[data-id="${id}"] textarea`) as HTMLTextAreaElement | null)?.focus(), 60);
   }
 
-  private async esportaSrt() {
-    const p = store.doc;
-    const testo = creaSrt(p);
-    if (!testo.trim()) { avviso('Non ci sono sottotitoli scritti da esportare', 'info'); return; }
-    const nome = p.name.replace(/[\\/:*?"<>|]/g, '_') + '_' + sottotitoliDi(p).lingua + '.srt';
-    const r = await salvaTesto(nome, testo, 'srt');
-    if (r) avviso(`💬 Sottotitoli salvati: ${r}`, 'ok');
+  private async esportaSrt(formato: 'srt' | 'vtt' = 'srt') {
+    await (await import('./sottotitoliRapidi')).esportaSottotitoli(formato);
   }
 
   // ——— logo ———

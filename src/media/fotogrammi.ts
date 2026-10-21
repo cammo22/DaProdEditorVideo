@@ -70,7 +70,8 @@ class Flusso {
   at(t: number): VideoSample | null {
     this.lastUse = performance.now();
     while (this.queue.length && this.queue[0].timestamp <= t + 1e-4) {
-      this.current?.close();
+      // a disegno finito: nello stesso disegno qualcuno può avere ancora in mano quello di prima
+      chiudiDopo(this.current);
       this.current = this.queue.shift()!;
     }
     if (!this.done) void this.pump();
@@ -102,12 +103,22 @@ class Flusso {
 
   close() {
     this.dead = true;
-    this.current?.close();
+    // il fotogramma mostrato può essere stato appena prestato (ripiego, ponte) a chi disegna adesso: si chiude dopo il disegno
+    chiudiDopo(this.current);
     this.current = null;
     for (const s of this.queue) s.close();
     this.queue.length = 0;
     void this.iter.return(undefined).catch(() => {});
   }
+}
+
+/**
+ * Chiude un fotogramma a disegno finito (alla fine del giro in corso), non adesso: il compositore prende i fotogrammi di
+ * tutti gli strati e poi li disegna, e se nello stesso giro un flusso va avanti (la stessa clip chiesta due volte, una
+ * transizione) o si butta, il fotogramma già preso era chiuso prima di essere disegnato ("VideoSample is closed").
+ */
+function chiudiDopo(s: VideoSample | null | undefined) {
+  if (s) queueMicrotask(() => s.close());
 }
 
 const copre = (c: VideoSample | null, t: number) => !!c && c.timestamp <= t + 1e-4 && t < c.timestamp + Math.max(c.duration, 1 / 120) - 1e-4;
@@ -240,7 +251,7 @@ function mettiPonte(k: string, f: Flusso) {
 function togliPonte(k: string) {
   const s = ponti.get(k);
   if (!s) return;
-  s.close();
+  chiudiDopo(s);
   ponti.delete(k);
 }
 

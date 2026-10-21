@@ -4,6 +4,40 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.7] — 2026-10-21 · Il controllo aggiornamenti non dorme più 🔔
+
+- **Controlla da solo all'apertura e poi ogni 4 ore**, finché l'app resta aperta (prima una volta al giorno, e solo all'apertura).
+  Senza internet non dice niente e riprova dopo 20 minuti.
+- **Il tasto in alto dice la versione**: quando ne esce una nuova compare «Aggiornamento 1.5.8 disponibile» accanto all'icona;
+  un clic apre la finestra con le novità e il tasto per scaricare e installare. L'avviso a comparsa esce una volta sola per versione.
+
+## [1.5.6] — 2026-10-21 · Sottotitoli che si correggono direttamente sulla timeline 💬
+
+### Sottotitoli AI facili da inserire e da correggere
+- **Il testo si scrive sopra la timeline**: doppio clic su una riga **SOTT** (o **F2**) e compare una casella di testo lì, non più un dialogo.
+  **Invio** conferma, **Maiusc+Invio** va a capo (due righe insieme), **Esc** butta le modifiche, **Tab** / **Maiusc+Tab** passano alla riga dopo / prima
+  (il cursore del montaggio va sul suo inizio: si corregge un'intera trascrizione senza toccare il mouse) e **Ctrl+Invio divide la riga proprio dove sta
+  il cursore di scrittura**, continuando con la seconda parte. Un clic fuori conferma; se un altro programma ruba il fuoco la casella resta.
+- **La riga SOTT si vede anche vuota** (comando "Mostra la riga dei sottotitoli", o col **+** e il nuovo tasto **✨** nella sua testata) con la scritta che dice cosa fare.
+  **✨ / Alt+G** scrive i sottotitoli con l'AI: dall'intero montaggio, o solo dalle clip che hai scelto.
+- **Comandi e tasti** (anche in Ctrl+K e nel nuovo menu **Sottotitoli**): Alt+G genera, Alt+N riga nuova al cursore, F2 scrivi/correggi, Alt+S dividi sotto il cursore,
+  Alt+J unisci le righe scelte, Alt+PagSu / Alt+PagGiù vanno alla riga prima / dopo, "comincia / finisce al cursore", togli, stile, importa, esporta, voce AI. Nessun tasto è doppio.
+- **Esporta .vtt** (WebVTT, il formato del web) oltre al .srt: dal menu Sottotitoli, da Ctrl+K e dalla pagina Finale (pulsanti "Esporta .vtt" e "Sottotitoli .vtt"); si può importare .srt e .vtt
+  (il .vtt si rilegge identico). Il testo ha `< > &` protetti. I sottotitoli "scritti nel video" escono come prima, bruciati nel filmato esportato.
+
+### AI più affidabile
+- **Le righe dell'AI arrivano in ordine** (`sistemaRighe`): mai una sopra l'altra, mai oltre la fine del montaggio, niente righe di sola punteggiatura, almeno due fotogrammi ciascuna.
+- **Whisper che si incanta** e ripete la stessa frase ("Grazie." "Grazie." "Grazie."…) sul silenzio o sul rumore: da tre uguali di fila restano due.
+- **Il riconoscimento non resta mai appeso**: un pezzo che non risponde per 10 minuti (scheda video bloccata) si butta e si rifà da un worker nuovo sul processore.
+- **Ferma** adesso ferma davvero: oltre a fermare il giro chiude il worker (prima un modello in scarico andava avanti).
+- **Errore sistemato**: i "Sottotitoli con l'AI" dalla timeline usavano Whisper anche nell'app, mentre il Finale (senza una scelta fatta) usa Nemotron di NVIDIA: ora la scelta è la stessa.
+- Guida (F1) e Centro AI aggiornati col nuovo modo di correggere. Prove: `test/prove-sottotitoli.mjs` (33), dentro `prove-nuove.mjs sottotitoli`.
+
+### Niente più fotogrammi chiusi nel monitor e nell'export
+
+- **Monitor**: a volte, mentre il montaggio suonava, compariva l'errore "VideoSample is closed" e un fotogramma non si disegnava. Succedeva quando nello stesso disegno la stessa clip veniva chiesta due volte (una transizione, il movimento fluido) o un flusso veniva buttato: il fotogramma già preso si chiudeva prima di finire sullo schermo. Adesso si chiude solo a disegno finito.
+- **Export e istantanee**: stessa cosa quando si raccolgono gli strati di un fotogramma; i fotogrammi superati si chiudono dopo averlo disegnato.
+
 ## [1.5.5] — 2026-10-16 · Selezione dello sfondo AI più chiara 🎯
 
 ### Togli lo sfondo con l'AI
