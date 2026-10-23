@@ -9,7 +9,7 @@ Come è stata scritta: dal codice di `origin/main` (030172f) e da `CLAUDE.md`, *
 
 | Cosa | Esito |
 |---|---|
-| Base corretta | **`origin/main` = 030172f** (merge della PR #34). Il branch locale `rilascio/2026-10-21` (913ddba, pulito) è **un solo commit indietro**: quel commit è il merge, `git diff HEAD origin/main` è **vuoto**. Nessun commit locale da salvare. |
+| Base corretta | **`origin/main` = 030172f** (merge della PR #34). Il branch locale `rilascio/2026-10-21` (913ddba, pulito) è **un solo commit indietro**: quel commit è il merge, `git diff HEAD origin/main` è **vuoto**. Nessun commit del worktree utente da salvare. Unica eccezione apparente: il ramo locale `claude/dpv-1-5-5` ha 4 commit non su alcun remoto (`1d90967 c2e3413 2d03340 07b34d2`): sono le versioni **precedenti alla riscrittura** dei commit poi uniti (`07b34d2` ha lo stesso patch-id di `913ddba`), quindi non è lavoro unico; **non va cancellato** (resta come backup). Il `.worktrees/` compare come non tracciato nel checkout dell'utente: **mai `git add -A` / `git add .`** e non pubblicarlo (si può escludere in locale con `.git/info/exclude`). |
 | Dove lavorare | Un worktree per fase, da `origin/main`: `git worktree add -b <branch> .worktrees/<nome> origin/main` (il checkout dell'utente non si tocca) e `ln -s ../../node_modules node_modules`. |
 | Versione | `package.json` 1.5.7. `CLAUDE.md` dice «il numero sale di 0.0.1»: **1.5.8** per un solo bump a fine integrazione (una PR di versione, non una per fase). Versione prevista **1.5.8** (D1: default fissato). |
 | `npm run typecheck` | **ok** (3,5 s, 0 errori) |
@@ -38,7 +38,7 @@ Come è stata scritta: dal codice di `origin/main` (030172f) e da `CLAUDE.md`, *
 | Finale | `src/ui/finale.ts` (sezioni `colore, audio, sottotitoli, logo, apertura, lingue, esporta`), `src/render/colore.ts`, `src/export/esporta.ts` |
 | LIVE | `src/ui/live.ts` (1376 righe: `Regia`, `Live`), `liveAudio.ts`, `telecomando.ts`, `core/liveAudio.ts` |
 | Montage (F8) | `src/ui/montage.ts`, `src/core/montage.ts` (puro), `montagePreset.ts` (28 stili), `media/exif.ts, qualita.ts, ritmo.ts` |
-| Effetti | `src/core/blocchi.ts` (catalogo, ~75 blocchi, `CAMPI_FX`), `src/effetti.ts` (effetti di clip), `src/render/compositore.ts` (shader), `src/render/transizioni.ts`, `src/render/piano.ts` |
+| Effetti | `src/core/blocchi.ts` (catalogo `EFFETTI_TEMPO`, 59 effetti a tempo, `CAMPI_FX`), `src/effetti.ts` (effetti di clip), `src/render/compositore.ts` (shader), `src/render/transizioni.ts`, `src/render/piano.ts` |
 
 ## 3. Specifica per schermata
 
@@ -121,12 +121,12 @@ Pagina `finale.ts` con sezioni `colore, audio, sottotitoli, logo, apertura, ling
 
 ### 3.8 Effetti: nuovi e ottimizzati
 
-**Stato.** ~75 blocchi in `blocchi.ts` (rapidi, lunghi, luci, distorsioni, colore, particelle), effetti di clip in `effetti.ts`, transizioni digitali in `render/transizioni.ts`, tutto in un solo shader FX (`FS_FX`, uniform `u_<nome>` da `CAMPI_FX`). Cammo non ha fornito l'elenco dei nuovi: **Opus sceglie quali sono utili dopo aver verificato il catalogo** (D3). Candidati iniziali (proposta mia, da controllare contro `BLOCCHI` per evitare doppioni): *Vignetta*, *Grana pellicola*, *Nitidezza*, *Sfocatura direzionale (movimento)*, *Sfoca zona* (privacy, riquadro/ellisse col mirino), *Split-tone cinema*.
+**Stato.** 59 effetti a tempo (`EFFETTI_TEMPO`) in `blocchi.ts` (rapidi, lunghi, luci, distorsioni, colore, particelle), effetti di clip in `effetti.ts`, transizioni digitali in `render/transizioni.ts`, tutto in un solo shader FX (`FS_FX`, uniform `u_<nome>` da `CAMPI_FX`). Cammo non ha fornito l'elenco dei nuovi: **Opus sceglie quali sono utili dopo aver verificato il catalogo** (D3). Candidati iniziali (proposta mia, da controllare contro `BLOCCHI` per evitare doppioni): *Vignetta*, *Grana pellicola*, *Nitidezza*, *Sfocatura direzionale (movimento)*, *Sfoca zona* (privacy, riquadro/ellisse col mirino), *Split-tone cinema*.
 **Regole per ogni effetto, nuovo o esistente:**
 1. Un solo punto di verità: l'effetto è nel catalogo, nello shader e nel piano; **monitor ed export** lo disegnano con lo stesso codice (`piano.ts`/`compositore.ts`).
 2. Si somma e si fonde con gli altri come gli altri (regola «tutto si somma»); la sfocatura/scia/colori sdoppiati stanno nello stesso giro (altrimenti uno copre l'altro).
 3. Anteprima nel contenitore (`provino.ts`/`anteprime.ts`) = il risultato vero, ridotto.
-4. Costo: ogni passata aggiunta si misura (§7, banco `test/_bench.mjs` esistente o equivalente): **un blocco in più non deve far scendere sotto i fotogrammi/s di oggi con 1 clip 1080p** su CI senza GPU e sulla scheda dell'utente; dove non regge, l'effetto va in un giro già esistente.
+4. Costo: ogni passata aggiunta si misura (§7, il banco `test/_bench.mjs` citato da `CLAUDE.md` **non esiste nel repo**: va creato, es. `test/_bench-montaggio.mjs`): **un blocco in più non deve far scendere sotto i fotogrammi/s di oggi con 1 clip 1080p** su CI senza GPU e sulla scheda dell'utente; dove non regge, l'effetto va in un giro già esistente.
 5. Ottimizzazione degli esistenti: prima **misurare** (tempo per fotogramma per effetto, con un solo effetto per volta); si ottimizza ciò che risulta lento **rispetto alla baseline misurata** (D4), senza cambiare l'aspetto (hash del fotogramma uguale entro 1 LSB, altrimenti va dichiarato).
 6. Test di regressione: per ogni effetto, **fotogramma di riferimento** (immagine sintetica fissa, tempo fisso) con hash salvato nel repo; monitor e export devono dare lo stesso hash. Va in una prova nuova `test/prove-effetti.mjs` (Chromium, la fa girare Luna).
 
@@ -189,14 +189,14 @@ export function avviaPianoAI(p: PianoAI, scaricaOk: boolean): { riga: Attivita; 
 
 ### 4.4 Effetti
 
-`BLOCCHI` (catalogo) guadagna solo voci; `CAMPI_FX` solo nomi in coda; `FS_FX` solo uniform nuovi. **Non si cambia l'ordine di `CAMPI_FX`** (gli `fxb` salvati usano i nomi, non gli indici, ma le prove sì: verificare). Vedi regole §3.8.
+`EFFETTI_TEMPO` (catalogo) guadagna solo voci; `CAMPI_FX` solo nomi in coda; `FS_FX` solo uniform nuovi. **Non si cambia l'ordine di `CAMPI_FX`** (gli `fxb` salvati usano i nomi, non gli indici, ma le prove sì: verificare). Vedi regole §3.8.
 
 ## 5. Compatibilità progetti (rischio e come si controlla)
 
 | Rischio | Controllo |
 |---|---|
 | Campo nuovo obbligatorio o rinominato | revisione del diff di `tipi.ts`, `progetto.ts`, `sequenze.ts`: ogni campo nuovo `?:` con comportamento di partenza = oggi |
-| Un .dap salvato dalla nuova versione non si apre nella 1.5.7 | prova: salvare con la nuova, aprire con **1.5.7** (build di `main` attuale in una cartella a parte) e viceversa, con un progetto che usa effetti nuovi (nella 1.5.7 un `fxb.id` sconosciuto deve essere **saltato senza errore**: da verificare oggi in `blocchi.ts`/`piano.ts`; se oggi lancia, il downgrade va **documentato** nel CHANGELOG/README, la lettura dei progetti vecchi resta obbligatoria → D6) |
+| Un .dap salvato dalla nuova versione non si apre nella 1.5.7 | prova: salvare con la nuova, aprire con **1.5.7** (build di `main` attuale in una cartella a parte) e viceversa, con un progetto che usa effetti nuovi (nella 1.5.7 un effetto a tempo con id sconosciuto viene **saltato senza errore** — verificato in `blocchi.ts`: `effettoTempo(id)` ritorna `undefined`, `applica` fa `if (!e) return`, `nomeBlocco` ripiega su «Effetto». Resta da verificare lo stesso per le **transizioni** e per i `CAMPI_FX` letti da progetto; dove lancia, il downgrade va **documentato** nel CHANGELOG/README. La lettura dei progetti vecchi resta obbligatoria; nessuna garanzia bit a bit tra schede video diverse → D6) |
 | `proxy/` nei .dap | non si scrivono più automaticamente; si leggono se ci sono; `proxyDelProgetto`/`rimettiProxy` invariati |
 | `dpv-proxy`, `dpv-normalizza`, `dpv-live`, `dpv-isp-ordine` in localStorage | leggere i vecchi valori, non cancellarli; i primi due **non avviano più lavori automatici** (§3.1, D2) |
 | Il progetto aperto dal **telefono/Android** | in pausa dalla 1.0.7: non è in perimetro, non si rompe niente di proposito |
@@ -246,7 +246,7 @@ Prove **nuove** da scrivere (le scrive chi programma la fase, le verifica Luna):
 - `prove-compat.mjs` (fase 1/5): apre il corpus del §5 e confronta l'albero del progetto (stesso JSON dopo salva→apri→salva), più la prova incrociata con la build 1.5.7.
 - `prove-effetti.mjs` (fase 2): hash monitor = export per effetto; somma di due effetti; nessun cambio di hash degli effetti **esistenti**.
 
-Misure da prendere **prima** di toccare (baseline di prestazioni, oggi mancante): ms/fotogramma 1080p con 0/1/3 blocchi FX; ridisegno timeline con 200 clip; import di 20 file (tempo e numero di righe in Attività). Il banco `test/_bench.mjs` è fuori dalle prove: si riusa, non si dà per scontato che giri.
+Misure da prendere **prima** di toccare (baseline di prestazioni, oggi mancante): ms/fotogramma 1080p con 0/1/3 blocchi FX; ridisegno timeline con 200 clip; import di 20 file (tempo e numero di righe in Attività). Il banco `test/_bench.mjs` citato in `CLAUDE.md` **non esiste**: va scritto (e la riga di `CLAUDE.md` corretta nel task finale).
 
 ## 8. Checklist per chi programma
 
@@ -277,3 +277,21 @@ Nessuna di queste serve per partire: ciascuna ha un default, adottato salvo dive
 - **D5** Barra del titolo: la nuova UI resta **coerente col design system** (famiglia A); Astra decide se allineare 34→40 px solo se non rompe il layout, e lo dichiara.
 - **D6** Compatibilità: **lettura dei progetti preesistenti obbligatoria** (.dap/.dpv/.daprod della 1.5.7 si aprono identici). Il **downgrade** (aprire con la 1.5.7 un progetto salvato dalla nuova versione) non è garantito se contiene effetti nuovi: va **verificato e documentato** nel CHANGELOG/README. Se la 1.5.7 salta senza errori un effetto sconosciuto, basta dirlo; se lancia, va scritto chiaro.
 - **D7** Aspetto grafico di Finale, LIVE e Montage: la specifica fissa struttura e comportamento; Astra propone, Cammo vede `test/foto.mjs` prima di pubblicare.
+
+## 10. Integrazioni di dettaglio (Sonnet, dopo la revisione di Sol)
+
+Aggiunte che i programmatori devono considerare vincolanti dove il resto è generico.
+
+**10.1 Test unitari in Node senza browser (verificato).** `src/media/attivita.ts` si può impacchettare con la API JS di Vite in modalità SSR (`vite.build({ configFile:false, build:{ ssr: <file>, outDir: <tmp>, copyPublicDir:false }, ssr:{ noExternal:true } })`) e far girare in Node 26: con `globalThis.window = globalThis` impostato **prima** dell'import, `inCoda(...)` ritorna e la riga finisce `finita`. Chi programma (e non usa Chromium) ha quindi una strada CLI reale: cartella `test/unit/`, runner `test/unit/esegui.mjs [filtro]`, script `"test:unit"` in `package.json` (non tocca `prova`). Copertura minima: scheduler (`proponi` non parte da sola dopo 500 ms; `avviaRiga` avvia solo quella; `avviaTutte` rispetta `impostaLimiti`; pausa `vera` con lavoro finto fermo in `checkpoint` e `l.k` immobile 300 ms poi ripresa dal punto; pausa `ai-confini` non rifà i pezzi; `no` senza Pausa; annulla da `manuale|coda|lavoro|pausa`; errore di un pezzo non chiude gli altri; `Sovraccarica` non si spegne con righe `manuale|pausa`; il battito non si arma con sole righe `manuale`), decisione di import (con `localStorage` finto `dpv-proxy=sempre`, `dpv-normalizza=si` → zero job), `preparaPianoAI` senza rete, compatibilità (`valida` + `migraBlocchi` su un `.dpv` vecchio con `trIn/trOut` e corsia `fx`, round-trip JSON stabile), catalogo effetti (uniform definite, default nei limiti, combinazioni entro i clamp).
+
+**10.2 Idempotenza e risultati tardivi.** Ogni `proponi/inCoda` può portare una `chiave` (es. `proxy|<chiaveMedia>`): la stessa chiave non crea un secondo lavoro, ritorna quello esistente. Un contatore di generazione del progetto (`++` a ogni apri/nuovo/chiudi) è catturato all'avvio del lavoro: se a fine lavoro è cambiato, o il media/la clip non esiste più, il risultato **non si applica** e la riga finisce `annullata` («il progetto è cambiato»); `ClipCambiata` in `audioAI.ts` è il modello. Cambio progetto = annulla tutto ciò che è `manuale|coda|lavoro|pausa`. Annulla scarta i parziali (niente proxy a metà su disco); un modello scaricato a metà si conserva per la ripresa.
+
+**10.3 Pausa: classificazione di partenza** (Opus la conferma sul codice): forma d'onda/colore/locandina = `ai-confini` (checkpoint fra blocchi); copia leggera = `vera` (`conv.execute({ pauseSignal })` esiste in `proxy.ts:175`); conversione VFR/CBR = `vera` se passa dallo stesso `Conversion`, altrimenti `no`; Demucs (segmento da 343 980 campioni), ritaglio (un fotogramma), Whisper (un pezzo) = `ai-confini` se la pagina invia un pezzo alla volta e sospende l'invio del successivo; download modelli di `modelliAudio.ts` = `vera` (a pezzi, con ripresa); scarico `transformers.js` (cache del browser) = `ai-confini` o `no` (non riprende); esportazione, Clip unica, cucitura LIVE = `no`. Il pulsante Pausa compare solo dove la capacità è vera e, per `ai-confini`, l'etichetta dice «in pausa dopo il pezzo corrente».
+
+**10.4 Import minimo: cosa è ammesso.** Metadati dal contenitore, `canDecode()`, fps dichiarato con `computeFrameRateMetrics({ targetPacketCount: 120 })` (≤120 pacchetti, nessuna lettura oltre) e un flag gratuito `sospettoVfr` (max/min intervallo >1,25 sui 120 pacchetti) solo per un badge «velocità variabile». La locandina, se si vuole la miniatura, è **un** fotogramma fuori dal percorso critico (oggi `await locandina` sta dentro `importa`: la scheda compare subito con segnaposto). Eccezioni: registrazioni LIVE e file creati dal programma (audio lavorato, Clip unica) non si analizzano. `mettiCopia` (sostituire il file col suo convertito) è l'unica azione che cambia il progetto: solo su comando esplicito, in un solo `store.edit`.
+
+**10.5 Nuovi effetti (priorità proposta; nessuno è già in `EFFETTI_TEMPO`).** Esistono già `bagliore, rgb, pixel, vhs, miniatura, duotone, bokeh, anamorfico, sfoca, matita`: non si duplicano. Ordine: 1) **censura** (mosaico o sfocatura in una zona con bordo morbido, con `pos/segue` + tracking = oscurare volti/targhe), 2) **vignetta**, 3) **grana** pellicola (deterministica per fotogramma: seme = fotogramma, monitor = export), 4) **nitido** (unsharp mask), 5) **sfocatura di movimento** direzionale (se `sfoca`/`tremolio` ne coprono già una parte, estendere con un parametro angolo). Checklist per ogni effetto: `CAMPI_FX` + uniform `u_<nome>` in `FS_FX` + valore di partenza 0 + clamp (~riga 528) → voce `EFFETTI_TEMPO` (nome/info in italiano parlato, durata, parametri con minimo/massimo/default) → regola di combinazione in `statoEffetti` → `haCentro` se ha una zona → tessera di anteprima via `fotoScena` → test.
+
+**10.6 Gate 0 (Luna/CI, prima di qualunque modifica).** Su `030172f`: `node test/prove.mjs` completa (ultimo dato noto dal log della wiki: 588 ok / 2 ko preesistenti — spia saturazione `liveaudio` senza audio hardware e «Proprietà 1.4.0 reading 'g'»; in CI il job `prove` è stato cancellato per timeout di 45 min nel blocco «Audio AI»), `node test/foto.mjs` a 1024/1366/1920 e le tre misure di prestazione del §7. Senza Gate 0 nessuno può dichiarare «nessuna regressione».
+
+**10.7 Fake e hardware reale.** I modelli AI delle prove sono finti (`impostaSegmentatore`, `impostaTrascrittore`, `impostaMotoreNemo`, Demucs e Clear finti); schermo, webcam, audio e scheda video reali non sono provabili in CI. Ogni report di QA dichiara cosa è stato verificato con finti e cosa su hardware vero.
