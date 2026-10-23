@@ -88,6 +88,7 @@ import * as TD from './media/traduci';
 import { apriFile, importaFile } from './progetti';
 import * as PK from './pacchetto';
 import { mediaRT } from './media/libreria';
+import * as LB from './media/libreria';
 import * as B from './core/blocchi';
 import * as S from './core/sottotitoli';
 import * as PV from './render/provino';
@@ -130,4 +131,4 @@ import * as SR from './ui/sottotitoliRapidi';
 import * as CL from './media/clear';
 (window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco };
 // l'audio con l'AI (togliere il rumore, separare voce e base): per le prove
-Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL });
+Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL, LB });

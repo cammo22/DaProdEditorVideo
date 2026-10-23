@@ -15,7 +15,8 @@
     "preview": "vite preview --port 4173",
     "tauri": "tauri",
     "prova": "node test/prove.mjs",
-    "foto": "node test/foto.mjs"
+    "foto": "node test/foto.mjs",
+    "prova:motore": "node test/unit/esegui.mjs"
   },
   "dependencies": {
     "@desert-ant-labs/clear": "3.6.0",

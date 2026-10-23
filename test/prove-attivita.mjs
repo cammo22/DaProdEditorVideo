@@ -156,54 +156,90 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   prova('Esc chiude il pannello', (await page.locator('.att-pannello').count()) === 0);
   await page.evaluate(() => window.__dpvTest.AT.azzeraAttivita());
 
-  // ——— riaprire un progetto, la copia leggera, la conversione dietro le quinte ———
-  console.log('▶ Riapertura veloce, copia leggera solo se serve, conversione dietro le quinte');
+  // ——— dalla 1.5.8: import e riapertura «solo il minimo», preparazioni a mano ———
+  console.log('▶ Import e riapertura senza lavori da soli; copia leggera e conversione a mano (con pausa vera)');
   const dati = await page.evaluate(async () => {
     const { importaFile, ripresaDiProva, P, mediaRT, AT } = window.__dpvTest;
+    AT.azzeraAttivita();
+    // le preferenze vecchie con tutto acceso: non devono far partire niente
+    localStorage.setItem('dpv-proxy', 'sempre');
+    localStorage.setItem('dpv-normalizza', 'si');
     const base = await ripresaDiProva(3, 25);
     const nomi = [];
     const files = [];
     for (let i = 0; i < 6; i++) { nomi.push(`Ripresa ${i}.webm`); files.push({ name: nomi[i], file: new File([await base.arrayBuffer(), new Uint8Array([i])], nomi[i], { type: 'video/webm' }) }); }
     const m = await importaFile(files, { chiediFormato: false });
-    for (let i = 0; i < 100; i++) { if (m.every((x) => mediaRT(x.id)?.stato === 'ok' && mediaRT(x.id).colore)) break; await new Promise((r) => setTimeout(r, 100)); }
-    const prima = m.map((x) => mediaRT(x.id).proxyStato);
-    // se ne mette uno in timeline: solo lui si prende la copia leggera
+    await new Promise((r) => setTimeout(r, 600));
+    const prima = m.map((x) => mediaRT(x.id).proxyStato ?? '-');
+    const righe0 = AT.attivitaInCorso().map((r) => r.titolo);
+    const prep0 = AT.attivitaFinite().filter((r) => r.categoria !== 'file').map((r) => r.titolo);
+    // se ne mette uno in timeline: non parte niente lo stesso
     const alta = window.__dpv.doc.tracks.filter((t) => t.kind === 'video')[0].id;
     window.__dpv.edit('clip', (pp) => { pp.clips.push(P.newClip('media', alta, 0, 60, { media: m[0].id, name: m[0].name })); });
-    let pronto = false;
-    for (let i = 0; i < 400; i++) { if (mediaRT(m[0].id).proxyStato === 'pronto') { pronto = true; break; } await new Promise((r) => setTimeout(r, 200)); }
-    const dopo = m.map((x) => mediaRT(x.id).proxyStato);
-    return { prima, dopo, pronto, doc: JSON.stringify(window.__dpv.doc), ids: m.map((x) => x.id) };
+    await new Promise((r) => setTimeout(r, 2600));
+    const dopo = m.map((x) => mediaRT(x.id).proxyStato ?? '-');
+    return {
+      prima, dopo, righe0, prep0, righe1: AT.attivitaInCorso().map((r) => r.titolo), daAvviare: AT.attivitaDaAvviare().length,
+      colore: m.some((x) => mediaRT(x.id).colore), picchi: m.some((x) => mediaRT(x.id).peaks), doc: JSON.stringify(window.__dpv.doc), ids: m.map((x) => x.id),
+    };
   });
-  prova('la copia leggera parte subito, appena i file entrano (non aspetta la timeline)', dati.prima.every((s) => s !== 'attesa'), JSON.stringify(dati.prima));
-  prova('anche il file messo in timeline ha la sua copia leggera pronta', dati.pronto, JSON.stringify(dati.dopo));
+  prova('import con le preferenze vecchie «sempre»: nessuna copia leggera, forma d\'onda, colore né riga di preparazione', dati.prima.every((s) => s === '-') && !dati.righe0.length && !dati.prep0.length && !dati.colore && !dati.picchi, JSON.stringify(dati));
+  prova('la clip messa in timeline non fa partire niente (dopo 2,6 s)', dati.dopo.every((s) => s === '-') && !dati.righe1.length && dati.daAvviare === 0, JSON.stringify(dati.dopo));
+
+  // la copia leggera a mano: nasce da avviare, parte con Avvia, Pausa vera (riparte dallo stesso punto), poi pronta sul disco
+  const px = await page.evaluate(async (ids) => {
+    const { LB, AT, mediaRT } = window.__dpvTest;
+    const p = LB.proponiPreparazione(ids[0], 'proxy', { forza: true });
+    const nato = { stato: p?.riga.stato, proxy: mediaRT(ids[0]).proxyStato, daAvviare: AT.attivitaDaAvviare().length, inCorso: AT.attivitaInCorso().length, pausa: p?.riga.capacita.pausa };
+    await new Promise((r) => setTimeout(r, 300));
+    const fermo = mediaRT(ids[0]).proxyStato;
+    const idRiga = AT.avviaRiga(p.riga.id);
+    for (let i = 0; i < 300 && !((mediaRT(ids[0]).proxyProg ?? 0) > 0.05); i++) await new Promise((r) => setTimeout(r, 20));
+    const esitoPausa = AT.pausaRiga(idRiga);
+    const riga = AT.attivitaInCorso().find((r) => r.id === idRiga);
+    for (let i = 0; i < 200 && riga?.stato !== 'pausa'; i++) await new Promise((r) => setTimeout(r, 20));
+    const k1 = mediaRT(ids[0]).proxyProg;
+    await new Promise((r) => setTimeout(r, 600));
+    const k2 = mediaRT(ids[0]).proxyProg;
+    const statoPausa = riga?.stato;
+    AT.riprendiRiga(idRiga);
+    const ok = await p.esito;
+    return { nato, fermo, esitoPausa, statoPausa, k1, k2, ok, finale: mediaRT(ids[0]).proxyStato, lato: mediaRT(ids[0]).proxy ? Math.max(mediaRT(ids[0]).proxy.w, mediaRT(ids[0]).proxy.h) : 0, stato: LB.statoPreparazione(ids[0], 'proxy') };
+  }, dati.ids);
+  prova('«Prepara copia leggera» nasce da avviare (pausa vera) e non parte da sola', px.nato.stato === 'manuale' && px.nato.proxy === 'manuale' && px.nato.daAvviare === 1 && px.nato.inCorso === 0 && px.nato.pausa === 'vera' && px.fermo === 'manuale', JSON.stringify(px));
+  prova('Avvia → Pausa: la conversione si ferma davvero (l\'avanzamento non cammina) e Riprendi la finisce', (px.esitoPausa === 'dopo-il-pezzo' || px.esitoPausa === 'in-pausa') && px.statoPausa === 'pausa' && px.k1 === px.k2 && px.k1 < 1 && px.ok === true && px.finale === 'pronto' && px.lato > 0 && px.lato <= 960 && px.stato === 'fatta', JSON.stringify(px));
 
   const ria = await page.evaluate(async (doc) => {
-    const { PR, mediaRT, AT, CH } = window.__dpvTest;
+    const { PR, mediaRT, AT } = window.__dpvTest;
     const proj = JSON.parse(doc);
-    const visto = { righe: [], max: 0 };
-    const t = setInterval(() => { for (const r of AT.attivitaInCorso()) visto.righe.push(r.titolo); }, 20);
+    const visto = { righe: [] };
+    const t = setInterval(() => { for (const r of AT.attivitaInCorso()) visto.righe.push(r.categoria + ':' + r.titolo); }, 20);
     const t0 = performance.now();
     await PR.carica(proj);
     const ms = performance.now() - t0;
+    await new Promise((r) => setTimeout(r, 800));
     clearInterval(t);
-    // la forma d'onda e il colore vengono dalla memoria: niente da rifare
-    for (let i = 0; i < 30; i++) { if (proj.media.every((m) => mediaRT(m.id)?.colore)) break; await new Promise((r) => setTimeout(r, 100)); }
-    return { ms, ok: proj.media.every((m) => mediaRT(m.id)?.stato === 'ok'), colore: proj.media.every((m) => mediaRT(m.id)?.colore), visto: [...new Set(visto.righe)], proxy0: mediaRT(proj.media[0].id).proxyStato, finite: AT.attivitaFinite().map((a) => a.titolo + ': ' + a.messaggio) };
+    return { ms, ok: proj.media.every((m) => mediaRT(m.id)?.stato === 'ok'), visto: [...new Set(visto.righe)], proxy0: mediaRT(proj.media[0].id).proxyStato, altri: proj.media.slice(1).map((m) => mediaRT(m.id).proxyStato ?? '-'), finite: AT.attivitaFinite().map((a) => a.titolo + ': ' + a.messaggio), daAvviare: AT.attivitaDaAvviare().length };
   }, dati.doc);
-  prova('riaprendo il progetto i file tornano tutti, col colore dalla memoria', ria.ok && ria.colore, JSON.stringify(ria));
-  prova('la riapertura passa dal centro attività ("Riapro i file")', ria.finite.some((t) => /^Riapro i file del progetto: 6 file in /.test(t)), JSON.stringify(ria.finite));
-  prova('la copia leggera già fatta si ritrova subito', ria.proxy0 === 'pronto', ria.proxy0);
+  prova('riaprendo il progetto i file tornano tutti', ria.ok, JSON.stringify(ria));
+  prova('la riapertura passa dal centro attività («Riapro i file») e non fa altro', ria.finite.some((t) => /^Riapro i file del progetto: 6 file in /.test(t)) && ria.visto.every((x) => /^file:/.test(x)) && ria.daAvviare === 0, JSON.stringify(ria));
+  prova('la copia leggera già fatta si ritrova subito (si legge, non si rifà); gli altri restano senza', ria.proxy0 === 'pronto' && ria.altri.every((s) => s === '-'), JSON.stringify([ria.proxy0, ria.altri]));
 
-  // la conversione dietro le quinte: si importa subito il file com'è, poi la copia a velocità costante lo sostituisce
+  // il controllo della velocità a mano: il file entra com'è, il controllo trova il frame rate variabile, la conversione
+  // nasce da avviare; avviata, la copia a velocità costante prende il suo posto
   const vfr = await page.evaluate(async () => {
-    const { importaFile, ripresaVfrDiProva, mediaRT, AT } = window.__dpvTest;
+    const { importaFile, ripresaVfrDiProva, mediaRT, AT, LB } = window.__dpvTest;
     const f = await ripresaVfrDiProva();
-    const t0 = performance.now();
     const [m] = await importaFile([{ name: 'telefono.webm', file: new File([f], 'telefono.webm', { type: 'video/webm' }) }], { chiediFormato: false });
-    const subito = performance.now() - t0;
-    const fpsPrima = m.fps, sizePrima = m.size;
+    const sizePrima = m.size;
+    await new Promise((r) => setTimeout(r, 500));
+    const nienteDaSolo = !AT.attivitaInCorso().length && !AT.attivitaDaAvviare().length;
+    const esame = LB.proponiPreparazione(m.id, 'velocita', { avvia: true });
+    const verdetto = await esame?.esito;
+    const conv = AT.attivitaDaAvviare().find((r) => r.categoria === 'conversione');
+    const prontaDaAvviare = !!conv && LB.statoPreparazione(m.id, 'velocita') === 'da-avviare';
     let righe = [];
+    if (conv) AT.avviaRiga(conv.id);
     for (let i = 0; i < 600; i++) {
       for (const r of AT.attivitaInCorso()) righe.push(r.categoria + ':' + r.titolo);
       const x = window.__dpv.doc.media.find((z) => z.id === m.id);
@@ -211,13 +247,12 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
       await new Promise((r) => setTimeout(r, 200));
     }
     const x = window.__dpv.doc.media.find((z) => z.id === m.id);
-    // la copia prende il posto del file e poi si riapre: si aspetta che sia aperta (prima si guardava subito e, su una
-    // macchina lenta, la si trovava ancora a metà apertura)
     for (let i = 0; i < 100 && mediaRT(m.id)?.stato !== 'ok'; i++) await new Promise((r) => setTimeout(r, 100));
-    return { subito, sostituito: x.size !== sizePrima, ok: mediaRT(m.id)?.stato === 'ok', stato: mediaRT(m.id)?.stato, fps: x.fps, nome: x.name, righe: [...new Set(righe)] };
+    return { nienteDaSolo, verdetto, prontaDaAvviare, sostituito: x.size !== sizePrima, ok: mediaRT(m.id)?.stato === 'ok', nome: x.name, righe: [...new Set(righe)], stato: LB.statoPreparazione(m.id, 'velocita') };
   });
-  prova('il file a frame rate variabile entra subito, e la copia a velocità costante prende il suo posto', vfr.sostituito && vfr.ok && vfr.nome === 'telefono.webm', JSON.stringify(vfr));
-  prova('la conversione ha la sua riga nel centro attività', vfr.righe.some((x) => /^conversione:/.test(x)), JSON.stringify(vfr.righe));
+  prova('il file a frame rate variabile entra senza controlli; «Controlla velocità file» lo trova e la conversione nasce da avviare', vfr.nienteDaSolo && vfr.verdetto === 'da-convertire' && vfr.prontaDaAvviare, JSON.stringify(vfr));
+  prova('avviata, la conversione ha la sua riga e la copia a velocità costante prende il posto del file', vfr.sostituito && vfr.ok && vfr.nome === 'telefono.webm' && vfr.righe.some((x) => /^conversione:/.test(x)) && vfr.stato === 'fatta', JSON.stringify(vfr));
+  await page.evaluate(() => { localStorage.removeItem('dpv-proxy'); localStorage.removeItem('dpv-normalizza'); });
   prova('nessun errore nella pagina', errori.length === 0, errori.slice(0, 3).join(' | '));
   await contesto.close();
 }

@@ -1,14 +1,18 @@
 // Il contenitore (bin): i file importati, aperti con Mediabunny (WebCodecs) e tenuti vivi finché servono.
-// Qui nascono anche la locandina, le miniature della timeline e la forma d'onda dell'audio.
+// Dalla 1.5.8 l'import e la riapertura leggono SOLO i metadati (contenitore, tracce, durata, dimensioni, codec) e il
+// file è subito usabile dall'originale. Locandina, colore automatico, forma d'onda, copia leggera e controllo della
+// velocità NON partono da soli: se sono già nella memoria delle misure (cache.ts) o sul disco (proxy) si leggono,
+// se no li prepara l'utente con proponiPreparazione() (righe «da avviare» nel Centro attività).
+// Le miniature della timeline restano «a richiesta»: si leggono solo i fotogrammi delle clip che si vedono.
 import {
   ALL_FORMATS, AudioBufferSink, BlobSource, CanvasSink, Input, StreamSource,
   type InputAudioTrack, type InputVideoTrack,
 } from 'mediabunny';
-import type { MediaItem } from '../core/tipi';
-import { uid } from '../core/progetto';
+import type { MediaItem, Project } from '../core/tipi';
+import { autoColore, uid } from '../core/progetto';
 import { invoke, isTauri, type FileScelto } from '../platform';
-import { accodaProxy, type Proxy } from './proxy';
-import { inCoda as lavoraInCoda, type Lavoro } from './attivita';
+import { proponiProxy, proxyEsistente, modoProxy, type Proxy } from './proxy';
+import { attivitaDaAvviare, avviaRiga, annullaChiave, daAvviare, giaInCorso, proponi, rigaAttivita, type Attivita, type Lavoro, type Proposto } from './attivita';
 import { chiaveMedia, comprimiPicchi, espandiPicchi, leggiCache, scriviCache } from './cache';
 
 export type StatoMedia = 'caricamento' | 'ok' | 'offline' | 'errore';
@@ -36,9 +40,13 @@ export interface MediaRT {
   colore?: Analisi;
   /** la copia leggera per i monitor (src/media/proxy.ts) */
   proxy?: Proxy;
-  /** 'attesa' = il proxy si farà quando la ripresa entra in timeline */
-  proxyStato?: 'attesa' | 'coda' | 'lavoro' | 'pronto' | 'no' | 'errore';
+  /** manuale = proposta, aspetta Avvia · 'attesa' non si usa più (era: si farà quando entra in timeline) */
+  proxyStato?: 'attesa' | 'manuale' | 'coda' | 'lavoro' | 'pronto' | 'no' | 'errore';
   proxyProg?: number;
+  /** il controllo della velocità (frame rate/bitrate variabile): mai fatto = undefined */
+  velocita?: 'ok' | 'da-convertire' | 'convertito' | 'errore';
+  /** l'ultimo errore di ogni preparazione (per Riprova e per dirlo) */
+  erroriPrep?: Partial<Record<Preparazione, string>>;
 }
 
 export interface Analisi {
@@ -118,9 +126,8 @@ export async function apri(item: MediaItem, sel: { file?: File; path?: string })
     r.vDecodable = r.v ? await r.v.canDecode() : false;
     r.aDecodable = r.a ? await r.a.canDecode() : false;
     r.stato = 'ok';
-    const chiave = chiaveMedia(item);
-    if (r.v && r.vDecodable) await locandina(item, r, r.v, chiave);
-    preparaLavori(item, r, chiave);
+    // solo letture: quello che è già nella memoria delle misure o sul disco si usa, niente si produce
+    await leggiPreparato(item, r);
   } catch (e) {
     r.stato = 'errore';
     r.errore = e instanceof Error ? e.message : String(e);
@@ -130,16 +137,19 @@ export async function apri(item: MediaItem, sel: { file?: File; path?: string })
   return r;
 }
 
-/** la locandina: dalla memoria se c'è già, se no un fotogramma vero (e poi si ricorda) */
-async function locandina(item: MediaItem, r: MediaRT, v: InputVideoTrack, chiave: string) {
+/** la locandina dalla memoria delle misure, se c'è (una lettura: non si decodifica niente) */
+async function locandinaSalvata(r: MediaRT, chiave: string): Promise<boolean> {
   const salvata = await leggiCache<Blob>('poster', chiave);
-  if (salvata) {
-    try { r.poster = await createImageBitmap(salvata); return; } catch { /* locandina rovinata: si rifà */ }
-  }
+  if (!salvata) return false;
+  try { r.poster = await createImageBitmap(salvata); return true; } catch { return false; /* rovinata: si rifà a mano */ }
+}
+
+/** la locandina vera: un fotogramma (solo quando l'utente la chiede) */
+async function faiLocandina(item: MediaItem, r: MediaRT, v: InputVideoTrack, chiave: string, l: Lavoro) {
   const dur = item.duration || 1;
   const cs = new CanvasSink(v, { width: 320, fit: 'contain' });
   const w = await cs.getCanvas(Math.min(dur * 0.1, 2)).catch(() => null) ?? await cs.getCanvas(0).catch(() => null);
-  if (!w) return;
+  if (!w || !l.valido || rt.get(r.id) !== r) return;
   r.poster = w.canvas;
   void aBlob(w.canvas).then((b) => { if (b) void scriviCache('poster', chiave, b); });
 }
@@ -155,54 +165,205 @@ async function aBlob(c: HTMLCanvasElement | OffscreenCanvas): Promise<Blob | nul
   } catch { return null; }
 }
 
-/** colore, forma d'onda e copia leggera: dietro le quinte, a turno, prima i file che stanno in timeline */
-function preparaLavori(item: MediaItem, r: MediaRT, chiave: string) {
-  const priorita = prioritaDi(item.id);
-  if (r.v && r.vDecodable) {
-    void (async () => {
+/**
+ * All'import e alla riapertura: si usa SOLO quello che c'è già (memoria delle misure, copia leggera sul disco o tornata
+ * da un .dap). Niente decodifica, niente code, niente righe nel Centro attività. Vale anche con le preferenze vecchie
+ * («Copie leggere: sempre», dpv-normalizza): da sole non fanno più partire niente.
+ */
+async function leggiPreparato(item: MediaItem, r: MediaRT) {
+  const chiave = chiaveMedia(item);
+  if (r.v && r.vDecodable) await locandinaSalvata(r, chiave);
+  void (async () => {
+    if (r.v && r.vDecodable) {
       const salvato = await leggiCache<Analisi>('colore', chiave);
-      if (salvato) { r.colore = salvato; for (const fn of onAnalisi) fn(); return; }
-      await lavoraInCoda({ corsia: 'leggero', titolo: 'Colore automatico', categoria: 'analisi', gruppo: 'colore', priorita }, async (l) => {
-        l.imposta(0, item.name);
-        await misuraColore(r, item.duration || 1, chiave);
-      });
-    })();
-    void preparaProxy(item, r);
-  }
-  if (r.a && r.aDecodable) {
-    void (async () => {
+      if (salvato && rt.get(r.id) === r) { r.colore = salvato; for (const fn of onAnalisi) fn(); }
+      if (modoProxy() !== 'mai' && rt.get(r.id) === r) await proxyEsistente(item, r).catch(() => false);
+    }
+    if (r.a && r.aDecodable) {
       const n = Math.max(1, Math.ceil(item.duration * PEAKS_PER_SEC));
       const salvati = await leggiCache<Uint8Array>('picchi', chiave);
       if (salvati && salvati.length === n && rt.get(r.id) === r) {
         r.peaks = espandiPicchi(salvati);
         r.peaksDone = n;
         for (const fn of onPicchi) fn(r.id);
-        return;
       }
-      await lavoraInCoda({ corsia: 'leggero', titolo: 'Forme d\'onda', categoria: 'analisi', gruppo: 'picchi', priorita }, async (l) => {
-        l.imposta(0, item.name);
-        await calcolaPicchi(r, item.duration, chiave, l);
-      });
-    })();
-  }
-}
-
-/** la copia leggera si fa subito, appena il file entra (chi sta in timeline passa avanti nella coda): così quando lo metti sul montaggio è già pronta */
-async function preparaProxy(item: MediaItem, r: MediaRT) {
-  const fonte = () => sorgente(r);
-  // un proxy già fatto si usa subito (costa poco); gli altri si mettono in coda
-  await accodaProxy(item, r, fonte, prioritaDi(item.id));
-}
-
-/** un file è entrato in timeline: se aspettava la sua copia leggera, adesso si fa */
-export function risvegliaProxy(media: MediaItem[]) {
-  for (const m of media) {
-    const r = rt.get(m.id);
-    if (r?.proxyStato === 'attesa' && r.v && usoMedia(m.id) > 0) {
-      r.proxyStato = undefined;
-      void accodaProxy(m, r, () => sorgente(r), prioritaDi(m.id));
     }
+    avvisaPrep(r.id);
+  })();
+}
+
+// ——— le preparazioni manuali ———
+/** quello che si può preparare per un file, a mano (tasto destro, Proprietà, «tutti i file del contenitore») */
+export type Preparazione = 'locandina' | 'colore' | 'picchi' | 'proxy' | 'velocita';
+export const PREPARAZIONI: readonly Preparazione[] = ['locandina', 'colore', 'picchi', 'proxy', 'velocita'];
+/** fatta · non-fatta · da-avviare (riga pronta) · in-corso (in coda, al lavoro o in pausa) · non-serve · errore */
+export type StatoPreparazione = 'fatta' | 'non-fatta' | 'da-avviare' | 'in-corso' | 'non-serve' | 'errore';
+export const NOMI_PREPARAZIONE: Record<Preparazione, string> = {
+  locandina: 'Locandina', colore: 'Colore automatico', picchi: 'Calcola forma d\'onda', proxy: 'Prepara copia leggera', velocita: 'Controlla velocità file',
+};
+export interface OpzioniPreparazione {
+  /** parte subito (l'utente l'ha chiesta adesso, es. tasto destro su UN file); di partenza nasce «da avviare» */
+  avvia?: boolean;
+  /** solo per proxy: anche se il file non sembra pesante */
+  forza?: boolean;
+  /** solo per velocita: se il file va rifatto, la conversione parte subito invece di nascere «da avviare» */
+  converti?: boolean;
+}
+
+/** chi trova la scheda di un media dal suo id (lo imposta progetti.ts, che conosce il progetto aperto) */
+let cercaMedia: (id: string) => MediaItem | undefined = () => undefined;
+export const impostaCercaMedia = (fn: (id: string) => MediaItem | undefined) => { cercaMedia = fn; };
+/** il controllo della velocità sta in progetti.ts (sostituisce il file nel progetto): si registra qui */
+type ControlloVelocita = (m: MediaItem, r: MediaRT, o: OpzioniPreparazione & { priorita: () => number }) => Proposto<unknown> | null;
+let controlloVelocita: ControlloVelocita | null = null;
+export const impostaControlloVelocita = (fn: ControlloVelocita | null) => { controlloVelocita = fn; };
+
+const onPrep = new Set<(id: string) => void>();
+/** chi mostra gli indicatori (copia leggera ✓, forma d'onda ✓…) si iscrive qui: lo stato delle preparazioni di un file è cambiato */
+export const quandoPreparazioni = (fn: (id: string) => void) => { onPrep.add(fn); return () => onPrep.delete(fn); };
+const avvisaPrep = (id: string) => { for (const f of onPrep) f(id); };
+const chiavePrep = (cosa: Preparazione, id: string) => (cosa === 'proxy' ? 'proxy:' : cosa + ':') + id;
+
+/**
+ * Prepara un lavoro per un file: nasce «da avviare» (riga nel Centro attività, parte con Avvia) o, con avvia:true, parte
+ * subito. null = non serve o non si può (già fatta, già in giro, file senza video/audio, Copie leggere = Mai…).
+ * Mai chiamata dal programma da solo: solo da un gesto dell'utente.
+ */
+export function proponiPreparazione(m: MediaItem | string, cosa: Preparazione, o: OpzioniPreparazione = {}): Proposto<unknown> | null {
+  const item = typeof m === 'string' ? cercaMedia(m) : m;
+  if (!item) return null;
+  const r = rt.get(item.id);
+  if (!r || r.stato !== 'ok') return null;
+  const stato = statoPreparazione(item.id, cosa);
+  if (stato === 'fatta' || stato === 'non-serve' || stato === 'in-corso') return null;
+  const chiave = chiavePrep(cosa, item.id);
+  if (stato === 'da-avviare') {
+    // già pronta: con avvia:true parte
+    if (o.avvia) { const g = rigaPronta(chiave) ?? (cosa === 'velocita' ? rigaPronta('converti:' + item.id) : undefined); if (g) avviaRiga(g.id); }
+    return null;
   }
+  const priorita = prioritaDi(item.id);
+  const fatto = () => avvisaPrep(item.id);
+  const comune = { chiave, media: item.id, priorita, alAvvio: fatto, alAnnulla: fatto };
+  let p: Proposto<unknown> | null = null;
+  if (cosa === 'proxy') {
+    p = proponiProxy(item, r, () => sorgente(r), { priorita, avvia: false, forza: o.forza });
+  } else if (cosa === 'velocita') {
+    p = controlloVelocita?.(item, r, { ...o, avvia: false, priorita }) ?? null;
+  } else if (cosa === 'locandina') {
+    p = proponi({ ...comune, corsia: 'leggero', titolo: 'Locandine', categoria: 'analisi', gruppo: 'locandine', dettaglio: item.name }, async (l) => {
+      l.imposta(0, item.name);
+      if (r.v) await faiLocandina(item, r, r.v, chiaveMedia(item), l);
+      fatto();
+      return !!r.poster;
+    });
+  } else if (cosa === 'colore') {
+    p = proponi({ ...comune, corsia: 'leggero', titolo: 'Colore automatico', categoria: 'analisi', gruppo: 'colore', dettaglio: item.name, pausa: 'ai-confini' }, async (l) => {
+      l.imposta(0, item.name);
+      await misuraColore(r, item.duration || 1, chiaveMedia(item), l);
+      fatto();
+      return !!r.colore;
+    });
+  } else if (cosa === 'picchi') {
+    p = proponi({ ...comune, corsia: 'leggero', titolo: 'Forme d\'onda', categoria: 'analisi', gruppo: 'picchi', dettaglio: item.name, pausa: 'ai-confini' }, async (l) => {
+      l.imposta(0, item.name);
+      await calcolaPicchi(r, item.duration, chiaveMedia(item), l);
+      fatto();
+      return r.peaksDone > 0 && !!r.peaks;
+    });
+  }
+  if (!p) return null;
+  if (r.erroriPrep?.[cosa]) delete r.erroriPrep[cosa];
+  void p.esito.then(fatto);
+  if (o.avvia) {
+    const id = avviaRiga(p.riga.id);
+    p = { ...p, riga: (id !== null && rigaAttivita(id)) || p.riga };
+  }
+  fatto();
+  return p;
+}
+
+/** la stessa cosa per più file (i file scelti, o tutti quelli del contenitore): ritorna solo le righe create */
+export function proponiPreparazioni(ids: readonly string[], cosa: Preparazione, o: OpzioniPreparazione = {}): Proposto<unknown>[] {
+  const out: Proposto<unknown>[] = [];
+  for (const id of ids) { const p = proponiPreparazione(id, cosa, o); if (p) out.push(p); }
+  return out;
+}
+
+/**
+ * Per una funzione che l'utente ha appena chiesto e che ha bisogno di una preparazione (es. «Livella il volume» o
+ * «Sottotitoli dai dialoghi» vogliono la forma d'onda): la fa partire SUBITO per i file che non l'hanno (righe visibili
+ * nel Centro attività, pausabili e annullabili) e aspetta. Ritorna i file che alla fine ce l'hanno.
+ */
+export async function preparaOra(ids: readonly string[], cosa: Preparazione): Promise<string[]> {
+  const attese: Promise<unknown>[] = [];
+  for (const id of ids) {
+    const s = statoPreparazione(id, cosa);
+    if (s === 'non-fatta' || s === 'errore') { const p = proponiPreparazione(id, cosa, { avvia: true }); if (p) attese.push(p.esito); }
+    else if (s === 'da-avviare') proponiPreparazione(id, cosa, { avvia: true });
+  }
+  await Promise.all(attese);
+  // quelle già in corso (o appena avviate da righe pronte): si aspetta che finiscano
+  for (let i = 0; i < 6000 && ids.some((id) => ['in-corso', 'da-avviare'].includes(statoPreparazione(id, cosa))); i++) await new Promise((ok) => setTimeout(ok, 50));
+  return ids.filter((id) => statoPreparazione(id, cosa) === 'fatta');
+}
+
+function rigaPronta(chiave: string): Attivita | undefined {
+  return attivitaDaAvviare().find((r) => r.chiave === chiave);
+}
+
+/** lo stato di UNA preparazione di un file (solo letture, nessun lavoro) */
+export function statoPreparazione(id: string, cosa: Preparazione): StatoPreparazione {
+  const r = rt.get(id);
+  const item = cercaMedia(id);
+  if (!r || r.stato !== 'ok') return 'non-serve';
+  const chiave = chiavePrep(cosa, id);
+  if (daAvviare(chiave)) return 'da-avviare';
+  if (giaInCorso(chiave)) return 'in-corso';
+  const video = !!(r.v && r.vDecodable && !r.image);
+  switch (cosa) {
+    case 'locandina': return r.poster ? 'fatta' : !video ? 'non-serve' : r.erroriPrep?.locandina ? 'errore' : 'non-fatta';
+    case 'colore': return r.colore ? 'fatta' : !video ? 'non-serve' : 'non-fatta';
+    case 'picchi': return !(r.a && r.aDecodable) ? 'non-serve' : r.peaks && r.peaksDone >= r.peaks.length ? 'fatta' : 'non-fatta';
+    case 'proxy':
+      if (r.proxy || r.proxyStato === 'pronto') return 'fatta';
+      if (!video || modoProxy() === 'mai' || (item && (item.type !== 'video' || item.duration < 2))) return 'non-serve';
+      if (r.proxyStato === 'no') return 'non-serve';
+      if (r.proxyStato === 'errore') return 'errore';
+      return 'non-fatta';
+    case 'velocita':
+      if (!item || item.type === 'image' || item.dentro || !controlloVelocita) return 'non-serve';
+      if (r.velocita === 'ok' || r.velocita === 'convertito') return 'fatta';
+      // controllato: va rifatto, e la conversione è pronta o in corso
+      if (daAvviare('converti:' + id)) return 'da-avviare';
+      if (giaInCorso('converti:' + id)) return 'in-corso';
+      if (r.velocita === 'errore') return 'errore';
+      return 'non-fatta';
+  }
+}
+
+/** tutte le preparazioni di un file */
+export function statoPreparazioni(id: string): Record<Preparazione, StatoPreparazione> {
+  return Object.fromEntries(PREPARAZIONI.map((c) => [c, statoPreparazione(id, c)])) as Record<Preparazione, StatoPreparazione>;
+}
+
+/** i file per cui una preparazione si può ancora fare (per «… per tutti i file del contenitore») */
+export function daPreparare(ids: readonly string[], cosa: Preparazione): string[] {
+  return ids.filter((id) => statoPreparazione(id, cosa) === 'non-fatta');
+}
+
+/**
+ * Le riprese che hanno il colore automatico acceso (clip o Finale) ma non ancora misurato: monitor ed export le mostrano
+ * neutre (nessuna correzione), uguali fra loro. La UI può dirlo prima di esportare e offrire «Colore automatico».
+ */
+export function senzaColoreMisurato(p: Project): string[] {
+  const ids = new Set<string>();
+  for (const c of p.clips) {
+    if (!c.media || !autoColore(p, c)) continue;
+    const r = rt.get(c.media);
+    if (r && r.stato === 'ok' && r.v && r.vDecodable && !r.image && !r.colore) ids.add(c.media);
+  }
+  return [...ids];
 }
 
 /** legge un file nuovo e crea la sua scheda per il contenitore */
@@ -280,9 +441,8 @@ export async function importa(sel: FileScelto, opz: { soloDescrizione?: boolean 
     }
     r.stato = 'ok';
     if (opz.soloDescrizione) { input.dispose(); rt.delete(id); return { item: base, rt: r }; }
-    const chiave = chiaveMedia(base);
-    if (v && r.vDecodable) await locandina(base, r, v, chiave);
-    preparaLavori(base, r, chiave);
+    // solo letture (memoria delle misure, copia leggera già sul disco): nessun lavoro parte da solo
+    await leggiPreparato(base, r);
     return { item: base, rt: r };
   } catch (e) {
     rt.get(id)?.input?.dispose();
@@ -292,6 +452,9 @@ export async function importa(sel: FileScelto, opz: { soloDescrizione?: boolean 
 }
 
 export function chiudi(id: string) {
+  // i lavori di preparazione di questo file (da avviare, in coda o al lavoro) non servono più
+  for (const c of PREPARAZIONI) annullaChiave(chiavePrep(c, id));
+  annullaChiave('converti:' + id);
   const r = rt.get(id);
   r?.input?.dispose();
   r?.proxy?.input.dispose();
@@ -334,25 +497,33 @@ export function analizza(immagini: CanvasImageSource[]): Analisi {
   return { lo, hi, wb, gamma };
 }
 
-async function misuraColore(r: MediaRT, durata: number, chiave: string) {
+async function misuraColore(r: MediaRT, durata: number, chiave: string, l?: Lavoro) {
   if (!r.v) return;
+  const tele: CanvasImageSource[] = [];
   try {
     // prima il monitor: la misura aspetta che il decoder sia libero
     for (let attese = 0; decoderOccupato() && attese < 100; attese++) await new Promise((ok) => setTimeout(ok, 50));
     const cs = new CanvasSink(r.v, { width: 96, fit: 'contain' });
     const d = Math.max(0.1, durata);
     const ts = [0.08, 0.3, 0.5, 0.7, 0.92].map((k) => (r.v ? k * d : 0));
-    const tele: CanvasImageSource[] = [];
     // ogni fotogramma si rimpicciolisce con createImageBitmap (lavora fuori dal thread principale): leggere i pixel
     // direttamente dalla tela della scheda video farebbe aspettare l'interfaccia
+    let i = 0;
     for await (const w of cs.canvasesAtTimestamps(ts)) {
+      l?.imposta(++i / ts.length);
+      // fra un fotogramma e l'altro si può fermare (pausa ai confini): quelli già letti restano
+      await l?.checkpoint();
       if (!w) continue;
       try { tele.push(await createImageBitmap(w.canvas, { resizeWidth: 64, resizeHeight: 36, resizeQuality: 'low' })); } catch { tele.push(w.canvas); }
     }
-    if (tele.length) { r.colore = analizza(tele); void scriviCache('colore', chiave, r.colore); }
-    for (const t of tele) if (t instanceof ImageBitmap) t.close();
+    if (tele.length && rt.get(r.id) === r && (!l || l.valido)) { r.colore = analizza(tele); void scriviCache('colore', chiave, r.colore); }
     for (const fn of onAnalisi) fn();
-  } catch { /* niente colore automatico per questa ripresa */ }
+  } catch (e) {
+    // annullata: si lascia com'era. Altri errori: niente colore automatico per questa ripresa
+    if (l?.fermato || (e instanceof Error && e.message === 'fermato')) throw e;
+  } finally {
+    for (const t of tele) if (t instanceof ImageBitmap) t.close();
+  }
 }
 
 // ——— forma d'onda ———
@@ -360,6 +531,10 @@ type Ascoltatore = (id: string) => void;
 const onPicchi = new Set<Ascoltatore>();
 export const quandoPicchi = (fn: Ascoltatore) => { onPicchi.add(fn); return () => onPicchi.delete(fn); };
 
+/**
+ * La forma d'onda, a fette brevi. Pausa ai confini: si ferma fra una fetta e l'altra e riprende dallo stesso punto
+ * (i pezzi letti restano). Annullata o file chiuso: la forma d'onda a metà si butta (il file torna «non calcolata»).
+ */
 async function calcolaPicchi(r: MediaRT, durata: number, chiave: string, lavoro?: Lavoro) {
   if (!r.a) return;
   const n = Math.max(1, Math.ceil(durata * PEAKS_PER_SEC));
@@ -370,6 +545,9 @@ async function calcolaPicchi(r: MediaRT, durata: number, chiave: string, lavoro?
   let completa = true;
   let ultimo = performance.now();
   let fetta = performance.now();
+  const butta = () => {
+    if (rt.get(r.id) === r && r.peaks === peaks) { r.peaks = undefined; r.peaksDone = 0; for (const fn of onPicchi) fn(r.id); }
+  };
   try {
     for await (const { buffer, timestamp } of sink.buffers()) {
       const sr = buffer.sampleRate;
@@ -391,14 +569,19 @@ async function calcolaPicchi(r: MediaRT, durata: number, chiave: string, lavoro?
         lavoro?.imposta(r.peaksDone / n);
         for (const fn of onPicchi) fn(r.id);
       }
-      // a fette brevi: la forma d'onda si calcola senza bloccare l'interfaccia
+      // a fette brevi: la forma d'onda si calcola senza bloccare l'interfaccia (e lì si può mettere in pausa)
       if (performance.now() - fetta > 12) {
         await new Promise((ok) => setTimeout(ok, 0));
+        await lavoro?.checkpoint();
         fetta = performance.now();
       }
-      if (rt.get(r.id) !== r || lavoro?.fermato) return;
+      if (rt.get(r.id) !== r || (lavoro && !lavoro.valido)) { butta(); return; }
     }
-  } catch { completa = false; /* forma d'onda incompleta: pazienza (e non si ricorda) */ }
+  } catch (e) {
+    if (lavoro?.fermato || (e instanceof Error && e.message === 'fermato')) { butta(); throw e; }
+    completa = false; /* forma d'onda incompleta: pazienza (e non si ricorda) */
+  }
+  if (lavoro && !lavoro.valido) { butta(); return; }
   r.peaksDone = n;
   if (completa) void scriviCache('picchi', chiave, comprimiPicchi(peaks));
   for (const fn of onPicchi) fn(r.id);

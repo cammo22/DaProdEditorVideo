@@ -6,8 +6,8 @@ import type { MediaItem, Project } from './core/tipi';
 import { FORMATI } from './core/tipi';
 import { ALTEZZA, MASTER0, newProject } from './core/progetto';
 import { migraBlocchi } from './core/blocchi';
-import { apri as apriMedia, chiudi as chiudiMedia, importa, mediaRT, prioritaMedia, usoDiMedia } from './media/libreria';
-import { inCoda, inSovraccarico, nuova } from './media/attivita';
+import { apri as apriMedia, chiudi as chiudiMedia, importa, impostaCercaMedia, impostaControlloVelocita, mediaRT, usoDiMedia, type MediaRT, type OpzioniPreparazione } from './media/libreria';
+import { cambiaProgetto, inSovraccarico, nuova, proponi, type Proposto } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
 import { converti, esamina, normalizzaAttivo } from './media/normalizza';
 import { dialogoApri, dialogoSalva, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
@@ -108,8 +108,8 @@ export async function importaFile(lista: (FileScelto & { maniglia?: Maniglia })[
     // nel browser, senza "maniglia" (Firefox, Safari, file trascinati, istantanee) i file piccoli si tengono
     // dentro il browser: così il progetto li ritrova alla prossima apertura senza ricollegarli
     else if (!isTauri && f.file && f.file.size <= FILE_LOCALE_MAX) void idb('file', 'put', r.item.id, f.file);
-    // le registrazioni del LIVE le fa il programma stesso, con i tempi giusti in ogni fotogramma: non si rifanno
-    if (opzioni.controlla !== false) controllaVelocita(r.item, f);
+    // dalla 1.5.8 niente controllo della velocità né conversioni all'import (nemmeno con le preferenze vecchie):
+    // si fanno a mano con «Controlla velocità file» (proponiPreparazione(id, 'velocita')). opzioni.controlla non conta più.
   }
   lav.fine(nuovi.length === 1 ? '1 file' : `${nuovi.length} file`);
   if (nuovi.length) {
@@ -130,26 +130,43 @@ export async function importaFile(lista: (FileScelto & { maniglia?: Maniglia })[
 }
 
 /**
- * Frame rate o bitrate variabili: il file si rifà a velocità costante (se no in montaggio audio e video slittano).
- * Si lavora subito col file com'è; la copia si fa dietro le quinte (una alla volta, ferma mentre il montaggio suona)
- * e, quando è pronta, prende il posto dell'originale. L'originale non si tocca.
+ * «Controlla velocità file»: frame rate o bitrate variabili → il file si rifà a velocità costante (se no in montaggio
+ * audio e video slittano). Dalla 1.5.8 SOLO a mano: il controllo nasce «da avviare» (o parte subito con avvia:true) e,
+ * se il file va rifatto, la conversione nasce a sua volta «da avviare» (parte da sola solo con converti:true e la
+ * preferenza dpv-normalizza diversa da 'no'). Si lavora intanto col file com'è; quando la copia è pronta prende il posto
+ * dell'originale (che non si tocca). Conversione con pausa vera; annullata, la copia a metà si butta.
  */
-function controllaVelocita(m: MediaItem, sel: FileScelto) {
-  if (!normalizzaAttivo() || m.type === 'image' || IMMAGINE.test(sel.name)) return;
-  const priorita = prioritaMedia(m.id);
-  void inCoda({ corsia: 'leggero', titolo: 'Controllo la velocità dei file', categoria: 'analisi', gruppo: 'esame', priorita }, async (l) => {
+function controllaVelocita(m: MediaItem, r: MediaRT, o: OpzioniPreparazione & { priorita: () => number }): Proposto<unknown> | null {
+  if (m.type === 'image' || IMMAGINE.test(m.name) || m.dentro) return null;
+  const sel: FileScelto = { name: m.name, file: r.file, path: r.path };
+  if (!sel.file && !sel.path) return null;
+  const priorita = o.priorita;
+  const esame = proponi({ corsia: 'leggero', titolo: 'Controllo la velocità dei file', categoria: 'analisi', gruppo: 'esame', priorita, chiave: 'velocita:' + m.id, media: m.id, dettaglio: m.name }, async (l) => {
     l.imposta(0, m.name);
     const v = await esamina(sel);
-    if (!v) return;
-    // la conversione ha la sua riga (e il suo posto in coda): qui non si aspetta
-    void inCoda({ corsia: 'pesante', titolo: 'Conversione a velocità costante', categoria: 'conversione', gruppo: 'converti', priorita }, async (c) => {
+    if (!l.valido || mediaRT(m.id) !== r) return null;
+    if (!v) { r.velocita = 'ok'; return 'ok'; }
+    r.velocita = 'da-convertire';
+    const conv = proponi({ corsia: 'pesante', titolo: 'Conversione a velocità costante', categoria: 'conversione', gruppo: 'converti', priorita, chiave: 'converti:' + m.id, media: m.id, dettaglio: `${m.name} · ${v.motivo}`, pausa: 'vera' }, async (c) => {
       c.imposta(0, `${m.name} · ${v.motivo}`);
-      const copia = await converti(sel, v, (k) => c.imposta(k), c.segnale);
+      const copia = await converti(sel, v, (k) => c.imposta(k), c.segnale, c);
+      if (!c.valido) throw new Error('fermato');
       c.imposta(1, `${m.name} · metto la copia al suo posto`);
-      if (await mettiCopia(m.id, copia)) avviso(`🔧 ${m.name}: ${v.motivo} (l'originale non è stato toccato)`, 'info', 3600);
+      if (await mettiCopia(m.id, copia)) {
+        const nuovo = mediaRT(m.id);
+        if (nuovo) nuovo.velocita = 'convertito';
+        avviso(`🔧 ${m.name}: ${v.motivo} (l'originale non è stato toccato)`, 'info', 3600);
+      }
+      return copia.name;
     });
+    if (o.converti && normalizzaAttivo()) conv.avvia();
+    else avviso(`${m.name}: ${v.motivo}. La conversione è pronta nel Centro attività (Avvia)`, 'info', 4200);
+    return 'da-convertire';
   });
+  return esame;
 }
+impostaControlloVelocita(controllaVelocita);
+impostaCercaMedia((id) => store.doc.media.find((m) => m.id === id));
 
 /** la copia a velocità costante prende il posto del file nel progetto (clip, segni e proprietà restano dove sono) */
 async function mettiCopia(id: string, copia: FileScelto): Promise<boolean> {
@@ -423,6 +440,8 @@ export async function apriFile(s: Sorgente) {
  * scompattare). Nell'app i media si leggono dal pacchetto stesso; nel browser sono pezzi del file scelto.
  */
 async function apriPacchetto(s: Sorgente, dap = false) {
+  // i lavori del progetto di prima si annullano prima di aprire (la barra di questa apertura è del progetto nuovo)
+  cambiaProgetto();
   const barra = avvisoLungo(dap ? 'Apro il progetto…' : 'Apro il pacchetto…');
   try {
     const { testo, voci } = await leggiPacchetto(s);
@@ -519,6 +538,8 @@ const mb = (b: number) => (b >= 1 << 30 ? (b / (1 << 30)).toFixed(2).replace('.'
 
 export async function nuovo(fmt: { w: number; h: number; rate: { num: number; den: number }; drop: boolean } = FORMATI[0]) {
   if (store.dirty && store.doc.clips.length && !(await conferma('Nuovo progetto', 'Il montaggio attuale ha modifiche non salvate. Ricominciare?', 'Nuovo', 'Annulla'))) return;
+  // i lavori del progetto di prima (da avviare, in coda, al lavoro) si annullano: nessun risultato tardivo sul nuovo
+  cambiaProgetto();
   for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
   percorsoProgetto = null;
   ricordaDap(null);
@@ -532,6 +553,7 @@ export async function nuovo(fmt: { w: number; h: number; rate: { num: number; de
 
 /** carica un progetto e riapre i suoi media */
 export async function carica(p: Project) {
+  cambiaProgetto();
   for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
   motore.caricaPlayer(null);
   store.load(p);
@@ -631,6 +653,7 @@ export async function riprendi(): Promise<boolean> {
   let p: Project | null = null;
   try { p = valida(JSON.parse(testo)); } catch { p = null; }
   if (!p || (!p.clips.length && !p.media.length)) return false;
+  cambiaProgetto();
   store.load(p);
   store.dirty = false;
   // il progetto era un .dap: Salva continua ad aggiungere lì (se il file c'è ancora e i media vengono da lì o è stato salvato lì)

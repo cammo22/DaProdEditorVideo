@@ -1,21 +1,29 @@
-// I proxy automatici: copie leggere delle riprese pesanti (al massimo 960 pixel di lato, un fotogramma chiave
-// ogni mezzo secondo), fatte dietro le quinte appena la ripresa entra nel contenitore. I monitor leggono quelle e
-// vanno lisci anche con i file dei telefoni e dei generatori (4K, HEVC, fotogrammi chiave ogni 10 secondi);
-// l'export legge sempre gli originali. Si conservano nel disco privato del browser/app (OPFS): la seconda volta
-// sono già pronti. Mentre il montaggio suona il lavoro si mette in pausa, per non rubare il decoder.
+// Le copie leggere (proxy): copie delle riprese pesanti (al massimo 960 pixel di lato, un fotogramma chiave ogni mezzo
+// secondo). I monitor leggono quelle e vanno lisci anche con i file dei telefoni e dei generatori (4K, HEVC, fotogrammi
+// chiave ogni 10 secondi); l'export legge sempre gli originali. Si conservano nel disco privato del browser/app (OPFS).
+// Dalla 1.5.8 NON si fanno più da sole: né all'import, né quando la ripresa entra in timeline, né alla riapertura.
+// Se una copia c'è già (sul disco o dentro un .dap) si legge e si usa subito; se no la fa l'utente con «Prepara copia
+// leggera» (una riga da avviare nel Centro attività). Mentre il montaggio suona il lavoro si sospende (pausa vera).
 import {
   ALL_FORMATS, BlobSource, BufferSource, BufferTarget, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output,
   QUALITY_MEDIUM, WebMOutputFormat, getFirstEncodableVideoCodec, type Source,
 } from 'mediabunny';
 import type { MediaItem } from '../core/tipi';
 import type { MediaRT } from './libreria';
-import { inCoda, pausaPerRiproduzione, type Lavoro } from './attivita';
+import { avviaRiga, pausaPerRiproduzione, proponi, rigaAttivita, type Lavoro, type Proposto } from './attivita';
 
 export interface Proxy { input: Input; v: NonNullable<MediaRT['v']>; w: number; h: number }
 
 const LATO = 960;
 const CARTELLA = 'proxy-1';
 
+/**
+ * La preferenza di prima (Vista → Copie leggere). Dalla 1.5.8 non fa partire più niente da sola:
+ *  · 'mai'    il monitor legge sempre gli originali (le copie già fatte non si usano) e «Prepara copia leggera» non si offre;
+ *  · 'sempre' «Prepara copia leggera» si offre per tutti i video, anche quelli leggeri;
+ *  · 'auto'   si offre solo per le riprese pesanti (grandi, HEVC/AV1, fotogrammi chiave radi).
+ * Il valore salvato in localStorage si legge e non si cancella.
+ */
 export type ModoProxy = 'auto' | 'sempre' | 'mai';
 const leggiModo = (): ModoProxy => { try { const v = localStorage.getItem('dpv-proxy'); return v === 'sempre' || v === 'mai' ? v : 'auto'; } catch { return 'auto'; } };
 let modo: ModoProxy = leggiModo();
@@ -58,14 +66,15 @@ async function distanzaChiavi(r: MediaRT, durata: number): Promise<number> {
   } catch { return 0; }
 }
 
-/** serve un proxy? Riprese grandi, fotogrammi chiave radi o codec faticosi; mai per i file brevi */
-async function serve(m: MediaItem, r: MediaRT): Promise<boolean> {
+/** serve un proxy? Riprese grandi, fotogrammi chiave radi o codec faticosi; mai per i file brevi (solo letture di metadati) */
+export async function serveProxy(m: MediaItem, r: MediaRT): Promise<boolean> {
   if (modo === 'mai' || m.type !== 'video' || !r.v || !r.vDecodable || m.duration < 2) return false;
   if (modo === 'sempre') return true;
   if (m.width * m.height > 1280 * 720 * 1.05) return true;
   if (/hev|hvc|hevc|av01|av1/i.test(m.vcodec)) return true;
   return (await distanzaChiavi(r, m.duration)) > 1.1;
 }
+const serve = serveProxy;
 
 async function apriProxy(fonte: Blob | ArrayBuffer): Promise<Proxy | null> {
   const input = new Input({ source: fonte instanceof Blob ? new BlobSource(fonte) : new BufferSource(fonte), formats: ALL_FORMATS });
@@ -82,20 +91,21 @@ function metti(r: MediaRT, p: Proxy) {
   avvisa();
 }
 
-// ——— la coda: un proxy alla volta (nel centro attività), in pausa mentre si suona ———
+// ——— il lavoro: nel centro attività, sospeso mentre si suona o quando l'utente preme Pausa ———
 let fermo = false;
-let pausa: AbortController | null = null;
-let riprendi: (() => void) | null = null;
+/** le conversioni al lavoro adesso (con Sovraccarica possono essere più di una): la riproduzione le sospende tutte */
+const sospendi = new Set<AbortController>();
+const svegliaRiproduzione = new Set<() => void>();
 
 /** il montaggio suona (true) o si è fermato (false): i proxy aspettano */
 export function pausaProxy(on: boolean) {
   fermo = on;
   pausaPerRiproduzione(on);
-  if (on) pausa?.abort();
-  else { const f = riprendi; riprendi = null; f?.(); }
+  if (on) for (const c of sospendi) c.abort();
+  else { const fs = [...svegliaRiproduzione]; svegliaRiproduzione.clear(); for (const f of fs) f(); }
 }
 
-/** il proxy di questo file è già sul disco? Se sì lo si apre e si usa subito */
+/** il proxy di questo file è già sul disco? Se sì lo si apre e si usa subito (è una lettura: non si produce niente) */
 export async function proxyEsistente(m: MediaItem, r: MediaRT): Promise<boolean> {
   if (r.proxy) return true;
   const dir = await cartella();
@@ -108,29 +118,63 @@ export async function proxyEsistente(m: MediaItem, r: MediaRT): Promise<boolean>
   return false;
 }
 
-/** la ripresa deve avere la sua copia leggera: se c'è già sul disco si usa, se serve si mette in coda.
- *  fonte = una lettura nuova del file originale (il proxy lo legge per conto suo, senza disturbare il monitor);
- *  priorita = chi è in timeline passa avanti */
-export async function accodaProxy(m: MediaItem, r: MediaRT, fonte: () => Source, priorita: number | (() => number) = 0) {
-  if (r.proxy || r.proxyStato === 'coda' || r.proxyStato === 'lavoro') return;
-  if (await proxyEsistente(m, r)) return;
-  if (!(await serve(m, r))) { r.proxyStato = 'no'; return; }
-  r.proxyStato = 'coda';
-  r.proxyProg = 0;
+export interface OpzioniProxy {
+  /** più alta = prima (chi sta in timeline passa avanti) */
+  priorita?: number | (() => number);
+  /** parte subito (l'utente l'ha chiesta adesso per questo file); se no nasce «da avviare» */
+  avvia?: boolean;
+  /** anche se il file non sembra pesante (la scelta esplicita dell'utente su un file) */
+  forza?: boolean;
+}
+
+/**
+ * «Prepara copia leggera» per una ripresa. Ritorna la riga (da avviare, o già avviata con avvia:true) o null se non si
+ * offre (non è un video decodificabile, Copie leggere = Mai, c'è già o è già in giro). Non fa partire niente da sola.
+ * fonte = una lettura nuova del file originale (il proxy lo legge per conto suo, senza disturbare il monitor).
+ * Pausa vera (pauseSignal di Mediabunny): riparte dallo stesso fotogramma. Annulla: la copia a metà si butta
+ * (sul disco si scrive solo a lavoro finito).
+ */
+export function proponiProxy(m: MediaItem, r: MediaRT, fonte: () => Source, o: OpzioniProxy = {}): Proposto<boolean> | null {
+  if (modo === 'mai' || m.type !== 'video' || !r.v || !r.vDecodable || r.proxy) return null;
+  if (r.proxyStato === 'coda' || r.proxyStato === 'lavoro') return null;
+  const opz = {
+    corsia: 'pesante' as const, titolo: 'Copie leggere per il monitor', categoria: 'proxy' as const, gruppo: 'proxy', dettaglio: m.name, priorita: o.priorita, pausa: 'vera' as const, chiave: 'proxy:' + m.id, media: m.id,
+    alAvvio: () => { r.proxyStato = 'coda'; avvisa(); },
+    alAnnulla: () => { if (r.proxyStato === 'coda' || r.proxyStato === 'manuale') { r.proxyStato = undefined; avvisa(); } },
+  };
+  r.proxyStato = o.avvia ? 'coda' : 'manuale';
   avvisa();
-  void inCoda({ corsia: 'pesante', titolo: 'Copie leggere per il monitor', categoria: 'proxy', gruppo: 'proxy', dettaglio: m.name, priorita }, async (l) => {
-    if (r.proxy || !r.input) return;
+  // finito in qualunque modo senza essere partito (scartato, annullato in coda): lo stato torna «non fatta»
+  const rimetti = () => { if (r.proxyStato === 'coda' || r.proxyStato === 'manuale') { r.proxyStato = undefined; avvisa(); } };
+  const lavoro = async (l: Lavoro): Promise<boolean> => {
+    if (r.proxy) return true;
+    if (!r.input) return false;
+    if (await proxyEsistente(m, r)) return true;
+    if (!o.forza && !(await serve(m, r))) { r.proxyStato = 'no'; avvisa(); l.imposta(1, `${m.name} · non serve (file già leggero)`); return false; }
     r.proxyStato = 'lavoro';
+    r.proxyProg = 0;
     avvisa();
     l.imposta(0, m.name);
     try {
       const p = await creaProxy(m, r, fonte, l);
-      if (p) metti(r, p); else r.proxyStato = l.fermato ? 'no' : 'errore';
-    } catch {
-      r.proxyStato = 'errore';
-    }
-    avvisa();
-  }).then(() => { if (r.proxyStato === 'coda') { r.proxyStato = 'no'; avvisa(); } });
+      if (p && l.valido) { metti(r, p); return true; }
+      p?.input.dispose();
+      r.proxyStato = l.fermato ? undefined : 'errore';
+    } catch (e) {
+      r.proxyStato = l.fermato ? undefined : 'errore';
+      if (!l.fermato) throw e;
+    } finally { avvisa(); }
+    return false;
+  };
+  if (o.avvia) {
+    const p = proponi(opz, lavoro);
+    const id = avviaRiga(p.riga.id);
+    void p.esito.then(rimetti);
+    return { ...p, riga: (id !== null && rigaAttivita(id)) || p.riga };
+  }
+  const p = proponi(opz, lavoro);
+  void p.esito.then(rimetti);
+  return p;
 }
 
 /** prima con la scheda video (il codificatore hardware è molto più veloce e il processore resta libero); se non c'è o sbaglia, col processore */
@@ -169,17 +213,21 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
     for (;;) {
       if (l.fermato) return null;
       // in pausa finché il montaggio suona; il ✕ del centro attività la sveglia subito (se no restava appesa)
-      if (fermo) await new Promise<void>((ok) => { riprendi = ok; l.segnale.addEventListener('abort', () => ok(), { once: true }); });
-      if (l.fermato) return null;
-      pausa = new AbortController();
-      await conv.execute({ pauseSignal: pausa.signal });
-      pausa = null;
+      if (fermo) await new Promise<void>((ok) => { svegliaRiproduzione.add(ok); l.segnale.addEventListener('abort', () => ok(), { once: true }); });
+      // la Pausa dell'utente: si ferma qui (la conversione è sospesa, non buttata) e lascia la corsia agli altri
+      await l.checkpoint();
+      const sosp = new AbortController();
+      sospendi.add(sosp);
+      const stacca = l.allaPausa(() => sosp.abort());
+      if (fermo) sosp.abort();
+      try { await conv.execute({ pauseSignal: sosp.signal }); } finally { stacca(); sospendi.delete(sosp); }
       if (conv.state === 'done') break;
       if (conv.state === 'canceled') return null;
     }
   } finally {
     input.dispose();
   }
+  if (!l.valido) return null;
   const buf = (output.target as BufferTarget).buffer;
   if (!buf) return null;
   const dir = await cartella();
@@ -195,15 +243,16 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
   return apriProxy(buf);
 }
 
-/** quanti proxy sono pronti, in lavorazione o in coda (per la barra di stato) */
+/** quanti proxy sono pronti, in lavorazione o in coda, e quanti da avviare (per la barra di stato) */
 export function statoProxy(lista: MediaRT[]) {
-  let pronti = 0, lavoro = 0, prog = 0, attesa = 0;
+  let pronti = 0, lavoro = 0, prog = 0, attesa = 0, manuali = 0;
   for (const r of lista) {
     if (r.proxyStato === 'pronto') pronti++;
     else if (r.proxyStato === 'attesa') attesa++;
+    else if (r.proxyStato === 'manuale') manuali++;
     else if (r.proxyStato === 'lavoro' || r.proxyStato === 'coda') { lavoro++; if (r.proxyStato === 'lavoro') prog = r.proxyProg ?? 0; }
   }
-  return { pronti, lavoro, prog, attesa };
+  return { pronti, lavoro, prog, attesa, manuali };
 }
 
 /** le copie leggere già fatte dei media del progetto (nome → file): vanno dentro il .dap */

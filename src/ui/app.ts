@@ -29,7 +29,7 @@ import { novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { statoDecoder } from '../media/fotogrammi';
 import { CentroAttivita } from './attivita';
-import { impostaUsoMedia, risvegliaProxy } from '../media/libreria';
+import { impostaUsoMedia } from '../media/libreria';
 import { banco } from '../media/audio';
 import { registra } from '../azioni';
 import { apriCerca } from './cerca';
@@ -152,10 +152,8 @@ export function avvia(radice: HTMLElement) {
     for (const q of store.doc.sequenze ?? []) for (const c of q.clips ?? []) if (c.media === id) n++;
     return n;
   });
-  let svegliaProxy = 0;
-  // si aspetta un attimo di calma (2 s dall'ultima modifica): appena messa una ripresa in timeline quasi sempre la si guarda, e la copia
-  // leggera che parte subito ruberebbe il decoder proprio al primo play
-  store.on('doc', () => { clearTimeout(svegliaProxy); svegliaProxy = window.setTimeout(() => { svegliaProxy = 0; risvegliaProxy(store.doc.media); }, 2000); });
+  // dalla 1.5.8 una ripresa che entra in timeline non fa partire niente da sola (niente copia leggera automatica):
+  // la copia leggera si prepara a mano (proponiPreparazione in media/libreria.ts)
 
   // ——— fogli per il telefono ———
   const apriFoglio = (f: 'bin' | 'lato' | 'finale' | 'nessuno') => {
