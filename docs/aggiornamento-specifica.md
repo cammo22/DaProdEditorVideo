@@ -11,7 +11,7 @@ Come è stata scritta: dal codice di `origin/main` (030172f) e da `CLAUDE.md`, *
 |---|---|
 | Base corretta | **`origin/main` = 030172f** (merge della PR #34). Il branch locale `rilascio/2026-10-21` (913ddba, pulito) è **un solo commit indietro**: quel commit è il merge, `git diff HEAD origin/main` è **vuoto**. Nessun commit locale da salvare. |
 | Dove lavorare | Un worktree per fase, da `origin/main`: `git worktree add -b <branch> .worktrees/<nome> origin/main` (il checkout dell'utente non si tocca) e `ln -s ../../node_modules node_modules`. |
-| Versione | `package.json` 1.5.7. `CLAUDE.md` dice «il numero sale di 0.0.1»: **1.5.8** per un solo bump a fine integrazione (una PR di versione, non una per fase). Se Cammo vuole 1.6.0 lo dice lui (decisione D1). |
+| Versione | `package.json` 1.5.7. `CLAUDE.md` dice «il numero sale di 0.0.1»: **1.5.8** per un solo bump a fine integrazione (una PR di versione, non una per fase). Versione prevista **1.5.8** (D1: default fissato). |
 | `npm run typecheck` | **ok** (3,5 s, 0 errori) |
 | `npm run build` | **ok** (12,6 s, solo l'avviso Vite sui chunk grandi; `prebuild` = `scripts/ai-locale.mjs` ha girato) |
 | Prove Chromium (`node test/prove*.mjs`) | **non eseguite da Sonnet** (usano Chromium/Playwright via `test/aiuti.mjs`, vietato a questo profilo). Le fa Luna/Haiku prima di ogni consegna: elenco in §7. |
@@ -24,7 +24,7 @@ Come è stata scritta: dal codice di `origin/main` (030172f) e da `CLAUDE.md`, *
 2. Compatibilità **.dap / .dpv / .daprod**: il progetto non ha un campo «versione». La regola è: **solo campi nuovi e opzionali**, mai tolti né rinominati; ogni campo nuovo ha un valore di partenza che si comporta come oggi (`migraBlocchi` in `progetti.ts` è il modello). Un progetto salvato dalla nuova versione deve aprirsi nella 1.5.7 (senza le cose nuove) senza errori; uno della 1.5.7 deve aprirsi nella nuova identico. Un `.dap` contiene `progetto.json` (scritto per ultimo), `media/…` e `proxy/…`: **togliere i proxy automatici non rompe i `.dap` già fatti** (si leggono se ci sono), ma non se ne devono più scrivere di nuovi da soli.
 3. Una cosa sola, uguale ovunque: monitor ed export passano dallo stesso `piano.ts` + `compositore.ts`; riproduzione e mixaggio dallo stesso grafo audio. Ogni effetto nuovo si prova in **tutti e due**.
 4. Il **montaggio non copre mai niente** da solo; le transizioni non cambiano la durata delle clip (invarianti di `montaggio.ts`).
-5. Italiano parlato in commenti, messaggi, CHANGELOG. Famiglia grafica A del design system (`wiki/llmwiki/docs/design-system.md`: notte viola, oro/magenta/ciano, barra del titolo bianca **40px** = decisione ancora da confermare per Video, oggi `--bt-alto` 34px → D5).
+5. Italiano parlato in commenti, messaggi, CHANGELOG. Famiglia grafica A del design system (`wiki/llmwiki/docs/design-system.md`: notte viola, oro/magenta/ciano, barra del titolo bianca **40px** ; oggi Video usa `--bt-alto` 34px: la nuova UI resta coerente col design system, dettaglio in D5).
 6. Niente analisi pesanti, conversioni o copie leggere **da sole**, mai: né all'import, né quando una clip entra in timeline, né alla riapertura del progetto (vedi §3.1).
 
 ## 2. Mappa rapida del codice (dove stanno le cose)
@@ -51,7 +51,7 @@ Come è stata scritta: dal codice di `origin/main` (030172f) e da `CLAUDE.md`, *
 - **non cambia dopo l'inserimento in timeline, né alla riapertura**: `risvegliaProxy`, `riapriMedia`/`apri` non accodano niente. Una cache già presente (`dpv-cache`, proxy sul disco, `.dap` con `proxy/`) **si legge** (costa poco), ma **non si produce**.
 - le **immagini** restano come oggi (nessun lavoro di fondo).
 - Per le cose che servono davvero (un 4K che scatta, una forma d'onda per tagliare a tempo) ci sono **azioni manuali** (§3.5): «Prepara copia leggera», «Calcola forma d'onda», «Controlla velocità file», «Colore automatico», «Locandina». Si lanciano per un file, per i file scelti, o «tutti i file del contenitore». Il tasto destro sulla scheda e la sezione **Anteprima e file** delle Proprietà le offrono; **il Centro attività non parte da solo**: sono righe che nascono nello stato `manuale` e partono con **Avvia** (§4.1).
-- Impostazioni esistenti da riusare: `dpv-proxy` (`auto|sempre|mai`) diventa `manuale` di partenza (mai `auto` per i progetti nuovi); `dpv-normalizza` (`si|no`) diventa `manuale`. **Chi aveva scelto `sempre` o `no` esplicitamente mantiene la scelta** (D2).
+- Impostazioni esistenti: `dpv-proxy` (`auto|sempre|mai`) e `dpv-normalizza` (`si|no`) **si leggono ma non producono più lavoro automatico**: anche chi aveva scelto `sempre` (o `si`) non ottiene copie leggere o conversioni da solo. Il valore vecchio, al massimo, **precompila** l'azione manuale («Prepara copia leggera» già pronta da avviare per i file pesanti), mai l'avvio. I valori in localStorage non si cancellano (D2).
 - **Per una clip senza forma d'onda** la timeline disegna una barra piatta con la scritta «forma d'onda non calcolata» e il pulsante; il taglio, lo spostamento e il playback non dipendono dai picchi (da verificare in prova: `grep peaks` in `timeline.ts`/`audio.ts`).
 - Rischio da misurare (non da nascondere): senza colore automatico il colore di partenza deve essere neutro (`r.colore` assente = nessuna correzione): verificare che il compositore regga `colore === undefined`.
 
@@ -121,13 +121,13 @@ Pagina `finale.ts` con sezioni `colore, audio, sottotitoli, logo, apertura, ling
 
 ### 3.8 Effetti: nuovi e ottimizzati
 
-**Stato.** ~75 blocchi in `blocchi.ts` (rapidi, lunghi, luci, distorsioni, colore, particelle), effetti di clip in `effetti.ts`, transizioni digitali in `render/transizioni.ts`, tutto in un solo shader FX (`FS_FX`, uniform `u_<nome>` da `CAMPI_FX`). Cammo non ha fornito l'elenco dei nuovi: **candidati** (nessuno esiste già, da confermare, D3): *Vignetta*, *Grana pellicola*, *Nitidezza*, *Sfocatura direzionale (movimento)*, *Sfoca zona* (privacy, riquadro/ellisse col mirino), *Split-tone cinema*.
+**Stato.** ~75 blocchi in `blocchi.ts` (rapidi, lunghi, luci, distorsioni, colore, particelle), effetti di clip in `effetti.ts`, transizioni digitali in `render/transizioni.ts`, tutto in un solo shader FX (`FS_FX`, uniform `u_<nome>` da `CAMPI_FX`). Cammo non ha fornito l'elenco dei nuovi: **Opus sceglie quali sono utili dopo aver verificato il catalogo** (D3). Candidati iniziali (proposta mia, da controllare contro `BLOCCHI` per evitare doppioni): *Vignetta*, *Grana pellicola*, *Nitidezza*, *Sfocatura direzionale (movimento)*, *Sfoca zona* (privacy, riquadro/ellisse col mirino), *Split-tone cinema*.
 **Regole per ogni effetto, nuovo o esistente:**
 1. Un solo punto di verità: l'effetto è nel catalogo, nello shader e nel piano; **monitor ed export** lo disegnano con lo stesso codice (`piano.ts`/`compositore.ts`).
 2. Si somma e si fonde con gli altri come gli altri (regola «tutto si somma»); la sfocatura/scia/colori sdoppiati stanno nello stesso giro (altrimenti uno copre l'altro).
 3. Anteprima nel contenitore (`provino.ts`/`anteprime.ts`) = il risultato vero, ridotto.
 4. Costo: ogni passata aggiunta si misura (§7, banco `test/_bench.mjs` esistente o equivalente): **un blocco in più non deve far scendere sotto i fotogrammi/s di oggi con 1 clip 1080p** su CI senza GPU e sulla scheda dell'utente; dove non regge, l'effetto va in un giro già esistente.
-5. Ottimizzazione degli esistenti: prima **misurare** (tempo per fotogramma per effetto, con un solo effetto per volta); si ottimizza solo ciò che è sopra la soglia concordata (D4), senza cambiare l'aspetto (hash del fotogramma uguale entro 1 LSB, altrimenti va dichiarato).
+5. Ottimizzazione degli esistenti: prima **misurare** (tempo per fotogramma per effetto, con un solo effetto per volta); si ottimizza ciò che risulta lento **rispetto alla baseline misurata** (D4), senza cambiare l'aspetto (hash del fotogramma uguale entro 1 LSB, altrimenti va dichiarato).
 6. Test di regressione: per ogni effetto, **fotogramma di riferimento** (immagine sintetica fissa, tempo fisso) con hash salvato nel repo; monitor e export devono dare lo stesso hash. Va in una prova nuova `test/prove-effetti.mjs` (Chromium, la fa girare Luna).
 
 ## 4. Contratti tra motore e UI
@@ -196,9 +196,9 @@ export function avviaPianoAI(p: PianoAI, scaricaOk: boolean): { riga: Attivita; 
 | Rischio | Controllo |
 |---|---|
 | Campo nuovo obbligatorio o rinominato | revisione del diff di `tipi.ts`, `progetto.ts`, `sequenze.ts`: ogni campo nuovo `?:` con comportamento di partenza = oggi |
-| Un .dap salvato dalla nuova versione non si apre nella 1.5.7 | prova: salvare con la nuova, aprire con **1.5.7** (build di `main` attuale in una cartella a parte) e viceversa, con un progetto che usa effetti nuovi (nella 1.5.7 un `fxb.id` sconosciuto deve essere **saltato senza errore**: da verificare oggi in `blocchi.ts`/`piano.ts`; se oggi lancia, la nuova versione **non può salvare effetti nuovi senza un fallback** → decisione D6) |
+| Un .dap salvato dalla nuova versione non si apre nella 1.5.7 | prova: salvare con la nuova, aprire con **1.5.7** (build di `main` attuale in una cartella a parte) e viceversa, con un progetto che usa effetti nuovi (nella 1.5.7 un `fxb.id` sconosciuto deve essere **saltato senza errore**: da verificare oggi in `blocchi.ts`/`piano.ts`; se oggi lancia, il downgrade va **documentato** nel CHANGELOG/README, la lettura dei progetti vecchi resta obbligatoria → D6) |
 | `proxy/` nei .dap | non si scrivono più automaticamente; si leggono se ci sono; `proxyDelProgetto`/`rimettiProxy` invariati |
-| `dpv-proxy`, `dpv-normalizza`, `dpv-live`, `dpv-isp-ordine` in localStorage | leggere i vecchi valori, non cancellarli (§3.1 D2) |
+| `dpv-proxy`, `dpv-normalizza`, `dpv-live`, `dpv-isp-ordine` in localStorage | leggere i vecchi valori, non cancellarli; i primi due **non avviano più lavori automatici** (§3.1, D2) |
 | Il progetto aperto dal **telefono/Android** | in pausa dalla 1.0.7: non è in perimetro, non si rompe niente di proposito |
 
 Corpus minimo per la prova: un `.dpv`, un `.dap` con proxy, un `.daprod`, un progetto con più timeline, sottotitoli, tappe/tracking, blocchi FX e transizioni sovrapposte (i progetti di `test/` ne hanno già).
@@ -212,12 +212,12 @@ Corpus minimo per la prova: un `.dpv`, un `.dap` con proxy, un `.daprod`, un pro
 | 0 | Sonnet | `docs/update-spec` | questa specifica | `docs/aggiornamento-specifica.md` |
 | 1 | **Opus** (motore) | `feat/attivita-manuale` | §4.1, §4.2, §3.1, §3.2 lato motore; i test di motore | `src/media/attivita.ts, proxy.ts, normalizza.ts, libreria.ts, cache.ts`, `src/progetti.ts`, `src/core/*` (tipi opzionali), `src/ui/app.ts` **solo** togliere `risvegliaProxy` (riga 158) |
 | 2 | **Opus** | `feat/effetti-nuovi` (in parallelo alla 1: file diversi) | §3.8 | `src/core/blocchi.ts, effetti.ts`, `src/render/*`, `test/prove-effetti.mjs` |
-| 3 | **Astra** (UI) | `feat/ui-attivita-ai` (**sopra la fase 1**, rebase dopo il suo merge) | §3.2 UI, §3.3, §4.3, azioni manuali nel contenitore | `src/ui/attivita.ts, centroAI.ts, aiPassi.ts` (nuovo), `src/ui/contenitore.ts, ispettore.ts`, `src/stile/*` per questi |
+| 3 | **Astra** (UI) | `feat/ui-attivita-ai` (**sopra lo SHA Opus della fase 1**; nessun merge intermedio su `main` richiesto) | §3.2 UI, §3.3, §4.3, azioni manuali nel contenitore | `src/ui/attivita.ts, centroAI.ts, aiPassi.ts` (nuovo), `src/ui/contenitore.ts, ispettore.ts`, `src/stile/*` per questi |
 | 4 | **Astra** | `feat/ui-finale-live-montage` (sopra la 3) | §3.4–§3.7 | `src/ui/finale.ts, live.ts, montage.ts, timeline.ts` (solo i punti indicati), `src/stile/*` |
-| 5 | **Sonnet** (integrazione) | `rilascio/<data>` | rebase/merge delle fasi nell'ordine 1→2→3→4, conflitti, `package.json`+`CHANGELOG`+README, `npm run typecheck`/`build`, controllo segreti, PR finale | solo CHANGELOG/versione/README + risoluzione conflitti |
-| QA | **Luna/Haiku** | — | §7 a ogni consegna | nessuno |
+| 5 | **Astra** (integrazione finale, card **t_a48d9f07**) | `rilascio/<data>` | parte dallo **SHA consegnato da Opus** (fasi 1-2) senza merge intermedio richiesto; aggiunge UI (fasi 3-4), risolve i conflitti, `package.json`+`CHANGELOG`+README (versione 1.5.8), `npm run typecheck`/`build`, controllo segreti, PR finale | solo CHANGELOG/versione/README + risoluzione conflitti |
+| QA | **Luna** (Haiku a supporto) | — | §7 a ogni consegna | nessuno |
 
-I conflitti prevedibili: `src/ui/app.ts` (fase 1 toglie una riga, fase 4 può toccare la barra: **la fase 1 deve entrare prima**), `src/stile/*` (Astra tiene un solo foglio per volta), `src/core/tipi.ts` (solo Opus, le fasi UI lo leggono). Ogni consegna lascia nel task Kanban: branch, SHA, file cambiati, `typecheck`+`build` ok, prove eseguite con esito.
+I conflitti prevedibili: `src/ui/app.ts` (fase 1 toglie una riga, fase 4 può toccare la barra: **la fase 1 deve stare nella base prima**), `src/stile/*` (Astra tiene un solo foglio per volta), `src/core/tipi.ts` (solo Opus, le fasi UI lo leggono). Ogni consegna lascia nel task Kanban: branch, SHA, file cambiati, `typecheck`+`build` ok, prove eseguite con esito.
 
 ## 7. Comandi di test e matrice
 
@@ -266,12 +266,14 @@ Astra (fasi 3-4):
 - [ ] Finale: export bit a bit uguale; LIVE: `prove-live*` invariate; Montage: seme e Rigenera invariati
 - [ ] `test/foto.mjs` eseguita e le foto guardate (CI senza GPU rallenta le tessere: `apriGruppi` salta `fxv`)
 
-## 9. Decisioni aperte per Cammo (servono per partire)
+## 9. Scelte progettuali e valori di partenza (non bloccano l'avvio)
 
-- **D1** Numero di versione: 1.5.8 (regola di `CLAUDE.md`) o 1.6.0?
-- **D2** Chi oggi ha `dpv-proxy = sempre` o `dpv-normalizza = no` tiene la scelta; chi ha `auto`/niente passa a **manuale**. Va bene? (Alternativa: reset di tutti a manuale.)
-- **D3** Elenco dei **nuovi effetti** che vuoi (i 6 candidati del §3.8 sono una proposta mia, non una tua richiesta) e quali sono gli effetti «lenti» da ottimizzare.
-- **D4** Soglia di prestazioni (es. «1080p con 3 blocchi ≥ 24 fps sulla tua scheda»).
-- **D5** Barra del titolo 40px (design system) contro i 34px di oggi: cambia anche Video?
-- **D6** Effetti nuovi nei progetti aperti con la 1.5.7: se oggi un effetto sconosciuto lancia errore, accetti che i progetti con effetti nuovi **non si aprano** nella 1.5.7 (basta aggiornare), o vuoi un fallback?
-- **D7** Come deve **apparire** la nuova UI di Finale, LIVE e Montage: la specifica fissa struttura e comportamento, non il disegno. Astra propone, Cammo guarda `test/foto.mjs` prima di pubblicare.
+Nessuna di queste serve per partire: ciascuna ha un default, adottato salvo diverso parere di Cammo.
+
+- **D1** Versione: **1.5.8** (un solo bump a fine integrazione).
+- **D2** Import e proxy **manual-first sempre**: le vecchie preferenze `dpv-proxy`/`dpv-normalizza` non attivano elaborazione automatica (si leggono, al massimo precompilano l'azione manuale). Niente reset dei valori salvati.
+- **D3** Nuovi effetti: li sceglie **Opus** fra i candidati del §3.8 e altri, dopo aver verificato il catalogo; gli effetti da ottimizzare risultano dalla misura, non da un elenco di Cammo.
+- **D4** Prestazioni: confronto **relativo alla baseline** presa prima di toccare (§7); nessuna soglia assoluta in fps.
+- **D5** Barra del titolo: la nuova UI resta **coerente col design system** (famiglia A); Astra decide se allineare 34→40 px solo se non rompe il layout, e lo dichiara.
+- **D6** Compatibilità: **lettura dei progetti preesistenti obbligatoria** (.dap/.dpv/.daprod della 1.5.7 si aprono identici). Il **downgrade** (aprire con la 1.5.7 un progetto salvato dalla nuova versione) non è garantito se contiene effetti nuovi: va **verificato e documentato** nel CHANGELOG/README. Se la 1.5.7 salta senza errori un effetto sconosciuto, basta dirlo; se lancia, va scritto chiaro.
+- **D7** Aspetto grafico di Finale, LIVE e Montage: la specifica fissa struttura e comportamento; Astra propone, Cammo vede `test/foto.mjs` prima di pubblicare.
