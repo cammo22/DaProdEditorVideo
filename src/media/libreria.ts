@@ -323,8 +323,8 @@ export function statoPreparazione(id: string, cosa: Preparazione): StatoPreparaz
   const video = !!(r.v && r.vDecodable && !r.image);
   switch (cosa) {
     case 'locandina': return r.poster ? 'fatta' : !video ? 'non-serve' : r.erroriPrep?.locandina ? 'errore' : 'non-fatta';
-    case 'colore': return r.colore ? 'fatta' : !video ? 'non-serve' : 'non-fatta';
-    case 'picchi': return !(r.a && r.aDecodable) ? 'non-serve' : r.peaks && r.peaksDone >= r.peaks.length ? 'fatta' : 'non-fatta';
+    case 'colore': return r.colore ? 'fatta' : !video ? 'non-serve' : r.erroriPrep?.colore ? 'errore' : 'non-fatta';
+    case 'picchi': return !(r.a && r.aDecodable) ? 'non-serve' : r.peaks && r.peaksDone >= r.peaks.length ? 'fatta' : r.erroriPrep?.picchi ? 'errore' : 'non-fatta';
     case 'proxy':
       if (r.proxy || r.proxyStato === 'pronto') return 'fatta';
       if (!video || modoProxy() === 'mai' || (item && (item.type !== 'video' || item.duration < 2))) return 'non-serve';
@@ -499,6 +499,7 @@ export function analizza(immagini: CanvasImageSource[]): Analisi {
 
 async function misuraColore(r: MediaRT, durata: number, chiave: string, l?: Lavoro) {
   if (!r.v) return;
+  delete r.erroriPrep?.colore;
   const tele: CanvasImageSource[] = [];
   try {
     // prima il monitor: la misura aspetta che il decoder sia libero
@@ -516,11 +517,12 @@ async function misuraColore(r: MediaRT, durata: number, chiave: string, l?: Lavo
       if (!w) continue;
       try { tele.push(await createImageBitmap(w.canvas, { resizeWidth: 64, resizeHeight: 36, resizeQuality: 'low' })); } catch { tele.push(w.canvas); }
     }
-    if (tele.length && rt.get(r.id) === r && (!l || l.valido)) { r.colore = analizza(tele); void scriviCache('colore', chiave, r.colore); }
+    if (!tele.length) throw new Error('Non riesco a leggere i fotogrammi per misurare il colore');
+    if (rt.get(r.id) === r && (!l || l.valido)) { r.colore = analizza(tele); void scriviCache('colore', chiave, r.colore); }
     for (const fn of onAnalisi) fn();
   } catch (e) {
-    // annullata: si lascia com'era. Altri errori: niente colore automatico per questa ripresa
-    if (l?.fermato || (e instanceof Error && e.message === 'fermato')) throw e;
+    if ((!l || l.valido) && rt.get(r.id) === r) (r.erroriPrep ??= {}).colore = e instanceof Error ? e.message : String(e);
+    throw e;
   } finally {
     for (const t of tele) if (t instanceof ImageBitmap) t.close();
   }
@@ -537,12 +539,13 @@ export const quandoPicchi = (fn: Ascoltatore) => { onPicchi.add(fn); return () =
  */
 async function calcolaPicchi(r: MediaRT, durata: number, chiave: string, lavoro?: Lavoro) {
   if (!r.a) return;
+  delete r.erroriPrep?.picchi;
   const n = Math.max(1, Math.ceil(durata * PEAKS_PER_SEC));
   const peaks = new Float32Array(n);
   r.peaks = peaks;
   r.peaksDone = 0;
   const sink = new AudioBufferSink(r.a);
-  let completa = true;
+
   let ultimo = performance.now();
   let fetta = performance.now();
   const butta = () => {
@@ -578,12 +581,15 @@ async function calcolaPicchi(r: MediaRT, durata: number, chiave: string, lavoro?
       if (rt.get(r.id) !== r || (lavoro && !lavoro.valido)) { butta(); return; }
     }
   } catch (e) {
-    if (lavoro?.fermato || (e instanceof Error && e.message === 'fermato')) { butta(); throw e; }
-    completa = false; /* forma d'onda incompleta: pazienza (e non si ricorda) */
+    butta();
+    if ((!lavoro || lavoro.valido) && rt.get(r.id) === r) {
+      (r.erroriPrep ??= {}).picchi = e instanceof Error ? e.message : String(e);
+    }
+    throw e;
   }
   if (lavoro && !lavoro.valido) { butta(); return; }
   r.peaksDone = n;
-  if (completa) void scriviCache('picchi', chiave, comprimiPicchi(peaks));
+  void scriviCache('picchi', chiave, comprimiPicchi(peaks));
   for (const fn of onPicchi) fn(r.id);
 }
 

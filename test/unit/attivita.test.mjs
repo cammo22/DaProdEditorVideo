@@ -229,6 +229,31 @@ test('pausa di gruppo e riga con pezzi ancora in coda: i pezzi in coda non parto
   assert.deepEqual(await Promise.all(p), ['a', 'b', 'c']);
 });
 
+test('cambiaProgetto invalida anche Riprova delle righe già fallite', async () => {
+  let chiamate = 0;
+  await AT.inCoda({ corsia: 'leggero', titolo: 'Vecchio', categoria: 'analisi' }, async () => { chiamate++; throw Error('boom'); });
+  const id = AT.attivitaFinite()[0].id;
+  AT.cambiaProgetto();
+  assert.equal(AT.riprovaRiga(id), 0);
+  await dormi(20); assert.equal(chiamate, 1);
+});
+
+test('seconda Pausa mentre aspetta la corsia: nessun pezzo riparte di nascosto', async () => {
+  let l1, esci, libera; let oltre = false;
+  const e = AT.inCoda({ corsia: 'pesante', titolo: 'A', categoria: 'analisi', pausa: 'ai-confini' }, async (l) => {
+    l1 = l; await new Promise((r) => { esci = r; }); await l.checkpoint(); oltre = true;
+  });
+  await finche(() => !!l1);
+  AT.pausaRiga(l1.riga.id); esci();
+  await finche(() => l1.inPausa);
+  const altro = AT.inCoda({ corsia: 'pesante', titolo: 'B', categoria: 'analisi' }, async () => { await new Promise((r) => { libera = r; }); });
+  await finche(() => !!libera);
+  AT.riprendiRiga(l1.riga.id); await dormi(10);
+  AT.pausaRiga(l1.riga.id); libera(); await altro; await dormi(25);
+  assert.equal(oltre, false);
+  AT.riprendiRiga(l1.riga.id); await e; assert.equal(oltre, true);
+});
+
 test('Sovraccarica e i limiti di prima restano', () => {
   assert.deepEqual(AT.limitiNormali(4), { leggero: 2, pesante: 1 });
   assert.deepEqual(AT.limitiNormali(8), { leggero: 3, pesante: 2 });

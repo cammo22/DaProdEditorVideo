@@ -3,6 +3,7 @@
 // dpv-normalizza = 'si'. Poi le preparazioni a mano: nascono «da avviare», partono solo con Avvia, niente doppioni,
 // pausa ai confini della forma d'onda, annulla che butta il parziale.
 import { test, before, beforeEach } from 'node:test';
+import { AudioBufferSink, CanvasSink } from 'mediabunny';
 import assert from 'node:assert/strict';
 import { ambienteBrowser, carica, discoFinto, dormi, finche, memoriaFinta, videoDiProva, wav } from './_aiuti.mjs';
 
@@ -210,6 +211,30 @@ test('copia leggera avviata senza codificatore (Node): finisce in errore, nessun
   const r = L.mediaRT(hd.id);
   assert.ok(r.proxyStato === 'errore' || r.proxyStato === 'no', r.proxyStato);
   assert.equal(disco.scritti.length, 0);
+});
+
+test('Errore decoder forma d’onda: mai dichiarare completa la misura parziale', async () => {
+  const m = await L.importa({ name: 'errore.wav', file: new File([wav(1)], 'errore.wav') }); doc.media.push(m.item);
+  const originale = AudioBufferSink.prototype.buffers;
+  AudioBufferSink.prototype.buffers = async function* () { throw Error('decoder rotto'); };
+  try {
+    const p = L.proponiPreparazione(m.item.id, 'picchi', { avvia: true });
+    assert.equal(await p.esito, null);
+    assert.equal(L.mediaRT(m.item.id).peaks, undefined);
+    assert.equal(L.statoPreparazione(m.item.id, 'picchi'), 'errore');
+  } finally { AudioBufferSink.prototype.buffers = originale; L.chiudi(m.item.id); }
+});
+
+test('Errore decoder colore: Attività mostra errore e permette Riprova', { skip: !video && 'ffmpeg non c\'è' }, async () => {
+  const m = await L.importa({ name: 'colore-rotto.mp4', file: video.hd }); doc.media.push(m.item);
+  const originale = CanvasSink.prototype.canvasesAtTimestamps;
+  CanvasSink.prototype.canvasesAtTimestamps = async function* () { throw Error('video rotto'); };
+  try {
+    const p = L.proponiPreparazione(m.item.id, 'colore', { avvia: true });
+    assert.equal(await p.esito, null);
+    assert.equal(L.statoPreparazione(m.item.id, 'colore'), 'errore');
+    assert.equal(L.mediaRT(m.item.id).colore, undefined);
+  } finally { CanvasSink.prototype.canvasesAtTimestamps = originale; L.chiudi(m.item.id); }
 });
 
 test('Copie leggere = Mai: non si offre per niente', { skip: !video && 'ffmpeg non c\'è' }, () => {

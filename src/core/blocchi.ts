@@ -17,8 +17,11 @@ export type V3 = [number, number, number];
 /** le quantità degli effetti nuovi (colore, particelle, specchi…): ognuna 0 o più, e si sommano come le altre */
 export const CAMPI_FX = ['eco', 'duo', 'poster', 'solar', 'termico', 'visore', 'retino', 'muto', 'gocce', 'specchio', 'quadri', 'rullo', 'pesce',
   'raggi', 'bokeh', 'scint', 'anam', 'neve', 'pioggia', 'polvere', 'coriandoli',
-  'olo', 'prisma', 'matita', 'tunnel', 'nebbia', 'braci', 'vetro', 'nosegn', 'iride', 'mini', 'esa', 'scan'] as const;
+  'olo', 'prisma', 'matita', 'tunnel', 'nebbia', 'braci', 'vetro', 'nosegn', 'iride', 'mini', 'esa', 'scan', 'grana', 'nitido', 'censura'] as const;
 type CampiFx = { [K in typeof CAMPI_FX[number]]: number };
+export interface ZonaCensura { x: number; y: number; w: number; h: number; morbido: number }
+/** tetto fisso dello shader; oltre, si copre l'inviluppo di tutte le zone (mai scartarne una) */
+export const MAX_CENSURE = 8;
 
 /** come si muove l'immagine in quel fotogramma: tutti gli effetti accesi si sommano qui */
 export interface StatoFx extends CampiFx {
@@ -40,6 +43,9 @@ export interface StatoFx extends CampiFx {
   soleX: number; soleY: number;
   /** il colore scelto degli effetti che ne hanno uno (duotone, bokeh, scintille): l'ultimo vince */
   tinta: V3;
+  /** seme intero, indipendente da glitch e tempo di riproduzione: uguale in monitor ed export */
+  semeGrana: number;
+  censure: ZonaCensura[];
 }
 
 const neutro = (): StatoFx => ({
@@ -47,12 +53,12 @@ const neutro = (): StatoFx => ({
   flash: 0, flashCol: [1, 1, 1], fade: 0, fadeCol: [0, 0, 0], luce: 0, lucePh: 0, bande: 0, vhs: 0,
   bagliore: 0, flare: 0, flarePh: 0, arco: 0, arcoPh: 0, espo: 0, neon: 0,
   onda: 0, bolla: 0, vortice: 0, caleido: 0, calore: 0, zblur: 0,
-  cx: 0.5, cy: 0.5, soleX: NaN, soleY: NaN, tinta: [1, 0.24, 0.5],
+  cx: 0.5, cy: 0.5, soleX: NaN, soleY: NaN, tinta: [1, 0.24, 0.5], semeGrana: 0, censure: [],
   ...(Object.fromEntries(CAMPI_FX.map((k) => [k, 0])) as CampiFx),
 });
 
 /** gli effetti che hanno un centro da mettere dove vuoi sul quadro (e da far muovere lungo il blocco) */
-const CENTRATI = new Set<Motore>(['zoomColpo', 'zoomLento', 'battito', 'bolla', 'vortice', 'caleido', 'zoomSfocato', 'flare', 'pizzico', 'gocce', 'raggi', 'pesce', 'tunnel', 'irideChiude', 'irideApre']);
+const CENTRATI = new Set<Motore>(['zoomColpo', 'zoomLento', 'battito', 'bolla', 'vortice', 'caleido', 'zoomSfocato', 'flare', 'pizzico', 'gocce', 'raggi', 'pesce', 'tunnel', 'irideChiude', 'irideApre', 'censura']);
 export const haCentro = (id: string) => { const e = effettoTempo(id); return !!e && CENTRATI.has(e.motore); };
 
 /** le tappe del centro di un effetto in ordine: la partenza, quelle di mezzo, l'arrivo (vuoto se il centro sta fermo) */
@@ -87,7 +93,9 @@ type Motore = 'flash' | 'scossa' | 'camera' | 'zoomColpo' | 'battito' | 'zoomLen
   | 'onda' | 'bolla' | 'vortice' | 'caleido' | 'calore' | 'zoomSfocato'
   | 'eco' | 'vibra' | 'raggi' | 'bokeh' | 'scintille' | 'anamorfico' | 'duotone' | 'posterizza' | 'solarizza' | 'termico' | 'visore'
   | 'retino' | 'filmMuto' | 'pizzico' | 'gocce' | 'specchio' | 'quadri' | 'rullo' | 'pesce' | 'neve' | 'pioggia' | 'polvere' | 'coriandoli'
-  | 'ologramma' | 'prisma' | 'matita' | 'tunnel' | 'nebbia' | 'braci' | 'vetro' | 'noSegnale' | 'irideChiude' | 'irideApre' | 'miniatura' | 'esagoni' | 'scansione';
+  | 'ologramma' | 'prisma' | 'matita' | 'tunnel' | 'nebbia' | 'braci' | 'vetro' | 'noSegnale' | 'irideChiude' | 'irideApre' | 'miniatura' | 'esagoni' | 'scansione' | 'grana' | 'nitido' | 'censura';
+
+export interface ParametroFx { chiave: string; nome: string; min: number; max: number; def: number; passo: number }
 
 export interface EffettoTempo {
   id: string;
@@ -99,6 +107,7 @@ export interface EffettoTempo {
   motore: Motore;
   /** colore di partenza (lampi e dissolvenze) */
   colore?: string;
+  parametri?: readonly ParametroFx[];
 }
 
 export const EFFETTI_TEMPO: EffettoTempo[] = [
@@ -180,9 +189,24 @@ export const EFFETTI_TEMPO: EffettoTempo[] = [
   { id: 'scansione', nome: 'Scansione', info: 'una riga di luce che sale, come uno scanner', durata: 2, gruppo: 'luci', motore: 'scansione' },
   { id: 'nebbia', nome: 'Nebbia', info: 'una foschia che scorre piano', durata: 6, gruppo: 'particelle', motore: 'nebbia' },
   { id: 'braci', nome: 'Braci', info: 'scintille calde che salgono da un fuoco', durata: 5, gruppo: 'particelle', motore: 'braci' },
+  { id: 'grana', nome: 'Grana pellicola', info: 'grana fine, senza cambiare tinta o luce; forza = quantità', durata: 5, gruppo: 'colore', motore: 'grana' },
+  { id: 'nitido', nome: 'Nitidezza', info: 'rinforza i dettagli senza una passata in più; forza = contrasto dei bordi', durata: 5, gruppo: 'colore', motore: 'nitido' },
+  { id: 'censura', nome: 'Censura a mosaico', info: 'quadrettoni in una zona: sposta il mirino o segui un oggetto; verifica sempre il risultato', durata: 5, gruppo: 'distorsioni', motore: 'censura', parametri: [
+    { chiave: 'larghezza', nome: 'Larghezza zona', min: 0.02, max: 2, def: 0.25, passo: 0.01 },
+    { chiave: 'altezza', nome: 'Altezza zona', min: 0.02, max: 2, def: 0.25, passo: 0.01 },
+    { chiave: 'morbido', nome: 'Bordo morbido esterno', min: 0, max: 0.2, def: 0.015, passo: 0.005 },
+  ] },
 ];
 
 export const effettoTempo = (id: string) => EFFETTI_TEMPO.find((e) => e.id === id);
+
+/** vecchi progetti e valori non finiti usano il default; nessun campo salvato viene riscritto */
+export function parametroFx(b: BloccoFx, chiave: string): number {
+  const c = effettoTempo(b.id)?.parametri?.find((c) => c.chiave === chiave);
+  if (!c) return 0;
+  const v = b.parametri?.[chiave];
+  return typeof v === 'number' && Number.isFinite(v) ? Math.max(c.min, Math.min(c.max, v)) : c.def;
+}
 
 /** il suono che ogni effetto si porta dietro (quelli lunghi e silenziosi non ne hanno) */
 const SUONO_EFFETTO: Record<string, string> = {
@@ -372,7 +396,9 @@ function applica(st: StatoFx, p: Project, bl: Clip, f: number) {
   // si ripete: la forma dell'effetto (sale, picco, scende…) rifatta n volte nella durata del blocco
   const n = Math.max(1, Math.min(16, Math.round(b.ripeti ?? 1)));
   if (n > 1) x = Math.min(0.9999, (x * n) % 1);
-  const pico = n > 1 ? 0.3 : piccoDi(p, bl);
+  // Cercare i tagli richiede una scansione delle clip: serve solo a quattro inviluppi.
+  const usaPicco = e.motore === 'flash' || e.motore === 'zoomColpo' || e.motore === 'bruciato' || e.motore === 'zoomSfocato';
+  const pico = n > 1 ? 0.3 : usaPicco ? piccoDi(p, bl) : 0.06;
   const k = Math.max(0, Math.min(1.5, b.forza));
   const t = f / r, tl = (f - bl.start) / r;
   const col = hex(b.colore || e.colore || '#ffffff');
@@ -494,6 +520,17 @@ function applica(st: StatoFx, p: Project, bl: Clip, f: number) {
     case 'scansione': st.scan += k * bordi(x, 6); break;
     case 'nebbia': st.nebbia += k * bordi(x, 6); break;
     case 'braci': st.braci += k * bordi(x, 6); break;
+    case 'grana': st.grana += k * bordi(x, 6); st.semeGrana = Math.floor(f); break;
+    case 'nitido': st.nitido += k * bordi(x, 6); break;
+    case 'censura': {
+      if (k <= 0) break;
+      // Niente dissolvenza ai bordi temporali: un volto non deve riaffiorare prima della fine.
+      const [x, y] = centroBlocco(bl, f, p);
+      st.censure.push({ x: Number.isFinite(x) ? x : 0.5, y: Number.isFinite(y) ? y : 0.5,
+        w: parametroFx(b, 'larghezza'), h: parametroFx(b, 'altezza'), morbido: parametroFx(b, 'morbido') });
+      st.censura += k;
+      break;
+    }
   }
 }
 
@@ -508,7 +545,7 @@ export function statoEffetti(p: Project, f: number, track?: string): StatoFx | n
     st ??= neutro();
     applica(st, p, c, f);
     const e = effettoTempo(c.fxb!.id);
-    if (e && CENTRATI.has(e.motore) && (c.fxb!.pos || c.fxb!.segue)) {
+    if (e && e.motore !== 'censura' && CENTRATI.has(e.motore) && (c.fxb!.pos || c.fxb!.segue)) {
       const [x, y] = centroBlocco(c, f, p);
       const w = Math.max(0.05, c.fxb!.forza);
       if (e.motore === 'flare') { st.soleX = x; st.soleY = y; continue; }
@@ -517,6 +554,12 @@ export function statoEffetti(p: Project, f: number, track?: string): StatoFx | n
   }
   if (st && peso > 0) { st.cx = px / peso; st.cy = py / peso; }
   if (st) {
+    if (st.censure.length > MAX_CENSURE) {
+      const zs = st.censure;
+      const x0 = Math.min(...zs.map((z) => z.x - z.w / 2)), x1 = Math.max(...zs.map((z) => z.x + z.w / 2));
+      const y0 = Math.min(...zs.map((z) => z.y - z.h / 2)), y1 = Math.max(...zs.map((z) => z.y + z.h / 2));
+      st.censure = [{ x: (x0 + x1) / 2, y: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0, morbido: Math.max(...zs.map((z) => z.morbido)) }];
+    }
     // il tetto: sommati restano belli (oltre, l'immagine si romperebbe e basta)
     st.desat = Math.min(1, st.desat); st.invert = Math.min(1, st.invert);
     st.blur = Math.min(1.6, st.blur); st.pixel = Math.min(1.4, st.pixel); st.rgb = Math.min(1.8, st.rgb);

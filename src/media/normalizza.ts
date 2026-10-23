@@ -120,15 +120,14 @@ export function mp3Variabile(grandezze: number[]): boolean {
 /** una scrittura che accetta pezzi in qualunque posizione: su disco nell'app, in memoria nel browser */
 async function destinazione(nome: string): Promise<{ target: BufferTarget | StreamTarget; fine: () => Promise<{ path?: string; blob?: Blob }>; annulla: () => Promise<void> }> {
   if (isTauri) {
-    const path = await invoke<string>('registrazione_percorso', { name: nome });
-    const id = await invoke<number>('export_apri', { path });
+    const [id, path] = await invoke<[number, string]>('conversione_apri', { name: nome });
     const ws = new WritableStream<StreamTargetChunk>({
       write: async (chunk) => { await invoke('export_scrivi', chunk.data, { headers: { 'x-id': String(id), 'x-pos': String(chunk.position) } }); },
     });
     return {
       target: new StreamTarget(ws, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
       fine: async () => { await invoke('export_chiudi', { id }); return { path }; },
-      annulla: async () => { await invoke('export_chiudi', { id }).catch(() => {}); },
+      annulla: async () => { await invoke('conversione_annulla', { id }); },
     };
   }
   const t = new BufferTarget();

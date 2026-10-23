@@ -12,7 +12,7 @@ import { autoColore, masterDi, mediaOf, tfAl } from '../core/progetto';
 import { spostaTraccia } from '../core/traccia';
 import { mediaRT } from '../media/libreria';
 import { gradeDi, gradeNeutro } from './colore';
-import { CAMPI_FX, statoEffetti, type StatoFx } from '../core/blocchi';
+import { CAMPI_FX, MAX_CENSURE, statoEffetti, type StatoFx } from '../core/blocchi';
 import { fxEffettivo } from '../core/effettiClip';
 import { coloriChiave, SPILL0 } from '../core/sfondo';
 import { maschereAl } from '../media/maschere';
@@ -291,12 +291,35 @@ uniform float u_bagliore, u_flare, u_flarePh, u_arco, u_arcoPh, u_espo, u_neon, 
 uniform float u_eco, u_duo, u_poster, u_solar, u_termico, u_visore, u_retino, u_muto, u_gocce, u_specchio, u_quadri, u_rullo, u_pesce;
 uniform float u_raggi, u_bokeh, u_scint, u_anam, u_neve, u_pioggia, u_polvere, u_coriandoli;
 uniform float u_olo, u_prisma, u_matita, u_tunnel, u_nebbia, u_braci, u_vetro, u_nosegn, u_iride, u_mini, u_esa, u_scan;
+uniform float u_grana, u_semeGrana, u_nitido;
+uniform float u_censura;
+uniform int u_numCensure;
+uniform vec4 u_censure[${MAX_CENSURE}]; // centro (y dal basso) e mezze dimensioni
+uniform float u_morbidoCensure[${MAX_CENSURE}];
 uniform vec3 u_flashCol, u_fadeCol, u_tinta;
 uniform vec2 u_centro;   // il centro di zoom e distorsioni (lo sceglie chi posa l'effetto)
 uniform vec2 u_sole;     // il sole del riflesso d'obiettivo (x < -1 = passa da solo)
 out vec4 o;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-vec3 campione(vec2 uv) { return texture(u_src, clamp(uv, vec2(0.0005), vec2(0.9995))).rgb; }
+vec3 campione(vec2 uv) {
+  vec2 q = clamp(uv, vec2(0.0005), vec2(0.9995));
+  vec3 originale = texture(u_src, q).rgb;
+  if (u_censura <= 0.0 || u_numCensure == 0) return originale;
+  float maschera = 0.0;
+  for (int i = 0; i < ${MAX_CENSURE}; i++) {
+    if (i >= u_numCensure) break;
+    vec4 z = u_censure[i];
+    vec2 d = abs(q - z.xy) - z.zw;
+    // la morbidezza cresce FUORI dal riquadro: dentro è sempre mosaico pieno
+    float sd = max(d.x, d.y);
+    maschera = max(maschera, 1.0 - smoothstep(0.0, max(0.00001, u_morbidoCensure[i]), sd));
+  }
+  if (maschera <= 0.0) return originale;
+  float lato = mix(0.008, 0.06, min(1.0, u_censura));
+  vec2 cella = vec2(lato * u_res.y / u_res.x, lato);
+  vec2 mosaico = clamp((floor(q / cella) + 0.5) * cella, vec2(0.0005), vec2(0.9995));
+  return mix(originale, texture(u_src, mosaico).rgb, maschera);
+}
 vec3 tinta(float h) { return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); }
 // i colori sdoppiati (rosso e blu che scappano) valgono per ogni campione: così si sommano con sfocatura, neon e bagliore
 float g_sp = 0.0;
@@ -473,6 +496,13 @@ void main() {
     }
     col /= 24.0;
   } else col = camp(uv);
+  if (u_nitido > 0.0) {
+    // unsharp mask: aggiunge solo il dettaglio, non sostituisce sfocatura/scia o RGB
+    vec2 px = 1.0 / u_res;
+    vec3 vicino = (camp(uv + vec2(px.x, 0.0)) + camp(uv - vec2(px.x, 0.0))
+      + camp(uv + vec2(0.0, px.y)) + camp(uv - vec2(0.0, px.y))) * 0.25;
+    col += clamp(camp(uv) - vicino, vec3(-0.2), vec3(0.2)) * u_nitido;
+  }
   if (u_eco > 0.0) {
     // l'eco: due copie sfasate che rincorrono l'immagine
     vec3 g1 = camp(uv - vec2(0.02, 0.012) * u_eco), g2 = camp(uv - vec2(0.045, 0.026) * u_eco);
@@ -668,6 +698,11 @@ void main() {
     float nv = hash(floor(v_uv * vec2(320.0, 180.0)) + fase);
     vec3 sig = mix(barre * 0.8, vec3(nv), 0.45);
     col = mix(col, sig, smoothstep(0.3, 0.7, min(1.0, u_nosegn) * (0.55 + 0.45 * hash(vec2(fase, 1.0)))));
+  }
+  if (u_grana > 0.0) {
+    // griglia fissa del progetto, non della preview: il ridimensionamento non cambia il seme
+    float g = hash(floor(v_uv * vec2(1920.0, 1080.0)) + vec2(mod(u_semeGrana, 65536.0), 17.0));
+    col += (g - 0.5) * 0.12 * u_grana;
   }
   col = mix(col, u_flashCol, u_flash);
   col = mix(col, u_fadeCol, u_fade);
@@ -1524,7 +1559,7 @@ export class Compositore {
     this.pComb = this.prog(VS_FULL, FS_COMBINE);
     this.pMaster = this.prog(VS_FULL, FS_MASTER);
     this.pFx = this.prog(VS_FULL, FS_FX);
-    for (const n of ['u_src', 'u_res', 'u_off', 'u_zoom', 'u_rot', 'u_blur', 'u_pixel', 'u_rgb', 'u_glitch', 'u_seme', 'u_desat', 'u_invert', 'u_flash', 'u_fade', 'u_luce', 'u_lucePh', 'u_bande', 'u_vhs', 'u_time', 'u_flashCol', 'u_fadeCol', 'u_bagliore', 'u_flare', 'u_flarePh', 'u_arco', 'u_arcoPh', 'u_espo', 'u_neon', 'u_onda', 'u_bolla', 'u_vortice', 'u_caleido', 'u_calore', 'u_zblur', 'u_centro', 'u_sole', 'u_tinta', ...CAMPI_FX.map((k) => 'u_' + k)])
+    for (const n of ['u_src', 'u_res', 'u_off', 'u_zoom', 'u_rot', 'u_blur', 'u_pixel', 'u_rgb', 'u_glitch', 'u_seme', 'u_desat', 'u_invert', 'u_flash', 'u_fade', 'u_luce', 'u_lucePh', 'u_bande', 'u_vhs', 'u_time', 'u_flashCol', 'u_fadeCol', 'u_bagliore', 'u_flare', 'u_flarePh', 'u_arco', 'u_arcoPh', 'u_espo', 'u_neon', 'u_onda', 'u_bolla', 'u_vortice', 'u_caleido', 'u_calore', 'u_zblur', 'u_centro', 'u_sole', 'u_tinta', 'u_semeGrana', 'u_numCensure', 'u_censure', 'u_morbidoCensure', ...CAMPI_FX.map((k) => 'u_' + k)])
       this.uF[n] = gl.getUniformLocation(this.pFx, n);
     for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_vista',
       'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma'])
@@ -1785,6 +1820,12 @@ export class Compositore {
     gl.uniform1f(u.u_rgb, st.rgb);
     gl.uniform1f(u.u_glitch, st.glitch);
     gl.uniform1f(u.u_seme, st.seme % 1000);
+    gl.uniform1f(u.u_semeGrana, st.semeGrana);
+    gl.uniform1i(u.u_numCensure, st.censure.length);
+    const zone = new Float32Array(MAX_CENSURE * 4), morbido = new Float32Array(MAX_CENSURE);
+    st.censure.forEach((z, i) => { zone.set([z.x, 1 - z.y, z.w / 2, z.h / 2], i * 4); morbido[i] = z.morbido; });
+    gl.uniform4fv(u.u_censure, zone);
+    gl.uniform1fv(u.u_morbidoCensure, morbido);
     gl.uniform1f(u.u_desat, st.desat);
     gl.uniform1f(u.u_invert, st.invert);
     gl.uniform1f(u.u_flash, st.flash);

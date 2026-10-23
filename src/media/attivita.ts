@@ -133,18 +133,22 @@ export class Lavoro {
   async checkpoint(): Promise<void> {
     if (this.fermato) throw new Error('fermato');
     if (!this.riga.pausaRichiesta) return;
-    this.inPausa = true;
-    liberaPosto(this);
-    aggiornaStato(this.riga);
-    avvisa();
-    await new Promise<void>((ok) => {
-      this.sveglia = ok;
-      if (!this.riga.pausaRichiesta || this.fermato) ok();
-    });
-    this.sveglia = null;
-    this.inPausa = false;
-    if (this.fermato) { aggiornaStato(this.riga); throw new Error('fermato'); }
-    await riprendiPosto(this);
+    do {
+      this.inPausa = true;
+      liberaPosto(this);
+      aggiornaStato(this.riga);
+      avvisa();
+      await new Promise<void>((ok) => {
+        this.sveglia = ok;
+        if (!this.riga.pausaRichiesta || this.fermato) ok();
+      });
+      this.sveglia = null;
+      this.inPausa = false;
+      if (this.fermato) { aggiornaStato(this.riga); throw new Error('fermato'); }
+      await riprendiPosto(this);
+      // Una seconda Pausa può arrivare mentre Riprendi aspetta una corsia occupata.
+      // Prima del pezzo successivo si lascia di nuovo il posto e si aspetta, senza perdere il progresso.
+    } while (this.riga.pausaRichiesta && !this.fermato);
     aggiornaStato(this.riga);
     avvisa();
     if (this.fermato) throw new Error('fermato');
@@ -676,6 +680,9 @@ export function riprovaRiga(id: number): number {
  */
 export function cambiaProgetto() {
   generazione++;
+  // I retry conservano closure e riferimenti ai media: non possono rinascere nel progetto nuovo.
+  falliti.clear();
+  for (const r of storico) if (r.categoria !== 'esporta') r.capacita.riprova = false;
   for (const r of [...manuali]) scartaProposta(r);
   for (const r of [...righe]) if (!restaDopoCambio.has(r.id)) fermaRiga(r.id);
   avvisa();

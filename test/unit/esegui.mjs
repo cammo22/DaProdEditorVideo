@@ -17,6 +17,11 @@ await build({
   root: radice,
   configFile: false,
   logLevel: 'warn',
+  // Esponiamo solo nel bundle di prova un confine asincrono privato; nessun hook nell'app.
+  plugins: [{ name: 'confini-progetti-test', enforce: 'pre', transform(code, id) {
+    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/media/proxy.ts')) return { code: code + '\nexport { scriviProxy as _testScriviProxy };', map: null };
+  } }],
   define: { __VERSIONE__: JSON.stringify('prova') },
   build: {
     ssr: true,
@@ -33,7 +38,10 @@ await build({
         blocchi: path.join(radice, 'src/core/blocchi.ts'),
         effetti: path.join(radice, 'src/effetti.ts'),
         piano: path.join(radice, 'src/render/piano.ts'),
+        compositore: path.join(radice, 'src/render/compositore.ts'),
         progetto: path.join(radice, 'src/core/progetto.ts'),
+        progetti: path.join(radice, 'src/progetti.ts'),
+        store: path.join(radice, 'src/core/store.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

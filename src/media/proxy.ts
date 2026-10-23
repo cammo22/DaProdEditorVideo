@@ -230,17 +230,77 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
   if (!l.valido) return null;
   const buf = (output.target as BufferTarget).buffer;
   if (!buf) return null;
-  const dir = await cartella();
-  if (dir) {
-    try {
-      const fh = await dir.getFileHandle(nomeProxy(m), { create: true });
-      const ws = await fh.createWritable();
-      await ws.write(buf);
-      await ws.close();
-      return await apriProxy(await fh.getFile());
-    } catch { /* disco privato pieno o non scrivibile: il proxy resta in memoria */ }
+  return scriviProxy(m, buf, l);
+}
+
+// Due media possono riferirsi allo stesso originale: la chiave attività usa l'ID media,
+// il nome su disco invece è condiviso. Anche il ripristino da .dap deve rispettare questo lock.
+const scrittureProxy = new Map<string, Promise<void>>();
+async function esclusivaProxy<T>(nome: string, fn: () => Promise<T>): Promise<T> {
+  const precedente = scrittureProxy.get(nome) ?? Promise.resolve();
+  let libera!: () => void;
+  const turno = new Promise<void>((ok) => { libera = ok; });
+  scrittureProxy.set(nome, turno);
+  await precedente;
+  try {
+    return navigator.locks ? await navigator.locks.request('dpv-proxy:' + nome, fn) : await fn();
+  } finally {
+    libera();
+    if (scrittureProxy.get(nome) === turno) scrittureProxy.delete(nome);
   }
-  return apriProxy(buf);
+}
+
+/** Il confine asincrono del disco: dopo ogni attesa si ricontrolla l'annullamento. */
+async function scriviProxy(m: MediaItem, buf: ArrayBuffer, l: Pick<Lavoro, 'valido'>): Promise<Proxy | null> {
+  return esclusivaProxy(nomeProxy(m), () => scriviProxyEsclusiva(m, buf, l));
+}
+async function scriviProxyEsclusiva(m: MediaItem, buf: ArrayBuffer, l: Pick<Lavoro, 'valido'>): Promise<Proxy | null> {
+  if (!l.valido) return null;
+  const dir = await cartella();
+  if (!l.valido) return null;
+  if (dir) {
+    const nome = nomeProxy(m);
+    let ws: FileSystemWritableFileStream | undefined;
+    let creato = false;
+    const scarta = async () => {
+      await ws?.abort().catch(() => {});
+      if (creato) await dir.removeEntry(nome);
+    };
+    try {
+      const esistente = await dir.getFileHandle(nome).catch((e: unknown) => {
+        if (e instanceof Error && e.name === 'NotFoundError') return null;
+        throw e;
+      });
+      if (!l.valido) return null;
+      if (esistente) {
+        const p = await apriProxy(await esistente.getFile());
+        if (!l.valido) { p?.input.dispose(); return null; }
+        if (p) return p;
+        // Non è nostro: neppure un file preesistente rovinato va cancellato dal nostro Annulla.
+        throw new Error('proxy su disco non leggibile: uso la copia in memoria');
+      }
+      const fh = await dir.getFileHandle(nome, { create: true }); creato = true;
+      if (!l.valido) { await scarta(); return null; }
+      ws = await fh.createWritable();
+      if (!l.valido) { await scarta(); return null; }
+      await ws.write(buf);
+      if (!l.valido) { await scarta(); return null; }
+      await ws.close(); ws = undefined;
+      if (!l.valido) { await scarta(); return null; }
+      const p = await apriProxy(await fh.getFile());
+      if (!l.valido) { p?.input.dispose(); await scarta(); return null; }
+      return p;
+    } catch (e) {
+      await scarta();
+      if (!l.valido) return null;
+      // Disco pieno/non disponibile: il proxy completo resta in memoria, mai un file parziale.
+      void e;
+    }
+  }
+  if (!l.valido) return null;
+  const p = await apriProxy(buf);
+  if (!l.valido) { p?.input.dispose(); return null; }
+  return p;
 }
 
 /** quanti proxy sono pronti, in lavorazione o in coda, e quanti da avviare (per la barra di stato) */
@@ -272,6 +332,7 @@ export async function proxyDelProgetto(media: MediaItem[]): Promise<Map<string, 
 export async function rimettiProxy(nome: string, len: number, leggi: (a: number, b: number) => Promise<Uint8Array>): Promise<boolean> {
   const dir = await cartella();
   if (!dir || !/^[0-9a-f]{16}$/.test(nome)) return false;
+  return esclusivaProxy(nome, async () => {
   try { const f = await (await dir.getFileHandle(nome)).getFile(); if (f.size === len) return true; } catch { /* non c'è: si copia */ }
   try {
     const fh = await dir.getFileHandle(nome, { create: true });
@@ -281,6 +342,7 @@ export async function rimettiProxy(nome: string, len: number, leggi: (a: number,
     await ws.close();
     return true;
   } catch { return false; }
+  });
 }
 
 /** svuota i proxy salvati (menu Vista): si rifanno quando servono */
