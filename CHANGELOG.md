@@ -4,6 +4,19 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## Non rilasciato · Preparazioni manuali e flussi di lavoro
+
+- **Attività nella libreria**, non in un popover sopra la timeline: selezione dei file e del tipo di preparazione, aggiunta senza avvio, Avvia singolo/batch, Pausa e Riprendi solo dove il motore le supporta, annullamento e scarto delle proposte. I fallimenti parziali restano visibili e riprovabili; i worker senza retry chiedono di tornare alla funzione. Sovraccarica è nei dettagli avanzati.
+- **Montaggio**: spazi Banco completo, Taglio ed Effetti; accesso alle preparazioni e all'AI dalle proprietà. Gli effetti mantengono ricerca, categorie e anteprime del catalogo; forza anche a zero e parametri della censura nelle proprietà.
+- **Finale** parte dalla consegna, con percorso Immagine/Audio/Testi e AI e un pulsante master fisso. Misura colore e Livella volume chiedono esplicitamente le preparazioni necessarie.
+- **LIVE** distingue registrazione, pausa, conto e fermo, mostra le sorgenti collegate e separa configurazione e registrazioni pronte. Il motore di registrazione non cambia.
+- **Montage** in tre passi: file, stile, durata/ordine/musica. Crea anteprima, Rigenera, Tieni e apri, Scarta restano collegati alla timeline vera. Le analisi richieste da Crea sono attività annullabili e pausabili tra i pezzi.
+- **AI** organizzata per compito, con clip esplicita per audio/sfondo e conferma comune prima di elaborare o autorizzare download: modello, ambito, cache, costi indicativi e dettagli progressivi. Nessuna pausa finta per worker non strumentati.
+- **Grana, Nitidezza e Censura** dal motore condiviso monitor/export. Attenzione: la **1.5.7 non applica la censura** dei progetti nuovi; il mosaico non garantisce anonimizzazione irreversibile.
+- Corretto il calcolo del percorso Windows nello script foto (test CLI del percorso, non screenshot eseguiti).
+
+Verifica CLI e limiti in [docs/flussi-ui.md](docs/flussi-ui.md). QA visuale, hardware, export codificato e compatibilità contenitori ancora richiesti: questo elenco non è una dichiarazione di rilascio. Nessun aumento di versione prima della QA.
+
 ## [1.5.7] — 2026-10-21 · Il controllo aggiornamenti non dorme più 🔔
 
 - **Controlla da solo all'apertura e poi ogni 4 ore**, finché l'app resta aperta (prima una volta al giorno, e solo all'apertura).

@@ -1,0 +1,90 @@
+/* Flussi 1.5.8: ogni pannello scorre nel proprio spazio, mai sopra la timeline. */
+:root { --bt-alto: 40px; --lato: 300px; --bin: clamp(250px, 25vw, 420px); --fin: clamp(460px, 48vw, 760px); }
+[hidden] { display: none !important; }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cia); outline-offset: 2px; }
+button, select, summary { touch-action: manipulation; }
+.workflow-azioni { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.banco-vista { max-width: 180px; min-width: 0; padding: 5px; border: 1px solid var(--bordo); background: var(--pann); border-radius: 5px; }
+.testata { gap: 6px; min-width: 0; }
+.testata .pagine { min-width: 0; }
+#app .contenitore, #app .lato, #app .monitor { min-width: 0; }
+.bin-testa { flex-wrap: wrap; }
+.bin-cerca { min-width: 60px; }
+.bin-albero { max-width: 38%; }
+.carta-preparazione { display: block; padding: 3px 6px; white-space: normal; color: var(--testo2); font-size: 11px; }
+.contenitore.att-aperta > :not(.att-pannello) { display: none; }
+.contenitore .att-pannello { position: static; z-index: auto; width: 100%; max-height: none; min-height: 0; height: 100%; border: 0; box-shadow: none; border-radius: 0; overflow: auto; padding: 12px; font-size: 13px; }
+.att-pannello > * { max-width: 100%; }
+.att-pannello header { position: sticky; top: -12px; padding: 8px 0; background: var(--pann); z-index: 1; }
+.att-pannello select { width: 100%; background: var(--pann); padding: 6px; }
+.att-file { max-height: 150px; overflow: auto; margin: 10px 0; border-block: 1px solid var(--bordo); }
+.att-file-riga { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 3px 5px; padding: 6px; }
+.att-file-riga span { overflow-wrap: anywhere; }
+.att-file-riga small { grid-column: 2; color: var(--testo2); }
+.att-riga { margin: 8px 0; padding: 10px; border: 1px solid var(--bordo); border-radius: 6px; overflow-wrap: anywhere; }
+.att-riga p { margin: 5px 0; }
+.att-riga progress { width: 100%; height: 6px; accent-color: var(--cia); }
+.att-riga button { min-height: 28px; }
+.fin-percorso, .fin-esporta-fisso { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; flex-shrink: 0; background: var(--pann); border-block: 1px solid var(--bordo); }
+.fin-dentro { min-width: 0; }
+.fin-menu { order: 0; width: 126px; flex: 0 0 126px; border-right: 1px solid var(--bordo); }
+.fin-corpo { flex: 1; min-width: 0; }
+.fin-voce { display: flex; flex-wrap: wrap; text-align: left; gap: 6px; padding: 10px; }
+.fin-voce small { display: block; flex-basis: 100%; font-size: 11px; color: var(--testo2); }
+.fin-esporta-fisso .nota { flex: 1 1 160px; }
+.fin-percorso .btn-mini { flex: 1 1 90px; }
+.fin-sezione { margin-bottom: 12px; }
+.fin-looks { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.fin-riepilogo .fin-numeri { flex-wrap: wrap; }
+.live-regia { position: sticky; top: 0; z-index: 2; background: var(--pann); padding-bottom: 10px; }
+.live-fase-certa { display: block; padding: 8px; border: 1px solid var(--bordo); border-radius: 6px; font-size: 13px; letter-spacing: .04em; }
+.live-fase-certa[data-fase='registra'] { color: var(--rosso); border-color: var(--rosso); }
+.live-fase-certa[data-fase='pausa'] { color: var(--ambra); border-color: var(--ambra); }
+.live-fonti-stato { font-size: 12px; line-height: 1.5; margin: 8px 0; }
+.live-configurazione, .live-archivio { padding: 10px 0; border-top: 1px solid var(--bordo); }
+.live-configurazione summary, .live-archivio summary { cursor: pointer; color: var(--oro); padding: 8px; }
+.live-tasti { flex-wrap: wrap; }
+.live-tasti .live-btn { min-width: 0; white-space: normal; flex: 1 1 90px; min-height: 36px; }
+.live-tastiera { white-space: normal; }
+.mt-etapes { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+.mt-etapes button[aria-current='step'] { border-color: var(--oro); color: var(--oro); }
+.mt-dentro { display: block; border: 0; margin: 0; min-width: 0; overflow: auto; padding: 10px 12px; }
+.mt-dentro .mt-col { width: 100%; min-width: 0; height: auto; overflow: visible; }
+.mt-dentro .mt-feste { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.mt-colcome { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.mt-colcome > h3, .mt-colcome > .mt-riepilogo { grid-column: 1 / -1; }
+.mt-azioni { flex-wrap: wrap; gap: 8px; }
+.mt-variante { white-space: normal; flex: 1 1 200px; }
+.mt-azioni button { white-space: normal; min-height: 34px; }
+.ai-scelta { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.ai-scelta select { padding: 8px; background: var(--pann); }
+.centro-ai .ai-griglia { display: block; }
+.ai-passo { margin-bottom: 12px; padding: 12px; border: 1px solid var(--bordo); border-radius: 8px; }
+.ai-passo h3 { margin: 0 0 8px; color: var(--oro); }
+.ai-passo p { line-height: 1.5; }
+.ai-passi .dlg-corpo { overflow: auto; }
+.dialogo { max-width: calc(100vw - 24px); }
+.dlg-piede { flex-wrap: wrap; }
+@media (min-width: 900px) and (max-width: 1150px) {
+  :root { --lato: 250px; --bin: 250px; --fin: 500px; --livecol: 340px; }
+  #app[data-pagina='montaggio']:not(.senza-bin):not(.senza-lato) { grid-template-columns: minmax(220px, min(var(--bin), 28vw)) 6px minmax(0, 1fr) 6px minmax(230px, min(var(--lato), 28vw)); }
+  .testata .pagina-btn { padding-inline: 7px; font-size: 12px; }
+  .banco-vista { width: 112px; }
+  .testata .btn-ai span { display: none; }
+  .fin-menu { width: 104px; flex-basis: 104px; }
+  .fin-voce { font-size: 12px; }
+  .live-regia { position: static; }
+}
+@media (min-width: 1151px) and (max-width: 1500px) { .banco-vista { max-width: 145px; } }
+@media (max-width: 899px) {
+  .banco-vista { display: none; }
+  #app.stretto.con-attivita[data-pagina='montaggio'] { grid-template-areas: 'testa' 'bin' 'puls' 'div' 'tl' 'stato' 'tel'; }
+  #app.stretto.con-attivita[data-pagina='montaggio'] .contenitore.att-aperta { display: flex; position: static; grid-area: bin; height: auto; width: auto; max-height: none; z-index: auto; transform: none; visibility: visible; }
+  #app.stretto.con-attivita[data-pagina='montaggio'] .monitor { display: none; }
+  .stretto .fin-dentro { flex-direction: column; }
+  .fin-menu { width: 100%; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; }
+  .fin-voce { flex: 1 1 90px; }
+  .mt-colcome { display: block; }
+  .live-regia { position: static; }
+}
+@media (prefers-reduced-motion: reduce) { .att, .live-fase-certa { animation: none !important; } }

@@ -1,13 +1,15 @@
 // Togliere lo sfondo, la parte che si vede e si clicca: scegliere il modo (colore, luce, AI), il contagocce sul
 // monitor, "trovalo da solo", i clic sull'oggetto, e il lavoro lungo con la barra (src/media/ritaglio.ts).
 // Le proprietà della clip le disegna src/ui/ispettore.ts; qui sta quello che fanno i pulsanti.
+import { confermaAvvioAI } from './aiPassi';
+import { progettoAttuale } from '../media/attivita';
 import { store } from '../core/store';
 import type { Clip, Ritaglio } from '../core/tipi';
 import { clipById, mediaOf, srcTimeAt } from '../core/progetto';
 import { coloreDominante, firmaRitaglio, puoRitagliare, RITAGLIO0, rgbHex } from '../core/sfondo';
 import { motore } from '../motore';
 import { pixelAl, coloreIn } from '../media/campiona';
-import { FIRMA_ANTEPRIMA, elaboraRitaglio, gruppiDi, modelloDiPartenza, modelloRitaglio, provaRitaglio, scaldaRitaglio } from '../media/ritaglio';
+import { FIRMA_ANTEPRIMA, elaboraRitaglio, gruppiDi, modelloDiPartenza, modelloRitaglio, provaRitaglio } from '../media/ritaglio';
 import { impostaMaschere, maschereDi, potaMaschere, ripristinaMaschere } from '../media/maschere';
 import { avviso } from './dom';
 import { BarraLavoro } from './lavoro';
@@ -211,11 +213,11 @@ export function impostaPersona(id: string, persona: boolean) {
   else avvisaScelta();
 }
 
-export function scegliOggetto(id: string) {
+export async function scegliOggetto(id: string) {
   const c = clipById(store.doc, id);
   if (!mioR(c) || c!.ritaglio!.modo !== 'oggetti') return;
-  // il modello si carica adesso, mentre guardi l'immagine: al primo clic la selezione arriva subito
-  void scaldaRitaglio(c!, (fase) => avviso(fase, 'info', 1200)).catch(() => { /* se non si carica lo dirà la prova */ });
+  // Autorizza le prove di questa selezione, senza precaricare il modello.
+  if (!(await autorizzaProva(id))) return;
   const sc: SceltaImmagine = {
     id, continua: true,
     testo: '🖱 Clic = scegli · destro = togli · Alt+clic = NON questo',
@@ -283,13 +285,15 @@ export function azzeraPunti(id: string) {
 
 /** una prova sul fotogramma di adesso (un solo fotogramma: si vede l'oggetto scelto prima di fare tutta la clip) */
 export async function provaOggetto(id: string) {
+  if (!(await autorizzaProva(id))) return;
+  const progetto = progettoAttuale();
   const c = clipById(store.doc, id);
   const r = c?.ritaglio;
   if (!c || !r || !(r.punti ?? []).some((q) => q.dentro)) return;
   try {
     const t = r.da ?? istanteQui(c);
     const esito = await provaRitaglio(store.doc, c, t, (fase) => avviso(fase, 'info', 1200));
-    if (!esito) return;
+    if (!esito || progetto !== progettoAttuale()) return;
     const firma = firmaRitaglio(c.media!, r);
     // la prova vale per tutta la clip finché non si fa il lavoro vero
     impostaMaschere({ firma, w: esito.px.w, h: esito.px.h, t0: 0, dt: 0, n: 1, hz: 0, dati: [esito.mask] }, false);
@@ -310,7 +314,29 @@ export function lavoroDi(id: string) { return lavori.get(id); }
 /** quanti secondi dura l'anteprima degli oggetti */
 export const SECONDI_ANTEPRIMA = 4;
 
+async function confermaSfondo(id: string) {
+  const c = clipById(store.doc, id);
+  const m = c?.ritaglio && modelloRitaglio(c.ritaglio.modello);
+  return !!m && await confermaAvvioAI({ compito: 'Togli lo sfondo', clip: id, modello: m.nome, repo: m.repo[0], dettagli: 'Controlla il risultato sul monitor. Le maschere possono richiedere molto spazio; per gli oggetti scegli i punti dopo aver confermato.' });
+}
+// Un consenso per le prove interattive dello stesso modello, clip e progetto.
+// Cambiare modello/persona richiede un nuovo consenso; i punti non lo invalidano.
+let consensoProva = '';
+const chiaveConsensoProva = (id: string) => {
+  const c = clipById(store.doc, id);
+  return c?.ritaglio ? JSON.stringify([progettoAttuale(), id, c.media, c.ritaglio.modello, c.ritaglio.persona]) : '';
+};
+async function autorizzaProva(id: string): Promise<boolean> {
+  const chiave = chiaveConsensoProva(id);
+  if (!chiave) return false;
+  if (chiave === consensoProva) return true;
+  if (!(await confermaSfondo(id)) || chiave !== chiaveConsensoProva(id)) return false;
+  consensoProva = chiave;
+  return true;
+}
 export async function elaboraClip(id: string, anteprima = false) {
+  if (!(await confermaSfondo(id))) return;
+  const progetto = progettoAttuale();
   const c = clipById(store.doc, id);
   if (!c?.ritaglio || lavori.get(id)?.finito === false) return;
   const lav: Lavoro = { barra: new BarraLavoro(anteprima ? 'Anteprima dello sfondo' : 'Tolgo lo sfondo', 'ai', () => { lav.ferma = true; }), ferma: false, finito: false, anteprima };
@@ -319,10 +345,11 @@ export async function elaboraClip(id: string, anteprima = false) {
   avvisaLavoro();
   const esito = await elaboraRitaglio(store.doc, c, {
     stato: (fase, k) => lav.barra.imposta(fase, k),
-    ferma: () => lav.ferma,
+    ferma: () => lav.ferma || progetto !== progettoAttuale(),
     ...(anteprima ? { anteprima: SECONDI_ANTEPRIMA } : {}),
   });
   lav.finito = true;
+  if (lav.ferma || progetto !== progettoAttuale()) { lav.barra.ferma('Fermato'); avvisaLavoro(); return; }
   if (esito.ok && esito.maschere) {
     lav.barra.fine(`${anteprima ? 'Anteprima pronta' : 'Fatto'}: ${esito.maschere.n} maschere${esito.dispositivo ? ' · ' + esito.dispositivo : ''}`);
     store.edit(anteprima ? 'Anteprima dello sfondo' : 'Sfondo tolto con l\'AI', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.firma = esito.maschere!.firma; });

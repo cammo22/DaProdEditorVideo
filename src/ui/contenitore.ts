@@ -5,7 +5,7 @@
 // timeline; "+" mette al cursore; doppio clic apre il file nel monitor. I file si trascinano nelle cartelle.
 import { store } from '../core/store';
 import { motore } from '../motore';
-import { mediaRT, quandoAnalisi, quandoPicchi } from '../media/libreria';
+import { mediaRT, quandoAnalisi, quandoPicchi, quandoPreparazioni, statoPreparazione } from '../media/libreria';
 import { fotogramma, lascia, quandoFotogramma } from '../media/fotogrammi';
 import { durataUmana, fps } from '../core/timecode';
 import { applicaTransizione, bersagli, inserisciGeneratore, montaDalPlayer, mettiBlocco, modi } from '../azioni';
@@ -115,7 +115,8 @@ export class Contenitore {
       h('header', { class: 'bin-testa' },
         h('button', { class: 'btn primario piccolo', title: 'Importa (Ctrl+I): nella cartella aperta; da Video, Musica o Immagini si scelgono solo quei file', on: { click: () => void importaDialogo(this.cartellaAperta(), this.tipoAperto()) } }, icona('importa', 15), 'Importa'),
         h('button', { class: 'btn-icona piccolo', title: 'Nuova cartella', on: { click: () => void this.nuovaCartella(this.cartellaAperta()) } }, icona('cartellaPiu', 17)),
-        cerca, grand),
+        cerca, grand,
+        h('button', { class: 'btn-mini', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:attivita', { detail: this.sceltiInOrdine() })) } }, 'Prepara file…')),
       h('div', { class: 'bin-corpo' }, this.albero, h('div', { class: 'bin-destra' }, this.barra, this.corpo)));
     this.applicaGrandezza();
     // file dal sistema lasciati cadere sul contenitore: vanno nella cartella aperta
@@ -151,6 +152,7 @@ export class Contenitore {
       if (!this.picchiRaf) this.picchiRaf = requestAnimationFrame(() => { this.picchiRaf = 0; for (const x of this.picchiSporchi) this.ridisegnaCarta(x); this.picchiSporchi.clear(); });
     });
     quandoAnalisi(() => {});
+    quandoPreparazioni(() => this.aggiornaSchede());
     quandoFotogramma(() => { if (this.scorre) this.disegnaScorre(); });
     if (this.nodo.startsWith('dir:') && !cartelleDi().some((c) => 'dir:' + c.id === this.nodo)) this.nodo = 'tutto';
     this.disegnaAlbero();
@@ -397,6 +399,8 @@ export class Contenitore {
       el.classList.toggle('offline', mediaRT(m.id)?.stato !== 'ok');
       const info = el.querySelector('.carta-info');
       if (info) info.textContent = this.infoCarta(m);
+      const prep = el.querySelector('.carta-preparazione');
+      if (prep) prep.textContent = this.preparazioneCarta(m);
       const cv = el.querySelector('canvas');
       if (cv && this.scorre?.cv !== cv) this.locandina(cv, m);
     }
@@ -410,6 +414,10 @@ export class Contenitore {
     if (cv && this.scorre?.cv !== cv) this.locandina(cv, m);
   }
 
+  private preparazioneCarta(m: MediaItem): string {
+    const stato = statoPreparazione(m.id, m.type === 'audio' ? 'picchi' : 'proxy');
+    return stato === 'non-fatta' ? 'Originale · mai elaborato' : stato === 'fatta' ? 'Preparazione pronta ✓' : stato === 'non-serve' ? 'Originale' : 'Preparazione: ' + stato;
+  }
   private infoCarta(m: MediaItem): string {
     const rt = mediaRT(m.id);
     if (rt?.stato !== 'ok') return rt?.stato === 'caricamento' ? 'apro…' : 'OFFLINE · da ricollegare';
@@ -526,6 +534,7 @@ export class Contenitore {
               { nome: 'Togli i file scelti dal contenitore', fn: () => { for (const id of this.sceltiInOrdine()) togliMedia(id); this.scelti.clear(); } },
               { sep: true },
             ] as VoceMenu[] : []),
+            { nome: 'Prepara file scelti… (Attività)', fn: () => document.dispatchEvent(new CustomEvent('dpv:attivita', { detail: this.sceltiInOrdine() })) },
             { nome: 'Apri nel monitor (attacco e stacco)', fn: apri },
             { nome: 'Metti al cursore', fn: () => mettiAlCursore(m) },
             { nome: 'Metti in coda al montaggio', fn: () => { motore.setMonitor('recorder'); store.setHead(projectEnd(store.doc)); mettiAlCursore(m); } },
@@ -541,7 +550,7 @@ export class Contenitore {
     },
       img,
       h('div', { class: 'carta-nome' }, m.name),
-      h('div', { class: 'carta-info' }, this.infoCarta(m)));
+      h('div', { class: 'carta-info' }, this.infoCarta(m)), h('small', { class: 'carta-preparazione' }, this.preparazioneCarta(m)));
     // trascinando un file scelto si portano dietro tutti i file scelti; trascinandone uno non scelto, resta solo quello
     trascinabile(el, () => this.datoTrascina(m.id), () => (this.scelti.size > 1 && this.scelti.has(m.id) ? `🎞 ${this.scelti.size} file` : (m.type === 'audio' ? '🎵 ' : m.type === 'image' ? '🖼 ' : '🎞 ') + m.name));
     return el;

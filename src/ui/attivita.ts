@@ -1,224 +1,129 @@
-// La barra delle attività, in basso a destra: mostra sempre cosa sta facendo il programma dietro le quinte (riaprire i
-// file, forme d'onda, copie leggere, conversioni, sottotitoli…) con una barra e il tempo che manca. Un clic apre il
-// pannello con tutte le righe: a che punto sono, quanto è passato, quanto manca, cosa è in coda, cosa è finito da poco.
-// I dati stanno in src/media/attivita.ts (il registro e le code); qui si disegna e basta.
-import {
-  attivitaFinite, attivitaInCorso, fermaRiga, inAttesaPerRiproduzione, inPausa, inSovraccarico, limitiForti, pausaLavori, puliscoFinite, quandoAttivita, riassunto, sovraccarica,
-  type Attivita, type Categoria,
-} from '../media/attivita';
+// Centro attività nel pannello della libreria: non copre monitor e timeline.
+import { attivitaFinite, attivitaInCorso, attivitaDaAvviare, fermaRiga, avviaRiga, avviaTutte, pausaRiga, riprendiRiga, riprovaRiga, inPausa, pausaLavori, puliscoFinite, quandoAttivita, riassuntoTesto, type Attivita } from '../media/attivita';
+import { NOMI_PREPARAZIONE, PREPARAZIONI, proponiPreparazioni, statoPreparazione, type Preparazione } from '../media/libreria';
+import { agisciBatch, azioniAttivita, type AzioneAttivita } from '../core/flussiUI';
+import { puoRiprovare, inSovraccarico, sovraccarica, scartaDaAvviare } from '../media/attivita';
+import { store } from '../core/store';
 import { durataTesto } from '../core/stima';
-import { avviso, h } from './dom';
+import { h } from './dom';
 
-const ICONE: Record<Categoria, string> = { file: '📂', analisi: '📊', proxy: '🎞', conversione: '🔧', ai: '✨', esporta: '📤', altro: '⚙' };
-const adesso = () => performance.now();
-
-/** il tempo di una riga, in parole: "in coda", "mancano circa 2 min", "da 40 s" */
 export function tempoDi(a: Attivita): string {
-  if (a.stato === 'coda') return 'in coda';
-  const passato = (adesso() - (a.inizio || a.creata)) / 1000;
+  if (a.stato === 'manuale') return 'Da avviare · nessuna elaborazione partita';
+  if (a.stato === 'pausa') return 'In pausa';
+  if (a.pausaRichiesta) return 'Pausa richiesta · finisce il pezzo corrente';
+  if (a.attesaMonitor) return 'In attesa del monitor';
+  if (a.stato === 'coda') return 'In coda';
+  if (a.stato === 'errore') return a.esito || a.messaggio || 'Non riuscita';
+  if (a.stato === 'annullata') return 'Annullata';
+  if (a.stato === 'finita') return a.esito || (a.errori ? `${a.errori} elementi non riusciti` : 'Completata');
   const r = a.stima.restante();
-  if (r !== null) return `mancano circa ${durataTesto(r)}`;
-  return a.k !== null && a.k > 0 ? 'calcolo il tempo…' : `da ${durataTesto(passato)}`;
+  return r === null ? 'Al lavoro' : `Mancano circa ${durataTesto(r)}`;
 }
-
-/** "12 fatti · 2 al lavoro · 26 in coda" per le righe che raccolgono più pezzi */
-function conteggio(a: Attivita): string {
-  if (a.totale <= 1) return '';
-  return `${a.fatte} fatti · ${a.attivi} al lavoro · ${Math.max(0, a.totale - a.fatte - a.attivi)} in coda`;
-}
-
+const NOMI: Record<AzioneAttivita, string> = { avvia: 'Avvia', pausa: 'Pausa', riprendi: 'Riprendi', annulla: 'Annulla', riprova: 'Riprova' };
+const agisci = (a: AzioneAttivita, id: number) => {
+  if (a === 'avvia') avviaRiga(id); // la proposta sparisce; il render successivo usa l'ID del gruppo reale
+  else if (a === 'pausa') pausaRiga(id);
+  else if (a === 'riprendi') riprendiRiga(id);
+  else if (a === 'riprova') riprovaRiga(id);
+  else fermaRiga(id);
+};
 class RigaVista {
-  readonly el: HTMLElement;
-  private titolo = h('b', { class: 'att-r-titolo' });
-  private dett = h('span', { class: 'att-r-dett' });
-  private riempi = h('i');
-  private pct = h('span', { class: 'att-r-pct' });
-  private info = h('span', { class: 'att-r-info' });
-  private stop: HTMLButtonElement;
-  constructor(readonly a: Attivita) {
-    this.stop = h('button', { class: 'att-r-stop', title: 'Ferma questa attività', on: { click: (e: MouseEvent) => { e.stopPropagation(); fermaRiga(a.id); } } }, '✕');
-    this.el = h('div', { class: 'att-riga' },
-      h('div', { class: 'att-r-testa' }, h('span', { class: 'att-r-ic' }, ICONE[a.categoria]), this.titolo, this.pct, a.annullabile ? this.stop : null),
-      this.dett,
-      h('div', { class: 'att-pista' }, this.riempi),
-      this.info);
-    this.aggiorna();
-  }
+  readonly el = h('article', { class: 'att-riga' });
+  private titolo = h('b');
+  private dettaglio = h('p', { class: 'nota' });
+  private stato = h('p');
+  private progress = h('progress', { max: 1 });
+  private comandi = h('div', { class: 'workflow-azioni' });
+  private firma = '';
+  constructor(private a: Attivita) { this.el.append(this.titolo, this.dettaglio, this.stato, this.progress, this.comandi); this.aggiorna(); }
   aggiorna() {
     const a = this.a;
     this.titolo.textContent = a.titolo;
-    this.dett.textContent = a.dettaglio;
-    this.el.classList.toggle('in-coda', a.stato === 'coda');
-    this.el.classList.toggle('indeterminata', a.k === null && a.stato === 'lavoro');
-    this.riempi.style.width = a.k === null ? '' : Math.round(a.k * 100) + '%';
-    this.pct.textContent = a.k === null ? '' : Math.round(a.k * 100) + '%';
-    const passato = a.stato === 'coda' ? '' : `passati ${durataTesto((adesso() - (a.inizio || a.creata)) / 1000)} · `;
-    const quanti = conteggio(a);
-    this.info.textContent = `${passato}${tempoDi(a)}${quanti ? ' · ' + quanti : ''}`;
+    this.dettaglio.textContent = a.dettaglio;
+    this.stato.textContent = tempoDi(a);
+    if (a.k === null) this.progress.removeAttribute('value'); else this.progress.value = a.k;
+    this.progress.hidden = !['lavoro', 'coda', 'pausa'].includes(a.stato);
+    const azioni = azioniAttivita({ ...a, capacita: { ...a.capacita, riprova: a.capacita.riprova && puoRiprovare(a.id) } }), firma = azioni.join();
+    if ((a.stato === 'errore' || a.errori > 0) && !azioni.includes('riprova')) this.stato.textContent += ' · Torna alla funzione per scegliere le opzioni e avviare di nuovo.';
+    if (firma !== this.firma) {
+      this.firma = firma;
+      this.comandi.replaceChildren(...azioni.map((azione) => h('button', { class: 'btn-mini', title: azione === 'pausa' && a.capacita.pausa === 'ai-confini' ? 'Si ferma dopo il pezzo corrente, senza rifarlo alla ripresa' : NOMI[azione], on: { click: () => agisci(azione, a.id) } }, NOMI[azione])));
+    }
   }
 }
 
 export class CentroAttivita {
-  /** il pezzo da mettere nella barra di stato */
-  readonly el: HTMLElement;
-  private led = h('span', { class: 'att-led' });
-  private testo = h('span', { class: 'att-testo' }, 'Nessuna attività');
-  private riempi = h('i');
-  private pista = h('span', { class: 'att-pista' }, this.riempi);
-  private tempo = h('span', { class: 'att-tempo' });
-  private altre = h('span', { class: 'att-altre' });
+  readonly el = h('button', { class: 'att', 'aria-expanded': 'false', on: { click: () => this.aperto ? this.chiudi() : document.dispatchEvent(new CustomEvent('dpv:attivita')) } });
   private pannello: HTMLElement | null = null;
-  private vive = new Map<number, RigaVista>();
-  private listaVive = h('div', { class: 'att-lista' });
-  private listaFinite = h('div', { class: 'att-finite' });
-  private nota = h('p', { class: 'att-nota' });
-  private firmaFinite: string | null = null;
-  private bPausa = h('button', { class: 'btn piccolo', on: { click: () => { pausaLavori(!inPausa()); this.aggiorna(); } } });
-  private bForza = h('button', {
-    class: 'btn piccolo att-forza',
-    title: 'Mette tutto il computer (processore e scheda video) a fare le copie e le conversioni, più file insieme e senza aspettare quando il montaggio suona. Utile all\'inizio, quando carichi tanti file. Si spegne da solo quando finisce.',
-    on: { click: () => { sovraccarica(!inSovraccarico()); this.aggiorna(); } },
-  });
-
-  constructor() {
-    this.el = h('button', { class: 'att att-ferma', title: 'Cosa sta facendo il programma · clic per i dettagli e i tempi', on: { click: () => { this.alterna(); this.el.blur(); } } },
-      this.led, this.testo, this.pista, this.tempo, this.altre);
+  private lista = h('div', { class: 'att-lista' });
+  private file = h('div', { class: 'att-file' });
+  private scelti = new Set<string>();
+  private tipo = h('select', { 'aria-label': 'Tipo di preparazione', on: { change: () => this.disegnaFile() } }, PREPARAZIONI.map((p) => h('option', { value: p }, NOMI_PREPARAZIONE[p])));
+  private viste = new Map<number, RigaVista>();
+  private firmaFile = '';
+  private pausa = h('button', { class: 'btn-mini', on: { click: () => pausaLavori(!inPausa()) } });
+  private turbo = h('button', { class: 'btn-mini', on: { click: () => sovraccarica(!inSovraccarico()) } });
+  constructor(private host: HTMLElement) {
     quandoAttivita(() => this.aggiorna());
-    document.addEventListener('dpv:sovraccarico', (e) => {
-      const d = (e as CustomEvent<{ on: boolean; daSolo: boolean }>).detail;
-      if (d.on) avviso('⚡ Sovraccarica: tutto il computer lavora per le conversioni', 'info', 2600);
-      else if (d.daSolo) avviso('⚡ Finito: Sovraccarica si è spento da solo', 'ok', 3200);
-      this.aggiorna();
+    store.on('doc', () => { if (this.aperto) this.disegnaFile(); });
+    document.addEventListener('dpv:attivita', (e) => {
+      const ids = (e as CustomEvent<string[] | undefined>).detail;
+      if (ids) this.scelti = new Set(ids);
+      this.firmaFile = ''; this.apri(); this.disegnaFile();
     });
-    // i secondi passano solo mentre si lavora: a lavoro finito nessun timer resta acceso (l'elenco delle finite ha l'ora e
-    // la durata scritte una volta sola, non un "x fa" che cammina)
-    document.addEventListener('pointerdown', (e) => {
-      if (this.pannello && !this.pannello.contains(e.target as Node) && !this.el.contains(e.target as Node)) this.chiudi();
-    });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && this.pannello) this.chiudi(); });
     this.aggiorna();
   }
-
   get aperto() { return !!this.pannello; }
-
-  /** il battito del secondo: gira solo se c'è qualcosa in corso (per far camminare i tempi) e si ferma da solo */
-  private battito = 0;
-  /** il ritorno alla scritta "Nessuna attività" dopo il ✓ (una volta sola, non un controllo a tempo) */
-  private riposo = 0;
-  private armaBattito() {
-    if (this.battito || !attivitaInCorso().length) return;
-    this.battito = window.setInterval(() => {
-      if (!attivitaInCorso().length) { clearInterval(this.battito); this.battito = 0; }
-      this.aggiorna();
-    }, 1000);
-  }
-
-  aggiorna() {
-    this.armaBattito();
-    const r = riassunto();
-    const ultima = attivitaFinite()[0];
-    const el = this.el;
-    const attesa = inAttesaPerRiproduzione();
-    el.classList.toggle('sovraccarico', inSovraccarico());
-    el.classList.toggle('att-pausa', r.righe > 0 && (r.inPausa || (attesa && r.principale?.categoria === 'proxy')));
-    if (r.righe && r.principale) {
-      const p = r.principale;
-      el.classList.remove('att-ferma', 'att-fatto');
-      el.classList.toggle('indeterminata', p.k === null);
-      this.testo.textContent = p.titolo + (p.dettaglio ? ' · ' + p.dettaglio : '');
-      this.riempi.style.width = p.k === null ? '' : Math.round(p.k * 100) + '%';
-      this.tempo.textContent = (p.k !== null ? Math.round(p.k * 100) + '% · ' : '') + (r.inPausa ? 'in pausa' : tempoDi(p));
-      this.altre.textContent = r.righe > 1 ? `+${r.righe - 1}` : '';
-      this.altre.title = r.righe > 1 ? `${r.righe - 1} altre attività in corso o in coda` : '';
-    } else if (ultima && adesso() - ultima.fine < 7000) {
-      clearTimeout(this.riposo);
-      this.riposo = window.setTimeout(() => this.aggiorna(), 7000 - (adesso() - ultima.fine) + 50);
-      el.classList.remove('att-ferma', 'indeterminata');
-      el.classList.add('att-fatto');
-      this.testo.textContent = `${ultima.stato === 'errore' ? '✕' : '✓'} ${ultima.titolo}${ultima.messaggio ? ' · ' + ultima.messaggio : ''}`;
-      this.riempi.style.width = ultima.stato === 'finita' ? '100%' : '0%';
-      this.tempo.textContent = '';
-      this.altre.textContent = '';
-    } else {
-      el.classList.remove('att-fatto', 'indeterminata');
-      el.classList.add('att-ferma');
-      this.testo.textContent = 'Nessuna attività';
-      this.riempi.style.width = '0%';
-      this.tempo.textContent = '';
-      this.altre.textContent = '';
-    }
-    if (this.pannello) this.disegnaPannello();
-  }
-
-  private alterna() { if (this.pannello) this.chiudi(); else this.apri(); }
-
   apri() {
     if (this.pannello) return;
-    this.pannello = h('section', { class: 'att-pannello', role: 'dialog', 'aria-label': 'Attività del programma' },
-      h('header', { class: 'att-p-testa' }, h('b', null, 'Attività'), h('span', { class: 'att-p-sotto' }), this.bForza, this.bPausa,
-        h('button', { class: 'btn piccolo', title: 'Toglie dall\'elenco quelle già finite', on: { click: () => puliscoFinite() } }, 'Pulisci'),
-        h('button', { class: 'btn-icona piccolo', title: 'Chiudi (Esc)', on: { click: () => this.chiudi() } }, '✕')),
-      this.nota, this.listaVive, h('h5', { class: 'att-p-titolo' }, 'Finite da poco'), this.listaFinite);
-    document.body.appendChild(this.pannello);
-    this.disegnaPannello();
+    this.host.classList.add('att-aperta');
+    this.host.closest('#app')?.classList.add('con-attivita');
+    this.el.setAttribute('aria-expanded', 'true');
+    this.pannello = h('section', { class: 'att-pannello', 'aria-label': 'Attività', on: { keydown: (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); this.chiudi(); } } } },
+      h('header', { class: 'workflow-azioni' }, h('b', null, 'Attività'), h('button', { class: 'btn-mini', on: { click: () => this.chiudi() } }, 'Torna alla libreria')),
+      h('p', { class: 'nota' }, 'Importare non avvia elaborazioni. Scegli file e preparazione: aggiungi le righe, poi avviale quando vuoi.'),
+      h('label', null, 'Preparazione ', this.tipo),
+      h('div', { class: 'workflow-azioni' }, h('button', { class: 'btn-mini', on: { click: () => { this.scelti = new Set(store.doc.media.map((m) => m.id)); this.firmaFile = ''; this.disegnaFile(); } } }, 'Tutti i file'), h('button', { class: 'btn-mini', on: { click: () => { this.scelti.clear(); this.firmaFile = ''; this.disegnaFile(); } } }, 'Nessuno')),
+      this.file,
+      h('button', { class: 'btn', on: { click: () => { proponiPreparazioni([...this.scelti], this.tipo.value as Preparazione); this.aggiorna(); } } }, 'Aggiungi da avviare'),
+      h('div', { class: 'workflow-azioni' },
+        h('button', { class: 'btn-mini', on: { click: () => avviaTutte({ media: [...this.scelti] }) } }, 'Avvia righe dei file scelti'),
+        h('button', { class: 'btn-mini', on: { click: () => scartaDaAvviare({ media: [...this.scelti] }) } }, 'Scarta proposte dei file scelti'),
+        ...(['pausa', 'riprendi', 'annulla'] as const).map((a) => h('button', { class: 'btn-mini', on: { click: () => agisciBatch(attivitaInCorso(), a, agisci) } }, NOMI[a] + ' attività in corso'))),
+      this.pausa, h('details', null, h('summary', null, 'Prestazioni avanzate'), h('p', { class: 'nota' }, 'Sovraccarica aumenta il numero di lavori simultanei: il monitor può rallentare.'), this.turbo), this.lista,
+      h('button', { class: 'btn-mini', on: { click: () => puliscoFinite() } }, 'Pulisci lo storico'));
+    this.host.append(this.pannello);
+    this.aggiorna();
+    this.pannello.querySelector('button')?.focus();
   }
-
   chiudi() {
-    this.pannello?.remove();
-    this.pannello = null;
-    // anche le righe disegnate vanno via: la lista resta viva fra un'apertura e l'altra, e una riga rimasta lì
-    // (senza più la sua RigaVista) non verrebbe mai tolta → "caricamenti" fermi sotto "non sta facendo niente"
-    this.vive.clear();
-    this.listaVive.replaceChildren();
-    this.firmaFinite = null;
+    this.pannello?.remove(); this.pannello = null;
+    this.host.closest('#app')?.classList.remove('con-attivita');
+    this.host.classList.remove('att-aperta'); this.el.setAttribute('aria-expanded', 'false'); this.el.focus();
   }
-
-  private disegnaPannello() {
-    const p = this.pannello;
-    if (!p) return;
-    // il pannello sta sopra il pezzo nella barra di stato, attaccato a destra, sempre dentro lo schermo
-    const r = this.el.getBoundingClientRect();
-    p.style.right = Math.max(6, innerWidth - r.right) + 'px';
-    p.style.bottom = Math.max(6, innerHeight - r.top + 6) + 'px';
-    // le righe in corso: si aggiornano al loro posto (così un clic su ✕ non si perde mentre si ridisegna)
-    const attuali = attivitaInCorso();
-    const ids = new Set(attuali.map((a) => a.id));
-    for (const [id, v] of this.vive) if (!ids.has(id)) { v.el.remove(); this.vive.delete(id); }
-    for (const a of attuali) {
-      let v = this.vive.get(a.id);
-      if (!v) { v = new RigaVista(a); this.vive.set(a.id, v); this.listaVive.appendChild(v.el); }
-      v.aggiorna();
-    }
-    // al lavoro prima, poi in coda
-    const ordinate = [...attuali].sort((x, y) => (x.stato === 'coda' ? 1 : 0) - (y.stato === 'coda' ? 1 : 0) || x.creata - y.creata);
-    ordinate.forEach((a, i) => { const e = this.vive.get(a.id)!.el; if (this.listaVive.children[i] !== e) this.listaVive.insertBefore(e, this.listaVive.children[i] ?? null); });
-    if (!attuali.length) {
-      if (!this.listaVive.querySelector('.att-vuoto')) this.listaVive.appendChild(h('p', { class: 'att-vuoto' }, 'Il programma non sta facendo niente: tutto è pronto.'));
-    } else this.listaVive.querySelector('.att-vuoto')?.remove();
-    const rs = riassunto();
-    (p.querySelector('.att-p-sotto') as HTMLElement).textContent = attuali.length ? `${rs.inCorso} al lavoro · ${rs.inCoda} in coda` : '';
-    this.bForza.textContent = inSovraccarico() ? '⚡ Sovraccarico acceso' : '⚡ Sovraccarica';
-    this.bForza.classList.toggle('acceso', inSovraccarico());
-    this.bPausa.textContent = inPausa() ? '▶ Riprendi' : '⏸ Pausa';
-    this.bPausa.title = inPausa() ? 'Fa ripartire i lavori in coda' : 'Non parte nessun lavoro nuovo (quelli al lavoro finiscono)';
-    this.nota.textContent = inPausa()
-      ? 'In pausa: i lavori in coda aspettano. Quelli già partiti finiscono.'
-      : inSovraccarico()
-        ? `Sovraccarico: fino a ${limitiForti().pesante} conversioni e ${limitiForti().leggero} analisi insieme, senza aspettare il montaggio. Si spegne da solo quando finisce.`
-        : inAttesaPerRiproduzione() && attuali.some((a) => a.categoria === 'proxy' || a.categoria === 'conversione')
-        ? 'Il montaggio sta suonando: le copie e le conversioni aspettano che ti fermi, per non rubare il decoder.'
-        : '';
-    this.nota.style.display = this.nota.textContent ? '' : 'none';
-    // le finite: l'ora e la durata sono scritte una volta, l'elenco si rifà solo se è cambiato
-    const fin = attivitaFinite();
-    const firma = fin.map((a) => a.id + a.stato + a.finitaAlle).join('|');
-    if (firma === this.firmaFinite) return;
-    this.firmaFinite = firma;
-    const ora = (t: number) => new Date(t).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    this.listaFinite.replaceChildren(...(fin.length ? fin.map((a) => h('div', { class: 'att-f ' + a.stato, title: `Finita alle ${ora(a.finitaAlle)}` },
-      h('span', { class: 'att-f-seg' }, a.stato === 'finita' ? '✓' : a.stato === 'errore' ? '✕' : '–'),
-      h('span', { class: 'att-f-nome' }, a.titolo, a.esito && a.stato !== 'annullata' ? h('em', { class: 'att-f-msg' }, ' · ' + a.esito) : null),
-      h('span', { class: 'att-f-dur' }, a.stato === 'annullata' ? 'fermata' : `${a.stato === 'errore' ? 'si è fermata dopo' : 'ci ha messo'} ${durataTesto(a.durata)}`),
-      h('span', { class: 'att-f-quando' }, ora(a.finitaAlle)))) : [h('p', { class: 'att-vuoto' }, 'Ancora niente.')]));
+  private disegnaFile() {
+    const tipo = this.tipo.value as Preparazione;
+    const files = store.doc.media;
+    for (const id of this.scelti) if (!files.some((m) => m.id === id)) this.scelti.delete(id);
+    const firma = JSON.stringify(files.map((m) => [m.id, m.name, statoPreparazione(m.id, tipo), this.scelti.has(m.id)]));
+    if (firma === this.firmaFile) return;
+    this.firmaFile = firma;
+    this.file.replaceChildren(...files.map((m) => {
+      const s = statoPreparazione(m.id, tipo);
+      return h('label', { class: 'att-file-riga' }, h('input', { type: 'checkbox', checked: this.scelti.has(m.id), on: { change: (e: Event) => { (e.target as HTMLInputElement).checked ? this.scelti.add(m.id) : this.scelti.delete(m.id); } } }), h('span', null, m.name), h('small', null, s === 'non-fatta' ? 'Mai elaborato' : s === 'non-serve' ? 'Non necessaria / non disponibile' : s));
+    }));
+  }
+  aggiorna() {
+    this.el.textContent = 'Attività · ' + riassuntoTesto();
+    if (!this.pannello) return;
+    this.pausa.textContent = inPausa() ? 'Consenti nuovi avvii' : 'Non avviare altro';
+    this.pausa.title = 'Ferma solo le partenze in coda, non le attività già al lavoro';
+    this.turbo.textContent = inSovraccarico() ? 'Disattiva Sovraccarica' : 'Sovraccarica';
+    this.turbo.setAttribute('aria-pressed', String(inSovraccarico()));
+    this.disegnaFile();
+    const righe = [...attivitaDaAvviare(), ...attivitaInCorso(), ...attivitaFinite()];
+    const ids = new Set(righe.map((r) => r.id));
+    for (const [id, v] of this.viste) if (!ids.has(id)) { v.el.remove(); this.viste.delete(id); }
+    for (const r of righe) { let v = this.viste.get(r.id); if (!v) { v = new RigaVista(r); this.viste.set(r.id, v); this.lista.append(v.el); } v.aggiorna(); }
   }
 }

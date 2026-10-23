@@ -2,10 +2,11 @@
 //   npm run build && node test/foto.mjs
 import { chromium } from 'playwright';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { servi } from './servi.mjs';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'test/.out');
 fs.mkdirSync(OUT, { recursive: true });
 const srv = await servi(path.join(ROOT, 'dist'));

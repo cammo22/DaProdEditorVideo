@@ -25,6 +25,7 @@ import '@fontsource/cormorant-garamond/latin-500-italic.css';
 import '@fontsource/great-vibes/latin-400.css';
 import '@fontsource/caveat/latin-700.css';
 import './stile/editor.css';
+import './stile/flussi.css';
 import { avvia } from './ui/app';
 import { h } from './ui/dom';
 import { isTauri } from './platform';

@@ -666,6 +666,7 @@ export function pausaGruppo(g: string) { for (const r of righe.filter((x) => x.g
 export function riprendiGruppo(g: string) { for (const r of righe.filter((x) => x.gruppo === g)) riprendiRiga(r.id); }
 
 /** Riprova su una riga finita con errori: rimette in coda SOLO i pezzi andati male. Ritorna quanti */
+export function puoRiprovare(id: number): boolean { return !!falliti.get(id)?.length; }
 export function riprovaRiga(id: number): number {
   const lista = falliti.get(id);
   if (!lista?.length) return 0;

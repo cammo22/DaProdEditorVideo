@@ -6,7 +6,7 @@
 import { store } from '../core/store';
 import type { Clip } from '../core/tipi';
 import { isVideoClip } from '../core/progetto';
-import * as M from '../core/montaggio';
+import { clipEsplicita } from '../core/flussiUI';
 import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
@@ -44,29 +44,13 @@ const haAudio = () => store.doc.clips.some((c) => c.kind === 'media' && store.do
 const haSottotitoli = () => sottotitoliDi(store.doc).righe.some((r) => r.testo.trim());
 
 /** la clip su cui lavorare: quella scelta (video o immagine), o quella più in alto sotto il cursore (e la si sceglie) */
-export function clipVideoDaUsare(scegli = true) {
-  const p = store.doc;
-  const scelta = p.clips.find((c) => store.sel.has(c.id) && c.kind === 'media' && isVideoClip(c, p));
-  if (scelta) return scelta;
-  const sotto = M.topClipAt(p, Math.round(store.head), 'video');
-  const c = sotto && sotto.kind === 'media' ? sotto : undefined;
-  if (c && scegli) store.select([c.id]);
-  return c;
+export function clipVideoDaUsare(_scegli = true) {
+  return clipEsplicita(store.doc.clips, store.sel, (c) => c.kind === 'media' && isVideoClip(c, store.doc));
 }
-
-/** la clip audio su cui lavorare: quella scelta (o la ripresa con l'audio), o quella più in alto sotto il cursore (e la si sceglie) */
-export function clipAudioDaUsare(scegli = true) {
-  const p = store.doc;
-  const buona = (c: Clip) => possibilita(c, p).rumore;
-  const scelta = p.clips.find((c) => store.sel.has(c.id) && buona(c));
-  if (scelta) return scelta;
-  const f = Math.round(store.head);
-  const sotto = M.topClipAt(p, f, 'audio') ?? M.topClipAt(p, f, 'video');
-  const c = sotto && buona(sotto) ? sotto : undefined;
-  if (c && scegli) store.select([c.id]);
-  return c;
+export function clipAudioDaUsare(_scegli = true) {
+  return clipEsplicita(store.doc.clips, store.sel, (c: Clip) => possibilita(c, store.doc).rumore);
 }
-const MANCA_AUDIO = 'Scegli una clip audio (o una ripresa con l\'audio) nella timeline, o mettici sopra il cursore';
+const MANCA_AUDIO = 'Scegli una clip audio (o una ripresa con l\'audio) nella timeline: la selezione deve essere esplicita';
 
 export const FUNZIONI_AI: FunzioneAI[] = [
   {
@@ -134,7 +118,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   {
     id: 'colore', nome: 'Colore automatico', icona: '🎨', dove: 'locale',
     cosaFa: 'Sistema livelli, bianco e luce di ogni ripresa da solo, perché tutte stiano bene insieme.',
-    come: ['F9 apre il Finale → Colore', 'Lascia acceso "Colore automatico"', 'Scegli un look se vuoi un tono'],
+    come: ['F9 apre il Finale → Colore', 'Accendi Colore automatico e premi Misura ora', 'Scegli un look se vuoi un tono'],
     manca: () => null,
     apri: () => vaiFinale('colore'),
   },
@@ -147,6 +131,15 @@ const DOVE: Record<FunzioneAI['dove'], string> = { tutto: 'app e browser', app: 
 export function finestraCentroAI(subito = false) {
   const d = dialogo('Centro AI · tutte le funzioni intelligenti', { largo: true });
   d.el.classList.add('centro-ai');
+  const selezione = h('select', { 'aria-label': 'Clip su cui usare AI', on: { change: () => { store.select(selezione.value ? [selezione.value] : []); aggiornaPrerequisiti(); } } },
+    h('option', { value: '' }, 'Scegli una clip per audio, sfondo o tracking'),
+    store.doc.clips.filter((c) => c.kind === 'media').map((c) => h('option', { value: c.id }, c.name)));
+  selezione.value = store.sel.size === 1 ? [...store.sel][0] : '';
+  const compito = h('select', { 'aria-label': 'Cosa vuoi fare', on: { change: () => carte.forEach((c) => { c.hidden = c.dataset.ai !== compito.value; }) } }, FUNZIONI_AI.map((f) => h('option', { value: f.id }, f.nome)));
+  const aggiornaPrerequisiti = () => carte.forEach((c) => {
+    const f = FUNZIONI_AI.find((f) => f.id === c.dataset.ai)!;
+    c.querySelector('.ai-manca')!.textContent = f.manca() ?? 'Pronto per scegliere modello e opzioni';
+  });
   const stati = new Map<string, HTMLElement>();
   const carte = FUNZIONI_AI.map((f) => {
     const stato = h('div', { class: 'ai-stato' }, f.modelli ? 'controllo i modelli…' : '');
@@ -166,8 +159,8 @@ export function finestraCentroAI(subito = false) {
       h('ol', { class: 'ai-come' }, f.come.map((c) => h('li', null, c))),
       stato,
       modello,
-      motivo ? h('p', { class: 'ai-manca' }, '⚠ ', motivo) : null,
-      h('button', { class: 'btn primario ai-usa', on: { click: () => { d.chiudi(); f.apri(); } } }, motivo ? 'Mostrami dove ▶' : 'Usa ▶'));
+      h('p', { class: 'ai-manca' }, motivo ?? 'Pronto per scegliere modello e opzioni'),
+      h('button', { class: 'btn primario ai-usa', on: { click: () => { const manca = f.manca(); if (manca) { avviso(manca, 'info', 4000); return; } d.chiudi(); f.apri(); } } }, 'Scegli opzioni e modello →'));
   });
 
   // ——— lo stato dei modelli (dalla cache) e del motore NVIDIA
@@ -233,6 +226,8 @@ export function finestraCentroAI(subito = false) {
 
   d.corpo.append(
     h('p', { class: 'ai-intro' }, 'Tutte le funzioni AI di DaProd Video. Girano sul tuo computer: le immagini, l\'audio e i testi non vanno da nessuna parte. Ogni modello si scarica una volta sola (serve internet la prima volta), poi va anche senza rete.'),
+    h('label', { class: 'ai-scelta' }, 'Cosa vuoi fare ', compito),
+    h('label', { class: 'ai-scelta' }, 'Clip esplicita (non serve per i sottotitoli del montaggio) ', selezione),
     h('div', { class: 'ai-griglia' }, carte),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, controlla, h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione per i modelli, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
@@ -240,6 +235,7 @@ export function finestraCentroAI(subito = false) {
       h('div', { class: 'ai-imp' }, spazio, svuota),
       nvidia));
   d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
+  carte.forEach((c) => { c.hidden = c.dataset.ai !== compito.value; });
   if (subito) void fai();
   return d;
 }

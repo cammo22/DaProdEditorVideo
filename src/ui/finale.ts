@@ -1,6 +1,8 @@
 // La pagina Finale: la schermata dove si guarda il montaggio intero, si fanno i ritocchi che valgono per
 // tutto (colore automatico, look, luce e colore, audio finale) e si esporta. Il monitor è lo stesso del
 // montaggio (con il "prima | dopo"), la timeline resta sotto per spostarsi al volo.
+import { progettoAttuale } from '../media/attivita';
+import { confermaAvvioAI } from './aiPassi';
 import { store } from '../core/store';
 import type { LookFinale, Master, Project, Sottotitoli } from '../core/tipi';
 import { MASTER0, TITLE0, end, isVideoClip, masterDi, newClip, projectEnd, trackOf, uid } from '../core/progetto';
@@ -18,7 +20,7 @@ import { importaDialogo, importaFile } from '../progetti';
 import { BarraLavoro } from './lavoro';
 import { durataUmana, f2s, fps, frameToTc } from '../core/timecode';
 import { LOOKS } from '../render/colore';
-import { mediaRT } from '../media/libreria';
+import { mediaRT, preparaOra, senzaColoreMisurato, quandoPreparazioni } from '../media/libreria';
 import { motore } from '../motore';
 import { volumeLivellato } from '../effetti';
 import { finestraEsporta, esportaEdl, esportaFotogramma } from './dialoghi';
@@ -69,7 +71,7 @@ export class Finale {
   private formato = 'mp4';
   private qualita = 'alta';
   private misura = '1';
-  private sezione: Sezione = 'colore';
+  private sezione: Sezione = 'esporta';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
@@ -84,8 +86,12 @@ export class Finale {
     }, icona(z.icona, 19), h('span', null, z.nome))));
     this.el = h('section', { class: 'pannello finale' },
       h('header', { class: 'fin-testa' }, icona('finale', 18), h('b', null, 'FINALE'), h('span', null, 'ritocchi su tutto il montaggio, poi esporta')),
-      h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
-    this.mostra('colore');
+      h('nav', { class: 'fin-percorso', 'aria-label': 'Passi di finitura' },
+        ...([['colore', '1 · Immagine'], ['audio', '2 · Audio'], ['sottotitoli', '3 · Testi e AI'], ['esporta', '4 · Consegna']] as [Sezione, string][]).map(([id, nome]) => h('button', { class: 'btn-mini', on: { click: () => this.mostra(id) } }, nome))),
+      h('div', { class: 'fin-dentro' }, this.menu, this.corpo),
+      h('footer', { class: 'fin-esporta-fisso' }, h('button', { class: 'btn primario', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, 'Esporta il master…'), h('span', { class: 'nota' }, 'Controlla formato e stima prima di avviare')));
+    this.mostra('esporta');
+    quandoPreparazioni(() => this.aggiornaRiepilogo());
     store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); });
     store.on('head', () => this.segnaRigaCorrente());
   }
@@ -134,7 +140,7 @@ export class Finale {
       return pagina(
         sez('Colore automatico', 'effetti', auto,
           this.cursore('Forza', 0, 100, (m) => Math.round(m.autoK * 100), (m, v) => { m.autoK = v / 100; }, '%'),
-          h('p', { class: 'nota' }, 'Ogni ripresa viene misurata: nero, bianco e luce si sistemano da soli, così le clip si somigliano. Una clip può fare eccezione dal suo tasto "fx".')),
+          h('button', { class: 'btn', on: { click: async () => { await preparaOra(senzaColoreMisurato(store.doc), 'colore'); this.aggiornaRiepilogo(); } } }, 'Misura ora le riprese'), h('p', { class: 'nota' }, 'Accendere il colore non avvia analisi. Senza misure la ripresa resta neutra. Misura ora è una richiesta esplicita: avanzamento e annullamento in Attività.')),
         sez('Look di tutto il montaggio', 'immagine', looks,
           this.cursore('Intensità', 0, 100, (m) => Math.round(m.intensita * 100), (m, v) => { m.intensita = v / 100; }, '%')),
         sez('Ritocchi', 'ingranaggio',
@@ -165,7 +171,7 @@ export class Finale {
       this.scelte('Formato', [['mp4', 'MP4'], ['mov', 'MOV'], ['webm', 'WebM'], ['wav', 'Solo audio']], () => this.formato, (v) => { this.formato = v; }),
       this.scelte('Qualità', [['media', 'Leggera'], ['alta', 'Alta'], ['altissima', 'Master']], () => this.qualita, (v) => { this.qualita = v; }),
       this.scelte('Misura', [['1', 'Come il progetto'], ['0.5', 'Metà']], () => this.misura, (v) => { this.misura = v; }),
-      h('button', { class: 'btn primario fin-vai', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, icona('esporta', 18), 'ESPORTA IL MASTER'),
+      h('p', { class: 'nota' }, 'Pronto? Esporta il master dal pulsante fisso qui sotto. La finestra successiva mostra le stime prima di avviare.'),
       h('div', { class: 'fin-altri' },
         h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
         h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
@@ -341,6 +347,10 @@ export class Finale {
     if (!p.clips.some((c) => c.kind === 'media' && store.doc.tracks.find((t) => t.id === c.track)?.kind === 'audio')) { avviso('Nel montaggio non c\'è audio da ascoltare', 'info', 2400); return; }
     const scritte = sottotitoliDi(p).righe.filter((x) => x.testo.trim()).length;
     if (scritte && !(await conferma('Sottotitoli con l\'AI', `Ci sono già ${scritte} righe scritte: l'AI le rifà tutte da capo (con Ctrl+Z tornano).`, 'Rifalle', 'Lascia stare'))) return;
+    const modello = MODELLI.find((m) => m.id === this.ai.modello);
+    if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: 'Audio di tutto il montaggio · sostituisce le righe esistenti', modello: this.motoreAI() === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? this.ai.modello, repo: modello?.id, mb: modello?.mb }))) return;
+    if (this.lavoroAI) return;
+    const progetto = progettoAttuale();
     const ctrl = new AbortController();
     this.lavoroAI = ctrl;
     vai.disabled = true;
@@ -350,6 +360,7 @@ export class Finale {
     const o: OpzioniVoce = { ...this.ai, motore: this.motoreAI() };
     try {
       const righe = await sottotitoliAI(structuredClone(store.doc), o, stato, ctrl.signal);
+      if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
       if (!righe.length) { avviso('Non ho sentito parole nel montaggio', 'info', 2600); lavoro.ferma('Nessuna parola trovata'); return; }
       const traduzione = o.motore === 'whisper' && o.traduci && o.lingua === 'it';
       this.cambiaSott('Sottotitoli con l\'AI', (x) => { x.righe = righe; x.lingua = traduzione ? 'en' : (o.lingua === 'auto' ? x.lingua : o.lingua); });
@@ -427,6 +438,9 @@ export class Finale {
     if (!sottotitoliDi(p).righe.some((x) => x.testo.trim())) { avviso('Prima servono i sottotitoli: scrivili qui, o fatti aiutare dall\'AI', 'info', 3000); return; }
     const lingua = linguaVoce(p, this.voce.lingua || undefined);
     if (!lingua) { avviso('La voce parla italiano, inglese, spagnolo, francese, tedesco e cinese: scegli in che lingua', 'info', 3200); return; }
+    if (!(await confermaAvvioAI({ compito: 'Fai parlare i sottotitoli', ambito: 'Tutte le righe dei sottotitoli · nuova traccia Voce AI', modello: 'Magpie · ' + this.voce.voce, dettagli: 'Il motore nativo può scaricare anche i modelli di traduzione se necessari.' }))) return;
+    if (this.lavoroVoce) return;
+    const progetto = progettoAttuale();
     const ctrl = new AbortController();
     this.lavoroVoce = ctrl;
     vai.disabled = true;
@@ -434,13 +448,16 @@ export class Finale {
     lavoro.avvia('Comincio…');
     try {
       const r = await doppia(structuredClone(p), { voce: this.voce.voce, lingua, silenzia: this.voce.silenzia, traduci: true }, (t, k) => lavoro.imposta(t, k), ctrl.signal);
-      lavoro.imposta('Salvo l\'audio…', 0.97);
+      if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
+      lavoro.imposta("Salvo l’audio…", 0.97);
       const nome = `Voce AI ${VOCI_MAGPIE[this.voce.voce] ?? ''} ${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '.')}.wav`.replace('  ', ' ');
       const blob = new Blob([codificaWav(r.audio, r.sr) as BlobPart], { type: 'audio/wav' });
       const path = await salvaMediaSulDisco(nome, blob);
+      if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
       const file = new File([blob], nome, { type: 'audio/wav' });
       const [m] = await importaFile([{ name: nome, path, file: path ? undefined : file }], { chiediFormato: false });
       if (!m) throw new Error('non riesco a leggere l\'audio prodotto');
+      if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
       const ids = store.edit('Voce AI', (pp) => posaVoce(pp, m.id, r.audio.length / r.sr, this.voce.silenzia, r.posti));
       store.select(ids);
       lavoro.fine(`Fatto: ${r.frasi} frasi${r.tradotto ? ' tradotte' : ''}, ognuna è una clip nella traccia "Voce AI"`);
@@ -652,6 +669,9 @@ export class Finale {
     const da = s.lingua, a = this.trad.a;
     const righe = s.righe.map((x) => ({ id: x.id, testo: x.testo }));
     if (!righe.some((x) => x.testo.trim())) { avviso('Non ci sono righe da tradurre', 'info'); return; }
+    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'NLLB-200', repo: 'Xenova/nllb-200-distilled-600M', mb: 600 }))) return;
+    if (this.lavoroTrad) return;
+    const progetto = progettoAttuale();
     const ctrl = new AbortController();
     this.lavoroTrad = ctrl;
     vai.disabled = true;
@@ -659,6 +679,7 @@ export class Finale {
     lavoro.avvia('Comincio…');
     try {
       const nuovi = await traduciTesti(righe.map((x) => x.testo), da, a, (t, k) => lavoro.imposta(t, k), ctrl.signal);
+      if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
       const per = new Map(righe.map((x, i) => [x.id, nuovi[i]]));
       this.cambiaSott('Traduci i sottotitoli', (x) => { for (const r of x.righe) if (per.has(r.id)) r.testo = per.get(r.id)!; x.lingua = a; });
       lavoro.fine(`Fatto: ${righe.length} righe tradotte`);
@@ -675,13 +696,17 @@ export class Finale {
   }
 
   /** porta tutte le clip audio a un livello comodo (come l'effetto "Livella" clip per clip) */
-  private livellaTutto() {
+  private async livellaTutto() {
     const p = store.doc;
     const quali = p.clips.filter((c) => c.kind === 'media' && trackOf(p, c.track).kind === 'audio');
+    const progetto = progettoAttuale();
+    const preparati = new Set(await preparaOra([...new Set(quali.map((c) => c.media).filter((id): id is string => !!id))], 'picchi'));
+    if (progettoAttuale() !== progetto) return;
     let n = 0, attesa = 0;
     store.edit('Livella il volume', (pp) => {
       for (const c of pp.clips) {
         if (!quali.some((q) => q.id === c.id)) continue;
+        if (!c.media || !preparati.has(c.media)) { attesa++; continue; }
         const g = volumeLivellato(pp, c);
         if (g === null) { attesa++; continue; }
         c.afx = { ...c.afx, norm: c.afx?.norm ?? c.gain };
@@ -704,6 +729,17 @@ export class Finale {
     const offline = p.media.filter((m) => mediaRT(m.id)?.stato !== 'ok').length;
     const vuoti = buchi(p);
     const avvisi: HTMLElement[] = [];
+    const nonMisurati = senzaColoreMisurato(p);
+    if (nonMisurati.length) avvisi.push(h('li', { class: 'fin-attento' }, `${nonMisurati.length} riprese senza misura colore: restano neutre. Vai a Immagine → Misura ora.`));
+    const m = this.m();
+    this.menu.querySelectorAll<HTMLButtonElement>('.fin-voce').forEach((b) => {
+      const id = b.dataset.s;
+      b.setAttribute('aria-current', id === this.sezione ? 'step' : 'false');
+      const riassunto = id === 'colore' ? `Look ${m.look} · ${nonMisurati.length} da misurare` : id === 'audio' ? `${m.volume} dB · limitatore ${m.limiter ? 'acceso' : 'spento'}` : id === 'sottotitoli' || id === 'lingue' ? `${sottotitoliDi(p).righe.length} righe` : '';
+      let stato = b.querySelector('small');
+      if (!stato) { stato = h('small'); b.append(stato); }
+      stato.textContent = riassunto;
+    });
     if (!fine) avvisi.push(h('li', { class: 'fin-info' }, 'La timeline è vuota: prima monta qualcosa.'));
     if (offline) avvisi.push(h('li', { class: 'fin-male' }, `${offline} file da ricollegare (File → Ricollega media)`));
     for (const [a, b] of vuoti.slice(0, 4)) {
