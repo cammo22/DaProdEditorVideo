@@ -188,8 +188,13 @@ export async function proveMontage({ page, prova, OUT }) {
   prova('si vedono tutti i preset e le quindici foto già scelte; il tasto CREA è pronto', pag.carte >= 22 && pag.foto >= 15 && pag.scelte >= 15 && pag.bottone, JSON.stringify(pag));
   await page.screenshot({ path: path.join(OUT, 'montage-pagina.png') });
 
-  // si sceglie "battesimo", 20 secondi, nomi, e si crea
+  // Attraversare gli step visibili, come nell'uso reale: non forzare click nascosti.
+  prova('il wizard parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes button').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
+  await page.getByRole('button', { name: '2 · Stile', exact: true }).click();
+  await page.waitForSelector('.mt-colfesta', { state: 'visible' });
   await page.click('.mt-festa[data-preset="battesimo"]');
+  await page.getByRole('button', { name: '3 · Durata, ordine e musica', exact: true }).click();
+  await page.waitForSelector('.mt-colcome', { state: 'visible' });
   await page.waitForTimeout(200);
   await page.evaluate(() => {
     const campo = [...document.querySelectorAll('.mt-campo input')][0];

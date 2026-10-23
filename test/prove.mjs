@@ -731,6 +731,15 @@ try {
     prova('una riga di sottotitolo al cursore, col testo scritto', dd.sottotitoli?.righe.length === 1 && dd.sottotitoli.righe[0].da === 40 && dd.sottotitoli.righe[0].testo === 'Ciao da Napoli');
     const srt = await page.evaluate(() => { const { S } = window.__dpvTest; const t = S.creaSrt(window.__dpv.doc); return { t, n: S.leggiSrt(t, window.__dpv.doc).length }; });
     prova('il .srt si scrive e si rilegge', srt.t.includes('00:00:01,600 --> ') && srt.t.includes('Ciao da Napoli') && srt.n === 1, srt.t.split('\n').slice(0, 3).join(' / '));
+    // Manual-first: i picchi non nascono più importando. Prepararli esplicitamente,
+    // senza sostituire l'analisi reale con picchi finti né indebolire il controllo delle righe.
+    const forme = await page.evaluate(async () => {
+      const { LB, mediaRT } = window.__dpvTest;
+      const ids = [...new Set(window.__dpv.doc.clips.filter((c) => c.kind === 'media' && c.media).map((c) => c.media))];
+      await LB.preparaOra(ids, 'picchi');
+      return ids.some((id) => !!mediaRT(id)?.peaks);
+    });
+    prova('la preparazione manuale produce la forma d\'onda per i dialoghi', forme);
     await page.click('text=Prepara i tempi dai dialoghi');
     await page.waitForTimeout(300);
     dd = await doc();
@@ -1317,7 +1326,10 @@ try {
     await pa.locator('.fin-pagina[data-s=lingue] .chip', { hasText: 'Sofia' }).click();
     const prima = await pa.evaluate(() => structuredClone(window.__dpv.doc));
     await pa.click('text=Fai parlare i sottotitoli');
-    await pa.waitForTimeout(600);
+    await pa.waitForSelector('.ai-passi', { state: 'visible' });
+    prova('Voce AI aspetta il consenso prima di chiamare il motore', await pa.evaluate(() => window.__voceChiamate.length === 0));
+    await pa.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();
+    await pa.waitForFunction(() => [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-tempo')].some((e) => /%/.test(e.textContent) && /passati/.test(e.textContent)));
     const mezzo = await pa.evaluate(() => ({ testo: [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-tempo')].map((e) => e.textContent).join('|'), fase: [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-fase')].map((e) => e.textContent).join('|') }));
     prova('mentre lavora si vede la barra con la percentuale e il tempo passato', /%/.test(mezzo.testo) && /passati/.test(mezzo.testo), JSON.stringify(mezzo));
     await pa.waitForFunction(() => window.__dpv.doc.tracks.some((t) => t.name === 'Voce AI'), null, { timeout: 30000 });

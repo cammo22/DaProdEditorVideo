@@ -33,8 +33,12 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     await page.click('.stato .att');
     await page.waitForSelector('.att-pannello');
     await page.waitForTimeout(300);
-    const pannello = await page.evaluate(() => ({ righe: document.querySelectorAll('.att-pannello .att-lista .att-riga').length, vuoto: !!document.querySelector('.att-pannello .att-lista .att-vuoto'), finite: [...document.querySelectorAll('.att-pannello .att-f-nome')].map((x) => x.textContent) }));
-    prova('riaperto il pannello: nessuna riga "in corso" rimasta ferma, c\'è "non sta facendo niente" e il lavoro è fra le finite', lav === 1 && pannello.righe === 0 && pannello.vuoto && pannello.finite.some((t) => /Copie leggere/.test(t)), JSON.stringify({ lav, pannello }));
+    const pannello = await page.evaluate(() => ({
+      righe: document.querySelectorAll('.att-pannello .att-riga[data-stato="lavoro"], .att-pannello .att-riga[data-stato="coda"]').length,
+      riepilogo: document.querySelector('.stato .att')?.textContent ?? '',
+      finite: [...document.querySelectorAll('.att-pannello .att-riga[data-stato="finita"]')].map((x) => ({ titolo: x.querySelector('b')?.textContent, barraNascosta: x.querySelector('progress')?.hidden })),
+    }));
+    prova('riaperto il pannello: nessuna riga in corso rimasta ferma, riepilogo a riposo e lavoro nello storico senza barra', lav === 1 && pannello.righe === 0 && /Nessuna attività/.test(pannello.riepilogo) && pannello.finite.some((t) => /Copie leggere/.test(t.titolo) && t.barraNascosta), JSON.stringify({ lav, pannello }));
     await page.keyboard.press('Escape');
 
     // ———————————————————————————————————————————————————————————

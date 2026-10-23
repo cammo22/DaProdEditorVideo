@@ -136,6 +136,8 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   await page.waitForTimeout(2300);
   prova('lo storico conserva nodi e testo, senza ridisegni periodici', await page.evaluate(() => [...document.querySelectorAll('.att-riga')].every((x, i) => x === window.__nodiFinite[i] && x.textContent === window.__testiFinite[i])));
   await page.getByRole('button', { name: 'Pulisci lo storico', exact: true }).click();
+  // Il registro notifica la UI con debounce: attendere l'effetto, non un ritardo arbitrario.
+  await page.waitForFunction(() => document.querySelectorAll('.att-pannello .att-riga').length === 0);
   prova('Pulisci rimuove le attività terminali', await page.locator('.att-riga').count() === 0);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
