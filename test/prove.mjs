@@ -703,6 +703,7 @@ try {
     await page.click('.pagina-btn[data-p=finale]');
     await page.waitForTimeout(500);
     prova('la pagina Finale si apre col riepilogo', await page.isVisible('.finale .fin-riepilogo') && (await page.textContent('.fin-riepilogo')).includes('durata'));
+    await page.click('.fin-voce[data-s=colore]');
     await page.locator('.fin-look', { hasText: 'Cinema' }).click();
     let dd = await doc();
     prova('il look Cinema vale per tutto il montaggio', dd.master?.look === 'cinema');
@@ -755,7 +756,8 @@ try {
     });
     await page.click('text=Scrivi i sottotitoli con l\'AI');
     await page.waitForTimeout(300);
-    if (await page.isVisible('.velo')) await page.click('.velo >> text=Rifalle');
+    if (await page.getByRole('button', { name: 'Rifalle', exact: true }).isVisible()) await page.getByRole('button', { name: 'Rifalle', exact: true }).click();
+    await page.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();
     await page.waitForFunction(() => (window.__dpv.doc.sottotitoli?.righe ?? []).some((r) => r.testo === 'Buonasera Napoli'), null, { timeout: 30000 }).catch(() => {});
     {
       dd = await doc();

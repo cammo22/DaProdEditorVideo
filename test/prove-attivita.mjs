@@ -1,6 +1,6 @@
-// Le prove della 1.2.0: il centro attività (barra in basso a destra e pannello), le code dei lavori di fondo con la
-// priorità, la memoria delle misure già fatte, la copia leggera che si fa solo per chi sta in timeline, la conversione
-// a velocità costante dietro le quinte e la riapertura veloce dei progetti.
+// Centro attività: code, priorità, progressi e controlli nel pannello della libreria.
+// Import e riapertura non avviano preparazioni; proxy e conversioni partono solo su richiesta.
+// Le sezioni encoder usano WebCodecs reale; i lavori di registro iniziali sono sintetici.
 //   npm run build && node test/prove-nuove.mjs attivita
 import path from 'node:path';
 
@@ -85,75 +85,61 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   prova('la forma d\'onda compressa si ritrova uguale (entro il 2%)', pure.picchi.every(Boolean), JSON.stringify(pure.picchi));
   prova('la memoria delle misure scrive e rilegge (e dice "non c\'è")', pure.cache === 0.9 && pure.cacheNo);
 
-  // ——— la barra e il pannello ———
-  console.log('▶ Centro attività: la barra in basso a destra e il pannello');
-  // la barra si aggiorna con un attimo di ritardo (150 ms): la si fa aggiornare subito, se no si legge quella di prima dell'azzeramento
-  const ferma0 = await page.evaluate(() => (window.__dpvTest.AT.avvisaOra(), { testo: document.querySelector('.stato .att-testo')?.textContent, ferma: document.querySelector('.stato .att')?.classList.contains('att-ferma') }));
-  prova('a riposo la barra dice "Nessuna attività"', ferma0.ferma && ferma0.testo === 'Nessuna attività', JSON.stringify(ferma0));
+  // ——— riepilogo e pannello integrato nella libreria (1.5.8) ———
+  console.log('▶ Centro attività: riepilogo, progressi, comandi e storico');
+  const ferma0 = await page.evaluate(() => (window.__dpvTest.AT.avvisaOra(), document.querySelector('.att')?.textContent));
+  prova('a riposo il riepilogo dice "Nessuna attività"', ferma0 === 'Attività · Nessuna attività', ferma0);
   await page.evaluate(() => {
     const { AT } = window.__dpvTest;
-    window.__prova = { a: AT.nuova({ titolo: 'Riapro i file del progetto', categoria: 'file' }), b: AT.nuova({ titolo: "Forme d'onda", categoria: 'analisi', gruppo: 'pk' }), fermata: false };
+    window.__prova = { a: AT.nuova({ titolo: 'Riapro i file del progetto', categoria: 'file' }), b: AT.nuova({ titolo: "Forme d'onda", categoria: 'analisi', gruppo: 'pk' }) };
     window.__prova.a.imposta(0.35, '14 di 40 · Ripresa 14.mp4');
     window.__prova.b.imposta(0.1, 'musica.mp3');
     AT.avvisaOra();
   });
   await page.waitForTimeout(250);
   const barra = await page.evaluate(() => {
-    const el = document.querySelector('.stato .att');
-    const r = el.getBoundingClientRect(), s = document.querySelector('.stato').getBoundingClientRect();
-    return { testo: el.querySelector('.att-testo').textContent, larg: el.querySelector('.att-pista i').style.width, tempo: el.querySelector('.att-tempo').textContent, altre: el.querySelector('.att-altre').textContent, destra: r.right > innerWidth * 0.5, dentro: r.bottom <= innerHeight + 1 && r.top >= s.top - 1, ferma: el.classList.contains('att-ferma') };
+    const el = document.querySelector('.att'), r = el.getBoundingClientRect();
+    return { testo: el.textContent, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
   });
-  prova('la barra mostra l\'attività, la percentuale e quante altre ce ne sono', !barra.ferma && /Riapro i file/.test(barra.testo) && barra.larg === '35%' && /35%/.test(barra.tempo) && barra.altre === '+1', JSON.stringify(barra));
-  prova('la barra sta in basso a destra, dentro lo schermo', barra.destra && barra.dentro, JSON.stringify(barra));
+  prova('il riepilogo conta tutte le attività al lavoro', barra.testo === 'Attività · 2 al lavoro', JSON.stringify(barra));
+  prova('il riepilogo resta dentro lo schermo', barra.dentro, JSON.stringify(barra));
   await page.screenshot({ path: path.join(OUT, 'attivita-barra.png') });
-  await page.click('.stato .att');
+  await page.click('.att');
   await page.waitForSelector('.att-pannello');
   const pan = await page.evaluate(() => {
-    const p = document.querySelector('.att-pannello');
-    const r = p.getBoundingClientRect();
-    const righe = [...p.querySelectorAll('.att-riga')].map((x) => ({ t: x.querySelector('.att-r-titolo').textContent, pct: x.querySelector('.att-r-pct').textContent, info: x.querySelector('.att-r-info').textContent, stop: !!x.querySelector('.att-r-stop') }));
-    return { righe, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+    const p = document.querySelector('.att-pannello'), r = p.getBoundingClientRect();
+    const righe = [...p.querySelectorAll('.att-riga')].map((x) => ({ t: x.querySelector('b').textContent, pct: x.querySelector('progress').value, accessibile: x.querySelector('progress').getAttribute('aria-label'), info: x.querySelector('p:not(.nota)').textContent, stop: [...x.querySelectorAll('button')].some((b) => b.textContent === 'Annulla') }));
+    const timeline = document.querySelector('.timeline').getBoundingClientRect();
+    return { righe, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, nonCopreTimeline: r.bottom <= timeline.top + 1 || r.right <= timeline.left || r.left >= timeline.right };
   });
-  prova('il clic apre il pannello con una riga per attività: titolo, percentuale, tempi', pan.righe.length === 2 && pan.righe[0].t === 'Riapro i file del progetto' && pan.righe[0].pct === '35%' && /passati/.test(pan.righe[0].info) && pan.righe.every((r) => r.stop), JSON.stringify(pan));
-  prova('il pannello sta dentro lo schermo', pan.dentro);
-  // il pulsante Sovraccarica: acceso si vede, e il suo testo dice cosa fa; un altro clic lo spegne
-  const forza = await page.evaluate(async () => {
-    const b = document.querySelector('.att-pannello .att-forza');
-    const prima = { c: !!b, testo: b?.textContent, acceso: b?.classList.contains('acceso'), tit: b?.title.length > 40 };
-    b?.click();
-    await new Promise((r) => setTimeout(r, 300));
-    const acceso = { on: window.__dpvTest.AT.inSovraccarico(), cls: document.querySelector('.att-pannello .att-forza')?.classList.contains('acceso'), testo: document.querySelector('.att-pannello .att-forza')?.textContent, barra: document.querySelector('.stato .att')?.classList.contains('sovraccarico'), nota: document.querySelector('.att-pannello .att-nota')?.textContent };
-    document.querySelector('.att-pannello .att-forza')?.click();
-    await new Promise((r) => setTimeout(r, 300));
-    return { prima, acceso, dopo: window.__dpvTest.AT.inSovraccarico() };
-  });
-  prova('nel pannello c\'è il pulsante ⚡ Sovraccarica: acceso si vede (nella barra e nella nota), un altro clic lo spegne', forza.prima.c && /Sovraccarica/.test(forza.prima.testo) && !forza.prima.acceso && forza.acceso.on && forza.acceso.cls && /acceso/.test(forza.acceso.testo) && forza.acceso.barra && /Sovraccarico/.test(forza.acceso.nota) && !forza.dopo, JSON.stringify(forza));
-  await page.screenshot({ path: path.join(OUT, 'attivita-pannello.png') });
-  // ✕ ferma la riga: chi lavora riceve il segnale
-  await page.click('.att-riga:first-child .att-r-stop');
+  prova('il pannello mostra titolo, percentuale accessibile, tempi e Annulla per ogni attività', pan.righe.length === 2 && pan.righe[0].t === 'Riapro i file del progetto' && pan.righe[0].pct === 0.35 && /35%/.test(pan.righe[0].accessibile) && /passati/i.test(pan.righe[0].info) && pan.righe.every((r) => r.stop), JSON.stringify(pan));
+  prova('il pannello sta nello schermo senza coprire la timeline', pan.dentro && pan.nonCopreTimeline, JSON.stringify(pan));
+  await page.locator('.att-pannello summary', { hasText: 'Prestazioni avanzate' }).click();
+  const turbo = page.getByRole('button', { name: 'Sovraccarica', exact: true });
+  prova('Sovraccarica dichiara lo stato spento', await turbo.getAttribute('aria-pressed') === 'false');
+  await turbo.click();
   await page.waitForTimeout(300);
-  const dopo = await page.evaluate(() => ({ fermato: window.__prova.a.fermato, righe: document.querySelectorAll('.att-riga').length }));
-  prova('✕ manda il segnale di stop a chi lavora', dopo.fermato === true, JSON.stringify(dopo));
+  const acceso = page.getByRole('button', { name: 'Disattiva Sovraccarica', exact: true });
+  prova('Sovraccarica accende il motore e lo stato accessibile', await page.evaluate(() => window.__dpvTest.AT.inSovraccarico()) && await acceso.getAttribute('aria-pressed') === 'true');
+  await acceso.click();
+  prova('il secondo clic spegne Sovraccarica', !await page.evaluate(() => window.__dpvTest.AT.inSovraccarico()));
+  await page.screenshot({ path: path.join(OUT, 'attivita-pannello.png') });
+  await page.locator('.att-riga').first().getByRole('button', { name: 'Annulla', exact: true }).click();
+  await page.waitForTimeout(300);
+  prova('Annulla manda il segnale al lavoro reale', await page.evaluate(() => window.__prova.a.fermato === true));
   await page.evaluate(() => { window.__prova.a.annullata(); window.__prova.b.fine('ok'); window.__dpvTest.AT.avvisaOra(); });
   await page.waitForTimeout(300);
-  const fin = await page.evaluate(() => ({ righe: document.querySelectorAll('.att-riga').length, finite: document.querySelectorAll('.att-f').length }));
-  prova('finite le attività, il pannello le sposta fra "Finite da poco"', fin.righe === 0 && fin.finite >= 2, JSON.stringify(fin));
-  // le finite dicono quanto ci hanno messo e a che ora hanno finito, una volta sola: niente "x fa" che cammina e niente
-  // elenco ridisegnato ogni secondo (era un timer sempre acceso)
-  const f1 = await page.evaluate(() => {
-    window.__nodiFinite = [...document.querySelectorAll('.att-f')];
-    return window.__nodiFinite.map((x) => ({ dur: x.querySelector('.att-f-dur')?.textContent, quando: x.querySelector('.att-f-quando')?.textContent }));
-  });
+  const fin = await page.evaluate(() => [...document.querySelectorAll('.att-riga')].map((x) => ({ stato: x.dataset.stato, testo: x.textContent, progressoNascosto: x.querySelector('progress').hidden })));
+  prova('le attività terminali restano nello storico senza barra in movimento', fin.length === 2 && fin.every((x) => ['finita', 'annullata'].includes(x.stato) && x.progressoNascosto), JSON.stringify(fin));
+  prova('lo storico conserva durata e ora assoluta senza "x fa"', fin.every((x) => /ci ha messo/.test(x.testo) && /\d\d[:.]\d\d/.test(x.testo) && !/ fa\b/.test(x.testo)), JSON.stringify(fin));
+  await page.evaluate(() => { window.__nodiFinite = [...document.querySelectorAll('.att-riga')]; window.__testiFinite = window.__nodiFinite.map((x) => x.textContent); });
   await page.waitForTimeout(2300);
-  const f2 = await page.evaluate(() => ({
-    stessi: [...document.querySelectorAll('.att-f')].every((x, i) => x === window.__nodiFinite[i]) && document.querySelectorAll('.att-f').length === window.__nodiFinite.length,
-    testo: document.querySelector('.att-finite')?.textContent ?? '',
-  }));
-  prova('le finite scrivono "ci ha messo …" e l\'ora (hh:mm), senza "x fa"', f1.length >= 2 && f1.some((x) => /^ci ha messo/.test(x.dur ?? '')) && f1.every((x) => /^\d\d[:.]\d\d$/.test(x.quando ?? '')) && !/ fa\b/.test(f2.testo), JSON.stringify({ f1, testo: f2.testo.slice(0, 160) }));
-  prova('a lavoro finito l\'elenco non si ridisegna più (niente timer che gira)', f2.stessi, JSON.stringify(f2));
+  prova('lo storico conserva nodi e testo, senza ridisegni periodici', await page.evaluate(() => [...document.querySelectorAll('.att-riga')].every((x, i) => x === window.__nodiFinite[i] && x.textContent === window.__testiFinite[i])));
+  await page.getByRole('button', { name: 'Pulisci lo storico', exact: true }).click();
+  prova('Pulisci rimuove le attività terminali', await page.locator('.att-riga').count() === 0);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
-  prova('Esc chiude il pannello', (await page.locator('.att-pannello').count()) === 0);
+  prova('Esc chiude il pannello e ripristina il fuoco sul riepilogo', await page.locator('.att-pannello').count() === 0 && await page.evaluate(() => document.activeElement?.matches('.att')));
   await page.evaluate(() => window.__dpvTest.AT.azzeraAttivita());
 
   // ——— dalla 1.5.8: import e riapertura «solo il minimo», preparazioni a mano ———

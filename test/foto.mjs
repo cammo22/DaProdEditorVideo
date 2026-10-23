@@ -52,6 +52,7 @@ async function scatta(nome, viewport, extra = {}) {
     // la pagina Finale: il look Cinema, un sottotitolo e il menu a destra
     await p.evaluate(() => { window.__motore.vaiA(210); window.__dpv.select([]); });
     await p.click('.pagina-btn[data-p=finale]');
+    await p.click('.fin-voce[data-s=colore]');
     await p.locator('.fin-look', { hasText: 'Cinema' }).click();
     await p.click('.fin-voce[data-s=sottotitoli]');
     await p.click('text=+ Riga al cursore');

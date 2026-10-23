@@ -13,11 +13,13 @@ export function tempoDi(a: Attivita): string {
   if (a.pausaRichiesta) return 'Pausa richiesta · finisce il pezzo corrente';
   if (a.attesaMonitor) return 'In attesa del monitor';
   if (a.stato === 'coda') return 'In coda';
-  if (a.stato === 'errore') return a.esito || a.messaggio || 'Non riuscita';
-  if (a.stato === 'annullata') return 'Annullata';
-  if (a.stato === 'finita') return a.esito || (a.errori ? `${a.errori} elementi non riusciti` : 'Completata');
+  if (['errore', 'annullata', 'finita'].includes(a.stato)) {
+    const esito = a.stato === 'errore' ? a.esito || a.messaggio || 'Non riuscita' : a.stato === 'annullata' ? 'Annullata' : a.esito || (a.errori ? `${a.errori} elementi non riusciti` : 'Completata');
+    const ora = new Date(a.finitaAlle).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    return `${esito} · ci ha messo ${durataTesto(a.durata)} · ${ora}`;
+  }
   const r = a.stima.restante();
-  return r === null ? 'Al lavoro' : `Mancano circa ${durataTesto(r)}`;
+  return `Passati ${durataTesto(a.stima.trascorso())}${r === null ? ' · calcolo il tempo…' : ` · mancano circa ${durataTesto(r)}`}`;
 }
 const NOMI: Record<AzioneAttivita, string> = { avvia: 'Avvia', pausa: 'Pausa', riprendi: 'Riprendi', annulla: 'Annulla', riprova: 'Riprova' };
 const agisci = (a: AzioneAttivita, id: number) => {
@@ -38,10 +40,12 @@ class RigaVista {
   constructor(private a: Attivita) { this.el.append(this.titolo, this.dettaglio, this.stato, this.progress, this.comandi); this.aggiorna(); }
   aggiorna() {
     const a = this.a;
+    this.el.dataset.stato = a.stato;
     this.titolo.textContent = a.titolo;
     this.dettaglio.textContent = a.dettaglio;
     this.stato.textContent = tempoDi(a);
     if (a.k === null) this.progress.removeAttribute('value'); else this.progress.value = a.k;
+    this.progress.setAttribute('aria-label', a.titolo + (a.k === null ? ': avanzamento indeterminato' : `: ${Math.round(a.k * 100)}%`));
     this.progress.hidden = !['lavoro', 'coda', 'pausa'].includes(a.stato);
     const azioni = azioniAttivita({ ...a, capacita: { ...a.capacita, riprova: a.capacita.riprova && puoRiprovare(a.id) } }), firma = azioni.join();
     if ((a.stato === 'errore' || a.errori > 0) && !azioni.includes('riprova')) this.stato.textContent += ' · Torna alla funzione per scegliere le opzioni e avviare di nuovo.';
@@ -114,7 +118,7 @@ export class CentroAttivita {
     }));
   }
   aggiorna() {
-    this.el.textContent = 'Attività · ' + riassuntoTesto();
+    this.el.textContent = 'Attività · ' + (riassuntoTesto() || 'Nessuna attività');
     if (!this.pannello) return;
     this.pausa.textContent = inPausa() ? 'Consenti nuovi avvii' : 'Non avviare altro';
     this.pausa.title = 'Ferma solo le partenze in coda, non le attività già al lavoro';
