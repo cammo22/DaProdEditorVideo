@@ -9,7 +9,7 @@ import { servi } from './servi.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-import { leggi, vicino, apriGruppi } from './aiuti.mjs';
+import { leggi, vicino, apriGruppi, conConfermeAI } from './aiuti.mjs';
 export { leggi, vicino };
 
 export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage', 'pannello', 'seguito', 'attivita', 'rifiniture', 'aiuto', 'banco', 'correzioni', 'proprieta', 'liveaudio', 'audioai', 'live', 'dap', 'sottotitoli']) {
@@ -186,7 +186,7 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForTimeout(200);
   let d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
   prova('"Niente" spegne la chiave', d.fx.key === 'none' && !d.ritaglio);
-  // l'AI è una scelta sola: parte da sola (qui con un modello finto, niente rete) e il resto sta in "Avanzate"
+  // Il modello finto parte solo dopo il consenso esplicito, come nell'app dalla 1.5.8.
   await page.evaluate(() => {
     window.__dpvTest.RT.impostaSegmentatore({
       carica: async () => 'finto',
@@ -194,12 +194,19 @@ async function proveSfondo({ page, prova, OUT }) {
     });
   });
   await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · automatico")');
+  await page.waitForSelector('.ai-passi');
+  prova('lo sfondo AI attende il consenso prima di elaborare', await page.evaluate(() => {
+    const c = window.__dpv.doc.clips.find(x => x.name === 'Fondale verde');
+    return !window.__dpvTest.USF.lavoroDi(c.id) && !c.ritaglio?.firma;
+  }));
+  await page.locator('.ai-passi .primario').click();
+  await page.waitForSelector('.ai-passi', { state: 'detached' });
   await page.waitForTimeout(700);
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
   prova('"AI · automatico" mette lo sfondo tolto da solo, col modello più preciso (BEN2), senza chiave a colori', d.ritaglio?.modo === 'soggetto' && d.ritaglio.modello === 'ben2' && d.fx.key === 'none', JSON.stringify(d.ritaglio));
   await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
   const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
-  prova('scegliendo "AI" il lavoro parte da solo (nessun altro pulsante da premere)', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
+  prova('dopo il consenso lo sfondo AI viene elaborato', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
   prova('la parte semplice ha "Scegli tu cosa tenere"; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('button:has-text("Scegli tu cosa tenere")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu select option:has-text("BEN2")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
   const cambia = async (modo) => { await page.evaluate((m) => { const sel = [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] select')].find((x) => [...x.options].some((o) => o.value === 'persona')); sel.value = m; sel.dispatchEvent(new Event('change', { bubbles: true })); }, modo); await page.waitForTimeout(500); return page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').ritaglio); };
   let r2 = await cambia('persona');
@@ -379,7 +386,7 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
   // un clic mostra subito la selezione; si può controllare l'anteprima prima di confermare tutta la clip
-  const clicco = await page.evaluate(async () => {
+  const clicco = await conConfermeAI(page, () => page.evaluate(async () => {
     const { MK, USF, RT } = window.__dpvTest;
     const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
     window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
@@ -388,7 +395,7 @@ async function proveSfondo({ page, prova, OUT }) {
     const vecchio = RT.impostaSegmentatore;
     let sc = null;
     document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
-    USF.scegliOggetto(c0.id);
+    await USF.scegliOggetto(c0.id);
     if (!sc) return { errore: 'niente scelta' };
     window.__chiamateAI = [];
     const prima = { stato: sc.stato(), maschera: !!sc.maschera(), modi: sc.modi.map((m) => m.id), attuale: sc.modoAttuale() };
@@ -410,7 +417,7 @@ async function proveSfondo({ page, prova, OUT }) {
     const c2 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
     const gruppi = RT.gruppiDi([{ x: 0.1, y: 0.1, dentro: true }, { x: 0.9, y: 0.9, dentro: true, g: 1 }, { x: 0.5, y: 0.5, dentro: false, g: 1 }]).map((g) => g.length);
     return { prima, firmaProva, tempoProva: Math.round(tempoProva), dopoClic, senzaOk, chiamateSenzaOk, ant, tutta, punti: c2.ritaglio.punti.length, firmaTutta: c2.ritaglio.firma, ok: MK.maschereDi(c2.ritaglio.firma)?.n > 1, gruppi };
-  });
+  }));
   prova('un clic sull\'oggetto: la selezione arriva subito (una prova, subito, senza aspettare) e dice "Selezionato"; prima del clic non c\'è niente', clicco.prima.maschera === false && /Clicca/.test(clicco.prima.stato) && clicco.firmaProva === 1 && clicco.tempoProva < 1500 && clicco.dopoClic.maschera && /Selezionato/.test(clicco.dopoClic.stato), JSON.stringify(clicco));
   prova('senza conferma non parte tutta la clip (solo la prova di un fotogramma)', clicco.senzaOk === 1 && clicco.chiamateSenzaOk === 1 && clicco.punti === 1, JSON.stringify(clicco));
   prova('"Anteprima": qualche secondo di maschere con la sua firma, il monitor passa sugli scacchi e il testo dice cosa fare', clicco.ant.n > 1 && /anteprima$/.test(clicco.ant.firma) && clicco.ant.vista === 2 && /Genera tutta la clip/.test(clicco.ant.stato), JSON.stringify(clicco.ant));
@@ -418,7 +425,7 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('più oggetti: i clic si dividono per oggetto (una persona e una cosa)', JSON.stringify(clicco.gruppi) === '[1,2]', JSON.stringify(clicco.gruppi));
   prova('la barra della scelta ha i due tasti 🧍 Persona e 📦 Oggetto (acceso: Oggetto)', clicco.prima.modi.join() === 'persona,oggetto' && clicco.prima.attuale === 'oggetto', JSON.stringify(clicco.prima));
   // i due tasti: Persona usa il modello delle persone (MODNet) e tiene la persona cliccata; Oggetto torna a SAM
-  const duePulsanti = await page.evaluate(async () => {
+  const duePulsanti = await conConfermeAI(page, () => page.evaluate(async () => {
     const { MK, USF } = window.__dpvTest;
     const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
     window.__dpv.select([c0.id]);
@@ -426,7 +433,7 @@ async function proveSfondo({ page, prova, OUT }) {
     window.__dpv.edit('Oggetti da capo', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
     let sc = null;
     document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
-    USF.scegliOggetto(c0.id);
+    await USF.scegliOggetto(c0.id);
     await new Promise((r) => setTimeout(r, 500));
     sc.clic(0.4, 0.5, false);
     await new Promise((r) => setTimeout(r, 900));
@@ -444,13 +451,13 @@ async function proveSfondo({ page, prova, OUT }) {
     const dopoOggetto = JSON.parse(JSON.stringify(window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio));
     const selezione = await new Promise((ok) => { const t = performance.now(); const g = () => { if (MK.maschereDi(dopoOggetto.firma) || performance.now() - t > 6000) ok(!!MK.maschereDi(dopoOggetto.firma)); else setTimeout(g, 50); }; g(); });
     return { bar, okAcceso, persona: dopoPersona.persona, firmaCambia: dopoPersona.firma !== firmaOggetto, punti: dopoPersona.punti.length, haMascheraPersona, barPersona, tornaOggetto: !dopoOggetto.persona, modello: dopoOggetto.modello, selezione };
-  });
+  }));
   await page.screenshot({ path: path.join(OUT, 'sfondo-selezione.png') });
-  duePulsanti.clipCompleta = await page.evaluate(async () => {
+  duePulsanti.clipCompleta = await conConfermeAI(page, () => page.evaluate(async () => {
     const { MK } = window.__dpvTest;
     document.querySelector('.pos-btn.ok')?.click();
     return await new Promise((ok) => { const t = performance.now(); const g = () => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Pallina'); const m = MK.maschereDi(c.ritaglio?.firma); if ((m && m.n > 1 && !c.ritaglio.firma.endsWith('|anteprima')) || performance.now() - t > 20000) ok(!!m && m.n > 1 && !c.ritaglio.firma.endsWith('|anteprima')); else setTimeout(g, 150); }; g(); });
-  });
+  }));
   prova('sul monitor ci sono i tasti Persona/Oggetto e OK; i due modi rifanno la selezione e OK genera tutta la clip', duePulsanti.bar.length === 2 && duePulsanti.bar[1].acceso && duePulsanti.okAcceso && duePulsanti.persona === true && duePulsanti.firmaCambia && duePulsanti.punti === 1 && duePulsanti.haMascheraPersona && duePulsanti.barPersona[0].acceso && duePulsanti.tornaOggetto && /sam/.test(duePulsanti.modello) && duePulsanti.selezione && duePulsanti.clipCompleta, JSON.stringify(duePulsanti));
   await page.keyboard.press('Escape');
   // "Togli lo sfondo AI": la clip torna com'era e il monitor sull'immagine normale (anche se era su Maschera o Scacchi)
@@ -468,13 +475,13 @@ async function proveSfondo({ page, prova, OUT }) {
   });
   prova('"Togli lo sfondo AI": niente più ritaglio, la vista del monitor torna all\'immagine; Ctrl+Z lo rimette', !torna.ritaglio && torna.key === 'none' && torna.vista === 0 && torna.annulla, JSON.stringify(torna));
   // clic sinistro aggiunge un punto, clic destro lo toglie (sopra il punto; altrove non toglie niente)
-  const punti = await page.evaluate(async () => {
+  const punti = await conConfermeAI(page, () => page.evaluate(async () => {
     const { USF } = window.__dpvTest;
     const c0 = window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
     window.__dpv.edit('Punti', () => { c0.ritaglio = { modo: 'oggetti', modello: 'sam2', bordo: 0, morbido: 0.2, qualita: 0, punti: [], segui: true }; });
     let sc = null;
     document.addEventListener('dpv:scegli', (e) => { sc = e.detail; }, { once: true });
-    USF.scegliOggetto(c0.id);
+    await USF.scegliOggetto(c0.id);
     const n = () => window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.length;
     sc.clic(0.3, 0.3, false); sc.clic(0.7, 0.6, false); sc.clic(0.5, 0.9, true);
     const tre = n();
@@ -484,7 +491,7 @@ async function proveSfondo({ page, prova, OUT }) {
     const dopoUno = n();
     const resta = window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio.punti.map((q) => [q.x, q.y, q.dentro]);
     return { tre, lontano, dopoUno, resta, vicino: [USF.puntoVicino([{ x: 0.2, y: 0.2 }, { x: 0.5, y: 0.5 }], 0.52, 0.49), USF.puntoVicino([{ x: 0.2, y: 0.2 }], 0.9, 0.9)], testo: sc.testo };
-  });
+  }));
   prova('clic sinistro aggiunge un punto, clic destro sopra un punto lo toglie (lontano da ogni punto non toglie niente); il testo lo dice', punti.tre === 3 && punti.lontano === 3 && punti.dopoUno === 2 && punti.resta.every((q) => q[0] !== 0.3) && punti.vicino[0] === 1 && punti.vicino[1] === -1 && /destro/.test(punti.testo), JSON.stringify(punti));
   // col mouse vero sul monitor: sinistro aggiunge, destro toglie (e niente menu del sistema)
   await page.evaluate(async () => {
@@ -492,7 +499,7 @@ async function proveSfondo({ page, prova, OUT }) {
     window.__dpv.edit('Pulisco', () => { c0.ritaglio.punti = []; });
     window.__dpv.select([c0.id]);
     window.__dpv.setHead(c0.start + 2);
-    window.__dpvTest.USF.scegliOggetto(c0.id);
+    await window.__dpvTest.USF.scegliOggetto(c0.id);
     await new Promise((r) => setTimeout(r, 400));
   });
   const schM = await page.evaluate(() => { const r = document.querySelector('.monitor canvas, .monitor .schermo')?.getBoundingClientRect(); return r ? { x: r.x, y: r.y, w: r.width, h: r.height } : null; });

@@ -15,6 +15,20 @@ export const leggi = (page, punti, vista = 0) => page.evaluate(async ([punti, vi
 /** a vicino a b (ogni canale entro tol) */
 export const vicino = (a, b, tol = 40) => a.every((v, i) => Math.abs(v - b[i]) <= tol);
 
+/** Guida i consensi reali mentre una prova asincrona usa un motore finto. Non modifica l'app. */
+export async function conConfermeAI(page, azione) {
+  let finita = false;
+  const guida = (async () => {
+    while (!finita) {
+      const tasto = page.locator('.velo:not(.via) .ai-passi .primario');
+      if (await tasto.isVisible()) await tasto.click();
+      await new Promise(r => setTimeout(r, 50));
+    }
+  })();
+  try { return await azione(); }
+  finally { finita = true; await guida; }
+}
+
 
 /** le sezioni delle proprietà partono chiuse: le prove che ci lavorano dentro le aprono (e restano aperte). "Effetti e look" no: disegna una ventina di miniature, e sui computer senza scheda video (la CI) blocca la pagina per qualche secondo */
 export const apriGruppi = async (page) => {

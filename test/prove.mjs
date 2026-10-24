@@ -28,6 +28,7 @@ const errori = [];
 /** l'errore con le prime righe dello stack (per capire da dove viene, anche dalle pagine aperte a parte) */
 const conStack = (e) => e.message + ' @ ' + String(e.stack ?? '').split('\n').slice(1, 5).join(' | ');
 page.on('pageerror', (e) => errori.push(conStack(e)));
+page.on('response', (r) => { if (r.status() >= 400 && r.url().startsWith(srv.url)) console.log(`  HTTP ${r.status()}: ${r.url().slice(srv.url.length)}`); });
 page.on('console', (m) => { if (m.type() === 'error' && !/garbage collected without/.test(m.text())) errori.push(m.text()); });
 
 const doc = () => page.evaluate(() => window.__dpv.doc);
