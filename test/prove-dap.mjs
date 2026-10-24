@@ -190,6 +190,9 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     await page.locator('.ai-passi .primario').click();
     const sott = await page.evaluate(() => window.__sottEsito);
     prova('tasto destro → "Genera i sottotitoli di questa clip": righe solo dentro la clip (da 40 a 65), quella fuori resta', sott.some((r) => r[0] === 'resta') && sott.filter((r) => r[0] !== 'resta').length >= 1 && sott.filter((r) => r[0] !== 'resta').every((r) => r[1] >= 40 && r[2] <= 65), JSON.stringify(sott));
+    // Il consenso termina prima della transizione di chiusura del velo (180 ms):
+    // attendere il distacco reale, altrimenti il click destro colpisce l'overlay.
+    await page.waitForSelector('.velo', { state: 'detached' });
     const menuClip = await page.evaluate(() => {
       const tl = window.__dpvTest.ui().tl, d = window.__dpv.doc;
       tl.righe(d);
