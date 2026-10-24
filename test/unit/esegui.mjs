@@ -5,9 +5,10 @@
 // lanciano i file *.test.mjs con il test runner di Node.
 import { build } from 'vite';
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hashBaseline } from './cattura-baseline-effetti.mjs';
 
 const qui = path.dirname(fileURLToPath(import.meta.url));
 const radice = path.resolve(qui, '../..');
@@ -48,6 +49,8 @@ await build({
     },
   },
 });
+
+writeFileSync(path.join(out, 'baseline-fx.json'), JSON.stringify(await hashBaseline()));
 
 const filtro = process.argv[2];
 const prove = readdirSync(qui).filter((f) => f.endsWith('.test.mjs') && (!filtro || f.includes(filtro))).map((f) => path.join(qui, f));

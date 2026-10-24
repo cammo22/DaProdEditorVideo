@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { carica, ambienteBrowser, memoriaFinta } from './_aiuti.mjs';
 import { scena, campioni } from './scena-effetti.mjs';
 const B = await carica('blocchi'), P = await carica('progetto');
@@ -59,7 +60,9 @@ test('Censura: oltre otto zone si usa un inviluppo conservativo, nessuna zona vi
 });
 
 test('Gli stati dei 72 effetti preesistenti restano identici alla baseline eed765d', () => {
-  const ref = JSON.parse(readFileSync(new URL('./riferimenti/stati-fx-1.5.7.json', import.meta.url), 'utf8'));
+  const archivio = JSON.parse(readFileSync(new URL('./riferimenti/stati-fx-1.5.7.json', import.meta.url), 'utf8'));
+  const ref = JSON.parse(readFileSync(path.join(process.env.DPV_UNIT, 'baseline-fx.json'), 'utf8'));
+  assert.deepEqual(Object.keys(ref).sort(), Object.keys(archivio).sort());
   const aggiunti = new Set(['grana', 'nitido', 'censura', 'semeGrana', 'censure']);
   const attuali = campioni(P, B);
   for (const id of Object.keys(ref)) {
