@@ -64,6 +64,8 @@ jobs:
       - run: npm ci
       - name: Controllo dei tipi
         run: npx tsc --noEmit -p .
+      - name: Prove del motore e dei flussi UI (Node)
+        run: npm run prova:motore
       - name: Build web
         run: npm run build
       - name: Chromium per le prove

@@ -5,7 +5,7 @@
 
 # DaProd · Video 🎬
 
-> **Ramo di sviluppo, non ancora rilasciato:** preparazioni manuali e nuova organizzazione di Finale, LIVE, Montage e Montaggio. Istruzioni e gate ancora da eseguire in [docs/flussi-ui.md](docs/flussi-ui.md). Importare o riaprire non avvia nuove copie leggere o analisi; si scelgono in **Attività**. Le descrizioni delle release precedenti possono riferirsi al vecchio comportamento automatico.
+> **Update 1.5.8:** preparazioni manuali e nuova organizzazione di Finale, LIVE, Montage e Montaggio. Verifiche eseguite e limiti noti in [docs/flussi-ui.md](docs/flussi-ui.md): runtime Tauri, AI reale, LIVE con dispositivi e compatibilità completa con vecchi progetti non sono ancora certificati. Importare o riaprire non avvia nuove copie leggere o analisi; si scelgono in **Attività**. Le descrizioni delle release precedenti possono riferirsi al vecchio comportamento automatico.
 >
 > **Censura e compatibilità:** il mosaico non garantisce anonimizzazione irreversibile: controlla tutta la clip e il tracking. La **1.5.7 ignora gli effetti nuovi e NON applica la censura** dei progetti creati su questo ramo. Non usare il downgrade per consegnare immagini protette.
 

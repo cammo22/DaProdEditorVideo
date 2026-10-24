@@ -4,7 +4,7 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
-## Non rilasciato · Preparazioni manuali e flussi di lavoro
+## [1.5.8] — 2026-10-24 · Preparazioni manuali e flussi di lavoro
 
 - **Attività nella libreria**, non in un popover sopra la timeline: selezione dei file e del tipo di preparazione, aggiunta senza avvio, Avvia singolo/batch, Pausa e Riprendi solo dove il motore le supporta, annullamento e scarto delle proposte. I fallimenti parziali restano visibili e riprovabili; i worker senza retry chiedono di tornare alla funzione. Sovraccarica è nei dettagli avanzati.
 - **Montaggio**: spazi Banco completo, Taglio ed Effetti; accesso alle preparazioni e all'AI dalle proprietà. Gli effetti mantengono ricerca, categorie e anteprime del catalogo; forza anche a zero e parametri della censura nelle proprietà.
@@ -15,7 +15,10 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Grana, Nitidezza e Censura** dal motore condiviso monitor/export. Attenzione: la **1.5.7 non applica la censura** dei progetti nuovi; il mosaico non garantisce anonimizzazione irreversibile.
 - Corretto il calcolo del percorso Windows nello script foto (test CLI del percorso, non screenshot eseguiti).
 
-Verifica CLI e limiti in [docs/flussi-ui.md](docs/flussi-ui.md). QA visuale, hardware, export codificato e compatibilità contenitori ancora richiesti: questo elenco non è una dichiarazione di rilascio. Nessun aumento di versione prima della QA.
+- Corretta la navigazione Tab/Shift+Tab sui controlli senza perdere le scorciatoie dei monitor. Voce AI non importa risultati dopo annullamento o cambio progetto durante il salvataggio.
+- Test del progetto `.dap` aggiornati al consenso AI esplicito e alla chiusura effettiva del relativo overlay prima di aprire il menu clip.
+
+Verifiche e limiti in [docs/flussi-ui.md](docs/flussi-ui.md): 70 test Node, typecheck e build; QA mirata di Montage, AIuto, effetti/pixel e replay export codificato su AMD D3D11 e SwiftShader. Il percorso storico della suite lunga resta inconclusivo; runtime Tauri, inferenza AI reale, LIVE con dispositivi reali e compatibilità completa di progetti preesistenti con tutti i media **non sono certificati**. L'integrazione dell'update è autorizzata con questi limiti dichiarati: non equivalgono a test superati né a una garanzia di assenza di regressioni.
 
 ## [1.5.7] — 2026-10-21 · Il controllo aggiornamenti non dorme più 🔔
 
