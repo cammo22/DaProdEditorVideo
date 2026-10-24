@@ -10,7 +10,7 @@ button, select, summary { touch-action: manipulation; }
 #app .contenitore, #app .lato, #app .monitor { min-width: 0; }
 .bin-testa { flex-wrap: wrap; }
 .bin-cerca { min-width: 60px; }
-.bin-albero { max-width: 38%; }
+.bin-albero { min-width: 0; }
 .carta-preparazione { display: block; padding: 3px 6px; white-space: normal; color: var(--testo2); font-size: 11px; }
 .contenitore.att-aperta > :not(.att-pannello) { display: none; }
 .contenitore .att-pannello { position: static; z-index: auto; width: 100%; max-height: none; min-height: 0; height: 100%; border: 0; box-shadow: none; border-radius: 0; overflow: auto; padding: 12px; font-size: 13px; }

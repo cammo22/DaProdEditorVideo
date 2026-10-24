@@ -73,6 +73,10 @@ jobs:
         run: npm run build
       - name: Chromium per le prove
         run: npx playwright install --with-deps chromium
+      - name: Regressioni layout e aggiornamenti
+        run: |
+          node test/prove-layout.mjs
+          node test/prove-aggiornamenti.mjs
       - name: Prove automatiche (il banco usato da solo in Chromium)
         run: node test/prove.mjs
       - uses: actions/upload-artifact@v4
@@ -218,6 +222,7 @@ jobs:
           # note: la sezione del CHANGELOG di questa versione
           awk -v v="$V" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on && /^---$/ {exit} on {print}' CHANGELOG.md > note.md
           TITOLO=$(grep -m1 "^## \[$V\]" CHANGELOG.md | sed -E 's/^## \[[^]]*\] — [0-9-]+ · //')
+          node scripts/feed-aggiornamenti.mjs file "$V" note.md
           cat >> note.md <<'FINE'
 
           ### 📥 Scarica e monta

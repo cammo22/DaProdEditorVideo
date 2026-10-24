@@ -4,6 +4,13 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.5.9] — 2026-10-24 · Cartelle leggibili e aggiornamenti più affidabili
+
+- Ripristinata la larghezza dell'albero delle cartelle: nella 1.5.8 un limite percentuale lo schiacciava dentro la sua colonna, lasciando vuoto lo spazio accanto. Correzione valida anche per le disposizioni già salvate, senza azzerare preferenze o progetti.
+- Il controllo aggiornamenti desktop passa dalla rete Rust con timeout ed errori leggibili. Se l'API GitHub non risponde, prova il nuovo `aggiornamento.json`, pubblicato insieme ai tre installer. Nessun token richiesto.
+- Aprendo la finestra aggiornamenti si ricontrolla la release, invece di riutilizzare per ore un risultato vecchio. I download hanno timeout, mantengono la verifica HTTPS e mostrano il motivo restituito dal sistema; un download fallito non lascia un file parziale pronto da aprire.
+- Aggiunta una prova del difetto grafico con la disposizione larga salvata e verifica del layout a 1920, 1366 e 1024 pixel. La CI esegue anche la regressione del controllo aggiornamenti.
+
 ## [1.5.8] — 2026-10-24 · Preparazioni manuali e flussi di lavoro
 
 - **Attività nella libreria**, non in un popover sopra la timeline: selezione dei file e del tipo di preparazione, aggiunta senza avvio, Avvia singolo/batch, Pausa e Riprendi solo dove il motore le supporta, annullamento e scarto delle proposte. I fallimenti parziali restano visibili e riprovabili; i worker senza retry chiedono di tornare alla funzione. Sovraccarica è nei dettagli avanzati.

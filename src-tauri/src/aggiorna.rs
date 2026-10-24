@@ -14,6 +14,46 @@ use tauri::{AppHandle, Manager};
 type Esito<T> = Result<T, String>;
 
 const RELEASE: &str = "https://github.com/cammo22/DaProdVideo/releases/download/";
+const API: &str = "https://api.github.com/repos/cammo22/DaProdVideo/releases/latest";
+const FEED: &str = "https://github.com/cammo22/DaProdVideo/releases/latest/download/aggiornamento.json";
+
+fn leggi_release(url: &str) -> Esito<serde_json::Value> {
+    let mut c = Command::new("curl");
+    c.args(["--fail", "--location", "--silent", "--show-error", "--connect-timeout", "10", "--max-time", "20",
+        "--proto", "=https", "--proto-redir", "=https", "--user-agent", "DaProdVideo-aggiornamenti",
+        "--header", "Accept: application/json", url]);
+    let r = senza_finestra(&mut c).output().map_err(|e| format!("Il controllo non parte: {e}"))?;
+    if !r.status.success() {
+        return Err(format!("GitHub non raggiungibile: {}", String::from_utf8_lossy(&r.stderr).trim()));
+    }
+    let j: serde_json::Value = serde_json::from_slice(&r.stdout).map_err(|_| "GitHub ha restituito una risposta non valida".to_string())?;
+    if !j["tag_name"].is_string() || !j["assets"].is_array() {
+        return Err("La release non contiene i file di aggiornamento".into());
+    }
+    Ok(j)
+}
+
+/// La rete di sistema evita i problemi della WebView; il feed pubblico non usa la quota dell'API.
+#[tauri::command]
+pub async fn aggiornamento_release() -> Esito<serde_json::Value> {
+    tauri::async_runtime::spawn_blocking(|| {
+        leggi_release(API).or_else(|api| leggi_release(FEED).map_err(|feed| format!("{api}; feed di riserva: {feed}")))
+    }).await.map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod prove {
+    use super::*;
+
+    #[test]
+    #[ignore = "richiede GitHub: eseguire esplicitamente con --ignored"]
+    fn controllo_reale_api_e_feed_di_riserva() {
+        for url in [API, FEED] {
+            let r = leggi_release(url).expect("release raggiungibile dalla rete Rust");
+            assert!(r["assets"].as_array().unwrap().iter().any(|a| a["name"].as_str().unwrap_or("").ends_with("-setup.exe")));
+        }
+    }
+}
 
 #[derive(Serialize)]
 pub struct Variante {
@@ -47,6 +87,9 @@ pub fn variante_app() -> Variante {
 /// Dove va il file scaricato: il portatile accanto a quello vecchio (se si può scrivere), il resto nella
 /// cartella temporanea.
 fn destinazione(app: &AppHandle, nome: &str, accanto: bool) -> Esito<PathBuf> {
+    if nome.is_empty() || nome.contains('/') || nome.contains('\\') || nome.contains("..") || !nome.starts_with("DaProd-Video-") {
+        return Err("nome del file di aggiornamento non valido".into());
+    }
     if accanto {
         if let Some(d) = cartella_exe() {
             let prova = d.join(".daprod-scrivibile");
@@ -86,10 +129,13 @@ pub async fn aggiornamento_scarica(app: AppHandle, url: String, nome: String, ac
     let dest2 = dest.clone();
     let esito = tauri::async_runtime::spawn_blocking(move || {
         let mut c = Command::new("curl");
-        c.args(["-L", "-f", "-s", "--retry", "3", "-o"]).arg(&parziale).arg(&url);
-        senza_finestra(&mut c).status()
+        c.args(["-L", "-f", "-sS", "--connect-timeout", "15", "--max-time", "1800", "--retry", "3", "--proto", "=https", "--proto-redir", "=https", "-o"]).arg(&parziale).arg(&url);
+        senza_finestra(&mut c).output()
             .map_err(|e| format!("curl non parte: {e}"))
-            .and_then(|s| if s.success() { Ok(()) } else { Err(format!("download non riuscito ({s})")) })
+            .and_then(|r| if r.status.success() { Ok(()) } else {
+                let _ = std::fs::remove_file(&parziale);
+                Err(format!("download non riuscito: {}", String::from_utf8_lossy(&r.stderr).trim()))
+            })
             .and_then(|_| {
                 let _ = std::fs::remove_file(&dest2);
                 std::fs::rename(&parziale, &dest2).map_err(|e| e.to_string())

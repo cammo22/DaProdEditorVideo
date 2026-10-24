@@ -477,6 +477,7 @@ pub fn run() {
             audio_decodifica,
             audio_chiudi,
             aggiorna::variante_app,
+            aggiorna::aggiornamento_release,
             aggiorna::aggiornamento_scarica,
             aggiorna::aggiornamento_progresso,
             aggiorna::aggiornamento_apri,

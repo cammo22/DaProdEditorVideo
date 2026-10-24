@@ -6,7 +6,8 @@ import fs from 'node:fs';
 const dir = path.resolve('test/.out/agg'); fs.mkdirSync(dir, { recursive: true });
 fs.writeFileSync(dir + '/cl.js', 'export default ""');
 fs.writeFileSync(dir + '/dialoghi.js', 'export const VERSIONE = "1.5.6"');
-fs.writeFileSync(dir + '/platform.js', 'export const isTauri = true, isAndroid = false; export const apriLink = () => {}; export const invoke = async () => {};');
+fs.writeFileSync(dir + '/platform.js', `export const isTauri = true, isAndroid = false; export const apriLink = () => {};
+export const invoke = async (cmd) => { if (cmd !== 'aggiornamento_release') throw new Error('comando inatteso: ' + cmd); return (await fetch('rete-di-sistema')).json(); };`);
 fs.writeFileSync(dir + '/dom.js', `
   export const avviso = (t) => { globalThis.__avvisi.push(t); };
   export const dialogo = () => ({});

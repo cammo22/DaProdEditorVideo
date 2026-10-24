@@ -26,9 +26,17 @@ export function piuNuova(a: string, b: string): boolean {
 }
 
 export async function ultimaRelease(): Promise<Release> {
-  const r = await fetch(API, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
-  if (!r.ok) throw new Error(`GitHub risponde ${r.status}`);
-  const j = (await r.json()) as { tag_name: string; name: string; body: string; assets: Asset[]; html_url: string };
+  // Nell'app usa la rete di sistema: il controllo non dipende dalla WebView.
+  // Il backend prova anche il feed della release se l'API GitHub è limitata.
+  type Dati = { tag_name: string; name: string; body: string; assets: Asset[]; html_url: string };
+  let j: Dati;
+  if (isTauri && !isAndroid) j = await invoke<Dati>('aggiornamento_release');
+  else {
+    const r = await fetch(API, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store', signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`GitHub risponde ${r.status}`);
+    j = await r.json() as Dati;
+  }
+  if (!/^v?\d+\.\d+\.\d+$/.test(j.tag_name) || !Array.isArray(j.assets)) throw new Error('La release non contiene dati di aggiornamento validi');
   return { versione: j.tag_name.replace(/^v/, ''), titolo: j.name || j.tag_name, note: j.body || '', assets: j.assets || [], pagina: j.html_url || PAGINA };
 }
 
@@ -122,7 +130,6 @@ function fileGiusto(r: Release, v: Variante): Asset | undefined {
 }
 
 let tasto: HTMLElement | null = null;
-let trovata: Release | null = null;
 
 /** il tasto in alto (solo nell'app): controlla, e si accende se c'è una versione nuova */
 export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement): HTMLElement | null {
@@ -134,7 +141,6 @@ export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement)
   const controlla = () => {
     ultimaRelease().then((r) => {
       if (piuNuova(r.versione, VERSIONE)) {
-        trovata = r;
         tasto?.classList.add('nuova');
         testo.textContent = `Aggiornamento ${r.versione} disponibile`;
         tasto?.setAttribute('title', `È uscita la versione ${r.versione}: clic per le novità e per aggiornare`);
@@ -157,7 +163,7 @@ export async function finestraAggiornamenti() {
   const chiudi = h('button', { class: 'btn', on: { click: d.chiudi } }, 'Chiudi');
   d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); finestraNovita(); } } }, `Novità della ${VERSIONE}`), chiudi);
   let r: Release;
-  try { r = trovata ?? (await ultimaRelease()); } catch (e) {
+  try { r = await ultimaRelease(); } catch (e) {
     stato.textContent = 'Non riesco a controllare (serve internet): ' + (e instanceof Error ? e.message : String(e));
     d.piede.prepend(h('button', { class: 'btn', on: { click: () => apriLink(PAGINA) } }, 'Apri la pagina delle versioni'));
     return;
