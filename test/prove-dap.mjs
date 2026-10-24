@@ -175,16 +175,20 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     prova('Ctrl+Z dopo "Rendi clip unica" rimette le 4 clip', unica.annulla === 4, JSON.stringify(unica.annulla));
 
     // sottotitoli di una clip sola: le righe nuove vanno nel suo pezzo, quelle fuori restano
-    const sott = await page.evaluate(async () => {
+    await page.evaluate(() => {
       const { V, SR } = window.__dpvTest;
       const d = window.__dpv.doc;
       window.__dpv.edit('Una riga fuori', (p) => { p.sottotitoli = { righe: [{ id: 'fuori', da: 200, a: 240, testo: 'resta' }], nelVideo: true, dimensione: 46, fascia: true, alto: false, lingua: 'it' }; });
-      V.impostaTrascrittore({ carica: async () => 'finto', trascrivi: async () => [{ da: 0.2, a: 0.9, testo: 'Ciao a tutti' }, { da: 1.8, a: 2.4, testo: 'seconda' }] });
+      window.__sottChiamate = 0;
+      V.impostaTrascrittore({ carica: async () => { window.__sottChiamate++; return 'finto'; }, trascrivi: async () => { window.__sottChiamate++; return [{ da: 0.2, a: 0.9, testo: 'Ciao a tutti' }, { da: 1.8, a: 2.4, testo: 'seconda' }]; } });
       const b = window.__dpv.doc.clips.find((c) => c.name === 'B' && d.tracks.find((t) => t.id === c.track).kind === 'audio');
-      await SR.generaSottotitoli([b.id]);
-      V.impostaTrascrittore(null);
-      return window.__dpv.doc.sottotitoli.righe.map((r) => [r.testo, r.da, r.a]);
+      // Non attendere qui: il consenso richiede un click esterno a questa evaluate.
+      window.__sottEsito = SR.generaSottotitoli([b.id]).then(() => window.__dpv.doc.sottotitoli.righe.map((r) => [r.testo, r.da, r.a])).finally(() => V.impostaTrascrittore(null));
     });
+    await page.waitForSelector('.ai-passi', { state: 'visible' });
+    prova('sottotitoli della clip: nessuna chiamata al motore prima del consenso', await page.evaluate(() => window.__sottChiamate === 0));
+    await page.locator('.ai-passi .primario').click();
+    const sott = await page.evaluate(() => window.__sottEsito);
     prova('tasto destro → "Genera i sottotitoli di questa clip": righe solo dentro la clip (da 40 a 65), quella fuori resta', sott.some((r) => r[0] === 'resta') && sott.filter((r) => r[0] !== 'resta').length >= 1 && sott.filter((r) => r[0] !== 'resta').every((r) => r[1] >= 40 && r[2] <= 65), JSON.stringify(sott));
     const menuClip = await page.evaluate(() => {
       const tl = window.__dpvTest.ui().tl, d = window.__dpv.doc;
