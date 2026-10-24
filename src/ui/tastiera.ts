@@ -39,6 +39,9 @@ export function installaTastiera() {
       if (e.key === 'Escape') (t as HTMLInputElement).blur();
       return;
     }
+    // Tab cambia monitor solo sul banco/timeline, non quando si navigano i controlli.
+    // Include i figli (icone/testo) e i controlli semantici, anche fuori dai campi editabili.
+    if (e.key === 'Tab' && t?.closest('button, a[href], summary, [role="button"], [role="tab"], [role="menuitem"]')) return;
     if (document.querySelector('.velo')) return; // dialogo aperto
     const home = document.documentElement.classList.contains('home-aperta'); // la pagina iniziale copre il banco
     if (/^Numpad\d$/.test(e.code) && !e.ctrlKey && !e.altKey && !home) {

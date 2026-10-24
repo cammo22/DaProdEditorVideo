@@ -5,6 +5,10 @@
 
 # DaProd · Video 🎬
 
+> **Update 1.5.8:** preparazioni manuali e nuova organizzazione di Finale, LIVE, Montage e Montaggio. Verifiche eseguite e limiti noti in [docs/flussi-ui.md](docs/flussi-ui.md): runtime Tauri, AI reale, LIVE con dispositivi e compatibilità completa con vecchi progetti non sono ancora certificati. Importare o riaprire non avvia nuove copie leggere o analisi; si scelgono in **Attività**. Le descrizioni delle release precedenti possono riferirsi al vecchio comportamento automatico.
+>
+> **Censura e compatibilità:** il mosaico non garantisce anonimizzazione irreversibile: controlla tutta la clip e il tracking. La **1.5.7 ignora gli effetti nuovi e NON applica la censura** dei progetti creati su questo ramo. Non usare il downgrade per consegnare immagini protette.
+
 [![▶ PROVA ORA](https://img.shields.io/badge/%E2%96%B6_PROVA_ORA-DaProd_Video-ffd54a?style=for-the-badge&labelColor=1a1428)](https://cammo22.github.io/DaProdVideo/app/)
 
 [![Home](https://img.shields.io/badge/GitHub_Pages-la_home-success?style=flat-square)](https://cammo22.github.io/DaProdVideo/)
@@ -18,7 +22,7 @@ Il **banco di montaggio DaProd**: vecchio stile, moderno dentro. Un monitor gran
 esplora risorse (le tue **cartelle**, e transizioni ed effetti con le **anteprime fatte coi fotogrammi del tuo
 montaggio**), la **pulsantiera** con i tasti grandi, i **livelli a barra**, gli **FX a blocchetti sopra le clip**
 (effetti e transizioni, coi loro suoni), la titolatrice, le **dissolvenze con la forma** (analogica, morbida, a S), i
-**proxy automatici** per andare lisci anche coi file pesanti, la **pagina Finale** per colore, **sottotitoli
+**proxy su richiesta da Attività** per andare lisci anche coi file pesanti, la **pagina Finale** per colore, **sottotitoli
 scritti dall'AI** (Nemotron di NVIDIA o Whisper, sul tuo computer), **voce AI**, **velocità delle clip** (Alt+E) col movimento fluido e logo su tutto il montaggio, **più timeline** nello stesso
 progetto, la pagina **LIVE** per registrare lo schermo **con la webcam a bolla** (3-2-1, pausa, segni, telecomando),
 il **pacchetto .daprod** con dentro tutti i file e la **EDL**. Cursore sul punto, premi **1** e tagli, premi **2**

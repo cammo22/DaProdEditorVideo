@@ -12,7 +12,8 @@ import { VOCI_MAGPIE, motoreNemo } from '../media/nemo';
 import { doppia, linguaVoce, posaVoce } from '../media/doppiaggio';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { codificaWav } from '../media/wav';
-import { nuova } from '../media/attivita';
+import { nuova, progettoAttuale } from '../media/attivita';
+import { confermaAvvioAI } from './aiPassi';
 import { salvaMediaSulDisco, salvaTesto } from '../platform';
 import { importaFile } from '../progetti';
 import { avviso, chiedi, conferma, dialogo, h } from './dom';
@@ -53,12 +54,17 @@ export async function generaSottotitoli(clip?: Iterable<string>) {
     const scritte = sottotitoliDi(p0).righe.filter((x) => x.testo.trim()).length;
     if (scritte && !(await conferma('Sottotitoli con l\'AI', `Ci sono già ${scritte} righe scritte: l'AI le rifà tutte da capo (con Ctrl+Z tornano).`, 'Rifalle', 'Lascia stare'))) return;
   }
+  const o = opzioniAI();
+  const modello = MODELLI.find((m) => m.id === o.modello);
+  if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: ids ? `Solo le clip scelte (${ids.size}, incluso audio collegato)` : 'Audio di tutto il montaggio', modello: o.motore === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? o.modello, repo: modello?.id, mb: modello?.mb }))) return;
+  if (lavoroSott) return;
+  const progetto = progettoAttuale();
   const ctrl = new AbortController();
   lavoroSott = ctrl;
   const lav = nuova({ titolo: ids ? 'Sottotitoli della clip' : 'Sottotitoli con l\'AI', categoria: 'ai', alAnnulla: () => { ctrl.abort(); fermaVoce(); } });
-  const o = opzioniAI();
   try {
     const righe = await sottotitoliAI(p, o, (fase, k) => lav.imposta(k, fase), ctrl.signal);
+    if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
     if (!righe.length) { lav.fine('nessuna parola'); avviso('Non ho sentito parole', 'info', 2600); return; }
     const traduzione = o.motore === 'whisper' && o.traduci && o.lingua === 'it';
     const dentro = righe.filter((r) => r.a > da && r.da < a).map((r): Sottotitolo => ({ ...r, da: Math.max(da, r.da), a: Math.min(a, r.a) }));
@@ -90,18 +96,24 @@ export async function faiParlareSottotitoli() {
   const v = opzioniVoce();
   const lingua = linguaVoce(p, v.lingua || undefined);
   if (!lingua) { avviso('La voce parla italiano, inglese, spagnolo, francese, tedesco e cinese: scegli la lingua nel Finale → Lingue e AI', 'info', 4200); return; }
+  if (!(await confermaAvvioAI({ compito: 'Fai parlare i sottotitoli', ambito: 'Tutte le righe dei sottotitoli · nuova traccia Voce AI', modello: 'Magpie · ' + v.voce, dettagli: 'Il motore nativo può scaricare anche i modelli di traduzione se necessari.' }))) return;
+  if (lavoroVoce) return;
+  const progetto = progettoAttuale();
   const ctrl = new AbortController();
   lavoroVoce = ctrl;
   const lav = nuova({ titolo: 'Voce AI dai sottotitoli', categoria: 'ai', alAnnulla: () => ctrl.abort() });
   try {
     const r = await doppia(structuredClone(p), { voce: v.voce, lingua, silenzia: v.silenzia, traduci: true }, (t, k) => lav.imposta(k, t), ctrl.signal);
+    if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
     lav.imposta(0.97, 'Salvo l\'audio…');
     const nome = `Voce AI ${VOCI_MAGPIE[v.voce] ?? ''} ${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '.')}.wav`.replace('  ', ' ');
     const blob = new Blob([codificaWav(r.audio, r.sr) as BlobPart], { type: 'audio/wav' });
     const path = await salvaMediaSulDisco(nome, blob);
+    if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
     const file = new File([blob], nome, { type: 'audio/wav' });
     const [m] = await importaFile([{ name: nome, path, file: path ? undefined : file }], { chiediFormato: false });
     if (!m) throw new Error('non riesco a leggere l\'audio prodotto');
+    if (ctrl.signal.aborted || progetto !== progettoAttuale()) throw new Error('fermato');
     const ids = store.edit('Voce AI', (pp) => posaVoce(pp, m.id, r.audio.length / r.sr, v.silenzia, r.posti));
     store.select(ids);
     lav.fine(`${r.frasi} frasi`);

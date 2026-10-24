@@ -29,7 +29,7 @@ import { novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { statoDecoder } from '../media/fotogrammi';
 import { CentroAttivita } from './attivita';
-import { impostaUsoMedia, risvegliaProxy } from '../media/libreria';
+import { impostaUsoMedia } from '../media/libreria';
 import { banco } from '../media/audio';
 import { registra } from '../azioni';
 import { apriCerca } from './cerca';
@@ -124,8 +124,19 @@ export function avvia(radice: HTMLElement) {
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),
     aggiornamenti: tastoAggiornamenti(icona),
   });
+  const bancoVista = h('select', { class: 'banco-vista', 'aria-label': 'Spazio di lavoro', on: { change: () => {
+    pagina('montaggio');
+    const taglio = bancoVista.value === 'taglio';
+    const effetti = bancoVista.value === 'effetti';
+    disp.alterna('senza-bin', taglio);
+    disp.alterna('senza-lato', taglio);
+    disp.alterna('senza-puls', !taglio);
+    radice.classList.remove('lato-lungo');
+    if (effetti) bin.mostra('effetti');
+    setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60);
+  } } }, h('option', { value: 'completo' }, 'Banco completo'), h('option', { value: 'taglio' }, 'Taglio · monitor e timeline'), h('option', { value: 'effetti' }, 'Effetti · libreria e proprietà'));
   const testa = h('header', { class: 'testata' },
-    barraMenu(menus),
+    barraMenu(menus), bancoVista,
     h('button', { class: 'btn-ai', title: 'Centro AI: tutte le funzioni intelligenti, come si usano e se sono pronte', on: { click: () => finestraCentroAI() } }, '✨', h('span', null, 'AI')),
     h('div', { class: 'pagine' },
       tastoPagina('montaggio', 'MONTAGGIO', 'montaggio', 'Il banco di montaggio (F9)'),
@@ -138,7 +149,12 @@ export function avvia(radice: HTMLElement) {
   // ——— barra di stato ———
   const msg = h('span', { class: 'stato-msg' }, 'Pronto. 1 taglia · 2 elimina · S separa/unisci · rotella = un fotogramma · Q/W scarto a sinistra/destra · F9 Finale · F1 tutti i tasti');
   const dec = h('span', { class: 'stato-dec' });
-  const centro = new CentroAttivita();
+  const centro = new CentroAttivita(bin.el);
+  document.addEventListener('dpv:attivita', () => {
+    pagina('montaggio');
+    disp.alterna('senza-bin', false);
+    if (radice.classList.contains('stretto')) radice.dataset.foglio = 'bin';
+  });
   const statoBar = h('footer', { class: 'stato' }, msg, dec, centro.el, h('span', { class: 'stato-ver' }, `DaProd Video ${VERSIONE}`));
   motore.ogniGiro(() => {
     if (Math.random() > 0.05) return;
@@ -152,10 +168,8 @@ export function avvia(radice: HTMLElement) {
     for (const q of store.doc.sequenze ?? []) for (const c of q.clips ?? []) if (c.media === id) n++;
     return n;
   });
-  let svegliaProxy = 0;
-  // si aspetta un attimo di calma (2 s dall'ultima modifica): appena messa una ripresa in timeline quasi sempre la si guarda, e la copia
-  // leggera che parte subito ruberebbe il decoder proprio al primo play
-  store.on('doc', () => { clearTimeout(svegliaProxy); svegliaProxy = window.setTimeout(() => { svegliaProxy = 0; risvegliaProxy(store.doc.media); }, 2000); });
+  // dalla 1.5.8 una ripresa che entra in timeline non fa partire niente da sola (niente copia leggera automatica):
+  // la copia leggera si prepara a mano (proponiPreparazione in media/libreria.ts)
 
   // ——— fogli per il telefono ———
   const apriFoglio = (f: 'bin' | 'lato' | 'finale' | 'nessuno') => {

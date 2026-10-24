@@ -233,23 +233,22 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
   await page.evaluate(() => window.__dpvTest.TD.impostaTraduttore(null));
 
   // ———————————————————————————————————————————————————————————
-  console.log('▶ File a velocità variabile: si convertono da soli');
+  console.log('▶ File a velocità variabile: si convertono con «Controlla velocità file» (dalla 1.5.8 mai da soli)');
   const nz = await page.evaluate(async () => {
-    const { NZ, ripresaVfrDiProva, ripresaDiProva, branoVbrDiProva, importaFile } = window.__dpvTest;
+    const { NZ, ripresaVfrDiProva, ripresaDiProva, branoVbrDiProva, importaFile, LB } = window.__dpvTest;
     const vfr = await ripresaVfrDiProva(4);
     const cfr = await ripresaDiProva(3, 25);
     const vbr = await branoVbrDiProva(8);
     const dVfr = await NZ.esamina({ name: vfr.name, file: vfr });
     const dCfr = await NZ.esamina({ name: cfr.name, file: cfr });
     const dVbr = await NZ.esamina({ name: vbr.name, file: vbr });
-    // com'è, senza convertire (per confrontare la durata)
-    localStorage.setItem('dpv-normalizza', 'no');
+    // com'è, senza convertire (per confrontare la durata): dalla 1.5.8 l'import non converte mai
     const [orig] = await importaFile([{ name: vfr.name, file: vfr }], { chiediFormato: false });
-    localStorage.removeItem('dpv-normalizza');
     const a = await importaFile([{ name: vfr.name, file: vfr }], { chiediFormato: false });
     const b = await importaFile([{ name: vbr.name, file: vbr }], { chiediFormato: false });
     const c = await importaFile([{ name: cfr.name, file: cfr }], { chiediFormato: false });
-    // dalla 1.2.0 la copia si fa dietro le quinte: si aspetta che il controllo e le conversioni siano finiti
+    // il controllo a mano, con la conversione che parte subito se serve
+    for (const x of [a[0], b[0], c[0]]) LB.proponiPreparazione(x.id, 'velocita', { avvia: true, converti: true });
     const AT = window.__dpvTest.AT;
     for (let i = 0; i < 600; i++) {
       if (!AT.attivitaInCorso().some((r) => /velocità/.test(r.titolo))) break;

@@ -7,6 +7,7 @@
 
 mod aggiorna;
 mod audio_riserva;
+mod conversioni;
 mod motori;
 
 use std::collections::HashMap;
@@ -24,6 +25,7 @@ struct Stato {
     letture: Mutex<HashMap<String, Arc<Mutex<std::fs::File>>>>,
     scritture: Mutex<HashMap<u32, Arc<Mutex<std::fs::File>>>>,
     prossimo: Mutex<u32>,
+    conversioni: Mutex<conversioni::Conversioni>,
 }
 
 type Esito<T> = Result<T, String>;
@@ -225,6 +227,32 @@ async fn export_apri(app: AppHandle, stato: State<'_, Stato>, path: String) -> E
     Ok(id)
 }
 
+/// Una conversione usa un file NUOVO, creato in esclusiva; l'annullamento può eliminare solo questo.
+#[tauri::command]
+async fn conversione_apri(app: AppHandle, stato: State<'_, Stato>, name: String) -> Esito<(u32, String)> {
+    let path = registrazione_percorso(app, name).await?;
+    let mut n = stato.prossimo.lock().map_err(|e| e.to_string())?;
+    *n += 1;
+    let id = *n;
+    let mut conversioni = stato.conversioni.lock().map_err(|e| e.to_string())?;
+    let mut scritture = stato.scritture.lock().map_err(|e| e.to_string())?;
+    let f = conversioni.crea(id, path.clone().into()).map_err(|e| e.to_string())?;
+    scritture.insert(id, Arc::new(Mutex::new(f)));
+    Ok((id, path))
+}
+
+/// Non accetta percorsi: un ID di export o pacchetto non può cancellare il suo file.
+#[tauri::command]
+async fn conversione_annulla(stato: State<'_, Stato>, id: u32) -> Esito<()> {
+    // Solo gli ID del registro conversioni sono eliminabili. scarta ignora gli altri.
+    let mut conversioni = stato.conversioni.lock().map_err(|e| e.to_string())?;
+    if !conversioni.contiene(id) { return Ok(()); }
+    let f = stato.scritture.lock().map_err(|e| e.to_string())?.remove(&id);
+    drop(f);
+    conversioni.scarta(id).map_err(|e| format!("non riesco a eliminare la conversione parziale: {e}"))?;
+    Ok(())
+}
+
 /// Scrive un pezzo dell'export. Il corpo della richiesta sono i byte grezzi; posizione e file
 /// arrivano nelle intestazioni (x-pos, x-id). L'MP4 torna indietro a sistemare le intestazioni: si salta.
 #[tauri::command]
@@ -303,6 +331,7 @@ async fn export_chiudi(stato: State<'_, Stato>, id: u32) -> Esito<()> {
         f.flush().map_err(|e| e.to_string())?;
         f.sync_all().ok();
     }
+    stato.conversioni.lock().map_err(|e| e.to_string())?.conserva(id);
     Ok(())
 }
 
@@ -435,6 +464,8 @@ pub fn run() {
             export_apri,
             export_scrivi,
             export_chiudi,
+            conversione_apri,
+            conversione_annulla,
             pacchetto_copia,
             pacchetto_riapri,
             pacchetto_lunghezza,

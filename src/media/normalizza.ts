@@ -1,10 +1,11 @@
-// File "a velocità variabile" → a velocità costante, da soli, quando entrano nel progetto.
+// File "a velocità variabile" → a velocità costante.
 //  · video con frame rate variabile (VFR: i telefoni e le registrazioni dello schermo): in montaggio fanno slittare
 //    audio e video e saltare i tagli; si rifanno a frame rate costante (CFR);
 //  · audio con bitrate variabile (VBR: MP3, Opus, Vorbis): la durata e i punti dove si salta non sono precisi, e la
 //    forma d'onda si sposta; si rifanno a bitrate costante (CBR).
+// Dalla 1.5.8 il controllo e la conversione si fanno SOLO a mano («Controlla velocità file»), mai all'import.
 // Si converte solo se serve davvero; l'originale non si tocca (la copia convertita va nella cartella Video/DaProd Video
-// nell'app, in memoria nel browser). Con "dpv-normalizza" = "no" nella memoria del programma non si converte niente.
+// nell'app, in memoria nel browser).
 import {
   ALL_FORMATS, BlobSource, BufferTarget, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output, Quality, StreamSource,
   StreamTarget, WebMOutputFormat, getFirstEncodableAudioCodec, getFirstEncodableVideoCodec, type StreamTargetChunk,
@@ -22,6 +23,11 @@ export interface Verdetto {
   motivo: string;
 }
 
+/**
+ * La preferenza di prima («dpv-normalizza» = 'no' per non convertire). Dalla 1.5.8 il controllo e la conversione non
+ * partono MAI da soli (nemmeno con 'si'): si fanno con «Controlla velocità file». Il valore si legge e non si cancella;
+ * con 'no' il controllo manuale dice solo cosa farebbe, la conversione nasce «da avviare» anche quando la si chiede subito.
+ */
 export const normalizzaAttivo = () => { try { return localStorage.getItem('dpv-normalizza') !== 'no'; } catch { return true; } };
 
 const FPS_COMUNI = [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60];
@@ -114,15 +120,14 @@ export function mp3Variabile(grandezze: number[]): boolean {
 /** una scrittura che accetta pezzi in qualunque posizione: su disco nell'app, in memoria nel browser */
 async function destinazione(nome: string): Promise<{ target: BufferTarget | StreamTarget; fine: () => Promise<{ path?: string; blob?: Blob }>; annulla: () => Promise<void> }> {
   if (isTauri) {
-    const path = await invoke<string>('registrazione_percorso', { name: nome });
-    const id = await invoke<number>('export_apri', { path });
+    const [id, path] = await invoke<[number, string]>('conversione_apri', { name: nome });
     const ws = new WritableStream<StreamTargetChunk>({
       write: async (chunk) => { await invoke('export_scrivi', chunk.data, { headers: { 'x-id': String(id), 'x-pos': String(chunk.position) } }); },
     });
     return {
       target: new StreamTarget(ws, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
       fine: async () => { await invoke('export_chiudi', { id }); return { path }; },
-      annulla: async () => { await invoke('export_chiudi', { id }).catch(() => {}); },
+      annulla: async () => { await invoke('conversione_annulla', { id }); },
     };
   }
   const t = new BufferTarget();
@@ -133,16 +138,20 @@ let aacPronto: Promise<void> | null = null;
 /** il codificatore AAC (nel browser di tutti i sistemi non c'è sempre): arriva solo quando serve */
 const assicuraAac = () => aacPronto ??= import('@mediabunny/aac-encoder').then((m) => { m.registerAacEncoder(); }).catch(() => {});
 
-/** rifà il file a velocità costante; ritorna il file nuovo (stesso nome, estensione del nuovo contenitore) */
-export async function converti(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale?: AbortSignal): Promise<FileScelto> {
+/** chi lavora nel centro attività, per la pausa vera della conversione (Lavoro di attivita.ts) */
+export interface PausaConversione { checkpoint(): Promise<void>; allaPausa(fn: () => void): () => void }
+
+/** rifà il file a velocità costante; ritorna il file nuovo (stesso nome, estensione del nuovo contenitore).
+ *  Con `pausa` la conversione si sospende davvero (pauseSignal di Mediabunny) e riparte dallo stesso punto. */
+export async function converti(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale?: AbortSignal, pausa?: PausaConversione): Promise<FileScelto> {
   // il video si rifà prima con la scheda video (molto più veloce, il processore resta libero); se non si può o sbaglia, col processore
   if (v.vfr) {
-    try { return await convertiCon(sel, v, avanza, segnale, 'prefer-hardware'); } catch (e) { if (segnale?.aborted || (e instanceof Error && e.message === 'fermato')) throw e; avanza(0); }
+    try { return await convertiCon(sel, v, avanza, segnale, 'prefer-hardware', pausa); } catch (e) { if (segnale?.aborted || (e instanceof Error && e.message === 'fermato')) throw e; avanza(0); }
   }
-  return convertiCon(sel, v, avanza, segnale, 'no-preference');
+  return convertiCon(sel, v, avanza, segnale, 'no-preference', pausa);
 }
 
-async function convertiCon(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale: AbortSignal | undefined, hw: 'prefer-hardware' | 'no-preference'): Promise<FileScelto> {
+async function convertiCon(sel: FileScelto, v: Verdetto, avanza: (k: number) => void, segnale: AbortSignal | undefined, hw: 'prefer-hardware' | 'no-preference', pausa?: PausaConversione): Promise<FileScelto> {
   const input = new Input({ source: sorgenteDi(sel), formats: ALL_FORMATS });
   const base = sel.name.replace(/\.[^.]+$/, '');
   await assicuraAac();
@@ -172,7 +181,17 @@ async function convertiCon(sel: FileScelto, v: Verdetto, avanza: (k: number) => 
       });
       if (!conv.isValid) throw new Error('questo file non si riesce a convertire');
       conv.onProgress = (k: number) => { avanza(k); if (segnale?.aborted) void conv.cancel(); };
-      await conv.execute();
+      segnale?.addEventListener('abort', () => { void conv.cancel(); }, { once: true });
+      if (!pausa) await conv.execute();
+      else {
+        for (;;) {
+          await pausa.checkpoint();
+          const sosp = new AbortController();
+          const stacca = pausa.allaPausa(() => sosp.abort());
+          try { await conv.execute({ pauseSignal: sosp.signal }); } finally { stacca(); }
+          if (conv.state === 'done' || conv.state === 'canceled') break;
+        }
+      }
       if (segnale?.aborted) throw new Error('fermato');
     } catch (e) { await dest.annulla(); throw e; }
     const r = await dest.fine();

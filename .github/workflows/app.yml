@@ -59,11 +59,16 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
+        with: { fetch-depth: 0 } # baseline numerica dal commit Git immutabile
       - uses: actions/setup-node@v5
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: FFmpeg per le fixture e le verifiche media
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Controllo dei tipi
         run: npx tsc --noEmit -p .
+      - name: Prove del motore e dei flussi UI (Node)
+        run: npm run prova:motore
       - name: Build web
         run: npm run build
       - name: Chromium per le prove

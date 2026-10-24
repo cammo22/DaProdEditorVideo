@@ -188,8 +188,13 @@ export async function proveMontage({ page, prova, OUT }) {
   prova('si vedono tutti i preset e le quindici foto già scelte; il tasto CREA è pronto', pag.carte >= 22 && pag.foto >= 15 && pag.scelte >= 15 && pag.bottone, JSON.stringify(pag));
   await page.screenshot({ path: path.join(OUT, 'montage-pagina.png') });
 
-  // si sceglie "battesimo", 20 secondi, nomi, e si crea
+  // Attraversare gli step visibili, come nell'uso reale: non forzare click nascosti.
+  prova('il wizard parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes button').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
+  await page.getByRole('button', { name: '2 · Stile', exact: true }).click();
+  await page.waitForSelector('.mt-colfesta', { state: 'visible' });
   await page.click('.mt-festa[data-preset="battesimo"]');
+  await page.getByRole('button', { name: '3 · Durata, ordine e musica', exact: true }).click();
+  await page.waitForSelector('.mt-colcome', { state: 'visible' });
   await page.waitForTimeout(200);
   await page.evaluate(() => {
     const campo = [...document.querySelectorAll('.mt-campo input')][0];
@@ -229,7 +234,7 @@ export async function proveMontage({ page, prova, OUT }) {
     };
   });
   const dopo = await stato();
-  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Variante [0-9A-Z]{5}$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
+  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Anteprima · variante [0-9A-Z]{5} · Rigenera la sostituisce, Scarta torna indietro$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
   prova('le foto riempiono esattamente 20 secondi e il nome inserito sta nel titolo', dopo.fine === dopo.atteso && /Leonardo/.test(dopo.testo) && dopo.titoli >= 1, JSON.stringify([dopo.fine, dopo.atteso]));
   prova('ci sono transizioni o effetti come blocchetti sopra le clip', dopo.blocchi >= 2, String(dopo.blocchi));
   prova('il monitor sta in alto e grande (anche col pannello Proprietà fissato), il pannello sotto, la timeline nascosta', dopo.monitor && dopo.pannello && dopo.monitor.h > 200 && dopo.monitor.w > 900 && dopo.monitor.y < dopo.pannello.y && dopo.pannello.h > 250 && !dopo.timeline, JSON.stringify([dopo.monitor, dopo.pannello, dopo.timeline]));

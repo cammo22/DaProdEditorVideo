@@ -33,8 +33,12 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     await page.click('.stato .att');
     await page.waitForSelector('.att-pannello');
     await page.waitForTimeout(300);
-    const pannello = await page.evaluate(() => ({ righe: document.querySelectorAll('.att-pannello .att-lista .att-riga').length, vuoto: !!document.querySelector('.att-pannello .att-lista .att-vuoto'), finite: [...document.querySelectorAll('.att-pannello .att-f-nome')].map((x) => x.textContent) }));
-    prova('riaperto il pannello: nessuna riga "in corso" rimasta ferma, c\'è "non sta facendo niente" e il lavoro è fra le finite', lav === 1 && pannello.righe === 0 && pannello.vuoto && pannello.finite.some((t) => /Copie leggere/.test(t)), JSON.stringify({ lav, pannello }));
+    const pannello = await page.evaluate(() => ({
+      righe: document.querySelectorAll('.att-pannello .att-riga[data-stato="lavoro"], .att-pannello .att-riga[data-stato="coda"]').length,
+      riepilogo: document.querySelector('.stato .att')?.textContent ?? '',
+      finite: [...document.querySelectorAll('.att-pannello .att-riga[data-stato="finita"]')].map((x) => ({ titolo: x.querySelector('b')?.textContent, barraNascosta: x.querySelector('progress')?.hidden })),
+    }));
+    prova('riaperto il pannello: nessuna riga in corso rimasta ferma, riepilogo a riposo e lavoro nello storico senza barra', lav === 1 && pannello.righe === 0 && /Nessuna attività/.test(pannello.riepilogo) && pannello.finite.some((t) => /Copie leggere/.test(t.titolo) && t.barraNascosta), JSON.stringify({ lav, pannello }));
     await page.keyboard.press('Escape');
 
     // ———————————————————————————————————————————————————————————
@@ -171,17 +175,24 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     prova('Ctrl+Z dopo "Rendi clip unica" rimette le 4 clip', unica.annulla === 4, JSON.stringify(unica.annulla));
 
     // sottotitoli di una clip sola: le righe nuove vanno nel suo pezzo, quelle fuori restano
-    const sott = await page.evaluate(async () => {
+    await page.evaluate(() => {
       const { V, SR } = window.__dpvTest;
       const d = window.__dpv.doc;
       window.__dpv.edit('Una riga fuori', (p) => { p.sottotitoli = { righe: [{ id: 'fuori', da: 200, a: 240, testo: 'resta' }], nelVideo: true, dimensione: 46, fascia: true, alto: false, lingua: 'it' }; });
-      V.impostaTrascrittore({ carica: async () => 'finto', trascrivi: async () => [{ da: 0.2, a: 0.9, testo: 'Ciao a tutti' }, { da: 1.8, a: 2.4, testo: 'seconda' }] });
+      window.__sottChiamate = 0;
+      V.impostaTrascrittore({ carica: async () => { window.__sottChiamate++; return 'finto'; }, trascrivi: async () => { window.__sottChiamate++; return [{ da: 0.2, a: 0.9, testo: 'Ciao a tutti' }, { da: 1.8, a: 2.4, testo: 'seconda' }]; } });
       const b = window.__dpv.doc.clips.find((c) => c.name === 'B' && d.tracks.find((t) => t.id === c.track).kind === 'audio');
-      await SR.generaSottotitoli([b.id]);
-      V.impostaTrascrittore(null);
-      return window.__dpv.doc.sottotitoli.righe.map((r) => [r.testo, r.da, r.a]);
+      // Non attendere qui: il consenso richiede un click esterno a questa evaluate.
+      window.__sottEsito = SR.generaSottotitoli([b.id]).then(() => window.__dpv.doc.sottotitoli.righe.map((r) => [r.testo, r.da, r.a])).finally(() => V.impostaTrascrittore(null));
     });
+    await page.waitForSelector('.ai-passi', { state: 'visible' });
+    prova('sottotitoli della clip: nessuna chiamata al motore prima del consenso', await page.evaluate(() => window.__sottChiamate === 0));
+    await page.locator('.ai-passi .primario').click();
+    const sott = await page.evaluate(() => window.__sottEsito);
     prova('tasto destro → "Genera i sottotitoli di questa clip": righe solo dentro la clip (da 40 a 65), quella fuori resta', sott.some((r) => r[0] === 'resta') && sott.filter((r) => r[0] !== 'resta').length >= 1 && sott.filter((r) => r[0] !== 'resta').every((r) => r[1] >= 40 && r[2] <= 65), JSON.stringify(sott));
+    // Il consenso termina prima della transizione di chiusura del velo (180 ms):
+    // attendere il distacco reale, altrimenti il click destro colpisce l'overlay.
+    await page.waitForSelector('.velo', { state: 'detached' });
     const menuClip = await page.evaluate(() => {
       const tl = window.__dpvTest.ui().tl, d = window.__dpv.doc;
       tl.righe(d);

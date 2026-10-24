@@ -13,7 +13,7 @@ import { oggettoSulQuadro, tracciate } from '../core/traccia';
 import type { Project } from '../core/tipi';
 import { EFFETTI_AUDIO, EFFETTI_VIDEO, adatte, alternaEffetto } from '../effetti';
 import { scenaRitocco } from '../render/provino';
-import { cambiaModello, durataDelBlocco, EFFETTI_TEMPO, effettoTempo, haCentro, nomeBlocco, nuovoBlocco, posaBlocco, taglioDelBlocco, taglioVicino, transizioneSul } from '../core/blocchi';
+import { cambiaModello, durataDelBlocco, EFFETTI_TEMPO, parametroFx, effettoTempo, haCentro, nomeBlocco, nuovoBlocco, posaBlocco, taglioDelBlocco, taglioVicino, transizioneSul } from '../core/blocchi';
 import { SUONI } from '../core/suoni';
 import { ascoltaSuono } from '../media/audio';
 import { MOVIMENTI, movimentoPronto, SFONDI } from '../core/cornici';
@@ -103,8 +103,12 @@ export class Ispettore {
     const p = store.doc;
     const r = fps(p.rate);
     const m = mediaOf(p, primo);
+    const preparazioni = h('div', { class: 'workflow-azioni' },
+      h('button', { class: 'btn-mini', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:attivita', { detail: [...new Set(this.sel().map((c) => c.media).filter(Boolean))] })) } }, 'Anteprima e file · prepara…'),
+      h('button', { class: 'btn-mini', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:centro-ai')) } }, 'AI sulla selezione…'));
     const out: HTMLElement[] = [];
     // ——— il riassunto: cos'è, dove sta, da dove viene
+    if (cs.some((c) => c.media)) out.push(preparazioni);
     const tipo = primo.kind === 'title' ? (primo.gen?.anim ? 'Animazione' : 'Titolo') : primo.kind === 'media' ? (m?.type === 'image' ? 'Immagine' : isVideoClip(primo) ? 'Video' : 'Audio') : 'Generatore';
     const legate = primo.link ? p.clips.filter((c) => c.link === primo.link).length - 1 : 0;
     out.push(h('div', { class: 'isp-testa' },
@@ -565,7 +569,10 @@ export class Ispettore {
       const segue = !!fb.segue;
       out.push(this.gruppo('btipo', 'Effetto', [
         this.scelta('Effetto', EFFETTI_TEMPO.map((e) => [e.id, `${e.nome} · ${e.info}`] as [string, string]), (c) => c.fxb?.id ?? 'flash', (c, v) => { c.fxb = cambiaModello(c.fxb!, v); c.name = effettoTempo(v)!.nome; }, bs),
-        this.cursore('Forza', 10, 150, 1, (c) => Math.round((c.fxb?.forza ?? 1) * 100), (c, v) => { c.fxb!.forza = v / 100; }, '%', bs),
+        this.cursore('Forza', 0, 150, 1, (c) => Math.round((c.fxb?.forza ?? 1) * 100), (c, v) => { c.fxb!.forza = v / 100; }, '%', bs),
+        ...(effettoTempo(fb.id)?.parametri ?? []).map((p) => this.cursore(p.nome, p.min, p.max, p.passo,
+          (c) => parametroFx(c.fxb!, p.chiave), (c, v) => { (c.fxb!.parametri ??= {})[p.chiave] = v; }, '', bs)),
+        fb.id === 'censura' ? h('p', { class: 'nota avviso-rosso' }, 'Controlla tutta la clip: mosaico e inseguimento non garantiscono anonimizzazione. Nella versione 1.5.7 la censura NON viene applicata.') : null,
         this.cursore('Si ripete', 1, 12, 1, (c) => c.fxb?.ripeti ?? 1, (c, v) => { c.fxb!.ripeti = v > 1 ? v : undefined; }, 'volte', bs),
         colori ? this.colore('Colore', (c) => c.fxb?.colore ?? '#ffffff', (c, v) => { c.fxb!.colore = v; }, bs) : null,
         centro ? h('p', { class: 'nota' }, 'Il centro dell\'effetto è il mirino sul monitor: trascinalo dove vuoi. Con "Movimento" parte da un punto e arriva a un altro, e passa da tutte le tappe che aggiungi (＋ Tappa, o fermati fra due tappe e muovi il mirino).') : null,

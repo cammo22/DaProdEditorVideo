@@ -96,6 +96,8 @@ export interface BloccoFx {
   segue?: string;
   /** quante volte si ripete nella durata del blocco (1 = una) */
   ripeti?: number;
+  /** parametri numerici opzionali del catalogo FX; assenti = valori del catalogo */
+  parametri?: Record<string, number>;
 }
 
 /** una tappa intermedia del centro di un effetto */

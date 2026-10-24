@@ -349,6 +349,8 @@ export class Live {
   private tipoCam = '';
   private tipoMic = '';
   private fase: Fase = 'fermo';
+  private faseCerta = h('strong', { class: 'live-fase-certa', role: 'status', 'aria-live': 'polite' });
+  private fontiStato = h('p', { class: 'live-fonti-stato' });
   /** il pezzo che si sta registrando adesso, e i tratti (uno per ogni pezzo fra le pause), dello schermo e della webcam */
   private pezzo: { chiudi: () => void } | null = null;
   private pezzi: Promise<Tratto>[] = [];
@@ -462,12 +464,13 @@ export class Live {
         h('div', { class: 'live-schermo' }, h('div', { class: 'live-quadro' }, vuoto, this.video), this.camVideo, this.contoEl),
         h('div', { class: 'live-comandi' },
           h('div', { class: 'live-regia' },
-            this.tempo, this.stato, this.info,
+            this.faseCerta, this.tempo, this.stato, this.info, this.fontiStato,
             h('div', { class: 'live-tasti' }, this.bReg, this.bPausa, this.bFerma),
             h('div', { class: 'live-tasti tre' }, this.bSegna, this.bCam, bTele),
             h('div', { class: 'live-tasti due' }, this.bAggiungi, this.bProssima),
             this.elFonti,
             this.audio.compatto),
+          h('details', { class: 'live-configurazione', open: true }, h('summary', null, '1 · Sorgenti e registrazione'),
           sezione('Cosa registro'),
           h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
           interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
@@ -487,9 +490,8 @@ export class Live {
           interruttore('conto', null, 'Conto alla rovescia 3-2-1', 'Tre secondi per sistemarti prima che parta'),
           interruttore('timeline', null, 'Mettila in fondo alla timeline', 'Quando fermi, la registrazione va anche in coda al montaggio'),
           interruttore('presentazione', null, 'Stile presentazione', 'Lo schermo un po\' più piccolo, angoli tondi e ombra, sopra uno sfondo sfumato (si cambia dopo nelle proprietà)'),
-          sfondi,
-          sezione('Registrate'),
-          this.lista,
+          sfondi),
+          h('details', { class: 'live-archivio', open: true }, h('summary', null, '2 · Registrazioni pronte'), this.lista),
           h('p', { class: 'nota' }, puoRegistrare()
             ? 'Il sistema chiede ogni volta cosa registrare. Con "Più finestre" puoi aggiungerne altre mentre registri (＋ FINESTRA, N) e passare dall\'una all\'altra (clic sulla miniatura o tasti 1-9, L cambia la disposizione). La pausa non lascia buchi: il file riprende da dove eri. Su Windows e nel browser Chrome/Edge c\'è anche l\'audio del computer.'
             : 'Qui non si può registrare lo schermo: su Android il sistema non lo permette alle app come questa. Usa la versione per Windows o Mac, o Chrome/Edge sul computer.'))));
@@ -695,6 +697,11 @@ export class Live {
   private aggiornaTempo() {
     const ms = this.fatto + (this.fase === 'registra' ? performance.now() - this.da : 0);
     this.tempo.textContent = orologio(ms);
+    const descrizioni: Record<Fase, string> = { fermo: 'NON STAI REGISTRANDO', conto: 'PARTENZA · FERMA ANNULLA IL CONTO', registra: 'REGISTRAZIONE IN CORSO', pausa: 'IN PAUSA · RIPRENDI CONTINUA LO STESSO FILE' };
+    this.faseCerta.textContent = descrizioni[this.fase];
+    this.faseCerta.dataset.fase = this.fase;
+    const viva = (s: MediaStream | null, tipo: 'audio' | 'video') => s?.getTracks().some((t) => t.kind === tipo && t.readyState === 'live' && t.enabled);
+    this.fontiStato.textContent = `Schermo: ${viva(this.flusso, 'video') ? 'collegato' : 'da scegliere'} · Microfono: ${viva(this.micReg ?? this.micProva, 'audio') ? 'collegato' : this.opz.mic ? 'non collegato' : 'escluso'} · Webcam: ${viva(this.cam, 'video') ? 'collegata' : 'non collegata'}`;
     this.tele.aggiorna(this.statoTele(orologio(ms)));
   }
 
@@ -713,6 +720,7 @@ export class Live {
     this.bAggiungi.disabled = f === 'fermo';
     this.bProssima.disabled = !this.regia || f === 'fermo' || this.regia.fonti.length < 2;
     this.bPausa.textContent = f === 'pausa' ? '▶ RIPRENDI' : '❚❚ PAUSA';
+    this.bFerma.textContent = f === 'conto' ? 'Annulla partenza' : '■ Ferma e salva';
     this.el.classList.toggle('in-onda', f === 'registra' || f === 'pausa');
     this.el.classList.toggle('in-pausa', f === 'pausa');
     this.aggiornaTempo();

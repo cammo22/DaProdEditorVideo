@@ -703,6 +703,7 @@ try {
     await page.click('.pagina-btn[data-p=finale]');
     await page.waitForTimeout(500);
     prova('la pagina Finale si apre col riepilogo', await page.isVisible('.finale .fin-riepilogo') && (await page.textContent('.fin-riepilogo')).includes('durata'));
+    await page.click('.fin-voce[data-s=colore]');
     await page.locator('.fin-look', { hasText: 'Cinema' }).click();
     let dd = await doc();
     prova('il look Cinema vale per tutto il montaggio', dd.master?.look === 'cinema');
@@ -730,6 +731,15 @@ try {
     prova('una riga di sottotitolo al cursore, col testo scritto', dd.sottotitoli?.righe.length === 1 && dd.sottotitoli.righe[0].da === 40 && dd.sottotitoli.righe[0].testo === 'Ciao da Napoli');
     const srt = await page.evaluate(() => { const { S } = window.__dpvTest; const t = S.creaSrt(window.__dpv.doc); return { t, n: S.leggiSrt(t, window.__dpv.doc).length }; });
     prova('il .srt si scrive e si rilegge', srt.t.includes('00:00:01,600 --> ') && srt.t.includes('Ciao da Napoli') && srt.n === 1, srt.t.split('\n').slice(0, 3).join(' / '));
+    // Manual-first: i picchi non nascono più importando. Prepararli esplicitamente,
+    // senza sostituire l'analisi reale con picchi finti né indebolire il controllo delle righe.
+    const forme = await page.evaluate(async () => {
+      const { LB, mediaRT } = window.__dpvTest;
+      const ids = [...new Set(window.__dpv.doc.clips.filter((c) => c.kind === 'media' && c.media).map((c) => c.media))];
+      await LB.preparaOra(ids, 'picchi');
+      return ids.some((id) => !!mediaRT(id)?.peaks);
+    });
+    prova('la preparazione manuale produce la forma d\'onda per i dialoghi', forme);
     await page.click('text=Prepara i tempi dai dialoghi');
     await page.waitForTimeout(300);
     dd = await doc();
@@ -755,7 +765,8 @@ try {
     });
     await page.click('text=Scrivi i sottotitoli con l\'AI');
     await page.waitForTimeout(300);
-    if (await page.isVisible('.velo')) await page.click('.velo >> text=Rifalle');
+    if (await page.getByRole('button', { name: 'Rifalle', exact: true }).isVisible()) await page.getByRole('button', { name: 'Rifalle', exact: true }).click();
+    await page.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();
     await page.waitForFunction(() => (window.__dpv.doc.sottotitoli?.righe ?? []).some((r) => r.testo === 'Buonasera Napoli'), null, { timeout: 30000 }).catch(() => {});
     {
       dd = await doc();
@@ -1315,7 +1326,10 @@ try {
     await pa.locator('.fin-pagina[data-s=lingue] .chip', { hasText: 'Sofia' }).click();
     const prima = await pa.evaluate(() => structuredClone(window.__dpv.doc));
     await pa.click('text=Fai parlare i sottotitoli');
-    await pa.waitForTimeout(600);
+    await pa.waitForSelector('.ai-passi', { state: 'visible' });
+    prova('Voce AI aspetta il consenso prima di chiamare il motore', await pa.evaluate(() => window.__voceChiamate.length === 0));
+    await pa.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();
+    await pa.waitForFunction(() => [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-tempo')].some((e) => /%/.test(e.textContent) && /passati/.test(e.textContent)));
     const mezzo = await pa.evaluate(() => ({ testo: [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-tempo')].map((e) => e.textContent).join('|'), fase: [...document.querySelectorAll('.fin-pagina[data-s=lingue] .ai-fase')].map((e) => e.textContent).join('|') }));
     prova('mentre lavora si vede la barra con la percentuale e il tempo passato', /%/.test(mezzo.testo) && /passati/.test(mezzo.testo), JSON.stringify(mezzo));
     await pa.waitForFunction(() => window.__dpv.doc.tracks.some((t) => t.name === 'Voce AI'), null, { timeout: 30000 });
@@ -1977,9 +1991,11 @@ try {
     const siMuove = (r) => r.validi >= 2 && r.cambi >= Math.min(3, r.validi - 1);
     const a = await suona(250);
     prova('play dal mezzo di una ripresa col GOP lungo: il video si muove (senza ripartire dal fotogramma chiave)', a.partito && siMuove(a) && a.nati <= 2, JSON.stringify(a));
+    // dalla 1.5.8 la copia leggera non si fa da sola: la si chiede come farebbe l'utente («Prepara copia leggera», subito)
+    await pg.evaluate(() => { const id = window.__dpv.doc.media[0].id; window.__dpvTest.LB.proponiPreparazione(id, 'proxy', { avvia: true }); });
     const pronto = await pg.waitForFunction(() => window.__dpvTest.proxyStato(window.__dpv.doc.media[0].id) === 'pronto', null, { timeout: 120000 }).then(() => true, () => false);
     const px = await pg.evaluate(() => { const r = window.__dpvTest.mediaRT(window.__dpv.doc.media[0].id); return r.proxy ? [r.proxy.w, r.proxy.h] : null; });
-    prova('il proxy automatico si fa da solo dietro le quinte', pronto && !!px && px[0] <= 960, JSON.stringify(px));
+    prova('il proxy chiesto a mano si fa dietro le quinte', pronto && !!px && px[0] <= 960, JSON.stringify(px));
     const b = await suona(250);
     // col proxy (un fotogramma chiave ogni mezzo secondo), su una macchina lenta il flusso rimasto indietro riparte dal
     // fotogramma chiave dopo per restare a tempo con l'audio: qualche ripartenza va bene, a raffica no (il vecchio

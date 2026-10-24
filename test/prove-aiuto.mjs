@@ -121,13 +121,21 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       const motore = diag.find((x) => /Motore AI/.test(x.t));
       prova('"Controlla l\'AI": il motore AI parte davvero, dai file dell\'app (niente CDN)', !!motore && /\bok\b/.test(motore.ok) && /dai file dell'app/.test(motore.t), JSON.stringify(diag));
       prova('la diagnosi dice di Hugging Face, della scheda video e dei modelli sul computer', diag.some((x) => /Hugging Face/.test(x.t)) && diag.some((x) => /Scheda video/.test(x.t)) && diag.some((x) => /Modelli sul computer/.test(x.t)));
-      // "Usa" sullo sfondo con il cursore su una clip: la sceglie e apre la sua sezione
+      // La funzione e la clip si scelgono esplicitamente: il cursore non autorizza l'AI.
       await page.evaluate(() => { window.__dpv.select([]); window.__dpv.setHead(20); });
+      await page.selectOption('select[aria-label="Cosa vuoi fare"]', 'sfondo');
+      await page.waitForSelector('.ai-carta[data-ai="sfondo"] .ai-usa', { state: 'visible' });
+      await page.click('.ai-carta[data-ai="sfondo"] .ai-usa');
+      const senzaClip = await page.evaluate(() => ({ centro: !!document.querySelector('.centro-ai'), selezione: window.__dpv.sel.size }));
+      prova('il cursore senza clip scelta non avvia lo sfondo e lascia il Centro AI aperto', senzaClip.centro && senzaClip.selezione === 0, JSON.stringify(senzaClip));
+      const clipRossa = await page.evaluate(() => window.__dpv.doc.clips.find((c) => c.kind === 'media' && c.name === 'Rosso')?.id);
+      if (!clipRossa) throw new Error('Fixture Rosso assente');
+      await page.selectOption('select[aria-label="Clip su cui usare AI"]', clipRossa);
       await page.click('.ai-carta[data-ai="sfondo"] .ai-usa');
       // dopo "Controlla l'AI" il computer è carico: si aspetta che la sezione si apra (fino a 4 s) invece di mezzo secondo fisso
       await page.waitForFunction(() => !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]'), null, { timeout: 4000 }).catch(() => {});
       const sez = await page.evaluate(() => ({ scelta: [...window.__dpv.sel].map((id) => window.__dpv.doc.clips.find((c) => c.id === id)?.name), aperta: !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]') }));
-      prova('"Usa" su "Togli lo sfondo": sceglie la clip sotto il cursore e apre la sua sezione', sez.scelta[0] === 'Rosso' && sez.aperta, JSON.stringify(sez));
+      prova('"Usa" su "Togli lo sfondo": conserva la clip esplicita e apre la sua sezione', sez.scelta[0] === 'Rosso' && sez.aperta, JSON.stringify(sez));
 
       console.log('▶ Aiuto: tasti e menu riordinati');
       const reg = await page.evaluate(() => { const a = window.__dpvTest.Z.azioni; return ['importa', 'salva', 'esporta', 'guida', 'cerca', 'centroAI', 'paginaFinale'].filter((id) => a.has(id)); });

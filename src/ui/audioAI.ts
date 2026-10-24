@@ -1,6 +1,7 @@
 // L'audio con l'AI dentro il montaggio: togliere i rumori da una voce e separare voce e base (la musica) di una canzone.
 // Qui sta quello che si vede e si preme: la sezione "Pulisci e separa" nelle Proprietà (per le clip audio e per le riprese con
 // l'audio), i due comandi (Ctrl+K, menu Modifica, tasto destro sulla clip). Il lavoro vero è in src/media/audioAI.ts.
+import { confermaAvvioAI } from './aiPassi';
 import { store } from '../core/store';
 import type { Clip } from '../core/tipi';
 import { registra as reg } from '../azioni';
@@ -31,6 +32,8 @@ function dopoErrore(e: unknown) {
 
 export async function faiTogliRumore(clipId: string, forza: Forza = 'media') {
   try {
+    const speciale = ['isolata', 'podcast', 'naturale'].includes(forza);
+    if (!(await confermaAvvioAI({ compito: 'Togli i rumori · ' + forza, clip: clipId, modello: forza === 'isolata' ? 'Demucs + DeepFilterNet' : speciale ? 'Clear' : 'DeepFilterNet', mb: forza === 'isolata' ? 172 : speciale ? 49 : undefined, locale: !speciale }))) return;
     await togliRumore(clipId, forza);
     avviso('🎙 Rumori tolti: se non ti piace, "Audio originale" rimette com\'era (o Ctrl+Z)', 'ok', 4200);
   } catch (e) { dopoErrore(e); }
@@ -38,7 +41,9 @@ export async function faiTogliRumore(clipId: string, forza: Forza = 'media') {
 
 export async function faiSeparaVoce(clipId: string, tieni: 'entrambe' | 'voce' | 'base' = 'entrambe') {
   try {
-    await separaVoceBase(clipId, { tieni, rapido: separazioneRapida() });
+    const rapido = separazioneRapida();
+    if (!(await confermaAvvioAI({ compito: 'Separa voce e base · ' + tieni, clip: clipId, modello: rapido ? 'Separazione rapida locale' : 'Demucs', mb: rapido ? undefined : 172, locale: rapido }))) return;
+    await separaVoceBase(clipId, { tieni, rapido });
     avviso('🎤 Fatto: la voce e la base sono su due tracce nuove (l\'originale è muto). Ctrl+Z rimette tutto', 'ok', 5200);
   } catch (e) { dopoErrore(e); }
 }

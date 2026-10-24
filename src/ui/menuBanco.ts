@@ -120,13 +120,14 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: 'Mixer', fn: () => { b.pagina('montaggio'); b.mostraLato('mixer'); } },
       { sep: true },
       { nome: 'Copie leggere per il monitor (proxy)', sotto: [
-        { nome: 'Da sole, per le riprese pesanti (consigliato)', spunta: modoProxy() === 'auto', fn: () => { impostaModoProxy('auto'); avviso('Copie leggere: da sole per le riprese pesanti in timeline', 'info'); } },
-        { nome: 'Sempre (anche per i file leggeri)', spunta: modoProxy() === 'sempre', fn: () => { impostaModoProxy('sempre'); avviso('Copie leggere: sempre', 'info'); } },
+        // dalla 1.5.8 nessuna copia si fa da sola: la scelta dice solo per quali file si offre «Prepara copia leggera»
+        { nome: 'Offrile per le riprese pesanti (consigliato)', spunta: modoProxy() === 'auto', fn: () => { impostaModoProxy('auto'); avviso('Copie leggere: si offrono per le riprese pesanti (le prepari tu, non partono da sole)', 'info'); } },
+        { nome: 'Offrile per tutti i video', spunta: modoProxy() === 'sempre', fn: () => { impostaModoProxy('sempre'); avviso('Copie leggere: si offrono per tutti i video (le prepari tu, non partono da sole)', 'info'); } },
         { nome: 'Mai (il monitor legge gli originali)', spunta: modoProxy() === 'mai', fn: () => { impostaModoProxy('mai'); avviso('Copie leggere spente: il monitor legge gli originali', 'info'); } },
         { sep: true },
-        { nome: 'Svuota le copie leggere (si rifanno quando servono)', fn: async () => { await svuotaProxy(); avviso('Copie leggere tolte dal disco: si rifanno da sole quando servono', 'ok', 2600); } },
+        { nome: 'Svuota le copie leggere (si rifanno a mano)', fn: async () => { await svuotaProxy(); avviso('Copie leggere tolte dal disco: per rifarle, «Prepara copia leggera»', 'ok', 2600); } },
       ] },
-      { nome: 'Svuota la memoria delle misure (forme d\'onda, colore, locandine)', fn: async () => { await svuotaCache(); avviso('Memoria delle misure svuotata: si rifanno alla prossima apertura dei file', 'ok', 2600); } },
+      { nome: 'Svuota la memoria delle misure (forme d\'onda, colore, locandine)', fn: async () => { await svuotaCache(); avviso('Memoria delle misure svuotata: si rifanno a mano quando servono', 'ok', 2600); } },
     ]],
     ['Aiuto', () => [
       { nome: 'Come si fa (la guida)', tasto: 'F1', fn: () => finestraGuida() },

@@ -1,6 +1,7 @@
 // DaProdMontage: la quarta pagina. Butti dentro foto e video alla rinfusa, scegli che festa è, dici quanto deve durare e
 // il programma monta da solo: ordine, tempi, movimenti, transizioni, titoli, cuori e petali, musica a tempo. Il risultato
 // è una timeline vera (una scheda nuova) che poi ritocchi come vuoi. Il motore sta in src/core/montage.ts.
+import { inCoda } from '../media/attivita';
 import { store } from '../core/store';
 import type { MediaItem } from '../core/tipi';
 import { CATEGORIE_MONTAGE, PRESET_MONTAGE, presetMontage, type PresetMontage, type TestiMontage } from '../core/montagePreset';
@@ -69,7 +70,7 @@ export class Montage {
   private conta: HTMLElement;
   private carte = new Map<string, HTMLElement>();
   private riepilogo: HTMLElement;
-  private lavoro = new BarraLavoro('DaProdMontage: preparo il montaggio', 'altro');
+  private lavoro = new BarraLavoro();
   private bCrea: HTMLButtonElement;
   private selMusica: HTMLSelectElement;
   private campiTesto: HTMLElement;
@@ -102,9 +103,9 @@ export class Montage {
     this.riepilogo = h('div', { class: 'mt-riepilogo' });
     this.campiTesto = h('div', { class: 'mt-testi' });
     this.selMusica = h('select', { class: 'mini-select largo', title: 'La musica del video', on: { change: () => { this.s.musica = this.selMusica.value; this.aggiorna(); } } }) as HTMLSelectElement;
-    this.bCrea = h('button', { class: 'btn primario mt-crea', on: { click: () => void this.crea() } }, '✨ CREA IL MONTAGGIO') as HTMLButtonElement;
+    this.bCrea = h('button', { class: 'btn primario mt-crea', on: { click: () => void this.crea() } }, 'Crea anteprima') as HTMLButtonElement;
     this.bRigenera = h('button', { class: 'btn mt-rigenera', title: 'Un altro montaggio con le stesse scelte: cambiano movimenti, durate, transizioni ed effetti', on: { click: () => void this.crea() } }, '🎲 RIGENERA') as HTMLButtonElement;
-    this.bImporta = h('button', { class: 'btn primario mt-importa', title: 'Tiene questo montaggio e apre la timeline per ritoccarlo', on: { click: () => this.importa() } }, '✅ IMPORTA NELLA TIMELINE') as HTMLButtonElement;
+    this.bImporta = h('button', { class: 'btn primario mt-importa', title: 'Tiene questo montaggio e apre la timeline per ritoccarlo', on: { click: () => this.importa() } }, 'Tieni e apri nel Montaggio') as HTMLButtonElement;
     this.bScarta = h('button', { class: 'btn mt-scarta', title: 'Toglie l\'anteprima e torna a com\'era prima', on: { click: () => this.scarta() } }, '✖ Scarta') as HTMLButtonElement;
     this.etichetta = h('span', { class: 'mt-variante' });
 
@@ -180,7 +181,9 @@ export class Montage {
       h('header', { class: 'fin-testa' }, h('b', null, 'DAPROD'), h('b', { class: 'mt-m' }, 'MONTAGE'), h('span', null, 'butta dentro le foto, scegli la festa e il programma monta da solo'),
         h('span', { class: 'live-tastiera' }, 'F8 · poi ritocchi tutto nel Montaggio')),
       h('div', { class: 'mt-azioni' }, this.bCrea, this.bRigenera, this.bImporta, this.bScarta, this.etichetta, h('div', { class: 'mt-lavoro' }, ...this.lavoro.elementi)),
-      h('div', { class: 'mt-dentro' }, colFile, colFesta, colCome));
+      h('nav', { class: 'mt-etapes', 'aria-label': 'Preparazione del montaggio' }, ['1 · Foto e video', '2 · Stile', '3 · Durata, ordine e musica'].map((t, i) => h('button', { class: 'btn', on: { click: () => this.mostraPasso(i) } }, t))),
+      h('fieldset', { class: 'mt-dentro' }, colFile, colFesta, colCome));
+    this.mostraPasso(this.passo);
     quandoFotogramma(() => { if (this.scorrendo) this.disegnaScorre(); });
     store.on('doc', () => {
       // un annulla (o una modifica) ha tolto l'anteprima di mezzo: i bottoni tornano a "Crea"
@@ -190,6 +193,12 @@ export class Montage {
     this.sincronizza();
   }
 
+  private passo = 0;
+  private mostraPasso(passo: number) {
+    this.passo = passo;
+    this.el.querySelectorAll<HTMLElement>('.mt-col').forEach((e, i) => { e.hidden = i !== passo; });
+    this.el.querySelectorAll<HTMLButtonElement>('.mt-etapes button').forEach((e, i) => { e.setAttribute('aria-current', i === passo ? 'step' : 'false'); });
+  }
   private carteFesta: HTMLElement;
   private filtro = 'tutte';
   private timerAgg = 0;
@@ -387,7 +396,9 @@ export class Montage {
     this.bRigenera.disabled = this.occupato || !n;
     this.bImporta.disabled = this.occupato;
     this.bScarta.disabled = this.occupato;
-    this.etichetta.textContent = this.anteprima ? `Variante ${codiceSeme(this.anteprima.seme)}` : '';
+    const impostazioni = this.el.querySelector<HTMLFieldSetElement>('fieldset.mt-dentro');
+    if (impostazioni) impostazioni.disabled = this.occupato;
+    this.etichetta.textContent = this.occupato ? 'Analisi richieste · pausa e annulla in Attività' : this.anteprima ? `Anteprima · variante ${codiceSeme(this.anteprima.seme)} · Rigenera la sostituisce, Scarta torna indietro` : 'Scegli i file: Crea anteprima avvia le analisi, non esporta un video';
   }
 
   /** l'anteprima è ancora quella che abbiamo fatto noi? (se hai cambiato qualcosa o hai annullato, non lo è più) */
@@ -431,10 +442,18 @@ export class Montage {
    *  Ogni volta il seme è nuovo (o quello dato, per le prove): stesse scelte, montaggio diverso. */
   async crea(seme?: number): Promise<void> {
     if (this.occupato) return this.ultimo as Promise<void>;
+    this.motoreFerma();
     this.occupato = true;
     this.aggiornaBarra();
-    const lavoro = (async () => {
-      const lav = this.lavoro;
+    const lavoro = inCoda({ titolo: 'Montage · prepara anteprima', categoria: 'analisi', corsia: 'pesante', pausa: 'ai-confini', chiave: 'montage:anteprima' }, async (job) => {
+      this.occupato = true;
+      this.aggiornaBarra();
+      const lav = {
+        avvia: (t: string) => this.lavoro.avvia(t),
+        imposta: (t: string, k: number) => { job.imposta(k, t); this.lavoro.imposta(t, k); },
+        fine: (t: string) => this.lavoro.fine(t),
+        ferma: (t: string) => this.lavoro.ferma(t),
+      };
       lav.avvia('Guardo i file…');
       try {
         this.motoreFerma();
@@ -442,6 +461,8 @@ export class Montage {
         const entrate = this.entrate();
         // quando sono state scattate (EXIF) e, se serve, quanto sono venute bene (una volta sola per file)
         for (let i = 0; i < lista.length; i++) {
+          await job.checkpoint();
+          if (!job.valido) throw new Error('fermato');
           const m = lista[i], e = entrate[i];
           lav.imposta(`Guardo ${m.name} (${i + 1} di ${lista.length})`, (i / lista.length) * 0.6);
           if (m.type === 'image' && /\.jpe?g$/i.test(m.name) && this.s.ordine === 'data') {
@@ -460,10 +481,14 @@ export class Montage {
                 for (let k = 1; k <= 6; k++) { const t = (m.duration * k) / 7; const px = await pixelAl(m.id, t, 96); if (!px) continue; const q = misuraQualita(px); if (q.punteggio > best) { best = q.punteggio; tb = t; } }
                 if (best >= 0) { e.punteggio = best; e.inizioMigliore = Math.max(0, tb - 1); }
               }
+              if (!job.valido) throw new Error('fermato');
               this.analisi.set(m.id, { punteggio: e.punteggio, firma: e.firma, inizioMigliore: e.inizioMigliore });
-            } catch { /* resta il valore di mezzo */ }
+            } catch (e) { if (!job.valido) throw e; /* resta il valore di mezzo */ }
           }
         }
+        await job.checkpoint();
+        if (!job.valido) throw new Error('fermato');
+        // La musica è un nuovo pezzo: non parte durante pausa o annullamento.
         let musica: OpzMontage['musica'];
         const mus = this.s.musica ? this.brani().find((m) => m.id === this.s.musica) : undefined;
         if (mus) {
@@ -472,11 +497,14 @@ export class Montage {
             lav.imposta('Ascolto il ritmo del brano…', 0.65);
             const rit = await battitiDi(mus.id, (k) => lav.imposta('Ascolto il ritmo del brano…', 0.65 + k * 0.2)).catch(() => null);
             battiti = rit && rit.sicurezza > 0.15 ? rit.battiti : undefined;
+            if (!job.valido) throw new Error('fermato');
             this.ritmi.set(mus.id, battiti);
             if (rit && battiti) avviso(`♪ Ritmo trovato: ${Math.round(rit.bpm)} battiti al minuto`, 'info', 2200);
           }
           musica = { media: mus.id, durata: mus.duration, nome: mus.name, battiti };
         }
+        await job.checkpoint();
+        if (!job.valido) throw new Error('fermato');
         lav.imposta('Monto…', 0.9);
         const usato = seme ?? nuovoSeme();
         const opz = this.opzioni(musica, usato);
@@ -504,14 +532,19 @@ export class Montage {
         this.riassuntoAnteprima(piano.voci.length, piano.durata, piano.note);
         this.ultimo = Promise.resolve(piano);
       } catch (e) {
-        lav.ferma('Non riuscito');
+        lav.ferma(job.valido ? 'Non riuscito' : 'Fermato');
         avviso('DaProdMontage: ' + (e instanceof Error ? e.message : String(e)), 'errore', 5000);
+        throw e;
       } finally {
         this.occupato = false;
         this.aggiornaBarra();
         this.aggiorna();
       }
-    })();
+    }).then(() => undefined).finally(() => {
+      this.occupato = false;
+      this.aggiornaBarra();
+      this.aggiorna();
+    });
     this.ultimo = lavoro;
     return lavoro;
   }

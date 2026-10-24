@@ -2,10 +2,11 @@
 //   npm run build && node test/foto.mjs
 import { chromium } from 'playwright';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { servi } from './servi.mjs';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'test/.out');
 fs.mkdirSync(OUT, { recursive: true });
 const srv = await servi(path.join(ROOT, 'dist'));
@@ -51,6 +52,7 @@ async function scatta(nome, viewport, extra = {}) {
     // la pagina Finale: il look Cinema, un sottotitolo e il menu a destra
     await p.evaluate(() => { window.__motore.vaiA(210); window.__dpv.select([]); });
     await p.click('.pagina-btn[data-p=finale]');
+    await p.click('.fin-voce[data-s=colore]');
     await p.locator('.fin-look', { hasText: 'Cinema' }).click();
     await p.click('.fin-voce[data-s=sottotitoli]');
     await p.click('text=+ Riga al cursore');
