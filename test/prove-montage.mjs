@@ -234,7 +234,7 @@ export async function proveMontage({ page, prova, OUT }) {
     };
   });
   const dopo = await stato();
-  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Variante [0-9A-Z]{5}$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
+  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Anteprima · variante [0-9A-Z]{5} · Rigenera la sostituisce, Scarta torna indietro$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
   prova('le foto riempiono esattamente 20 secondi e il nome inserito sta nel titolo', dopo.fine === dopo.atteso && /Leonardo/.test(dopo.testo) && dopo.titoli >= 1, JSON.stringify([dopo.fine, dopo.atteso]));
   prova('ci sono transizioni o effetti come blocchetti sopra le clip', dopo.blocchi >= 2, String(dopo.blocchi));
   prova('il monitor sta in alto e grande (anche col pannello Proprietà fissato), il pannello sotto, la timeline nascosta', dopo.monitor && dopo.pannello && dopo.monitor.h > 200 && dopo.monitor.w > 900 && dopo.monitor.y < dopo.pannello.y && dopo.pannello.h > 250 && !dopo.timeline, JSON.stringify([dopo.monitor, dopo.pannello, dopo.timeline]));

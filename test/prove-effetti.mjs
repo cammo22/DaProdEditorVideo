@@ -1,7 +1,7 @@
 // SOLO Luna/Haiku: Chromium/WebGL reale. Sol scrive questa prova, non la esegue.
 // Baseline 1.5.7: DPV_DIST=<dist-base> node test/prove-effetti.mjs --cattura=test/.out/fx-base.json
 // Candidato: node test/prove-effetti.mjs --riferimento=test/.out/fx-base.json [--bench]
-// DPV_GPU=1 usa la GPU reale invece di SwiftShader. Confrontare sullo stesso backend.
+// DPV_GPU=1 non forza SwiftShader; verificare il renderer, non implica GPU hardware.
 // Confronto dei pixel PRIMA del codec: monitor vs fornitore export, non MP4 bit-a-bit.
 import { chromium } from 'playwright';
 import { servi } from './servi.mjs';
@@ -19,6 +19,21 @@ let browser;
 try {
   browser = await chromium.launch({ executablePath: process.env.CHROME || undefined, args: process.env.DPV_GPU === '1' ? [] : ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
   const page = await browser.newPage({ viewport: { width: 1366, height: 900 } });
+  page.on('console', (m) => { if (m.text().startsWith('[fx-probe]')) console.log(m.text()); });
+  page.on('crash', () => console.error('[fx-probe] PAGE CRASH'));
+  // Solo diagnostica: non attivare durante i benchmark.
+  if (process.env.DPV_DIAG_GL === '1') await page.addInitScript(() => {
+    const proto = WebGL2RenderingContext.prototype;
+    for (const nome of ['compileShader', 'getShaderParameter', 'linkProgram', 'getProgramParameter', 'drawArrays', 'readPixels']) {
+      const originale = proto[nome];
+      proto[nome] = function (...args) {
+        console.log('[fx-probe] prima ' + nome);
+        const risultato = originale.apply(this, args);
+        console.log('[fx-probe] dopo ' + nome);
+        return risultato;
+      };
+    }
+  });
   const errori = []; page.on('pageerror', (e) => errori.push(e.message));
   await page.goto(srv.url + '/app/'); await page.waitForFunction(() => !!window.__dpvTest?.Compositore);
   const dati = await page.evaluate(async ({ bench }) => {
@@ -34,8 +49,13 @@ try {
     const p = P.newProject({ w: 320, h: 180, rate: { num: 25, den: 1 }, drop: false });
     p.media = [m]; const t = p.tracks.find((t) => t.kind === 'video').id;
     p.clips = [P.newClip('media', t, 0, 250, { media: m.id })];
+    console.log('[fx-probe] costruisco monitor');
     const mon = new Compositore(new OffscreenCanvas(320, 180), true);
+    const info = mon.gl.getExtension('WEBGL_debug_renderer_info');
+    console.log('[fx-probe] renderer ' + mon.gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : mon.gl.RENDERER));
+    console.log('[fx-probe] costruisco export');
     const exp = new Compositore(new OffscreenCanvas(320, 180), true);
+    console.log('[fx-probe] compositori pronti');
     const digest = async (a) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', a))).map((v) => v.toString(16).padStart(2, '0')).join('');
     const render = (comp, f, exporta) => {
       comp.render(p, pianoVideo(p, f), false, f, exporta ? () => mediaRT(m.id).image : undefined);
@@ -46,6 +66,7 @@ try {
       const neutro = await digest(render(mon, 37, false));
       const casi = [...B.EFFETTI_TEMPO.map((e) => [e.id]), ['grana', 'nitido'], ['censura', 'rgb', 'sfoca']].filter((ids) => ids.every((id) => B.effettoTempo(id)));
       for (const ids of casi) {
+        console.log('[fx-probe] caso ' + ids.join('+'));
         p.clips = p.clips.filter((c) => c.kind !== 'fx');
         for (const id of ids) B.posaBlocco(p, B.nuovoBlocco('effetto', id), 0, 250, t);
         const a = render(mon, 37, false), b = render(exp, 37, true), ripeti = render(mon, 37, false);
