@@ -16,7 +16,7 @@
         "dragDropEnabled": true,
         "theme": "Light",
         "decorations": false,
-        "additionalBrowserArgs": "--force_high_performance_gpu --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,MediaFoundationD3D11VideoCapture"
+        "additionalBrowserArgs": "--force_high_performance_gpu --disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,MediaFoundationD3D11VideoCapture --use-fake-ui-for-media-stream --auto-select-desktop-capture-source=Schermo"
       }
     ]
   }

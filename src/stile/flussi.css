@@ -79,3 +79,9 @@ button, select, summary { touch-action: manipulation; }
 .att-r-comandi:empty { display: none; }
 .att-riga[data-stato='manuale'] .att-pista { display: none; }
 .att-fin { opacity: .85; }
+.live-guida { margin: 8px 2px; }
+.live-rapide { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+.live-prime { display: flex; flex-direction: column; gap: 4px; }
+.live-prime:empty { display: none; }
+.live-prime .live-fonte { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: #1d1c24; }
+.live-prime .live-fonte-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

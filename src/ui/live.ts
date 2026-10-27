@@ -263,7 +263,8 @@ function leggiOpzioni(): Opzioni {
   try {
     const salvate = JSON.parse(localStorage.getItem('dpv-live') || '{}');
     // i filtri e il mixer non fanno più parte di LIVE (l'audio si lavora dopo, nel montaggio): le scelte vecchie non valgono più
-    return { ...OPZ0, ...salvate, audio: copiaImpostazioni(IMPOSTAZIONI0) };
+    // «più finestre» non è più un interruttore: si sceglie aggiungendo finestre prima di registrare
+    return { ...OPZ0, ...salvate, finestre: false, audio: copiaImpostazioni(IMPOSTAZIONI0) };
   } catch { return { ...OPZ0, audio: copiaImpostazioni(IMPOSTAZIONI0) }; }
 }
 const QUALITA: [number, string][] = [[720, '720p'], [1080, '1080p'], [1440, '1440p'], [2160, '4K']];
@@ -341,6 +342,9 @@ export class Live {
   /** la regia (solo se si registra con più finestre) e la fila delle miniature */
   private regia: Regia | null = null;
   private elFonti: HTMLElement;
+  /** le finestre in più scelte PRIMA di registrare (mentre registri si può solo passare dall'una all'altra) */
+  private prime: { s: MediaStream; nome: string }[] = [];
+  private elPrime = h('div', { class: 'live-prime' });
   private bAggiungi: HTMLButtonElement;
   private bProssima: HTMLButtonElement;
   private aggiungendo = false;
@@ -393,7 +397,7 @@ export class Live {
     this.bCam = h('button', { class: 'live-btn cam', title: 'Accendi o spegni la webcam, anche mentre registri (C)', on: { click: () => this.commutaCam() } }, icona('webcam', 15), 'WEBCAM') as HTMLButtonElement;
     const bTele = h('button', { class: 'live-btn tele', title: 'Il telecomando resta sopra le altre finestre mentre registri', on: { click: () => void this.apriTelecomando() } }, icona('telecomando', 15), 'TELECOMANDO');
     this.elFonti = h('div', { class: 'live-fonti' });
-    this.bAggiungi = h('button', { class: 'live-btn', disabled: true, title: 'Aggiungi un\'altra finestra o schermo (N)', on: { click: () => void this.aggiungiFinestra() } }, '＋ FINESTRA') as HTMLButtonElement;
+    this.bAggiungi = h('button', { class: 'live-btn', title: 'Aggiungi un\'altra finestra o schermo da registrare insieme (si sceglie prima di registrare)', on: { click: () => void this.aggiungiPrima() } }, '＋ Aggiungi una finestra') as HTMLButtonElement;
     this.bProssima = h('button', { class: 'live-btn', disabled: true, title: 'Passa alla finestra dopo (o i tasti 1-9)', on: { click: () => this.prossimaFinestra() } }, '⇄ CAMBIA') as HTMLButtonElement;
     this.lista = h('div', { class: 'live-lista' }, h('p', { class: 'nota' }, 'Le registrazioni di oggi compaiono qui (e nel contenitore, cartella Registrazioni).'));
     this.audio = new PannelloAudio({
@@ -464,37 +468,39 @@ export class Live {
         h('div', { class: 'live-schermo' }, h('div', { class: 'live-quadro' }, vuoto, this.video), this.camVideo, this.contoEl),
         h('div', { class: 'live-comandi' },
           h('div', { class: 'live-regia' },
-            this.faseCerta, this.tempo, this.stato, this.info, this.fontiStato,
+            this.faseCerta, this.tempo, this.stato, this.info,
             h('div', { class: 'live-tasti' }, this.bReg, this.bPausa, this.bFerma),
             h('div', { class: 'live-tasti tre' }, this.bSegna, this.bCam, bTele),
-            h('div', { class: 'live-tasti due' }, this.bAggiungi, this.bProssima),
             this.elFonti,
             this.audio.compatto),
-          h('details', { class: 'live-configurazione', open: true }, h('summary', null, '1 · Sorgenti e registrazione'),
-          sezione('Cosa registro'),
-          h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
-          interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
-          interruttore('separato', null, 'Voce e computer separati', 'Se registri tutti e due, il microfono va in un file suo e su una traccia audio a parte: dopo puoi livellare i volumi di voce e computer uno per uno'),
-          h('div', { class: 'live-riga' }, interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra. Si accende e si spegne anche mentre registri (tasto C)', () => { if (this.opz.cam) void this.accendiCam(); else this.spegniCam(); }), this.selCam),
-          h('div', { class: 'live-riga cam-scelte' },
-            chips('camAngolo', ANGOLI.map(([a, s]): [Angolo, string, string] => [a, s, 'La webcam in questo angolo'])),
-            chips('camTonda', [[true, 'Bolla', 'Tonda'], [false, 'Riquadro', 'Un riquadro con gli angoli tondi']])),
-          sezione('Finestre'),
-          interruttore('finestre', null, 'Più finestre al volo (nuovo)', 'Aggiungi altre finestre o schermi e passa dall\'una all\'altra mentre registri: il video resta uno solo. Va acceso prima di registrare; il video passa da una tela intermedia, quindi con una finestra sola e senza cambi meglio lasciarlo spento'),
-          chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
-          sezione('Qualità'),
-          chips('qualita', QUALITA.map(([q, n]): [number, string] => [q, n])),
-          h('div', { class: 'live-riga' }, chips('fps', [[30, '30 fps'], [60, '60 fps', 'Più fluido (giochi, animazioni): file più grandi']]),
-            interruttore('cursore', null, 'Cursore', 'Il puntatore del mouse nella registrazione (dove il sistema lo permette)')),
-          sezione('Partenza e arrivo'),
-          interruttore('conto', null, 'Conto alla rovescia 3-2-1', 'Tre secondi per sistemarti prima che parta'),
-          interruttore('timeline', null, 'Mettila in fondo alla timeline', 'Quando fermi, la registrazione va anche in coda al montaggio'),
-          interruttore('presentazione', null, 'Stile presentazione', 'Lo schermo un po\' più piccolo, angoli tondi e ombra, sopra uno sfondo sfumato (si cambia dopo nelle proprietà)'),
-          sfondi),
-          h('details', { class: 'live-archivio', open: true }, h('summary', null, '2 · Registrazioni pronte'), this.lista),
-          h('p', { class: 'nota' }, puoRegistrare()
-            ? 'Il sistema chiede ogni volta cosa registrare. Con "Più finestre" puoi aggiungerne altre mentre registri (＋ FINESTRA, N) e passare dall\'una all\'altra (clic sulla miniatura o tasti 1-9, L cambia la disposizione). La pausa non lascia buchi: il file riprende da dove eri. Su Windows e nel browser Chrome/Edge c\'è anche l\'audio del computer.'
-            : 'Qui non si può registrare lo schermo: su Android il sistema non lo permette alle app come questa. Usa la versione per Windows o Mac, o Chrome/Edge sul computer.'))));
+          h('p', { class: 'nota live-guida' }, puoRegistrare()
+            ? 'REGISTRA parte subito: registra lo schermo con l\'audio del computer e il microfono. La pausa non lascia buchi.'
+            : 'Qui non si può registrare lo schermo: su Android il sistema non lo permette alle app come questa. Usa la versione per Windows o Mac, o Chrome/Edge sul computer.'),
+          h('div', { class: 'live-rapide' },
+            h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
+            interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
+            h('div', { class: 'live-riga' }, interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra. Si accende e si spegne anche mentre registri (tasto C)', () => { if (this.opz.cam) void this.accendiCam(); else this.spegniCam(); }), this.selCam),
+            h('div', { class: 'live-riga' }, this.bAggiungi),
+            this.elPrime),
+          h('details', { class: 'live-configurazione' }, h('summary', null, 'Altre opzioni'),
+            sezione('Qualità'),
+            chips('qualita', QUALITA.map(([q, n]): [number, string] => [q, n])),
+            h('div', { class: 'live-riga' }, chips('fps', [[30, '30 fps'], [60, '60 fps', 'Più fluido (giochi, animazioni): file più grandi']]),
+              interruttore('cursore', null, 'Cursore', 'Il puntatore del mouse nella registrazione (dove il sistema lo permette)')),
+            interruttore('separato', null, 'Voce e computer separati', 'Se registri tutti e due, il microfono va in un file suo e su una traccia audio a parte: dopo puoi livellare i volumi di voce e computer uno per uno'),
+            sezione('Webcam'),
+            h('div', { class: 'live-riga cam-scelte' },
+              chips('camAngolo', ANGOLI.map(([a, s]): [Angolo, string, string] => [a, s, 'La webcam in questo angolo'])),
+              chips('camTonda', [[true, 'Bolla', 'Tonda'], [false, 'Riquadro', 'Un riquadro con gli angoli tondi']])),
+            sezione('Più finestre'),
+            chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
+            h('div', { class: 'live-riga' }, this.bProssima),
+            sezione('Partenza e arrivo'),
+            interruttore('conto', null, 'Conto alla rovescia 3-2-1', 'Tre secondi per sistemarti prima che parta'),
+            interruttore('timeline', null, 'Mettila in fondo alla timeline', 'Quando fermi, la registrazione va anche in coda al montaggio'),
+            interruttore('presentazione', null, 'Stile presentazione', 'Lo schermo un po\' più piccolo, angoli tondi e ombra, sopra uno sfondo sfumato (si cambia dopo nelle proprietà)'),
+            sfondi),
+          h('details', { class: 'live-archivio' }, h('summary', null, 'Registrazioni pronte'), this.lista))));
     this.video.addEventListener('loadedmetadata', () => vuoto.classList.add('via'));
     this.video.addEventListener('emptied', () => vuoto.classList.remove('via'));
     if (!puoRegistrare()) this.bReg.disabled = true;
@@ -537,7 +543,7 @@ export class Live {
     else if (k === 'm' && this.fase === 'registra') this.segna();
     else if (k === 'c') this.commutaCam();
     else if (/^[1-9]$/.test(k) && this.regia && this.fase !== 'fermo') this.passaA(Number(k) - 1);
-    else if (k === 'n' && this.fase !== 'fermo') void this.aggiungiFinestra();
+    else if (k === 'n' && this.fase === 'fermo') void this.aggiungiPrima();
     else if (k === 'l' && this.regia && this.fase !== 'fermo') this.ciclaLayout();
     else if ((k === 'f' || k === 'escape') && this.fase !== 'fermo') this.ferma();
     else preso = false;
@@ -717,7 +723,7 @@ export class Live {
     this.bPausa.disabled = f !== 'registra' && f !== 'pausa';
     this.bFerma.disabled = f === 'fermo';
     this.bSegna.disabled = f !== 'registra';
-    this.bAggiungi.disabled = f === 'fermo';
+    this.bAggiungi.disabled = f !== 'fermo';
     this.bProssima.disabled = !this.regia || f === 'fermo' || this.regia.fonti.length < 2;
     this.bPausa.textContent = f === 'pausa' ? '▶ RIPRENDI' : '❚❚ PAUSA';
     this.bFerma.textContent = f === 'conto' ? 'Annulla partenza' : '■ Ferma e salva';
@@ -862,7 +868,7 @@ export class Live {
     this.flussi = [schermo];
     let tracce: MediaStreamTrack[];
     const st0 = schermo.getVideoTracks()[0]?.getSettings?.() ?? {};
-    if (o.finestre) {
+    if (o.finestre || this.prime.length) {
       // più finestre: la misura è quella della prima, ridotta alla qualità scelta; la regia disegna quella in onda
       let w = st0.width || Math.round(o.qualita * 16 / 9), hh = st0.height || o.qualita;
       const kk = Math.min(1, o.qualita / hh);
@@ -870,6 +876,13 @@ export class Live {
       const r = new Regia(w, hh, o.fps);
       r.layout = o.layout;
       r.fonti.push(this.nuovaFonte(schermo, 1));
+      for (const p of this.prime.splice(0)) {
+        this.flussi.push(p.s);
+        const f = this.nuovaFonte(p.s, r.fonti.length + 1);
+        r.fonti.push(f);
+        p.s.getVideoTracks()[0]?.addEventListener('ended', () => this.togliFinestra(f));
+      }
+      this.disegnaPrime();
       this.regia = r;
       tracce = [r.track];
       this.giroFonti = window.setInterval(() => this.aggiornaMiniature(), 400);
@@ -1271,7 +1284,36 @@ export class Live {
     return { flusso, video, nome: this.nomeFonte(flusso, n), miniatura: h('canvas', { width: 112, height: 63 }) as HTMLCanvasElement };
   }
 
-  /** un'altra finestra o schermo: si sceglie col selettore del sistema e va subito in onda */
+  /** una finestra o uno schermo in più, scelta PRIMA di registrare: entra nella registrazione e si passa dall'una all'altra con 1-9 */
+  async aggiungiPrima() {
+    if (this.fase !== 'fermo') { avviso('Le finestre si aggiungono prima di registrare', 'info', 2400); return; }
+    if (this.aggiungendo) return;
+    this.aggiungendo = true;
+    try {
+      const o = this.opz;
+      const s = sorgenteProva ? await sorgenteProva(false) : await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: o.fps }, height: { ideal: o.qualita }, width: { ideal: Math.round(o.qualita * 16 / 9) }, ...({ cursor: o.cursore ? 'always' : 'never' } as object) },
+        audio: false,
+        ...({ selfBrowserSurface: 'exclude' } as object),
+      } as DisplayMediaStreamOptions);
+      const voce = { s, nome: this.nomeFonte(s, this.prime.length + 2) };
+      this.prime.push(voce);
+      s.getVideoTracks()[0]?.addEventListener('ended', () => { this.prime = this.prime.filter((x) => x !== voce); this.disegnaPrime(); });
+      this.disegnaPrime();
+    } catch { /* il selettore è stato chiuso */ } finally { this.aggiungendo = false; }
+  }
+
+  private disegnaPrime() {
+    const vive = this.prime.filter((p) => p.s.getVideoTracks().some((t) => t.readyState === 'live'));
+    this.prime = vive;
+    this.elPrime.replaceChildren(...(vive.length
+      ? [h('p', { class: 'nota' }, `Si registra anche: ${vive.length === 1 ? 'una finestra in più' : vive.length + ' finestre in più'}. Mentre registri le cambi con i tasti 1-9.`),
+        ...vive.map((p) => h('div', { class: 'live-fonte' }, h('span', { class: 'live-fonte-nome' }, p.nome.slice(0, 40)),
+          h('button', { class: 'live-fonte-x', title: 'Toglila', on: { click: () => { for (const t of p.s.getTracks()) t.stop(); this.prime = this.prime.filter((x) => x !== p); this.disegnaPrime(); } } }, '✕')))]
+      : []));
+  }
+
+  /** un'altra finestra o schermo MENTRE si registra (non più dalla pagina: restano per le prove e il vecchio tasto) */
   async aggiungiFinestra() {
     const r = this.regia;
     if (!r) { avviso('Accendi "Più finestre al volo" prima di registrare: poi puoi aggiungere altre finestre', 'info', 3200); return; }
