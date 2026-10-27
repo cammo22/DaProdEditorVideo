@@ -169,8 +169,8 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
       colore: m.some((x) => mediaRT(x.id).colore), picchi: m.some((x) => mediaRT(x.id).peaks), doc: JSON.stringify(window.__dpv.doc), ids: m.map((x) => x.id),
     };
   });
-  prova('import con le preferenze vecchie «sempre»: nessuna copia leggera, forma d\'onda, colore né riga di preparazione', dati.prima.every((s) => s === '-') && !dati.righe0.length && !dati.prep0.length && !dati.colore && !dati.picchi, JSON.stringify(dati));
-  prova('la clip messa in timeline non fa partire niente (dopo 2,6 s)', dati.dopo.every((s) => s === '-') && !dati.righe1.length && dati.daAvviare === 0, JSON.stringify(dati.dopo));
+  prova('import con le preferenze vecchie: nessuna copia leggera né conversione; forma d\'onda e colore ripartono da soli', dati.prima.every((s) => s === '-') && dati.righe0.every((t) => /Forme d|Colore|Locandine/.test(t)) && dati.prep0.every((t) => /Forme d|Colore|Locandine/.test(t)), JSON.stringify(dati));
+  prova('la clip messa in timeline non fa partire nessuna copia leggera (dopo 2,6 s)', dati.dopo.every((s) => s === '-') && dati.daAvviare === 0, JSON.stringify(dati.dopo));
 
   // la copia leggera a mano: nasce da avviare, parte con Avvia, Pausa vera (riparte dallo stesso punto), poi pronta sul disco
   const px = await page.evaluate(async (ids) => {

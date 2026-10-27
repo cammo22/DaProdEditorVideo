@@ -65,10 +65,9 @@ export function avvia(radice: HTMLElement) {
   const tab = (s: Lato, n: string) => h('button', { class: 'scheda' + (s === 'clip' ? ' attiva' : ''), 'data-s': s, on: { click: () => mostraLato(s) } }, n);
   const vuCornice = h('div', { class: 'vu-cornice' }, vu.el);
   // il puntino: il pannello a destra sempre in vista, a tutta altezza (come il tasto V)
-  const fissa = h('button', { class: 'scheda-fissa', title: 'Tieni il pannello sempre in vista, a tutta altezza (V)', on: { click: () => vistaStretta() } }, '📌');
   const pannelloLato = h('section', { class: 'pannello lato' },
     vuCornice,
-    h('header', { class: 'schede' }, tab('clip', 'Proprietà'), tab('mixer', 'Mixer'), tab('scopi', 'Strumenti'), fissa),
+    h('header', { class: 'schede' }, tab('clip', 'Proprietà'), tab('mixer', 'Mixer'), tab('scopi', 'Strumenti')),
     latoCorpo);
   // clic su una clip o su un FX: il pannello si apre (se era chiuso) e mostra le sue impostazioni
   document.addEventListener('dpv:proprieta', () => {
@@ -124,19 +123,8 @@ export function avvia(radice: HTMLElement) {
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),
     aggiornamenti: tastoAggiornamenti(icona),
   });
-  const bancoVista = h('select', { class: 'banco-vista', 'aria-label': 'Spazio di lavoro', on: { change: () => {
-    pagina('montaggio');
-    const taglio = bancoVista.value === 'taglio';
-    const effetti = bancoVista.value === 'effetti';
-    disp.alterna('senza-bin', taglio);
-    disp.alterna('senza-lato', taglio);
-    disp.alterna('senza-puls', !taglio);
-    radice.classList.remove('lato-lungo');
-    if (effetti) bin.mostra('effetti');
-    setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60);
-  } } }, h('option', { value: 'completo' }, 'Banco completo'), h('option', { value: 'taglio' }, 'Taglio · monitor e timeline'), h('option', { value: 'effetti' }, 'Effetti · libreria e proprietà'));
   const testa = h('header', { class: 'testata' },
-    barraMenu(menus), bancoVista,
+    barraMenu(menus),
     h('button', { class: 'btn-ai', title: 'Centro AI: tutte le funzioni intelligenti, come si usano e se sono pronte', on: { click: () => finestraCentroAI() } }, '✨', h('span', null, 'AI')),
     h('div', { class: 'pagine' },
       tastoPagina('montaggio', 'MONTAGGIO', 'montaggio', 'Il banco di montaggio (F9)'),
@@ -190,7 +178,8 @@ export function avvia(radice: HTMLElement) {
 
   const rimettiBanco = () => { disp.rimetti(); setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60); };
   disp.ripristina();
-  fissa.classList.toggle('acceso', radice.classList.contains('lato-lungo'));
+  // il pannello di destra sta sempre in vista, a tutta altezza (da qui in poi niente più puntina)
+  radice.classList.add('lato-lungo'); radice.classList.remove('senza-lato');
   disp.bordo(bordoBin, (dx, _dy, r0) => ['--bin', Math.max(180, Math.min(innerWidth * 0.5, r0.width + dx))], () => bin.el.getBoundingClientRect(), 'senza-bin');
   disp.bordo(bordoLato, (dx, _dy, r0) => radice.dataset.pagina === 'finale'
     ? ['--fin', Math.max(300, Math.min(innerWidth * 0.72, r0.width - dx))]
@@ -204,7 +193,6 @@ export function avvia(radice: HTMLElement) {
   /** tasto V: la timeline si stringe e la colonna di destra (VU, proprietà, mixer) scende fino in fondo, o torna larga */
   const vistaStretta = () => {
     const on = radice.classList.toggle('lato-lungo');
-    fissa.classList.toggle('acceso', on);
     if (on) radice.classList.remove('senza-lato');
     disp.salva();
     setTimeout(() => { monitor.adatta(); }, 60);

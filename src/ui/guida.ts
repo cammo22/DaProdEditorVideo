@@ -291,7 +291,6 @@ export function finestraGuida(id?: string) {
   mostra(ARGOMENTI.find((a) => a.id === id) ?? ARGOMENTI[0]);
   d.piede.append(
     h('button', { class: 'btn', on: { click: () => { d.chiudi(); evento('dpv:tasti'); } } }, '⌨ Tutti i tasti'),
-    h('button', { class: 'btn', on: { click: () => { d.chiudi(); evento('dpv:cerca'); } } }, '🔍 Cerca un comando (Ctrl+K)'),
     h('span', { class: 'spazio' }),
     h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
 }

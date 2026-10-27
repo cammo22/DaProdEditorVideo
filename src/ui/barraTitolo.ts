@@ -85,7 +85,6 @@ export function barraTitolo(a: AzioniBarra): HTMLElement {
       bAnnulla, bRipeti),
     h('div', { class: 'bt-centro' }, nome, formato),
     h('div', { class: 'bt-destra' },
-      h('button', { class: 'btn-cerca', title: 'Cerca un comando, un effetto, una transizione, una funzione AI o una guida (Ctrl+K)', on: { click: a.cerca } }, '🔍', h('span', null, 'Cerca…'), h('kbd', null, 'Ctrl K')),
       h('span', { class: 'badge edizione' + (isTauri ? '' : ' prova') }, isTauri ? edizione : 'VERSIONE PROVA · WEB'),
       a.aggiornamenti),
     tipoFinestra === 'win' ? tastiFinestra() : null);

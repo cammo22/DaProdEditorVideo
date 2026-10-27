@@ -71,7 +71,7 @@ export class Finale {
   private formato = 'mp4';
   private qualita = 'alta';
   private misura = '1';
-  private sezione: Sezione = 'esporta';
+  private sezione: Sezione = 'colore';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
@@ -86,11 +86,8 @@ export class Finale {
     }, icona(z.icona, 19), h('span', null, z.nome))));
     this.el = h('section', { class: 'pannello finale' },
       h('header', { class: 'fin-testa' }, icona('finale', 18), h('b', null, 'FINALE'), h('span', null, 'ritocchi su tutto il montaggio, poi esporta')),
-      h('nav', { class: 'fin-percorso', 'aria-label': 'Passi di finitura' },
-        ...([['colore', '1 · Immagine'], ['audio', '2 · Audio'], ['sottotitoli', '3 · Testi e AI'], ['esporta', '4 · Consegna']] as [Sezione, string][]).map(([id, nome]) => h('button', { class: 'btn-mini', on: { click: () => this.mostra(id) } }, nome))),
-      h('div', { class: 'fin-dentro' }, this.menu, this.corpo),
-      h('footer', { class: 'fin-esporta-fisso' }, h('button', { class: 'btn primario', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, 'Esporta il master…'), h('span', { class: 'nota' }, 'Controlla formato e stima prima di avviare')));
-    this.mostra('esporta');
+      h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
+    this.mostra('colore');
     quandoPreparazioni(() => this.aggiornaRiepilogo());
     store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); });
     store.on('head', () => this.segnaRigaCorrente());
@@ -171,7 +168,7 @@ export class Finale {
       this.scelte('Formato', [['mp4', 'MP4'], ['mov', 'MOV'], ['webm', 'WebM'], ['wav', 'Solo audio']], () => this.formato, (v) => { this.formato = v; }),
       this.scelte('Qualità', [['media', 'Leggera'], ['alta', 'Alta'], ['altissima', 'Master']], () => this.qualita, (v) => { this.qualita = v; }),
       this.scelte('Misura', [['1', 'Come il progetto'], ['0.5', 'Metà']], () => this.misura, (v) => { this.misura = v; }),
-      h('p', { class: 'nota' }, 'Pronto? Esporta il master dal pulsante fisso qui sotto. La finestra successiva mostra le stime prima di avviare.'),
+      h('button', { class: 'btn primario fin-vai', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, icona('esporta', 18), 'ESPORTA IL MASTER'),
       h('div', { class: 'fin-altri' },
         h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
         h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
@@ -736,9 +733,7 @@ export class Finale {
       const id = b.dataset.s;
       b.setAttribute('aria-current', id === this.sezione ? 'step' : 'false');
       const riassunto = id === 'colore' ? `Look ${m.look} · ${nonMisurati.length} da misurare` : id === 'audio' ? `${m.volume} dB · limitatore ${m.limiter ? 'acceso' : 'spento'}` : id === 'sottotitoli' || id === 'lingue' ? `${sottotitoliDi(p).righe.length} righe` : '';
-      let stato = b.querySelector('small');
-      if (!stato) { stato = h('small'); b.append(stato); }
-      stato.textContent = riassunto;
+      b.title = (SEZIONI.find((z) => z.id === id)?.info ?? '') + (riassunto ? ' · ' + riassunto : '');
     });
     if (!fine) avvisi.push(h('li', { class: 'fin-info' }, 'La timeline è vuota: prima monta qualcosa.'));
     if (offline) avvisi.push(h('li', { class: 'fin-male' }, `${offline} file da ricollegare (File → Ricollega media)`));

@@ -12,14 +12,6 @@ button, select, summary { touch-action: manipulation; }
 .bin-cerca { min-width: 60px; }
 .bin-albero { min-width: 0; }
 .carta-preparazione { display: block; padding: 3px 6px; white-space: normal; color: var(--testo2); font-size: 11px; }
-.fin-percorso, .fin-esporta-fisso { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; flex-shrink: 0; background: var(--pann); border-block: 1px solid var(--bordo); }
-.fin-dentro { min-width: 0; }
-.fin-menu { order: 0; width: 126px; flex: 0 0 126px; border-right: 1px solid var(--bordo); }
-.fin-corpo { flex: 1; min-width: 0; }
-.fin-voce { display: flex; flex-wrap: wrap; text-align: left; gap: 6px; padding: 10px; }
-.fin-voce small { display: block; flex-basis: 100%; font-size: 11px; color: var(--testo2); }
-.fin-esporta-fisso .nota { flex: 1 1 160px; }
-.fin-percorso .btn-mini { flex: 1 1 90px; }
 .fin-sezione { margin-bottom: 12px; }
 .fin-looks { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 .fin-riepilogo .fin-numeri { flex-wrap: wrap; }
@@ -58,8 +50,6 @@ button, select, summary { touch-action: manipulation; }
   .testata .pagina-btn { padding-inline: 7px; font-size: 12px; }
   .banco-vista { width: 112px; }
   .testata .btn-ai span { display: none; }
-  .fin-menu { width: 104px; flex-basis: 104px; }
-  .fin-voce { font-size: 12px; }
   .live-regia { position: static; }
 }
 @media (min-width: 1151px) and (max-width: 1500px) { .banco-vista { max-width: 145px; } }
@@ -70,8 +60,6 @@ button, select, summary { touch-action: manipulation; }
   .mt-dentro .mt-col.mt-passo-chiuso { display: none; }
   .banco-vista { display: none; }
   .stretto .fin-dentro { flex-direction: column; }
-  .fin-menu { width: 100%; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; }
-  .fin-voce { flex: 1 1 90px; }
   .mt-colcome { display: block; }
   .live-regia { position: static; }
 }

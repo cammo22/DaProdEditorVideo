@@ -27,7 +27,7 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
       return {
         sopra: barra.nextElementSibling?.id === 'app' && r.top === 0,
         bianca: getComputedStyle(barra).backgroundColor,
-        rapidi: ['.marchio', '.btn-progetti', '.nome-progetto', '.btn-cerca'].every((s) => barra.querySelector(s)),
+        rapidi: ['.marchio', '.btn-progetti', '.nome-progetto'].every((s) => barra.querySelector(s)),
         trascina: barra.getAttribute('data-tauri-drag-region'),
         tastiFinestra: !!barra.querySelector('.bt-finestra'),
         finestra: document.documentElement.dataset.finestra,
@@ -35,7 +35,7 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
         testata: { menu: !!testa.querySelector('.menu'), pagine: testa.querySelectorAll('.pagina-btn').length, esporta: !!testa.querySelector('.btn.primario'), vecchi: !!testa.querySelector('.marchio, .btn-progetti, .nome-progetto, .btn-cerca') },
       };
     });
-    prova('la barra del titolo sta sopra al banco, è bianca e ha marchio, progetti, nome e ricerca', b.sopra && b.bianca === 'rgb(255, 255, 255)' && b.rapidi && b.trascina === 'deep', JSON.stringify(b));
+    prova('la barra del titolo sta sopra al banco, è bianca e ha marchio, progetti e nome', b.sopra && b.bianca === 'rgb(255, 255, 255)' && b.rapidi && b.trascina === 'deep', JSON.stringify(b));
     prova('nel browser niente tasti della finestra (li ha il browser)', b.finestra === 'web' && !b.tastiFinestra, JSON.stringify(b));
     prova('la testata tiene solo menu, AI, le quattro pagine ed Esporta', b.testata.menu && b.testata.pagine === 4 && b.testata.esporta && !b.testata.vecchi, JSON.stringify(b.testata));
 
@@ -59,12 +59,11 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
       misure.push(await page.evaluate((w) => {
         const tr = (s) => { const e = document.querySelector(s); return e.scrollWidth > e.clientWidth + 1; };
         const e = document.querySelector('.testata .btn.primario').getBoundingClientRect();
-        const c = document.querySelector('.barra-titolo .btn-cerca').getBoundingClientRect();
-        return { w, barra: tr('.barra-titolo'), testata: tr('.testata'), esporta: e.right <= w && e.width > 0, cerca: c.right <= w && c.width > 0 };
+        return { w, barra: tr('.barra-titolo'), testata: tr('.testata'), esporta: e.right <= w && e.width > 0 };
       }, w));
     }
     await page.setViewportSize({ width: 1600, height: 950 });
-    prova('da 1920 a 1024 pixel barra e testata non traboccano, Esporta e Cerca si vedono', misure.every((m) => !m.barra && !m.testata && m.esporta && m.cerca), JSON.stringify(misure));
+    prova('da 1920 a 1024 pixel barra e testata non traboccano, Esporta si vede', misure.every((m) => !m.barra && !m.testata && m.esporta), JSON.stringify(misure));
     await page.screenshot({ path: `${OUT}/barra-titolo.png`, clip: { x: 0, y: 0, width: 1600, height: 90 } });
 
     // ———————————————————————————————————————————————————————————

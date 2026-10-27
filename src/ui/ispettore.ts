@@ -91,7 +91,6 @@ export class Ispettore {
           h('li', null, h('kbd', null, 'Ctrl'), '+', h('kbd', null, 'rotella'), ' zoom della timeline')),
         // da qui si arriva a tutto il resto: la ricerca dei comandi e la guida
         h('div', { class: 'isp-aiuti' },
-          h('button', { class: 'btn', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:cerca')) } }, '🔍 Cerca un comando ', h('kbd', null, 'Ctrl K')),
           h('button', { class: 'btn', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:guida')) } }, '📖 Come si fa ', h('kbd', null, 'F1')))));
       return;
     }

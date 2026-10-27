@@ -100,7 +100,6 @@ export class Home {
       h('div', { class: 'home-impara' },
         h('button', { class: 'btn', on: { click: () => evento('dpv:guida', 'inizio') } }, '🚀 Il primo montaggio in un minuto'),
         h('button', { class: 'btn', on: { click: () => evento('dpv:guida') } }, '📖 Come si fa (tutte le guide, F1)'),
-        h('button', { class: 'btn', on: { click: () => evento('dpv:cerca') } }, '🔍 Cerca un comando (Ctrl+K)'),
         h('button', { class: 'btn', on: { click: () => evento('dpv:centro-ai') } }, '✨ Centro AI: sottotitoli, sfondo, voce…')));
 
     // 2 · i recenti

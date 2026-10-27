@@ -13,7 +13,6 @@ import { apri, salvaPacchetto, importaDialogo, nuovo, ricollega, salva } from '.
 import { isTauri, apriLink, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
 import { finestraAggiornamenti, finestraNovita } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
-import { apriCerca } from './cerca';
 import { finestraGuida } from './guida';
 import { finestraCentroAI, FUNZIONI_AI } from './centroAI';
 import { modoProxy, impostaModoProxy, svuotaProxy } from '../media/proxy';
@@ -131,7 +130,6 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
     ]],
     ['Aiuto', () => [
       { nome: 'Come si fa (la guida)', tasto: 'F1', fn: () => finestraGuida() },
-      { nome: 'Cerca un comando…', tasto: 'Ctrl+K', fn: () => apriCerca() },
       { nome: 'Tasti della centralina', fn: () => finestraTasti() },
       { nome: 'Centro AI…', fn: () => finestraCentroAI() },
       { sep: true },

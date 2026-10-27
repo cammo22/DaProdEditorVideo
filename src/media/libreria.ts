@@ -1,8 +1,8 @@
 // Il contenitore (bin): i file importati, aperti con Mediabunny (WebCodecs) e tenuti vivi finché servono.
-// Dalla 1.5.8 l'import e la riapertura leggono SOLO i metadati (contenitore, tracce, durata, dimensioni, codec) e il
-// file è subito usabile dall'originale. Locandina, colore automatico, forma d'onda, copia leggera e controllo della
-// velocità NON partono da soli: se sono già nella memoria delle misure (cache.ts) o sul disco (proxy) si leggono,
-// se no li prepara l'utente con proponiPreparazione() (righe «da avviare» nel Centro attività).
+// Dalla 1.5.8 l'import e la riapertura leggono i metadati (contenitore, tracce, durata, dimensioni, codec) e il file è
+// subito usabile dall'originale. Dalla 1.6.0 locandina, colore automatico e forma d'onda ripartono da soli (sono
+// leggeri e si leggono dalla memoria delle misure, cache.ts, se già fatti); la copia leggera e il controllo della
+// velocità li prepara l'utente con proponiPreparazione() (pulsanti nel Centro attività).
 // Le miniature della timeline restano «a richiesta»: si leggono solo i fotogrammi delle clip che si vedono.
 import {
   ALL_FORMATS, AudioBufferSink, BlobSource, CanvasSink, Input, StreamSource,
@@ -189,6 +189,9 @@ async function leggiPreparato(item: MediaItem, r: MediaRT) {
       }
     }
     avvisaPrep(r.id);
+    // le cose leggere (locandina, colore, forma d'onda) partono da sole, a turno nella corsia leggera: si vedono nel Centro attività.
+    // La copia leggera e il controllo della velocità restano a richiesta (pulsanti nel Centro attività).
+    if (rt.get(r.id) === r) for (const cosa of ['locandina', 'colore', 'picchi'] as const) proponiPreparazione(item, cosa, { avvia: true });
   })();
 }
 
