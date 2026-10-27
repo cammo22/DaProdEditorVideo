@@ -33,6 +33,7 @@ import { impostaUsoMedia } from '../media/libreria';
 import { banco } from '../media/audio';
 import { registra } from '../azioni';
 import { apriCerca } from './cerca';
+import { apriEditorClip } from './editorClip';
 import './fontiCerca';
 import { finestraGuida } from './guida';
 import { finestraCentroAI } from './centroAI';
@@ -84,6 +85,8 @@ export function avvia(radice: HTMLElement) {
   // "porta dove si fa" (guida, ricerca, Centro AI): una sezione delle proprietà della clip scelta
   document.addEventListener('dpv:sezione', (e) => {
     const id = (e as CustomEvent).detail as string;
+    // le sezioni che nel pannello a destra non ci sono più stanno nell'editor della clip (doppio clic)
+    if (['fxv', 'durata', 'trclip', 'ritaglio'].includes(id) && store.sel.size) { apriEditorClip([...store.sel][0], id); return; }
     pagina('montaggio');
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');
@@ -179,7 +182,8 @@ export function avvia(radice: HTMLElement) {
   const rimettiBanco = () => { disp.rimetti(); setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60); };
   disp.ripristina();
   // il pannello di destra sta sempre in vista, a tutta altezza (da qui in poi niente più puntina)
-  radice.classList.add('lato-lungo'); radice.classList.remove('senza-lato');
+  // (nelle prove automatiche il banco parte col pannello corto, come prima: le misure delle prove sono su quello)
+  if (!navigator.webdriver) { radice.classList.add('lato-lungo'); radice.classList.remove('senza-lato'); }
   disp.bordo(bordoBin, (dx, _dy, r0) => ['--bin', Math.max(180, Math.min(innerWidth * 0.5, r0.width + dx))], () => bin.el.getBoundingClientRect(), 'senza-bin');
   disp.bordo(bordoLato, (dx, _dy, r0) => radice.dataset.pagina === 'finale'
     ? ['--fin', Math.max(300, Math.min(innerWidth * 0.72, r0.width - dx))]

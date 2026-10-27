@@ -132,9 +132,9 @@ export const EFFETTI_AUDIO: Effetto[] = [
     metti: (c, on, p) => { c.trIn = on ? newTransition('mix', durataDissolvenza(p, c)) : undefined; },
   },
   {
-    id: 'eco', nome: 'Eco', info: 'la voce che rimbalza', per: 'audio', anteprima: 'fx-eco',
-    acceso: (c) => !!c.afx?.eco,
-    metti: (c, on) => { c.afx = { ...c.afx, eco: on || undefined }; },
+    id: 'robot', nome: 'Robot', info: 'la voce metallica di un robot', per: 'audio', anteprima: 'fx-robot',
+    acceso: (c) => !!c.afx?.robot,
+    metti: (c, on) => { c.afx = { ...c.afx, robot: on || undefined }; },
   },
   {
     id: 'ovattato', nome: 'Ovattato', info: 'dalla stanza accanto, sott\'acqua', per: 'audio', anteprima: 'fx-ovattato',
@@ -145,11 +145,6 @@ export const EFFETTI_AUDIO: Effetto[] = [
     id: 'dissolviAudio', nome: 'Entra ed esce piano', info: 'dissolvenza di mezzo secondo', per: 'audio', anteprima: 'fx-dissolvi',
     acceso: (c) => c.fadeIn > 0 && c.fadeOut > 0,
     metti: (c, on, p) => { const n = on ? Math.min(Math.round(secondo(p) / 2), Math.floor(c.len / 2)) : 0; c.fadeIn = n; c.fadeOut = n; },
-  },
-  {
-    id: 'muto', nome: 'Muto', info: 'la clip non suona', per: 'audio', anteprima: 'fx-muto',
-    acceso: (c) => c.gain <= -60,
-    metti: (c, on) => { c.gain = on ? -60 : 0; c.gainKeys = []; },
   },
 ];
 

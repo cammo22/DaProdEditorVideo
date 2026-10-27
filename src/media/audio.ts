@@ -122,13 +122,25 @@ function applicaInviluppo(g: GainNode, p: Project, c: Clip, coda: number, t0: nu
  */
 function catenaEffetti(ctx: BaseAudioContext, c: Clip, uscita: AudioNode): AudioNode {
   const fx = c.afx;
-  if (!fx || (!fx.voce && !fx.bassi && !fx.radio && !fx.eco && !fx.ovattato)) return uscita;
+  if (!fx || (!fx.voce && !fx.bassi && !fx.radio && !fx.eco && !fx.ovattato && !fx.robot)) return uscita;
   const nodi: AudioNode[] = [];
   const f = (type: BiquadFilterType, freq: number, gain = 0, q = 0.707) => { const b = ctx.createBiquadFilter(); b.type = type; b.frequency.value = freq; b.gain.value = gain; b.Q.value = q; nodi.push(b); };
   if (fx.bassi || fx.voce) f('highpass', fx.voce ? 110 : 90);
   if (fx.voce) { f('peaking', 3200, 4, 0.9); f('lowshelf', 220, -2.5); }
   if (fx.radio) { f('highpass', 450, 0, 0.9); f('lowpass', 3200, 0, 0.9); f('peaking', 1600, 5, 1.2); }
   if (fx.ovattato) { f('lowpass', 650, 0, 0.8); f('lowshelf', 180, 3); }
+  if (fx.robot) {
+    // robot: la voce moltiplicata per un'onda lenta (ring modulator) e un po' di metallo
+    const rm = ctx.createGain();
+    rm.gain.value = 0;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 55;
+    osc.connect(rm.gain);
+    osc.start();
+    nodi.push(rm);
+    f('peaking', 1800, 6, 1.4);
+  }
   if (!nodi.length) { const g = ctx.createGain(); nodi.push(g); }
   for (let i = 0; i < nodi.length - 1; i++) nodi[i].connect(nodi[i + 1]);
   const ultimo = nodi[nodi.length - 1];

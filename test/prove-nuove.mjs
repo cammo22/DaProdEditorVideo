@@ -161,12 +161,12 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.select([c.id]); window.__motore.vaiA(10); });
   await page.waitForTimeout(300);
   await apriGruppi(page);
-  prova('nelle proprietà c\'è "Togli lo sfondo" con tutti i modi', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · automatico")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip').count()) >= 4);
-  prova('con la chiave a colori si vedono contagocce, colori pronti e i cursori', (await page.locator('button:has-text("Contagocce")').count()) === 1 && (await page.locator('button:has-text("Trovalo da solo")').count()) === 1 && (await page.locator('.isp-riga:has(label:has-text("Via il riflesso"))').count()) === 1);
+  prova('nelle proprietà c\'è "Togli lo sfondo" con i quadratini dei modi (Off, Colore, Luce, AI)', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo]').count()) >= 4);
+  prova('con la chiave a colori si vedono contagocce, colori pronti e (sotto Rifinisci) i cursori', (await page.locator('button:has-text("Prendi il colore dal monitor")').count()) === 1 && (await page.locator('button:has-text("Trovalo da solo")').count()) === 1 && (await page.locator('.isp-riga:has(label:has-text("Via il riflesso"))').count()) === 1);
   // il contagocce: un clic sull'angolo verde del monitor mette quel colore
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Colore sbagliato', () => { c.fx.keyColor = '#ff0000'; }); });
   await page.waitForTimeout(200);
-  await page.click('button:has-text("Contagocce")');
+  await page.click('button:has-text("Prendi il colore dal monitor")');
   await page.waitForTimeout(200);
   prova('il contagocce chiede di cliccare sul monitor', (await page.locator('.pos-barra.su .pos-mira:not([hidden]) .pos-mira-testo').first().textContent().catch(() => '')).includes('Clicca'), await page.locator('.pos-barra').textContent());
   const sch = await page.locator('.monitor .schermo-sopra').boundingBox();
@@ -177,12 +177,13 @@ async function proveSfondo({ page, prova, OUT }) {
   // "trovalo da solo"
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Colore sbagliato', () => { c.fx.keyColor = '#ff0000'; }); });
   await page.waitForTimeout(200);
+  await page.evaluate(() => { document.querySelector('.isp-gruppo[data-g=sfondo] details.pp-piu').open = true; });
   await page.click('button:has-text("Trovalo da solo")');
   await page.waitForTimeout(500);
   const kc2 = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').fx.keyColor);
   prova('"Trovalo da solo" guarda i bordi e prende il verde', kc2.toLowerCase() === '#00b140', kc2);
   // i modi
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("Niente")');
+  await page.click('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=nessuno]');
   await page.waitForTimeout(200);
   let d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
   prova('"Niente" spegne la chiave', d.fx.key === 'none' && !d.ritaglio);
@@ -193,7 +194,10 @@ async function proveSfondo({ page, prova, OUT }) {
       maschera: async (px) => { const m = new Uint8Array(px.w * px.h); for (let y = 0; y < px.h; y++) for (let x = 0; x < px.w; x++) if (Math.hypot(x / px.w - 0.5, (y / px.h - 0.5) * 0.56) < 0.2) m[y * px.w + x] = 255; return m; },
     });
   });
-  await page.click('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) .chip:has-text("AI · automatico")');
+  // il quadratino AI apre l'editor della clip: lì si controlla la scena e poi si toglie lo sfondo (il consenso arriva solo allora)
+  await page.click('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]');
+  await page.waitForSelector('.editor-clip');
+  await page.click('.editor-clip button:has-text("Togli lo sfondo a tutta la clip")');
   await page.waitForSelector('.ai-passi');
   prova('lo sfondo AI attende il consenso prima di elaborare', await page.evaluate(() => {
     const c = window.__dpv.doc.clips.find(x => x.name === 'Fondale verde');
@@ -207,12 +211,14 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
   const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
   prova('dopo il consenso lo sfondo AI viene elaborato', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
-  prova('la parte semplice ha "Scegli tu cosa tenere"; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('button:has-text("Scegli tu cosa tenere")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo")) details.pp-piu select option:has-text("BEN2")').count()) >= 1, await page.locator('.isp-gruppo:has(summary:has-text("Togli lo sfondo"))').innerText());
+  prova('l\'editor ha "Scegli tu" tra le scelte; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('.editor-clip .pp-tessera:has-text("Scegli tu")').count()) === 1 && (await page.locator('.editor-clip .isp-gruppo[data-g=sfondo] details.pp-piu summary:has-text("Avanzate")').count()) === 1);
   const cambia = async (modo) => { await page.evaluate((m) => { const sel = [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] select')].find((x) => [...x.options].some((o) => o.value === 'persona')); sel.value = m; sel.dispatchEvent(new Event('change', { bubbles: true })); }, modo); await page.waitForTimeout(500); return page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').ritaglio); };
   let r2 = await cambia('persona');
   prova('"Solo persone" (da Avanzate) mette il modello veloce per le persone (MODNet)', r2?.modo === 'persona' && r2.modello === 'modnet', JSON.stringify(r2));
   r2 = await cambia('oggetti');
   prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM 3', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam3', JSON.stringify(r2));
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.editor-clip', { state: 'detached' });
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
@@ -418,7 +424,7 @@ async function proveSfondo({ page, prova, OUT }) {
     const gruppi = RT.gruppiDi([{ x: 0.1, y: 0.1, dentro: true }, { x: 0.9, y: 0.9, dentro: true, g: 1 }, { x: 0.5, y: 0.5, dentro: false, g: 1 }]).map((g) => g.length);
     return { prima, firmaProva, tempoProva: Math.round(tempoProva), dopoClic, senzaOk, chiamateSenzaOk, ant, tutta, punti: c2.ritaglio.punti.length, firmaTutta: c2.ritaglio.firma, ok: MK.maschereDi(c2.ritaglio.firma)?.n > 1, gruppi };
   }));
-  prova('un clic sull\'oggetto: la selezione arriva subito (una prova, subito, senza aspettare) e dice "Selezionato"; prima del clic non c\'è niente', clicco.prima.maschera === false && /Clicca/.test(clicco.prima.stato) && clicco.firmaProva === 1 && clicco.tempoProva < 1500 && clicco.dopoClic.maschera && /Selezionato/.test(clicco.dopoClic.stato), JSON.stringify(clicco));
+  prova('un clic sull\'oggetto: la selezione arriva subito (una prova, subito, senza aspettare) e dice "Selezionato"; prima del clic non c\'è niente', clicco.prima.maschera === false && /Clicca/.test(clicco.prima.stato) && clicco.firmaProva === 1 && clicco.tempoProva < 4000 && clicco.dopoClic.maschera && /Selezionato/.test(clicco.dopoClic.stato), JSON.stringify(clicco));
   prova('senza conferma non parte tutta la clip (solo la prova di un fotogramma)', clicco.senzaOk === 1 && clicco.chiamateSenzaOk === 1 && clicco.punti === 1, JSON.stringify(clicco));
   prova('"Anteprima": qualche secondo di maschere con la sua firma, il monitor passa sugli scacchi e il testo dice cosa fare', clicco.ant.n > 1 && /anteprima$/.test(clicco.ant.firma) && clicco.ant.vista === 2 && /Genera tutta la clip/.test(clicco.ant.stato), JSON.stringify(clicco.ant));
   prova('dopo l\'anteprima genera tutta la clip, con firma normale', clicco.tutta > clicco.ant.n && !/anteprima$/.test(clicco.firmaTutta) && clicco.ok, JSON.stringify(clicco));

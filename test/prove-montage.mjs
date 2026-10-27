@@ -189,11 +189,13 @@ export async function proveMontage({ page, prova, OUT }) {
   await page.screenshot({ path: path.join(OUT, 'montage-pagina.png') });
 
   // Attraversare gli step visibili, come nell'uso reale: non forzare click nascosti.
-  prova('il wizard parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes button').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
-  await page.getByRole('button', { name: '2 · Stile', exact: true }).click();
+  prova('la pagina parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes button').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
+  // sullo schermo largo le tre colonne stanno affiancate: i passi si usano solo sugli schermi stretti
+  { const passo = page.getByRole('button', { name: '2 · Stile', exact: true }); if (await passo.isVisible()) await passo.click(); }
   await page.waitForSelector('.mt-colfesta', { state: 'visible' });
   await page.click('.mt-festa[data-preset="battesimo"]');
-  await page.getByRole('button', { name: '3 · Durata, ordine e musica', exact: true }).click();
+  // sullo schermo largo le tre colonne stanno affiancate: i passi si usano solo sugli schermi stretti
+  { const passo = page.getByRole('button', { name: '3 · Durata, ordine e musica', exact: true }); if (await passo.isVisible()) await passo.click(); }
   await page.waitForSelector('.mt-colcome', { state: 'visible' });
   await page.waitForTimeout(200);
   await page.evaluate(() => {

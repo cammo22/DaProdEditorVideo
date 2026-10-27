@@ -270,9 +270,14 @@ try {
     await page.evaluate((id) => window.__dpv.select([id]), clipFoto.id);
     await page.click('.lato .scheda[data-s=clip]');
     await page.waitForTimeout(200);
-    await page.evaluate(() => document.querySelectorAll('.isp-gruppo:not([open]) > summary').forEach((x) => x.click()));
+    // la durata sta nell'editor della clip (doppio clic): si apre da lì
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
+    await page.waitForSelector('.editor-clip');
+    await page.evaluate(() => document.querySelectorAll('.editor-clip .isp-gruppo:not([open]) > summary').forEach((x) => x.click()));
     await page.waitForTimeout(150);
-    await page.click('.isp-pulsanti button:has-text("+5 s")');
+    await page.click('.editor-clip .isp-pulsanti button:has-text("+5 s")');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.editor-clip', { state: 'detached' });
     dd = await doc();
     prova('l\'istantanea si allunga (+5 s dalle proprietà)', dd.clips.find((c) => c.id === clipFoto.id).len === 50 + 125, dd.clips.find((c) => c.id === clipFoto.id).len);
     await tasto('Control+z'); await tasto('Control+z');
@@ -1142,6 +1147,7 @@ try {
     await pg.click('.pagina-btn[data-p=live]');
     await pg.waitForTimeout(300);
     await pg.click('.live .fin-interruttore:has-text("Webcam")');
+    await pg.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
     await pg.click('.live .fin-interruttore:has-text("Stile presentazione")');
     await pg.waitForTimeout(500);
     const camSu = await pg.evaluate(() => document.querySelector('.live').classList.contains('con-cam'));
@@ -1874,8 +1880,10 @@ try {
   });
   await pg.click('.pagina-btn[data-p=live]');
   await pg.waitForTimeout(300);
+  await pg.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
   await pg.click('.live .fin-interruttore:has-text("Conto alla rovescia")');
-  await pg.click('.live .fin-interruttore:has-text("Più finestre al volo")');
+  // «più finestre» non è più un interruttore nella pagina: il motore della regia si accende da codice (la scelta vera è aggiungere finestre prima di registrare)
+  await pg.evaluate(() => { window.__dpvTest.ui().live.opz.finestre = true; });
   await pg.keyboard.press('r');
   await pg.waitForTimeout(1800);
   const a = await pg.evaluate(() => { const l = window.__dpvTest.ui().live; return { regia: !!l.regia, fonti: l.regia?.fonti.length, rec: l.registrando }; });

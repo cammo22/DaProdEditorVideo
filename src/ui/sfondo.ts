@@ -4,7 +4,8 @@
 import { confermaAvvioAI } from './aiPassi';
 import { progettoAttuale } from '../media/attivita';
 import { store } from '../core/store';
-import type { Clip, Ritaglio } from '../core/tipi';
+import type { Clip, Ritaglio, Traccia } from '../core/tipi';
+import type { Maschere } from '../media/maschere';
 import { clipById, mediaOf, srcTimeAt } from '../core/progetto';
 import { coloreDominante, firmaRitaglio, puoRitagliare, RITAGLIO0, rgbHex } from '../core/sfondo';
 import { motore } from '../motore';
@@ -304,6 +305,69 @@ export async function provaOggetto(id: string) {
   }
 }
 
+/**
+ * «Controlla la scena»: elabora SOLO il fotogramma dove sta il cursore (nessun lavoro lungo) e ne mostra il contorno sul
+ * monitor. Con «Scegli tu» usa i clic (se non ce ne sono ancora, si va a cliccare).
+ */
+export async function controllaScena(id: string) {
+  const c0 = clipById(store.doc, id);
+  if (!c0?.ritaglio) return;
+  if (c0.ritaglio.modo === 'oggetti') {
+    if (!(c0.ritaglio.punti ?? []).some((q) => q.dentro)) { avviso('Prima clicca su cosa tenere', 'info', 2600); cliccaCosaTenere(id); return; }
+    await provaOggetto(id);
+  } else {
+    if (!(await autorizzaProva(id))) return;
+    const progetto = progettoAttuale();
+    const c = clipById(store.doc, id);
+    const r = c?.ritaglio;
+    if (!c || !r) return;
+    try {
+      const esito = await provaRitaglio(store.doc, c, istanteQui(c), (fase) => avviso(fase, 'info', 1200));
+      if (!esito || progetto !== progettoAttuale()) return;
+      const firma = firmaRitaglio(c.media!, r) + FIRMA_ANTEPRIMA;
+      impostaMaschere({ firma, w: esito.px.w, h: esito.px.h, t0: 0, dt: 0, n: 1, hz: 0, dati: [esito.mask] }, false);
+      store.edit('Controllo della scena', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.firma = firma; });
+      motore.ridisegna();
+    } catch (e) {
+      avviso('Il controllo non è riuscito: ' + (e instanceof Error ? e.message : String(e)), 'errore', 4500);
+      return;
+    }
+  }
+  document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 3 }));
+}
+
+/**
+ * «Segui con l'AI»: si clicca l'oggetto come per togliere lo sfondo; quando le maschere sono pronte il loro centro, fotogramma per
+ * fotogramma, diventa il percorso da seguire (`c.traccia`) e il ritaglio si toglie: la ripresa resta intera, ma titoli, immagini e
+ * effetti possono seguire l'oggetto.
+ */
+const daSeguire = new Set<string>();
+export function seguiConAI(id: string) {
+  daSeguire.add(id);
+  avviso('Clicca sull’oggetto da seguire sul monitor, poi premi OK: il programma lo segue in tutta la clip', 'info', 4200);
+  cliccaCosaTenere(id);
+}
+
+function tracciaDaMaschere(id: string, m: Maschere) {
+  const punti: Traccia['punti'] = [];
+  let buoni = 0;
+  for (let i = 0; i < m.n; i++) {
+    const d = m.dati[i];
+    let sx = 0, sy = 0, n = 0;
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (d[y * m.w + x] > 127) { sx += x; sy += y; n++; }
+    if (n < m.w * m.h * 0.0004) continue;
+    buoni++;
+    punti.push({ t: m.t0 + i * m.dt, x: sx / n / m.w, y: sy / n / m.h });
+  }
+  const c = clipById(store.doc, id);
+  if (punti.length < 2 || !c) { avviso('Non sono riuscito a seguire l’oggetto: clicca su qualcosa di ben visibile', 'info', 3600); return; }
+  const tr: Traccia = { punti, da: c.ritaglio?.da ?? c.srcIn, fiducia: buoni / m.n };
+  store.edit('Segui un oggetto con l’AI', (pp) => { const z = clipById(pp, id); if (z) { z.traccia = tr; delete z.ritaglio; } });
+  document.dispatchEvent(new CustomEvent('dpv:vista-sfondo', { detail: 0 }));
+  avviso('🎯 Oggetto seguito: ora un titolo, un effetto o un’immagine lo possono seguire (sezione Segui)', 'ok', 4200);
+  document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'segui' }));
+}
+
 // ——— il lavoro lungo ———
 export interface Lavoro { barra: BarraLavoro; ferma: boolean; finito: boolean; anteprima?: boolean }
 export const lavori = new Map<string, Lavoro>();
@@ -312,7 +376,7 @@ const avvisaLavoro = () => document.dispatchEvent(new CustomEvent('dpv:lavoro-sf
 export function lavoroDi(id: string) { return lavori.get(id); }
 
 /** quanti secondi dura l'anteprima degli oggetti */
-export const SECONDI_ANTEPRIMA = 4;
+export const SECONDI_ANTEPRIMA = 5;
 
 async function confermaSfondo(id: string) {
   const c = clipById(store.doc, id);
@@ -352,6 +416,7 @@ export async function elaboraClip(id: string, anteprima = false) {
   if (lav.ferma || progetto !== progettoAttuale()) { lav.barra.ferma('Fermato'); avvisaLavoro(); return; }
   if (esito.ok && esito.maschere) {
     lav.barra.fine(`${anteprima ? 'Anteprima pronta' : 'Fatto'}: ${esito.maschere.n} maschere${esito.dispositivo ? ' · ' + esito.dispositivo : ''}`);
+    if (!anteprima && daSeguire.has(id)) { daSeguire.delete(id); tracciaDaMaschere(id, esito.maschere); motore.ridisegna(); avvisaLavoro(); return; }
     store.edit(anteprima ? 'Anteprima dello sfondo' : 'Sfondo tolto con l\'AI', (pp) => { const z = clipById(pp, id); if (z?.ritaglio) z.ritaglio.firma = esito.maschere!.firma; });
     if (anteprima) {
       // si guarda subito: il soggetto sugli scacchi, dal punto dove hai cliccato

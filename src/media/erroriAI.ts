@@ -9,7 +9,9 @@ export const testoErrore = (e: unknown) => (typeof e === 'string' ? e : e instan
 const REGOLE: [RegExp, string][] = [
   [/failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module/i,
     'La libreria AI non si carica: controlla la connessione a internet e riprova'],
-  [/could not locate file|404|not found.*(onnx|json|model)|unauthorized|401|403/i,
+  [/unauthorized|401|403|gated|access to model/i,
+    'Questo modello chiede la chiave di Hugging Face: creala gratis su huggingface.co (Settings → Access Tokens), accetta le condizioni del modello e incollala in AI → Impostazioni → Chiave Hugging Face'],
+  [/could not locate file|404|not found.*(onnx|json|model)/i,
     'Il modello non si trova su Hugging Face (forse è stato spostato o rinominato): prova un altro modello dalle opzioni'],
   [/failed to fetch|networkerror|network error|load failed|err_internet|err_name_not_resolved|err_connection|net::|timed? ?out/i,
     'Non riesco a scaricare il modello: serve internet la prima volta (poi resta sul computer e va anche senza rete)'],

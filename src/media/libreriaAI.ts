@@ -81,6 +81,12 @@ export interface LibreriaAI {
 
 let promessa: Promise<{ T: LibreriaAI; dove: 'locale' | 'cdn' }> | null = null;
 
+/** la chiave di Hugging Face (per i modelli che la chiedono, come SAM 3): viaggia solo verso huggingface.co */
+let chiaveHF = '';
+export const impostaChiaveHF = (k: string) => { chiaveHF = (k ?? '').trim(); };
+export const LS_CHIAVE_HF = 'dpv-hf-chiave';
+export function chiaveHFSalvata(): string { try { return localStorage.getItem(LS_CHIAVE_HF) ?? ''; } catch { return ''; } }
+
 const safariVecchio = () => {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent;
@@ -99,6 +105,14 @@ export function libreria(base?: string): Promise<{ T: LibreriaAI; dove: 'locale'
     }
     if (!T) T = (await import(/* @vite-ignore */ CDN_LIBRERIA)) as LibreriaAI;
     T.env.allowLocalModels = false;
+    // con la chiave i modelli «gated» di Hugging Face si scaricano: l'intestazione parte solo verso huggingface.co e hf.co
+    const fetchBase = T.env.fetch ?? fetch.bind(globalThis);
+    T.env.fetch = (url: unknown, init?: RequestInit) => {
+      if (!chiaveHF || !/^https:\/\/(huggingface\.co|hf\.co|[a-z0-9-]+\.hf\.co)\//i.test(String(url instanceof Request ? url.url : url))) return fetchBase(url, init);
+      const h = new Headers(init?.headers ?? (url instanceof Request ? url.headers : undefined));
+      h.set('Authorization', 'Bearer ' + chiaveHF);
+      return fetchBase(url, { ...init, headers: h });
+    };
     applicaPotenza(T.env.backends?.onnx);
     applicaThread(T.env.backends?.onnx?.wasm);
     // il motore (wasm) dai file dell'app: niente CDN nemmeno per lui. Safari prima della 26 senza scheda vuole un'altra

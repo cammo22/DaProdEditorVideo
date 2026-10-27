@@ -25,6 +25,7 @@ import { avviso, chiedi, clamp, h, icona, menuContesto, type VoceMenu } from './
 import { vociMenuAudioAI } from './audioAI';
 import { etichettaVelocita, finestraVelocita, impostaVelocita } from './velocita';
 import { registraBersaglio } from './trascina';
+import { apriEditorClip } from './editorClip';
 import { EFFETTI as DVE, TENDINE, nomeModello } from '../render/transizioni';
 
 const RIGHELLO = 34;
@@ -1620,7 +1621,7 @@ export class Timeline {
       } else if (c.clip && c.zona === 'fx') {
         if (!store.sel.has(c.clip.id)) store.select(M.withLinked(store.doc, [c.clip.id]));
         // il tasto "fx" porta alle miniature degli effetti nelle Proprietà (prima era un elenco a tendina, senza vedere niente)
-        document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: isVideoClip(c.clip) ? 'fxv' : 'fxa' }));
+        apriEditorClip(c.clip.id, isVideoClip(c.clip) ? 'fxv' : 'fxa');
         return;
       } else if (c.clip && c.zona === 'suono') {
         if (sonoro(c.clip)?.suono) this.alternaSuono(c.clip.id);
@@ -1754,20 +1755,14 @@ export class Timeline {
         });
         return;
       }
-      if (c.clip?.media) {
-        const t = srcTimeAt(store.doc, c.clip, Math.round(c.f));
-        motore.caricaPlayer(c.clip.media, t);
-        motore.setMonitor('player');
-      } else if (c.clip) {
-        // animazioni, titoli, colori, effetti e transizioni: il doppio clic porta alle loro impostazioni (il pannello si
-        // riapre da solo) e il cursore dentro la clip, col monitor sul programma, così si può subito trascinare
-        // l'oggetto sull'immagine
+      if (c.clip) {
+        // il doppio clic su una clip (video, audio, titolo, effetto…) apre l'editor in una finestra: tutte le sezioni, anche
+        // effetti, durata, ritaglio e movimento. Il cursore entra nella clip e il monitor va sul programma, così si vede il risultato
         const k = c.clip;
-        store.select(M.withLinked(store.doc, [k.id]));
         const f = Math.round(store.head);
         if (f < k.start || f >= end(k)) store.setHead(clamp(Math.round(c.f), k.start, end(k) - 1));
         motore.setMonitor('recorder');
-        document.dispatchEvent(new CustomEvent('dpv:ispettore'));
+        apriEditorClip(k.id);
         this.sporca();
       }
     });
@@ -1831,6 +1826,7 @@ export class Timeline {
         this.fantasma = null; this.fantasmaBlocco = null; this.bersaglioFx = null;
         if (dato.startsWith('x:') || dato.startsWith('t:')) this.fantasmaBlocco = this.anteprimaBlocco(q.x, q.y, dato);
         else if (dato.startsWith('e:')) this.bersaglioFx = this.clipDrop(q.x, q.y, dato.slice(2))?.id ?? null;
+        else if (dato.startsWith('s:')) this.bersaglioFx = this.colpo(q.x, q.y).clip?.media ? this.colpo(q.x, q.y).clip!.id : null;
         else this.fantasma = this.anteprimaDrop(q.x, q.y, dato);
         this.sporca();
       },
@@ -2361,6 +2357,11 @@ export class Timeline {
       const sec = (g.len / fps(p.rate)).toFixed(1).replace('.', ',').replace(',0', '');
       const dove = g.dove === 'taglio' ? ' sul taglio' : g.dove === 'inizio' ? ' all\'inizio della clip' : g.dove === 'fine' ? ' alla fine della clip' : tipo === 'transizione' ? ' · mettila sopra un taglio per farla lavorare' : '';
       avviso(`${tipo === 'effetto' ? '⚡' : '✦'} ${nomeBlocco(b.fxb!)} · ${sec} s${dove}`, g.taglio || tipo === 'effetto' ? 'tasto' : 'info', 1800);
+    } else if (dato === 's:ai') {
+      // i sottotitoli con l'AI: su una clip scrivono quelli della clip, altrove quelli di tutto il montaggio
+      const c = this.colpo(x, y).clip;
+      const ids = c?.media ? [c.id] : undefined;
+      void import('./sottotitoliRapidi').then((m) => m.generaSottotitoli(ids));
     } else if (dato.startsWith('e:')) {
       const c = this.clipDrop(x, y, dato.slice(2));
       if (!c) { avviso('Lascia l\'effetto sopra una clip adatta', 'info'); return; }

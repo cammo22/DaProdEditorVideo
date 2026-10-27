@@ -18,6 +18,7 @@ import { impostaMaschere, potaMaschere, type Maschere } from './maschere';
 import { spiegaErroreAI } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
+import { chiaveHFSalvata } from './libreriaAI';
 
 export interface ModelloRitaglio {
   id: string;
@@ -103,7 +104,7 @@ function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number)
     caricamento = { ok, no, stato };
     const hw = messaggioScheda();
     const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
-    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa });
+    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa, chiaveHF: chiaveHFSalvata() });
   });
 }
 

@@ -14,7 +14,7 @@ import { MODELLI_TRADUZIONE } from '../media/traduci';
 import { MODELLO_SEPARAZIONE, installaSeparazione, possibilita, statoAudioAI, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, statoNvidia, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
-import { impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
+import { LS_CHIAVE_HF, chiaveHFSalvata, impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
 import { raccontaHardware } from '../media/hardware';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { avviso, conferma, dialogo, evidenzia, h } from './dom';
@@ -209,6 +209,9 @@ export function finestraCentroAI(subito = false) {
   // ——— le impostazioni
   const scheda = h('input', { type: 'checkbox', checked: usaSchedaAI() }) as HTMLInputElement;
   scheda.addEventListener('change', () => impostaSchedaAI(scheda.checked));
+  // la chiave di Hugging Face: serve ai modelli «gated» come SAM 3 (si crea gratis su huggingface.co → Settings → Access Tokens)
+  const chiaveHF = h('input', { type: 'password', class: 'campo-testo', placeholder: 'hf_…', value: chiaveHFSalvata(), 'aria-label': 'Chiave Hugging Face', autocomplete: 'off' }) as HTMLInputElement;
+  const salvaChiave = h('button', { class: 'btn-mini', on: { click: () => { try { if (chiaveHF.value.trim()) localStorage.setItem(LS_CHIAVE_HF, chiaveHF.value.trim()); else localStorage.removeItem(LS_CHIAVE_HF); } catch { /* niente */ } avviso(chiaveHF.value.trim() ? 'Chiave salvata: vale dal prossimo scaricamento' : 'Chiave tolta', 'ok', 2400); } } }, 'Salva');
   const spazio = h('span', { class: 'nota' }, '…');
   const aggSpazio = async () => { const m = await modelliScaricati(); const tot = [...m.values()].reduce((s, x) => s + x, 0); spazio.textContent = m.size ? `${m.size} modelli sul computer · ${mb(tot)}` : 'Nessun modello scaricato'; };
   void aggSpazio();
@@ -224,7 +227,46 @@ export function finestraCentroAI(subito = false) {
       await aggSpazio();
     } } }, 'Togli motore e modelli')) : null;
 
+  // ——— lo stato dei modelli e il pulsante che sistema quello che si può sistemare
+  const elencoModelli = h('div', { class: 'ai-modelli' });
+  const progressoRipara = h('p', { class: 'nota' });
+  const disegnaModelli = async () => {
+    const m = await modelliScaricati();
+    const s = await statoAudioAI().catch(() => null);
+    elencoModelli.replaceChildren(...FUNZIONI_AI.filter((f) => f.modelli?.length).map((f) => {
+      const ci = f.modelli!.filter((x) => m.has(x.repo));
+      const ok = ci.length > 0 || (f.id === 'separa' && s?.separa.stato === 'pronto');
+      return h('div', { class: 'ai-mod ' + (ok ? 'ok' : 'forse') }, h('span', { class: 'ai-diag-seg' }, ok ? '✓' : '⬇'), h('b', null, f.nome),
+        h('span', null, ok ? `sul computer${ci.length ? ': ' + ci.map((x) => x.nome).join(', ') : ''}` : 'si scarica da solo la prima volta che serve'));
+    }));
+  };
+  void disegnaModelli();
+  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: async () => {
+    ripara.disabled = true;
+    try {
+      progressoRipara.textContent = 'Controllo il motore AI, la scheda video e la connessione…';
+      let g = await diagnosi();
+      // il motore non parte con la scheda video: si prova sul processore
+      if (!g.libreria.ok && usaSchedaAI()) {
+        impostaSchedaAI(false); scheda.checked = false;
+        progressoRipara.textContent = 'Il motore non parte con la scheda video: provo sul processore…';
+        g = await diagnosi();
+      }
+      disegnaDiagnosi(esito, g);
+      const s = await statoAudioAI().catch(() => null);
+      if (s && s.separa.stato === 'da-scaricare' && g.internet) {
+        progressoRipara.textContent = 'Scarico il modello per separare voce e base…';
+        await installaSeparazione((c, t) => { progressoRipara.textContent = `Scarico il modello per separare voce e base… ${t ? Math.round((c / t) * 100) : 0}%`; });
+      }
+      progressoRipara.textContent = !g.libreria.ok ? 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.'
+        : !g.internet ? 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.'
+          : 'Fatto: il motore funziona e i modelli grossi sono a posto. Gli altri si scaricano da soli la prima volta che li usi.';
+    } catch (e) { progressoRipara.textContent = 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e); }
+    finally { ripara.disabled = false; void disegnaModelli(); void aggSpazio(); }
+  } } }, '🔧 Controlla e ripara tutto');
+
   d.corpo.append(
+    h('section', { class: 'ai-sezione ai-stato-modelli' }, h('h4', null, 'Modelli e motore'), h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla che tutto funzioni e sistema quello che si può: scheda video, modelli, connessione.')), progressoRipara, elencoModelli),
     h('p', { class: 'ai-intro' }, 'Tutte le funzioni AI di DaProd Video. Girano sul tuo computer: le immagini, l\'audio e i testi non vanno da nessuna parte. Ogni modello si scarica una volta sola (serve internet la prima volta), poi va anche senza rete.'),
     h('label', { class: 'ai-scelta' }, 'Cosa vuoi fare ', compito),
     h('label', { class: 'ai-scelta' }, 'Clip esplicita (non serve per i sottotitoli del montaggio) ', selezione),
@@ -233,6 +275,7 @@ export function finestraCentroAI(subito = false) {
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
       h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video (WebGPU) c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video (WebGPU) quando c\'è'),
       h('div', { class: 'ai-imp' }, spazio, svuota),
+      h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (come SAM 3). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face (SAM 3)'), chiaveHF, salvaChiave),
       nvidia));
   d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
   carte.forEach((c) => { c.hidden = c.dataset.ai !== compito.value; });

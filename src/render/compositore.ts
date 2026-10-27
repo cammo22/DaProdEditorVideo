@@ -63,7 +63,7 @@ uniform float u_keySfuma;   // sfuma il bordo
 uniform float u_keyPulisci; // toglie puntini e buchi
 uniform sampler2D u_matte, u_matte2;  // le maschere dell'AI (prima e dopo l'istante) e quanto verso la seconda
 uniform float u_matteK;
-uniform int u_vista;        // 0 normale, 1 si vede la maschera, 2 il soggetto sugli scacchi
+uniform int u_vista;        // 0 normale, 1 si vede la maschera, 2 il soggetto sugli scacchi, 3 il contorno di quello che resta
 uniform bool u_mirror;
 uniform float u_temp, u_vignette;
 uniform bool u_auto;          // colore automatico: livelli, bianco e luce misurati sulla ripresa
@@ -237,6 +237,16 @@ void main() {
     a *= 1.0 - smoothstep(-u_feather, u_feather, d);
   }
   a *= u_alpha;
+  if (u_vista == 3 && u_key == 3) {
+    // il contorno: dove la maschera cambia (a due pixel di distanza), colorato; fuori dalla maschera l'immagine è più scura
+    vec2 d = u_texel * 3.0;
+    float e1 = texture(u_matte, uv0 + vec2(d.x, 0.0)).r, e2 = texture(u_matte, uv0 - vec2(d.x, 0.0)).r;
+    float e3 = texture(u_matte, uv0 + vec2(0.0, d.y)).r, e4 = texture(u_matte, uv0 - vec2(0.0, d.y)).r;
+    float lo = min(min(e1, e2), min(e3, e4)), hi = max(max(e1, e2), max(e3, e4));
+    float bordo = smoothstep(0.15, 0.6, hi - lo);
+    o = vec4(mix(rgb * mix(0.4, 1.0, aChiave), vec3(1.0, 0.18, 0.58), bordo), 1.0);
+    return;
+  }
   if (u_vista == 1 && u_key != 0) { o = vec4(vec3(aChiave), 1.0); return; }
   if (u_vista == 2 && u_key != 0) {
     vec2 g = floor(gl_FragCoord.xy / 14.0);

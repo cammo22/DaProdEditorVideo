@@ -200,6 +200,8 @@ export interface AudioFx {
   eco?: boolean;
   /** ovattato: come da sott'acqua o dalla stanza accanto */
   ovattato?: boolean;
+  /** robot: la voce modulata, metallica */
+  robot?: boolean;
   /** volume livellato in automatico (ricorda il guadagno di prima per tornare indietro) */
   norm?: number;
   /**

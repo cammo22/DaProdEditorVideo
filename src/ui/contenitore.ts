@@ -144,7 +144,9 @@ export class Contenitore {
     });
     store.on('doc', () => { this.disegnaAlbero(); this.disegnaDestra(); });
     store.on('status', () => this.evidenzia());
-    store.on('sel', () => { if (this.nodo.startsWith('fx') || this.nodo === 'effetti') this.aggiornaEffetti(); });
+    store.on('sel', () => { if (this.eLibreria(this.nodo)) this.aggiornaEffetti(); });
+    let rafScroll = 0;
+    this.corpo.addEventListener('scroll', () => { if (!rafScroll) rafScroll = requestAnimationFrame(() => { rafScroll = 0; this.seguiScorrimento(); }); }, { passive: true });
     // la forma d'onda cresce mentre si calcola: si rinfresca solo la tela di quella scheda (se si ridisegnasse tutta la
     // griglia a ogni passo, la pagina salterebbe e il programma andrebbe a scatti)
     quandoPicchi((id) => {
@@ -297,13 +299,59 @@ export class Contenitore {
     this.disegnaAlbero();
   }
 
+  /** la libreria (transizioni, titoli, animazioni, effetti) è una pagina sola che scorre: i nodi dell'albero portano al loro punto */
+  private eLibreria(n: string) { return ['transizioni', 'titoli', 'animazioni', 'effetti'].includes(n) || /^(tr|tit|an|fx):/.test(n); }
+  private libreriaUnita = false;
+  private libreriaAScorrere = 0;
+
   mostra(n: string) {
+    const lib = this.eLibreria(n);
     this.nodo = n;
     scrivi('dpv-bin-nodo', n);
-    this.firma = '';
     this.disegnaAlbero();
+    if (lib && this.firma === 'libreria' + this.filtro) { this.vaiARamo(n); return; }
+    this.firma = '';
     this.disegnaDestra(true);
-    this.corpo.scrollTop = 0;
+    if (!lib) this.corpo.scrollTop = 0;
+  }
+
+  /** scorre la pagina della libreria fino alla sezione `n` */
+  private vaiARamo(n: string) {
+    const el = this.corpo.querySelector(`[data-ramo="${n}"]`) as HTMLElement | null;
+    if (!el) return;
+    this.libreriaAScorrere = performance.now();
+    this.corpo.scrollTop = el.getBoundingClientRect().top - this.corpo.getBoundingClientRect().top + this.corpo.scrollTop;
+  }
+
+  /** scorrendo la libreria si accende il nodo dell'albero della sezione che si sta guardando */
+  private seguiScorrimento() {
+    if (this.firma !== 'libreria' + this.filtro || performance.now() - this.libreriaAScorrere < 250) return;
+    const sopra = this.corpo.getBoundingClientRect().top + 24;
+    let qui = '';
+    for (const el of this.corpo.querySelectorAll<HTMLElement>('[data-ramo]')) { if (el.getBoundingClientRect().top <= sopra) qui = el.dataset.ramo!; else break; }
+    if (!qui || qui === this.nodo) return;
+    this.nodo = qui;
+    scrivi('dpv-bin-nodo', qui);
+    this.albero.querySelectorAll('.bin-cat').forEach((b) => b.classList.toggle('attiva', (b as HTMLElement).dataset.c === qui));
+    (this.albero.querySelector(`.bin-cat[data-c="${qui}"]`) as HTMLElement | null)?.scrollIntoView({ block: 'nearest' });
+  }
+
+  private paginaLibreria() {
+    const reale = this.corpo;
+    const out: HTMLElement[] = [];
+    this.libreriaUnita = true;
+    try {
+      for (const [radice, fn] of [['transizioni', () => this.paginaTransizioni()], ['titoli', () => this.paginaTitoli()], ['animazioni', () => this.paginaAnimazioni()], ['effetti', () => this.paginaEffetti()]] as [string, () => void][]) {
+        const tmp = h('div', { class: 'bin-pagina-tmp' }) as HTMLElement;
+        this.corpo = tmp;
+        fn();
+        out.push(h('h3', { class: 'bin-radice', 'data-ramo': radice }, this.nomeRamo(radice)), ...(Array.from(tmp.children) as HTMLElement[]));
+      }
+    } finally { this.corpo = reale; this.libreriaUnita = false; }
+    this.percorso(h('span', { class: 'pezzo' }, 'Libreria'));
+    this.barra.append(this.impostazioniBlocchi());
+    reale.replaceChildren(...out);
+    this.aggiornaEffetti();
   }
 
   private evidenzia() {
@@ -318,10 +366,10 @@ export class Contenitore {
   private picchiRaf = 0;
   private disegnaDestra(forza = false) {
     const n = this.nodo;
-    if (n === 'transizioni' || n.startsWith('tr:')) { if (forza || this.firma !== n + this.filtro) { this.firma = n + this.filtro; this.paginaTransizioni(); } return; }
-    if (n === 'titoli' || n.startsWith('tit:')) { if (forza || this.firma !== n + this.filtro) { this.firma = n + this.filtro; this.paginaTitoli(); } return; }
-    if (n === 'effetti' || n.startsWith('fx:')) { if (forza || this.firma !== n + this.filtro) { this.firma = n + this.filtro; this.paginaEffetti(); } return; }
-    if (n === 'animazioni' || n.startsWith('an:')) { if (forza || this.firma !== n + this.filtro) { this.firma = n + this.filtro; this.paginaAnimazioni(); } return; }
+    if (this.eLibreria(n)) {
+      if (forza || this.firma !== 'libreria' + this.filtro) { this.firma = 'libreria' + this.filtro; this.paginaLibreria(); this.vaiARamo(n); }
+      return;
+    }
     this.disegnaMedia(forza);
   }
 
@@ -638,12 +686,12 @@ export class Contenitore {
 
   /** sezioni: con l'intestazione solo quando si vede tutto il ramo */
   private sezioni(radice: string, gruppi: [string, string, HTMLElement[]][]) {
-    const tutto = this.nodo === radice;
+    const tutto = this.nodo === radice || this.libreriaUnita;
     const out: HTMLElement[] = [];
     for (const [id, nome, carte] of gruppi) {
       if (!tutto && this.nodo !== id) continue;
       if (!carte.length) continue;
-      if (tutto) out.push(h('h4', { class: 'bin-sezione' }, nome, h('small', null, String(carte.length))));
+      if (tutto) out.push(h('h4', { class: 'bin-sezione', 'data-ramo': id }, nome, h('small', null, String(carte.length))));
       out.push(h('div', { class: 'bin-griglia libreria' }, carte));
     }
     if (!out.length) out.push(h('p', { class: 'nota' }, 'Niente con questo nome.'));
@@ -706,15 +754,14 @@ export class Contenitore {
       clic: () => { inserisciGeneratore(kind); avviso(`${nome} al cursore`, 'ok', 1000); },
     });
     // i sottotitoli: generarli, una riga a mano, la voce che li legge, dove stanno (le righe si muovono nella riga SOTT)
-    const sott = (nome: string, icona: string, info: string, fai: (m: typeof import('./sottotitoliRapidi')) => void) => this.cartaLibreria({
-      cls: 'gen gen-voce gen-sott', nome, titolo: `${nome}\n${info}`,
+    const sott = (nome: string, icona: string, info: string, fai: (m: typeof import('./sottotitoliRapidi')) => void, dato?: string) => this.cartaLibreria({
+      cls: 'gen gen-voce gen-sott', nome, titolo: `${nome}\n${info}`, dato, etichetta: dato ? icona + ' ' + nome : undefined,
       anteprima: h('div', { class: 'gen-anteprima sott-anteprima' }, h('span', null, icona), h('b', null, 'Sottotitolo')),
       clic: () => void import('./sottotitoliRapidi').then(fai),
     });
     const voceSott = [
-      sott('Sottotitoli con l\'AI', '✨', 'Ascolta il montaggio e scrive le righe (riga SOTT della timeline). Per una clip sola: tasto destro sulla clip', (m) => void m.generaSottotitoli()),
+      sott('Sottotitoli con l\'AI', '✨', 'Trascinalo su una clip: scrive i sottotitoli di quella clip; lasciato su uno spazio vuoto li scrive per tutto il montaggio. Poi doppio clic su una riga (SOTT) per correggerla, tasto destro per farla parlare', (m) => void m.generaSottotitoli(), 's:ai'),
       sott('Riga al cursore', '📝', 'Una riga nuova dove sta il cursore, col testo da scrivere', (m) => void m.nuovaRigaQui()),
-      sott('Fai parlare (voce AI)', '🗣', 'Una voce AI legge i sottotitoli: una clip per frase sulla traccia "Voce AI" (nell\'app)', (m) => void m.faiParlareSottotitoli()),
       sott('Posizione e grandezza', '⚙', 'In basso o in alto, grandezza, fascia, nel video o solo .srt', (m) => m.stileSottotitoli()),
     ].filter((c) => !this.filtro || (c.textContent ?? '').toLowerCase().includes(this.filtro.toLowerCase()));
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' }, ...this.sezioni('titoli', [

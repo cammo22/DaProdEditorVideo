@@ -60,6 +60,9 @@ export async function proveAudioUI({ page: paginaDi, prova }) {
     prova('"rumori" e "separa voce" nella ricerca trovano i comandi dell\'audio AI', r1.some((t) => /rumori/i.test(t)) && r2.some((t) => /separa voce/i.test(t)), JSON.stringify({ r1, r2 }));
     // un giro vero: "Media" toglie i rumori col DeepFilterNet vero e la clip punta al file nuovo
     const prima = await page.evaluate((cid) => window.__dpv.doc.clips.find((x) => x.id === cid).media, id);
+    // il lavoro parte solo dopo il consenso esplicito: una guida lo conferma (come farebbe l'utente)
+    let guidaFinita = false;
+    const guida = (async () => { while (!guidaFinita) { const t = page.locator('.velo:not(.via) .ai-passi .primario'); if (await t.isVisible().catch(() => false)) await t.click().catch(() => {}); await new Promise((r) => setTimeout(r, 50)); } })();
     await page.click('.aai-bottone:has-text("Media")');
     // mentre lavora: il bottone premuto dice "In corso" (con la percentuale), gli altri sono spenti, sotto compare la barra col testo
     await page.waitForFunction(() => !!document.querySelector('.aai-bottone.lavora'), null, { timeout: 8000 }).catch(() => {});
@@ -70,6 +73,7 @@ export async function proveAudioUI({ page: paginaDi, prova }) {
     });
     prova('mentre toglie i rumori il bottone "Media" dice "In corso" (con la percentuale), gli altri sono spenti e sotto compare la barra', /In corso|In coda/.test(inCorso.testo ?? '') && inCorso.altriSpenti && inCorso.barra && inCorso.altra === true, JSON.stringify(inCorso));
     await page.waitForFunction((a) => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Voce'); return !!c && c.media !== a; }, prima, { timeout: 90000 }).catch(() => {});
+    guidaFinita = true; await guida;
     await page.waitForTimeout(800);
     const dopo = await page.evaluate((cid) => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.id === cid); const m = d.media.find((x) => x.id === c.media); return { cambiata: c.media !== d.clips.find((x) => x.id === cid)?.afx?.pulito?.media && !!c.afx?.pulito, nome: m?.name, forza: c.afx?.pulito?.forza }; }, id);
     prova('"Media" toglie i rumori davvero: la clip passa a un file nuovo (e ricorda l\'originale)', dopo.cambiata && dopo.forza === 'media', JSON.stringify(dopo));

@@ -5,7 +5,7 @@
 //  · famiglia "sam": Segment Anything (SAM 2.1, SlimSAM…): un'immagine + dei clic o un riquadro → la maschera dell'oggetto.
 // Ogni modello ha più indirizzi di riserva e più "tipi" (fp16, fp32, q8): si prova finché uno va. Il tipo si dice
 // sempre: prima no, e col processore la libreria cercava una versione (q8) che per MODNet e BiRefNet non c'è.
-import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, tipiScheda, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type LibreriaAI, type Tipo } from './libreriaAI';
+import { impostaChiaveHF, caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, tipiScheda, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type LibreriaAI, type Tipo } from './libreriaAI';
 
 interface Immagine { data: Uint8ClampedArray | Uint8Array; width: number; height: number; channels: number }
 interface Tensore { data: ArrayLike<number>; dims: number[] }
@@ -17,7 +17,7 @@ type ModelloSam = (inputs: Record<string, unknown>) => Promise<{ pred_masks: unk
 interface Msg {
   tipo: string; id?: number; famiglia?: string; repo?: string[]; w?: number; h?: number; rgba?: Uint8ClampedArray;
   punti?: { x: number; y: number; dentro: boolean }[]; riquadro?: [number, number, number, number]; base?: string; scheda?: boolean;
-  hw?: ImpostazioneScheda;
+  hw?: ImpostazioneScheda; chiaveHF?: string;
 }
 
 let T: LibreriaAI | null = null;
@@ -133,6 +133,7 @@ self.onmessage = async (e: MessageEvent) => {
   try {
     if (m.base !== undefined) base = m.base;
     if (m.hw) usaImpostazioneScheda(m.hw);
+    if (typeof m.chiaveHF === 'string') impostaChiaveHF(m.chiaveHF);
     if (m.tipo === 'carica') await carica(m.famiglia!, m.repo!, m.scheda !== false);
     else if (m.tipo === 'maschera') {
       const dati = await mascheraSicura(m);

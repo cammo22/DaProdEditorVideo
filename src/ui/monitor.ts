@@ -165,12 +165,12 @@ export class PannelloMonitor {
     avviso(motore.rec.prima > 0 ? 'A sinistra com\'era, a destra con il colore finale' : 'Tutto con il colore finale', 'info', 1600);
   }
 
-  /** 0 = l'immagine · 1 = la maschera (bianco = resta) · 2 = il soggetto sugli scacchi (senza `a`: passa alla prossima) */
+  /** 0 = l'immagine · 1 = la maschera (bianco = resta) · 2 = il soggetto sugli scacchi · 3 = il contorno (senza `a`: passa alla prossima) */
   private alternaVistaSfondo(a?: number) {
     if (!motore.rec) return;
-    motore.rec.vistaChiave = a ?? (motore.rec.vistaChiave + 1) % 3;
+    motore.rec.vistaChiave = a ?? (motore.rec.vistaChiave + 1) % 4;
     this.vistaSfondo.classList.toggle('acceso', motore.rec.vistaChiave > 0);
-    this.vistaSfondo.textContent = ['SFONDO', 'MASCHERA', 'SCACCHI'][motore.rec.vistaChiave];
+    this.vistaSfondo.textContent = ['SFONDO', 'MASCHERA', 'SCACCHI', 'CONTORNO'][motore.rec.vistaChiave];
     motore.ridisegna();
   }
 

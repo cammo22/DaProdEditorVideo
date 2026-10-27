@@ -80,7 +80,7 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     const ti = await aperte('Titolo');
     prova('un titolo: si apre da solo "Titolatrice" in cima', ti[0].g === 'titolo' && ti[0].o && ti.filter((x) => x.o).length === 1, JSON.stringify(ti));
     const mu = await aperte('MUSICA');
-    prova('la musica: si apre il volume (un tono è anche un generatore: si apre pure quello)', mu.find((x) => x.g === 'audio')?.o && mu.find((x) => x.g === 'fxa')?.o === false && mu.find((x) => x.g === 'durata')?.o === false, JSON.stringify(mu));
+    prova('la musica: si apre il volume (un tono è anche un generatore: si apre pure quello)', mu.find((x) => x.g === 'audio')?.o && mu.find((x) => x.g === 'fxa')?.o === false && mu.find((x) => x.g === 'durata')?.o !== true, JSON.stringify(mu));
     const fo = await aperte('FONDO');
     prova('un colore pieno: si apre "Generatore" in cima', fo[0].g === 'generatore' && fo[0].o, JSON.stringify(fo));
     await page.evaluate(() => { const d = window.__dpv.doc; window.__dpv.select([d.clips.find((c) => c.kind === 'fx').id]); });
@@ -97,6 +97,11 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     // un colore pieno non è "media": per il quadro in miniatura serve una clip video con l'immagine → si usa un titolo (visibile e movibile)
     await page.evaluate(() => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.name === 'Titolo'); window.__dpv.select([c.id]); window.__motore.vaiA(170); });
     await page.waitForTimeout(700);
+    // il quadro in miniatura sta nell'editor della clip (doppio clic): si apre da lì
+    await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
+    await page.waitForSelector('.editor-clip');
+    await page.evaluate(() => document.querySelectorAll('.editor-clip .isp-gruppo:not([open]) > summary').forEach((x) => { if (x.parentElement.dataset.g === 'immagine') x.click(); }));
+    await page.waitForTimeout(400);
     const mq = await page.evaluate(() => {
       const t = document.querySelector('.mq-tela');
       if (!t) return null;
@@ -144,6 +149,8 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     await page.waitForTimeout(300);
     const bd = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); return { x: c.tf.x, y: c.tf.y, s: c.tf.scale }; });
     prova('"In basso a destra" mette un riquadro piccolo nell\'angolo', bd.x > 300 && bd.y > 200 && bd.s < 0.5, JSON.stringify(bd));
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.editor-clip', { state: 'detached' });
 
     // ———————————————————————————————————————————————————————————
     console.log('▶ 1.4.0: effetti e look con l\'anteprima, durata, entrata e uscita, ritaglio');
@@ -210,6 +217,8 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     prova('"Verticale 9:16 al centro" taglia i lati in modo uguale (resta la parte di mezzo)', cr.l > 0.2 && Math.abs(cr.l - cr.r) < 1e-9, JSON.stringify(cr));
 
     // ———————————————————————————————————————————————————————————
+    await page.evaluate(() => { const f = document.querySelector('.editor-clip .dlg-piede .primario'); if (f) f.click(); });
+    await page.waitForTimeout(300);
     console.log('▶ 1.4.0: i segnalini che seguono un oggetto, lo sfondo con qualcosa dietro');
     const sg = await page.evaluate(async () => {
       const { RA, AN } = window.__dpvTest;
@@ -290,12 +299,12 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     await page.evaluate((id) => { window.__dpv.select([id]); }, tracciato);
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'sfondo' })));
     await page.waitForTimeout(400);
-    prova('senza sfondo tolto non c\'è ancora "cosa metto dietro"', (await page.locator('.isp-gruppo[data-g=sfondo] .chip:has-text("Notte")').count()) === 0);
+    prova('senza sfondo tolto non c\'è ancora "cosa metto dietro"', (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera:has-text("Notte")').count()) === 0);
     await page.evaluate((id) => window.__dpv.edit('chiave', (pp) => { pp.clips.find((c) => c.id === id).fx.key = 'chroma'; }), tracciato);
     await page.waitForTimeout(500);
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'sfondo' })));
     await page.waitForTimeout(400);
-    await page.evaluate(() => [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] .chip')].find((b) => b.textContent === 'Notte').click());
+    await page.evaluate(() => [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] .pp-tessera')].find((b) => b.textContent === 'Notte').click());
     await page.waitForTimeout(400);
     const dietro = await page.evaluate((id) => {
       const d = window.__dpv.doc; const src = d.clips.find((c) => c.id === id); const col = d.clips.find((c) => c.kind === 'color' && c.name === 'Sfondo Notte');

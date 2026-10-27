@@ -4,6 +4,19 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.1] — 2026-10-27 · Più semplice: Attività, Finale, LIVE e Proprietà rifatti
+
+- **Attività** com'era nella 1.5.5: la barra in basso mostra cosa sta facendo il programma, il popup ha i lavori con avanzamento e tempi, ⚡ Sovraccarica, Pausa, Pulisci. In più la sezione «Prepara i file»: copie leggere (proxy), forme d'onda, locandine, colore e velocità con un clic. Locandina, colore e forma d'onda ripartono di nuovo da soli all'import (si vedono le forme d'onda dei file audio).
+- Tolti **Cerca** in alto, il menu **Banco** e la puntina: il pannello Proprietà sta sempre aperto a tutta altezza.
+- **Finale** com'era (Colore per primo, un solo pulsante Esporta). **LIVE**: REGISTRA parte subito, microfono / audio del computer / webcam in vista, il resto in «Altre opzioni»; le finestre in più si scelgono prima di registrare, durante si passa dall'una all'altra con 1-9. Su Windows lo schermo e i permessi di microfono e webcam non chiedono conferma.
+- **Doppio clic su una clip**: si apre l'editor con tutte le sezioni (posizione, effetti e look, sfondo, segui, colore, durata e velocità, entrata e uscita, ritaglio). Il pannello a destra tiene solo posizioni pronte, opacità, movimento (con anteprime animate), sfondo, segui e colore.
+- **Effetti rapidi audio** con il disegnino del suono: Voce pulita e Voce isolata (AI), Voce chiara, Radio, Ovattato, Taglia bassi, Livella e il nuovo Robot. Tolti Eco e Muto.
+- **Togli lo sfondo**: quadratini Off / Colore / Luce / AI. Colore: contagocce e preset green/blue screen, il resto sotto «Rifinisci». AI: nell'editor, in tre passi (cosa tengo, «Controlla questo fotogramma» con il contorno sul monitor, anteprima di 5 s o tutta la clip). Nuovo **Segui con l'AI** e il campo della **chiave Hugging Face** per SAM 3 (AI → Impostazioni).
+- **Centro AI**: «Controlla e ripara tutto» (motore, scheda video, connessione, modello di voce e base) e l'elenco dei modelli.
+- **Libreria**: transizioni, titoli, animazioni ed effetti sono una pagina sola che scorre; i sottotitoli con l'AI si trascinano su una clip.
+- **Montage**: sullo schermo largo le tre colonne stanno di nuovo affiancate.
+- Prove allineate a tutto questo.
+
 ## [1.6.0] — 2026-10-27 · Attività in un popup e Montage di nuovo a tre colonne
 
 - Il centro Attività torna a essere un popup in basso a destra, sopra la barra di stato: non prende più il posto della libreria e non nasconde monitor e timeline. Esc o «Torna alla libreria» lo chiudono.
