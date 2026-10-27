@@ -36,7 +36,7 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     const pannello = await page.evaluate(() => ({
       righe: document.querySelectorAll('.att-pannello .att-riga[data-stato="lavoro"], .att-pannello .att-riga[data-stato="coda"]').length,
       riepilogo: document.querySelector('.stato .att')?.textContent ?? '',
-      finite: [...document.querySelectorAll('.att-pannello .att-riga[data-stato="finita"]')].map((x) => ({ titolo: x.querySelector('b')?.textContent, barraNascosta: x.querySelector('progress')?.hidden })),
+      finite: [...document.querySelectorAll('.att-pannello .att-riga[data-stato="finita"]')].map((x) => ({ titolo: x.querySelector('b')?.textContent, barraNascosta: x.querySelector('.att-pista')?.hidden })),
     }));
     prova('riaperto il pannello: nessuna riga in corso rimasta ferma, riepilogo a riposo e lavoro nello storico senza barra', lav === 1 && pannello.righe === 0 && /Nessuna attività/.test(pannello.riepilogo) && pannello.finite.some((t) => /Copie leggere/.test(t.titolo) && t.barraNascosta), JSON.stringify({ lav, pannello }));
     await page.keyboard.press('Escape');

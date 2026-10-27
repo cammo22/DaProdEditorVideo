@@ -88,7 +88,7 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   // ——— riepilogo e pannello integrato nella libreria (1.5.8) ———
   console.log('▶ Centro attività: riepilogo, progressi, comandi e storico');
   const ferma0 = await page.evaluate(() => (window.__dpvTest.AT.avvisaOra(), document.querySelector('.att')?.textContent));
-  prova('a riposo il riepilogo dice "Nessuna attività"', ferma0 === 'Attività · Nessuna attività', ferma0);
+  prova('a riposo il riepilogo dice "Nessuna attività"', ferma0 === 'Nessuna attività', ferma0);
   await page.evaluate(() => {
     const { AT } = window.__dpvTest;
     window.__prova = { a: AT.nuova({ titolo: 'Riapro i file del progetto', categoria: 'file' }), b: AT.nuova({ titolo: "Forme d'onda", categoria: 'analisi', gruppo: 'pk' }) };
@@ -99,26 +99,25 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   await page.waitForTimeout(250);
   const barra = await page.evaluate(() => {
     const el = document.querySelector('.att'), r = el.getBoundingClientRect();
-    return { testo: el.textContent, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+    return { testo: el.querySelector('.att-testo').textContent, altre: el.querySelector('.att-altre').textContent, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
   });
-  prova('il riepilogo conta tutte le attività al lavoro', barra.testo === 'Attività · 2 al lavoro', JSON.stringify(barra));
+  prova('il riepilogo conta tutte le attività al lavoro', /^Riapro i file del progetto/.test(barra.testo) && barra.altre === '+1', JSON.stringify(barra));
   prova('il riepilogo resta dentro lo schermo', barra.dentro, JSON.stringify(barra));
   await page.screenshot({ path: path.join(OUT, 'attivita-barra.png') });
   await page.click('.att');
   await page.waitForSelector('.att-pannello');
   const pan = await page.evaluate(() => {
     const p = document.querySelector('.att-pannello'), r = p.getBoundingClientRect();
-    const righe = [...p.querySelectorAll('.att-riga')].map((x) => ({ t: x.querySelector('b').textContent, pct: x.querySelector('progress').value, accessibile: x.querySelector('progress').getAttribute('aria-label'), info: x.querySelector('p:not(.nota)').textContent, stop: [...x.querySelectorAll('button')].some((b) => b.textContent === 'Annulla') }));
+    const righe = [...p.querySelectorAll('.att-riga')].map((x) => ({ t: x.querySelector('b').textContent, pct: Number(x.querySelector('.att-pista').getAttribute('aria-valuenow')) / 100, accessibile: x.querySelector('.att-pista').getAttribute('aria-label'), info: x.querySelector('.att-r-info').textContent, stop: [...x.querySelectorAll('button')].some((b) => b.textContent === 'Annulla') }));
     return { righe, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, ancorato: r.right > innerWidth * 0.5 && r.bottom <= document.querySelector('.att').getBoundingClientRect().top };
   });
   prova('il pannello mostra titolo, percentuale accessibile, tempi e Annulla per ogni attività', pan.righe.length === 2 && pan.righe[0].t === 'Riapro i file del progetto' && pan.righe[0].pct === 0.35 && /35%/.test(pan.righe[0].accessibile) && /passati/i.test(pan.righe[0].info) && pan.righe.every((r) => r.stop), JSON.stringify(pan));
   prova('il pannello è un popup in basso a destra, dentro lo schermo, sopra il riepilogo', pan.dentro && pan.ancorato, JSON.stringify(pan));
-  await page.locator('.att-pannello summary', { hasText: 'Prestazioni avanzate' }).click();
-  const turbo = page.getByRole('button', { name: 'Sovraccarica', exact: true });
+  const turbo = page.getByRole('button', { name: '⚡ Sovraccarica', exact: true });
   prova('Sovraccarica dichiara lo stato spento', await turbo.getAttribute('aria-pressed') === 'false');
   await turbo.click();
   await page.waitForTimeout(300);
-  const acceso = page.getByRole('button', { name: 'Disattiva Sovraccarica', exact: true });
+  const acceso = page.getByRole('button', { name: '⚡ Sovraccarico acceso', exact: true });
   prova('Sovraccarica accende il motore e lo stato accessibile', await page.evaluate(() => window.__dpvTest.AT.inSovraccarico()) && await acceso.getAttribute('aria-pressed') === 'true');
   await acceso.click();
   prova('il secondo clic spegne Sovraccarica', !await page.evaluate(() => window.__dpvTest.AT.inSovraccarico()));
@@ -128,13 +127,13 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   prova('Annulla manda il segnale al lavoro reale', await page.evaluate(() => window.__prova.a.fermato === true));
   await page.evaluate(() => { window.__prova.a.annullata(); window.__prova.b.fine('ok'); window.__dpvTest.AT.avvisaOra(); });
   await page.waitForTimeout(300);
-  const fin = await page.evaluate(() => [...document.querySelectorAll('.att-riga')].map((x) => ({ stato: x.dataset.stato, testo: x.textContent, progressoNascosto: x.querySelector('progress').hidden })));
+  const fin = await page.evaluate(() => [...document.querySelectorAll('.att-riga')].map((x) => ({ stato: x.dataset.stato, testo: x.textContent, progressoNascosto: x.querySelector('.att-pista').hidden })));
   prova('le attività terminali restano nello storico senza barra in movimento', fin.length === 2 && fin.every((x) => ['finita', 'annullata'].includes(x.stato) && x.progressoNascosto), JSON.stringify(fin));
   prova('lo storico conserva durata e ora assoluta senza "x fa"', fin.every((x) => /ci ha messo/.test(x.testo) && /\d\d[:.]\d\d/.test(x.testo) && !/ fa\b/.test(x.testo)), JSON.stringify(fin));
   await page.evaluate(() => { window.__nodiFinite = [...document.querySelectorAll('.att-riga')]; window.__testiFinite = window.__nodiFinite.map((x) => x.textContent); });
   await page.waitForTimeout(2300);
   prova('lo storico conserva nodi e testo, senza ridisegni periodici', await page.evaluate(() => [...document.querySelectorAll('.att-riga')].every((x, i) => x === window.__nodiFinite[i] && x.textContent === window.__testiFinite[i])));
-  await page.getByRole('button', { name: 'Pulisci lo storico', exact: true }).click();
+  await page.getByRole('button', { name: 'Pulisci', exact: true }).click();
   // Il registro notifica la UI con debounce: attendere l'effetto, non un ritardo arbitrario.
   await page.waitForFunction(() => document.querySelectorAll('.att-pannello .att-riga').length === 0);
   prova('Pulisci rimuove le attività terminali', await page.locator('.att-riga').count() === 0);

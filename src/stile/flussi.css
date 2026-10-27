@@ -12,18 +12,6 @@ button, select, summary { touch-action: manipulation; }
 .bin-cerca { min-width: 60px; }
 .bin-albero { min-width: 0; }
 .carta-preparazione { display: block; padding: 3px 6px; white-space: normal; color: var(--testo2); font-size: 11px; }
-.att-pannello { padding: 12px; font-size: 13px; }
-.att-pannello > * { max-width: 100%; }
-.att-pannello header { position: sticky; top: -12px; padding: 8px 0; background: var(--pann); z-index: 1; }
-.att-pannello select { width: 100%; background: var(--pann); padding: 6px; }
-.att-file { max-height: 150px; overflow: auto; margin: 10px 0; border-block: 1px solid var(--bordo); }
-.att-file-riga { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 3px 5px; padding: 6px; }
-.att-file-riga span { overflow-wrap: anywhere; }
-.att-file-riga small { grid-column: 2; color: var(--testo2); }
-.att-riga { margin: 8px 0; padding: 10px; border: 1px solid var(--bordo); border-radius: 6px; overflow-wrap: anywhere; }
-.att-riga p { margin: 5px 0; }
-.att-riga progress { width: 100%; height: 6px; accent-color: var(--cia); }
-.att-riga button { min-height: 28px; }
 .fin-percorso, .fin-esporta-fisso { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; flex-shrink: 0; background: var(--pann); border-block: 1px solid var(--bordo); }
 .fin-dentro { min-width: 0; }
 .fin-menu { order: 0; width: 126px; flex: 0 0 126px; border-right: 1px solid var(--bordo); }
@@ -88,3 +76,18 @@ button, select, summary { touch-action: manipulation; }
   .live-regia { position: static; }
 }
 @media (prefers-reduced-motion: reduce) { .att, .live-fase-certa { animation: none !important; } }
+
+.att-pannello { width: min(500px, calc(100vw - 12px)); }
+.att-prepara { padding: 10px 12px; border-bottom: 1px solid #0d0c12; }
+.att-prepara-testa, .att-da-avviare-testa { display: flex; align-items: center; gap: 8px; }
+.att-prepara-testa .att-p-sotto { flex: 1; }
+.att-prepara-tasti { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px; margin-top: 8px; }
+.att-prep { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; white-space: normal; }
+.att-prep small { color: var(--testo3); font-size: 10.5px; font-weight: 600; }
+.att-prep:disabled { opacity: .55; }
+.att-da-avviare-testa { padding: 8px 12px 0; }
+.att-da-avviare-testa b { flex: 1; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--testo3); }
+.att-r-comandi { display: flex; gap: 6px; flex-wrap: wrap; }
+.att-r-comandi:empty { display: none; }
+.att-riga[data-stato='manuale'] .att-pista { display: none; }
+.att-fin { opacity: .85; }
