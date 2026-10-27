@@ -1,4 +1,4 @@
-// Centro attività nel pannello della libreria: non copre monitor e timeline.
+// Centro attività: popup in basso a destra, agganciato al riepilogo nella barra di stato.
 import { attivitaFinite, attivitaInCorso, attivitaDaAvviare, fermaRiga, avviaRiga, avviaTutte, pausaRiga, riprendiRiga, riprovaRiga, inPausa, pausaLavori, puliscoFinite, quandoAttivita, riassuntoTesto, type Attivita } from '../media/attivita';
 import { NOMI_PREPARAZIONE, PREPARAZIONI, proponiPreparazioni, statoPreparazione, type Preparazione } from '../media/libreria';
 import { agisciBatch, azioniAttivita, type AzioneAttivita } from '../core/flussiUI';
@@ -67,7 +67,7 @@ export class CentroAttivita {
   private firmaFile = '';
   private pausa = h('button', { class: 'btn-mini', on: { click: () => pausaLavori(!inPausa()) } });
   private turbo = h('button', { class: 'btn-mini', on: { click: () => sovraccarica(!inSovraccarico()) } });
-  constructor(private host: HTMLElement) {
+  constructor(_host?: HTMLElement) {
     quandoAttivita(() => this.aggiorna());
     store.on('doc', () => { if (this.aperto) this.disegnaFile(); });
     document.addEventListener('dpv:attivita', (e) => {
@@ -75,13 +75,12 @@ export class CentroAttivita {
       if (ids) this.scelti = new Set(ids);
       this.firmaFile = ''; this.apri(); this.disegnaFile();
     });
+    window.addEventListener('resize', () => this.posiziona());
     this.aggiorna();
   }
   get aperto() { return !!this.pannello; }
   apri() {
     if (this.pannello) return;
-    this.host.classList.add('att-aperta');
-    this.host.closest('#app')?.classList.add('con-attivita');
     this.el.setAttribute('aria-expanded', 'true');
     this.pannello = h('section', { class: 'att-pannello', 'aria-label': 'Attività', on: { keydown: (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); this.chiudi(); } } } },
       h('header', { class: 'workflow-azioni' }, h('b', null, 'Attività'), h('button', { class: 'btn-mini', on: { click: () => this.chiudi() } }, 'Torna alla libreria')),
@@ -96,14 +95,21 @@ export class CentroAttivita {
         ...(['pausa', 'riprendi', 'annulla'] as const).map((a) => h('button', { class: 'btn-mini', on: { click: () => agisciBatch(attivitaInCorso(), a, agisci) } }, NOMI[a] + ' attività in corso'))),
       this.pausa, h('details', null, h('summary', null, 'Prestazioni avanzate'), h('p', { class: 'nota' }, 'Sovraccarica aumenta il numero di lavori simultanei: il monitor può rallentare.'), this.turbo), this.lista,
       h('button', { class: 'btn-mini', on: { click: () => puliscoFinite() } }, 'Pulisci lo storico'));
-    this.host.append(this.pannello);
+    document.body.append(this.pannello);
+    this.posiziona();
     this.aggiorna();
     this.pannello.querySelector('button')?.focus();
   }
   chiudi() {
     this.pannello?.remove(); this.pannello = null;
-    this.host.closest('#app')?.classList.remove('con-attivita');
-    this.host.classList.remove('att-aperta'); this.el.setAttribute('aria-expanded', 'false'); this.el.focus();
+    this.el.setAttribute('aria-expanded', 'false'); this.el.focus();
+  }
+  // sopra il riepilogo, a destra, sempre dentro lo schermo
+  private posiziona() {
+    const p = this.pannello; if (!p) return;
+    const r = this.el.getBoundingClientRect();
+    p.style.right = Math.max(6, innerWidth - Math.max(r.right, 0)) + 'px';
+    p.style.bottom = Math.max(6, innerHeight - r.top + 6) + 'px';
   }
   private disegnaFile() {
     const tipo = this.tipo.value as Preparazione;

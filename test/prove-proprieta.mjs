@@ -71,6 +71,7 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     });
     const aperte = async (nome) => {
       await page.evaluate((n) => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.name === n); window.__dpv.select([c.id]); document.dispatchEvent(new CustomEvent('dpv:proprieta')); }, nome);
+      await page.waitForSelector('.isp-corpo > .isp-gruppo', { timeout: 10000 });
       await page.waitForTimeout(600);
       return page.evaluate(() => [...document.querySelectorAll('.isp-corpo > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
     };

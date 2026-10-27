@@ -4,6 +4,12 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.0] — 2026-10-27 · Attività in un popup e Montage di nuovo a tre colonne
+
+- Il centro Attività torna a essere un popup in basso a destra, sopra la barra di stato: non prende più il posto della libreria e non nasconde monitor e timeline. Esc o «Torna alla libreria» lo chiudono.
+- Montage: sullo schermo largo le tre colonne (foto, stile, durata e musica) stanno di nuovo affiancate; i tre passi restano solo sugli schermi stretti.
+- Prove allineate al Centro AI a una carta per volta e al consenso esplicito (traduzione sottotitoli, «Togli i rumori»).
+
 ## [1.5.9] — 2026-10-24 · Cartelle leggibili e aggiornamenti più affidabili
 
 - Ripristinata la larghezza dell'albero delle cartelle: nella 1.5.8 un limite percentuale lo schiacciava dentro la sua colonna, lasciando vuoto lo spazio accanto. Correzione valida anche per le disposizioni già salvate, senza azzerare preferenze o progetti.

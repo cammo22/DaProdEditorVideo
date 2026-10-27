@@ -1,6 +1,7 @@
 // Le prove della 1.1.6: contenitore (scelta multipla, bordo, aggancio), Montage (anteprima dei video, come adattare),
 // voce e lingue (traduzione, cinese, una clip per frase), file a velocità variabile e pagina iniziale.
 import path from 'node:path';
+import { conConfermeAI } from './aiuti.mjs';
 
 /** una pagina pulita (contesto nuovo): le prove di prima hanno riempito il progetto e aperto sezioni */
 async function pagina(paginaDi) {
@@ -196,10 +197,14 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
   await page.evaluate(() => window.__dpvTest.TD.impostaTraduttore({ carica: async () => {}, traduci: async (testi, da, a) => testi.map((t) => `(${a}) ${t}`) }));
   await page.locator('.fin-pagina[data-s=lingue] select').nth(1).selectOption('en');
   await page.waitForTimeout(250);
-  await page.locator('.fin-pagina[data-s=lingue] .ai-vai', { hasText: 'Traduci i sottotitoli' }).click();
-  await page.waitForFunction(() => window.__dpv.doc.sottotitoli.lingua === 'en', null, { timeout: 15000 });
+  await conConfermeAI(page, async () => {
+    await page.locator('.fin-pagina[data-s=lingue] .ai-vai', { hasText: 'Traduci i sottotitoli' }).click();
+    await page.waitForFunction(() => window.__dpv.doc.sottotitoli.lingua === 'en', null, { timeout: 15000 });
+  });
   const sott = await page.evaluate(() => ({ testi: window.__dpv.doc.sottotitoli.righe.map((r) => r.testo), tempi: window.__dpv.doc.sottotitoli.righe.map((r) => [r.da, r.a]) }));
   prova('"Traduci i sottotitoli": cambia il testo e la lingua, i tempi restano', sott.testi.every((t) => t.startsWith('(en) ')) && sott.tempi.join(';') === '0,50;75,140', JSON.stringify(sott));
+  await page.waitForFunction(() => !document.querySelector('.velo:not(.via)'), null, { timeout: 5000 });
+  await page.waitForTimeout(400);
   await page.keyboard.press('Control+z');
   await page.waitForTimeout(250);
   prova('Ctrl+Z rimette i sottotitoli com\'erano', await page.evaluate(() => window.__dpv.doc.sottotitoli.lingua === 'it' && window.__dpv.doc.sottotitoli.righe[0].testo === 'Buonasera Napoli.'));

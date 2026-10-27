@@ -109,11 +109,10 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   const pan = await page.evaluate(() => {
     const p = document.querySelector('.att-pannello'), r = p.getBoundingClientRect();
     const righe = [...p.querySelectorAll('.att-riga')].map((x) => ({ t: x.querySelector('b').textContent, pct: x.querySelector('progress').value, accessibile: x.querySelector('progress').getAttribute('aria-label'), info: x.querySelector('p:not(.nota)').textContent, stop: [...x.querySelectorAll('button')].some((b) => b.textContent === 'Annulla') }));
-    const timeline = document.querySelector('.timeline').getBoundingClientRect();
-    return { righe, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, nonCopreTimeline: r.bottom <= timeline.top + 1 || r.right <= timeline.left || r.left >= timeline.right };
+    return { righe, dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight, ancorato: r.right > innerWidth * 0.5 && r.bottom <= document.querySelector('.att').getBoundingClientRect().top };
   });
   prova('il pannello mostra titolo, percentuale accessibile, tempi e Annulla per ogni attività', pan.righe.length === 2 && pan.righe[0].t === 'Riapro i file del progetto' && pan.righe[0].pct === 0.35 && /35%/.test(pan.righe[0].accessibile) && /passati/i.test(pan.righe[0].info) && pan.righe.every((r) => r.stop), JSON.stringify(pan));
-  prova('il pannello sta nello schermo senza coprire la timeline', pan.dentro && pan.nonCopreTimeline, JSON.stringify(pan));
+  prova('il pannello è un popup in basso a destra, dentro lo schermo, sopra il riepilogo', pan.dentro && pan.ancorato, JSON.stringify(pan));
   await page.locator('.att-pannello summary', { hasText: 'Prestazioni avanzate' }).click();
   const turbo = page.getByRole('button', { name: 'Sovraccarica', exact: true });
   prova('Sovraccarica dichiara lo stato spento', await turbo.getAttribute('aria-pressed') === 'false');

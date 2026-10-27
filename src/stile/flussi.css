@@ -12,8 +12,7 @@ button, select, summary { touch-action: manipulation; }
 .bin-cerca { min-width: 60px; }
 .bin-albero { min-width: 0; }
 .carta-preparazione { display: block; padding: 3px 6px; white-space: normal; color: var(--testo2); font-size: 11px; }
-.contenitore.att-aperta > :not(.att-pannello) { display: none; }
-.contenitore .att-pannello { position: static; z-index: auto; width: 100%; max-height: none; min-height: 0; height: 100%; border: 0; box-shadow: none; border-radius: 0; overflow: auto; padding: 12px; font-size: 13px; }
+.att-pannello { padding: 12px; font-size: 13px; }
 .att-pannello > * { max-width: 100%; }
 .att-pannello header { position: sticky; top: -12px; padding: 8px 0; background: var(--pann); z-index: 1; }
 .att-pannello select { width: 100%; background: var(--pann); padding: 6px; }
@@ -46,10 +45,10 @@ button, select, summary { touch-action: manipulation; }
 .live-tasti { flex-wrap: wrap; }
 .live-tasti .live-btn { min-width: 0; white-space: normal; flex: 1 1 90px; min-height: 36px; }
 .live-tastiera { white-space: normal; }
-.mt-etapes { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
+.mt-etapes { display: none; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
 .mt-etapes button[aria-current='step'] { border-color: var(--oro); color: var(--oro); }
-.mt-dentro { display: block; border: 0; margin: 0; min-width: 0; overflow: auto; padding: 10px 12px; }
-.mt-dentro .mt-col { width: 100%; min-width: 0; height: auto; overflow: visible; }
+.mt-dentro { border: 0; margin: 0; min-width: 0; }
+.mt-dentro .mt-col { min-width: 0; }
 .mt-dentro .mt-feste { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .mt-colcome { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .mt-colcome > h3, .mt-colcome > .mt-riepilogo { grid-column: 1 / -1; }
@@ -77,10 +76,11 @@ button, select, summary { touch-action: manipulation; }
 }
 @media (min-width: 1151px) and (max-width: 1500px) { .banco-vista { max-width: 145px; } }
 @media (max-width: 899px) {
+  .mt-etapes { display: flex; }
+  .mt-dentro { display: block; overflow: auto; padding: 10px 12px; }
+  .mt-dentro .mt-col { width: 100%; height: auto; overflow: visible; }
+  .mt-dentro .mt-col.mt-passo-chiuso { display: none; }
   .banco-vista { display: none; }
-  #app.stretto.con-attivita[data-pagina='montaggio'] { grid-template-areas: 'testa' 'bin' 'puls' 'div' 'tl' 'stato' 'tel'; }
-  #app.stretto.con-attivita[data-pagina='montaggio'] .contenitore.att-aperta { display: flex; position: static; grid-area: bin; height: auto; width: auto; max-height: none; z-index: auto; transform: none; visibility: visible; }
-  #app.stretto.con-attivita[data-pagina='montaggio'] .monitor { display: none; }
   .stretto .fin-dentro { flex-direction: column; }
   .fin-menu { width: 100%; flex: 0 0 auto; flex-direction: row; flex-wrap: wrap; }
   .fin-voce { flex: 1 1 90px; }

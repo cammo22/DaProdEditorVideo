@@ -196,7 +196,7 @@ export class Montage {
   private passo = 0;
   private mostraPasso(passo: number) {
     this.passo = passo;
-    this.el.querySelectorAll<HTMLElement>('.mt-col').forEach((e, i) => { e.hidden = i !== passo; });
+    this.el.querySelectorAll<HTMLElement>('.mt-col').forEach((e, i) => { e.classList.toggle('mt-passo-chiuso', i !== passo); });
     this.el.querySelectorAll<HTMLButtonElement>('.mt-etapes button').forEach((e, i) => { e.setAttribute('aria-current', i === passo ? 'step' : 'false'); });
   }
   private carteFesta: HTMLElement;

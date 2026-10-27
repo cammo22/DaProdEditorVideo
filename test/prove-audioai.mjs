@@ -930,10 +930,12 @@ async function settima(paginaDi, page, prova, errori) {
     prova('il Centro AI ha le due carte nuove ("Togli i rumori", "Voce e base") con cosa fa, come si usa e lo stato: il filtro è pronto, il modello della separazione da scaricare (172 MB)', ca.carte.includes('rumore') && ca.carte.includes('separa') && ca.nome.join() === 'Togli i rumori,Voce e base' && /pronto/.test(ca.rumore) && /DeepFilterNet3/.test(ca.rumore) && /172 MB/.test(ca.separa) && /separazione rapida/.test(ca.separa) && ca.comeRumore === 3 && ca.bottoni.join() === 'Scarica ora,Togli il modello', JSON.stringify(ca));
     // "Usa" sceglie la clip sotto il cursore e chiede la sezione delle Proprietà
     await page.evaluate(() => { window.__eventi = []; document.addEventListener('dpv:sezione', (e) => window.__eventi.push(e.detail)); });
+    await page.selectOption('.centro-ai select[aria-label="Cosa vuoi fare"]', 'rumore'); // il Centro AI mostra una carta alla volta
+    await page.selectOption('.centro-ai select[aria-label="Clip su cui usare AI"]', { label: 'Poss' }); // la clip si sceglie esplicitamente: il cursore non basta
     await page.click('.ai-carta[data-ai="rumore"] .ai-usa');
     await page.waitForTimeout(400);
     const usa = await page.evaluate(() => ({ eventi: window.__eventi, scelta: [...window.__dpv.sel].map((id) => window.__dpv.doc.clips.find((c) => c.id === id)?.name) }));
-    prova('"Usa" su "Togli i rumori": sceglie la clip audio sotto il cursore e chiede la sezione "audioai" delle Proprietà', usa.scelta.includes('Poss') && usa.eventi.includes('audioai'), JSON.stringify(usa));
+    prova('"Usa" su "Togli i rumori": usa la clip scelta e chiede la sezione "audioai" delle Proprietà', usa.scelta.includes('Poss') && usa.eventi.includes('audioai'), JSON.stringify(usa));
   } catch (e) {
     prova('le prove di possibilita e del Centro AI non si sono fermate', false, String(e && e.stack || e));
   }
