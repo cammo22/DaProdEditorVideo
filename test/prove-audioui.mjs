@@ -43,7 +43,7 @@ export async function proveAudioUI({ page: paginaDi, prova }) {
       return g ? { aperta: g.open, titolo: g.querySelector('summary').textContent, bottoni: [...g.querySelectorAll('.aai-bottone')].map((b) => b.textContent), disattivi: [...g.querySelectorAll('.aai-bottone')].filter((b) => b.disabled).length } : null;
     });
     prova('una clip audio ha la sezione "Audio: pulisci e separa (AI)", già aperta', !!sez && sez.aperta && /pulisci e separa/i.test(sez.titolo), JSON.stringify(sez));
-    prova('ci sono i pulsanti: Voce pulita / Naturale / Voce isolata per i rumori e Voce e base / Solo voce / Solo base', !!sez && ['Voce pulita', 'Naturale', 'Voce isolata', 'Voce e base', 'Solo voce', 'Solo base'].every((t) => sez.bottoni.includes(t)), JSON.stringify(sez));
+    prova('ci sono i pulsanti: Voce pulita / Voce migliorata / Voce isolata per i rumori e Voce e base / Solo voce / Solo base', !!sez && ['Voce pulita', 'Voce migliorata', 'Voce isolata', 'Voce e base', 'Solo voce', 'Solo base'].every((t) => sez.bottoni.includes(t)), JSON.stringify(sez));
     prova('i pulsanti si possono premere (la clip ha audio)', !!sez && sez.disattivi === 0, JSON.stringify(sez));
     // la ricerca (Ctrl+K) trova i due comandi
     await page.keyboard.press('Control+k');

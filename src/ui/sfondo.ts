@@ -10,9 +10,10 @@ import { clipById, mediaOf, srcTimeAt } from '../core/progetto';
 import { coloreDominante, firmaRitaglio, puoRitagliare, RITAGLIO0, rgbHex } from '../core/sfondo';
 import { motore } from '../motore';
 import { pixelAl, coloreIn } from '../media/campiona';
-import { FIRMA_ANTEPRIMA, elaboraRitaglio, gruppiDi, modelloDiPartenza, modelloRitaglio, provaRitaglio } from '../media/ritaglio';
+import { FIRMA_ANTEPRIMA, elaboraRitaglio, gruppiDi, modelloDiPartenza, modelloDi, modelloInUso, modelloRitaglio, provaRitaglio } from '../media/ritaglio';
+import { modelliPronti } from '../media/modelliPronti';
 import { impostaMaschere, maschereDi, potaMaschere, ripristinaMaschere } from '../media/maschere';
-import { avviso } from './dom';
+import { avviso, avvisoUnico } from './dom';
 import { BarraLavoro } from './lavoro';
 import type { SceltaImmagine } from './posiziona';
 
@@ -33,7 +34,7 @@ export const SPIEGA_MODO: Record<'soggetto' | 'persona' | 'oggetti', string> = {
 
 export const NOMI_MODO: Record<ModoSfondo, string> = {
   nessuno: 'Niente', colori: 'Colore (green screen)', luma: 'Luce (toglie nero o bianco)',
-  persona: 'AI · Persone (da solo)', soggetto: 'AI · Automatico', oggetti: 'AI · Scegli tu',
+  persona: 'AI · Persone (vecchio)', soggetto: 'AI · Automatico (vecchio)', oggetti: 'AI · SAM 3',
 };
 
 const IMMAGINE_O_VIDEO = (c: Clip) => c.kind === 'media' && puoRitagliare(mediaOf(store.doc, c));
@@ -200,18 +201,19 @@ export function cliccaCosaTenere(id: string) {
   scegliOggetto(id);
 }
 
-/** il clic sceglie una persona o un oggetto? (i due tasti nella barra sul monitor) */
-export function impostaPersona(id: string, persona: boolean) {
-  store.edit(persona ? 'Il clic sceglie una persona' : 'Il clic sceglie un oggetto', (pp) => {
-    const z = clipById(pp, id);
-    if (!z?.ritaglio) return;
-    z.ritaglio.persona = persona;
-    // un oggetto qualunque lo fa SAM: se il modello di prima non era uno di loro si torna al primo
-    if (!persona && modelloRitaglio(z.ritaglio.modello)?.famiglia !== 'sam') z.ritaglio.modello = modelloDiPartenza('oggetti');
-    delete z.ritaglio.firma;
-  });
-  if ((clipById(store.doc, id)?.ritaglio?.punti ?? []).some((q) => q.dentro)) provaSubito(id);
-  else avvisaScelta();
+/**
+ * Quale modello fa questa selezione, in parole, per chi guarda le Proprietà e la barra sul monitor: il nome, e se il modello è già nel
+ * computer, se si scarica la prima volta o se al suo posto ne è partito uno di ricambio. Un solo modo (SAM 3: clicchi e lui sceglie).
+ */
+export function dettaglioModello(c: Clip): { nome: string; stato: string; ripiego: boolean } {
+  const r = c.ritaglio;
+  const mod = r ? modelloDi(r) : modelloRitaglio('sam3')!;
+  const uso = modelloInUso();
+  if (uso && (uso.id === mod.id || uso.ripiego)) {
+    return { nome: uso.nome, ripiego: uso.ripiego, stato: uso.ripiego ? `di ricambio: ${mod.nome} non si è potuto usare (se vuole la chiave Hugging Face mettila nel Centro AI) · ${uso.dove}` : uso.dove };
+  }
+  const pronto = !!modelliPronti()[mod.id];
+  return { nome: mod.nome, ripiego: false, stato: pronto ? 'pronto, nel computer' : 'la prima volta si scarica, poi resta nel computer' };
 }
 
 export async function scegliOggetto(id: string) {
@@ -251,16 +253,11 @@ export async function scegliOggetto(id: string) {
     stato: () => {
       const r = clipById(store.doc, id)?.ritaglio;
       const ci = (r?.punti ?? []).some((q) => q.dentro);
-      if (provaInCorso) return '⏳ Cerco…';
+      const nome = dettaglioModello(clipById(store.doc, id) ?? c!).nome;
+      if (provaInCorso) return `⏳ ${nome} cerca…`;
       if (!ci) return 'Clicca su quello che vuoi tenere';
-      return r?.firma && maschereDi(r.firma)?.n === 1 ? '✔ Selezionato: se è giusto premi OK' : 'Clicca su quello che vuoi tenere';
+      return r?.firma && maschereDi(r.firma)?.n === 1 ? `✔ Selezionato con ${nome}: se è giusto premi OK` : 'Clicca su quello che vuoi tenere';
     },
-    modi: [
-      { id: 'persona', nome: '🧍 Persona', info: 'Il clic sceglie una PERSONA: il programma trova le persone e tiene quella che hai cliccato (anche con più persone nel quadro)' },
-      { id: 'oggetto', nome: '📦 Oggetto', info: 'Il clic sceglie un OGGETTO (o qualunque cosa): SAM, il modello dei clic, ritaglia quello che hai toccato' },
-    ],
-    modoAttuale: () => (clipById(store.doc, id)?.ritaglio?.persona ? 'persona' : 'oggetto'),
-    scegliModo: (m) => impostaPersona(id, m === 'persona'),
     // OK: la selezione è giusta, si fa tutta la clip
     conferma: () => { void elaboraClip(id); },
   };
@@ -293,7 +290,7 @@ export async function provaOggetto(id: string) {
   if (!c || !r || !(r.punti ?? []).some((q) => q.dentro)) return;
   try {
     const t = r.da ?? istanteQui(c);
-    const esito = await provaRitaglio(store.doc, c, t, (fase) => avviso(fase, 'info', 1200));
+    const esito = await provaRitaglio(store.doc, c, t, (fase) => avvisoUnico('sfondo-modello', fase, 'info', 1600));
     if (!esito || progetto !== progettoAttuale()) return;
     const firma = firmaRitaglio(c.media!, r);
     // la prova vale per tutta la clip finché non si fa il lavoro vero
@@ -322,7 +319,7 @@ export async function controllaScena(id: string) {
     const r = c?.ritaglio;
     if (!c || !r) return;
     try {
-      const esito = await provaRitaglio(store.doc, c, istanteQui(c), (fase) => avviso(fase, 'info', 1200));
+      const esito = await provaRitaglio(store.doc, c, istanteQui(c), (fase) => avvisoUnico('sfondo-modello', fase, 'info', 1600));
       if (!esito || progetto !== progettoAttuale()) return;
       const firma = firmaRitaglio(c.media!, r) + FIRMA_ANTEPRIMA;
       impostaMaschere({ firma, w: esito.px.w, h: esito.px.h, t0: 0, dt: 0, n: 1, hz: 0, dati: [esito.mask] }, false);

@@ -122,6 +122,25 @@ export function avviso(testo: string, tipo: 'info' | 'ok' | 'errore' | 'tasto' =
   setTimeout(() => { el.classList.add('via'); setTimeout(() => el.remove(), 300); }, ms);
 }
 
+/** un avviso che si aggiorna al suo posto: lo stesso testo che cambia (un avanzamento) non mette un avviso nuovo a ogni passo */
+const unici = new Map<string, { el: HTMLElement; timer: number }>();
+export function avvisoUnico(chiave: string, testo: string, tipo: 'info' | 'ok' | 'errore' | 'tasto' = 'info', ms = 2200) {
+  if (!zonaAvvisi) {
+    zonaAvvisi = h('div', { class: 'avvisi', 'aria-live': 'polite' });
+    document.body.appendChild(zonaAvvisi);
+  }
+  let v = unici.get(chiave);
+  if (!v || !v.el.isConnected) {
+    v = { el: h('div', { class: 'avviso ' + tipo }, testo), timer: 0 };
+    unici.set(chiave, v);
+    zonaAvvisi.appendChild(v.el);
+    while (zonaAvvisi.children.length > 4) zonaAvvisi.firstChild?.remove();
+  } else { v.el.textContent = testo; v.el.className = 'avviso ' + tipo; }
+  clearTimeout(v.timer);
+  const mio = v;
+  v.timer = window.setTimeout(() => { mio.el.classList.add('via'); setTimeout(() => { mio.el.remove(); if (unici.get(chiave) === mio) unici.delete(chiave); }, 300); }, ms);
+}
+
 // ——— dialoghi ———
 export interface Dialogo { el: HTMLElement; chiudi: () => void; corpo: HTMLElement; piede: HTMLElement }
 

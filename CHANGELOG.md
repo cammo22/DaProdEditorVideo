@@ -4,6 +4,14 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.5] — 2026-10-28 · Sfondo AI con un modo solo (SAM 3), niente avvisi a raffica, voce migliorata
+
+- **Togli lo sfondo AI = un modo solo**: clicchi su cosa tenere e **SAM 3** fa tutto. Via «Automatico», «Persone», «Scegli tu», i tasti 🧍 Persona / 📦 Oggetto sul monitor (la Persona usava un modello più debole e veniva il contorno sbagliato) e la scelta del modello. Il Centro AI mostra un solo modello per lo sfondo.
+- Il pannello dice **che modello sta lavorando** (nome, dove gira: scheda video o processore, e se al suo posto è partito un ricambio) e ha un **cursore «Provalo in un altro punto»** sotto l'anteprima, più Bordo e Morbidezza sempre in vista.
+- **Basta 4 avvisi a ogni clic**: «Scarico il modello: 10 di 12 MB» usciva anche con tutto già scaricato (erano byte letti dalla cache) e a ogni passo faceva un avviso nuovo. Ora il modello già nel worker non si ricarica, un modello già provato dice «è già nel computer» e l'avanzamento è un solo avviso che si aggiorna.
+- **Clip legate**: lo sfondo (e il suo ritaglio) cambia **solo la clip su cui hai cliccato**; le altre clip scelte insieme restano com'erano, e il pannello lo scrive.
+- **Togli i rumori, tre scelte diverse davvero**: **Voce pulita** (toglie solo i rumori), **Voce migliorata** (toglie i rumori e rifà la voce da podcast, più piena e a volume giusto: Clear) e **Voce isolata** (prima tiene solo la voce). «Naturale» era quasi uguale a «pulita»: tolto.
+
 ## [1.6.4] — 2026-10-28 · La barra dei tasti sopra la timeline non si perde più
 
 - **Pulsantiera sempre al suo posto** (taglia, elimina, ripple, calamita, trasparenza, foto, zoom): se il banco ricordava «Pulsantiera spenta» da Vista, o un divisore trascinato troppo in giù, la barra spariva o restava mezza fuori e la timeline si schiacciava. Adesso la pulsantiera **non si ricorda più chiusa** (si riapre sempre all'avvio) e il monitor non può più mangiare lo spazio della barra e della timeline: restano sempre in vista, anche con la finestra bassa.

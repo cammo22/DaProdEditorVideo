@@ -19,7 +19,7 @@ import { spiegaErroreAI } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiaveHFSalvata } from './libreriaAI';
-import { segnaModelloPronto } from './modelliPronti';
+import { modelliPronti, segnaModelloPronto } from './modelliPronti';
 
 export interface ModelloRitaglio {
   id: string;
@@ -37,7 +37,7 @@ export const MODELLI_RITAGLIO: ModelloRitaglio[] = [
   { id: 'birefnet', nome: 'BiRefNet', info: 'alta risoluzione, molto pulita sui contorni netti', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet-ONNX', 'onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'birefnet-lite', nome: 'BiRefNet Lite', info: 'più leggera e veloce, per i computer senza scheda video', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'modnet', nome: 'MODNet', info: 'persone e ritratti, velocissima anche senza scheda video', modi: ['persona'], famiglia: 'sfondo', repo: ['Xenova/modnet'], licenza: 'Apache-2.0' },
-  { id: 'sam3', nome: 'SAM 3', info: 'il modello più nuovo: clicchi su una persona o un oggetto e lo segue (Meta, 2025); la prima volta scarica ~300 MB, poi ripiega su SAM 2.1 o SlimSAM', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
+  { id: 'sam3', nome: 'SAM 3', info: 'toglie lo sfondo: clicchi su una persona o un oggetto e lo tiene (Meta, 2025). La prima volta scarica ~300 MB; se non parte ripiega da solo su SAM 2.1 o SlimSAM', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
   { id: 'sam2', nome: 'SAM 2.1', info: 'clicchi sull\'oggetto e lo ritaglia (se non c\'è usa SlimSAM)', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
   { id: 'slimsam', nome: 'SlimSAM', info: 'la versione più piccola, per i computer più lenti', modi: ['oggetti'], famiglia: 'sam', repo: ['Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
 ];
@@ -62,7 +62,7 @@ export interface Segmentatore {
 let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (d: Uint8Array) => void; no: (e: Error) => void }>();
-let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void } | null = null;
+let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void; dacache: boolean; chiave: string } | null = null;
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
@@ -74,14 +74,17 @@ function lavoratore(): Worker {
       scaricati.set(m.file!, [m.loaded!, m.total!]);
       let a = 0, b = 0;
       for (const [x, y] of scaricati.values()) { a += x; b += y; }
-      caricamento.stato(`Scarico il modello: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
+      // un modello già provato non si scarica più: i byte che passano sono quelli letti dalla cache del computer, e dirlo «scarico» faceva paura
+      caricamento.stato(caricamento.dacache ? 'Carico il modello (è già nel computer)…' : `Scarico il modello: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
     } else if (m.tipo === 'avviso') { caricamento?.stato(m.msg ?? '', 0); }
     else if (m.tipo === 'scheda-guasta') schedaGuasta();
     else if (m.tipo === 'pronto') {
       // un modello caricato per intero (anche da un uso vero) è «pronto» per il Centro AI
       const questo = m.repo ? MODELLI_RITAGLIO.find((x) => x.repo[0] === m.repo) : undefined;
       if (questo) segnaModelloPronto(questo.id, m.repo!);
-      caricamento?.ok((m.repo ? m.repo + ' · ' : '') + (m.device ?? '')); caricamento = null;
+      const testo = (m.repo ? m.repo + ' · ' : '') + (m.device ?? '');
+      if (caricamento) segnaInUso(caricamento.chiave, questo, m.repo, m.device, testo);
+      caricamento?.ok(testo); caricamento = null;
     }
     else if (m.tipo === 'maschera') { attese.get(m.id!)?.ok(m.dati!); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
@@ -97,17 +100,35 @@ function lavoratore(): Worker {
     for (const x of attese.values()) x.no(err);
     attese.clear();
     worker = null;
+    inUso = null;
   };
   return worker;
+}
+
+/** quale modello sta lavorando adesso nel worker (per dirlo a chi guarda: nome, indirizzo, dove gira) */
+export interface ModelloInUso { id: string; nome: string; repo: string; dove: string; /** non è quello chiesto: ha preso il suo posto un ricambio */ ripiego: boolean }
+let inUso: { chiave: string; testo: string; info: ModelloInUso } | null = null;
+export const modelloInUso = (): ModelloInUso | null => inUso?.info ?? null;
+
+function segnaInUso(chiave: string, trovato: ModelloRitaglio | undefined, repo: string | undefined, device: string | undefined, testo: string) {
+  const chiesto = chiave.split('|')[0];
+  // il worker aveva già il modello e non ha detto quale: resta quello che si sapeva
+  if (!repo && inUso?.chiave === chiave) return;
+  const id = trovato?.id ?? chiesto;
+  inUso = { chiave, testo, info: { id, nome: trovato?.nome ?? repo ?? chiesto, repo: repo ?? '', dove: device ?? '', ripiego: !!trovato && trovato.id !== chiesto } };
+  document.dispatchEvent(new CustomEvent('dpv:modello-ritaglio'));
 }
 
 /** l'ultimo modello caricato (per ricaricarlo se bisogna ripartire) */
 let ultimoCarico: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
 
 function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
+  const chiave = m.id + '|' + m.repo.join(',');
+  // lo stesso modello è già dentro il worker: non si rimanda niente (a ogni clic si ricaricava e si rileggeva tutto il modello)
+  if (!senzaScheda && worker && inUso?.chiave === chiave) return Promise.resolve(inUso.testo);
   return new Promise((ok, no) => {
     scaricati.clear();
-    caricamento = { ok, no, stato };
+    caricamento = { ok, no, stato, dacache: !!modelliPronti()[m.id], chiave };
     const hw = messaggioScheda();
     const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
     lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa, chiaveHF: chiaveHFSalvata() });
@@ -136,6 +157,7 @@ const conIlWorker: Segmentatore = {
       ultimoCarico.stato('La scheda video si è fermata: continuo col processore (più lento)', 0);
       worker?.terminate();
       worker = null;
+      inUso = null;
       caricamento = null;
       attese.clear();
       await caricaNelWorker(ultimoCarico.m, ultimoCarico.stato, true);

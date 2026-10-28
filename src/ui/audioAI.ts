@@ -16,8 +16,8 @@ export const separazioneRapida = () => { try { return localStorage.getItem(RAPID
 const impostaRapida = (v: boolean) => { try { if (v) localStorage.setItem(RAPIDO, 'si'); else localStorage.removeItem(RAPIDO); } catch { /* niente */ } };
 
 const FORZE: [Forza, string, string][] = [
-  ['pulita', 'Voce pulita', 'Toglie fruscio, ventole, strada e riverbero e lascia la voce chiara (MossFormer2 di ClearerVoice, la prima volta scarica ~94 MB)'],
-  ['delicata', 'Naturale', 'Come Voce pulita ma tiene un po\' del suono della stanza: più morbida, meno “da studio”'],
+  ['pulita', 'Voce pulita', 'Solo i rumori: toglie fruscio, ventole, strada e riverbero e lascia la voce com\'è (MossFormer2 di ClearerVoice, la prima volta scarica ~94 MB)'],
+  ['podcast', 'Voce migliorata', 'Toglie i rumori e rifà la voce da podcast: più piena e chiara, a un volume giusto per tutta la clip (Clear di Desert Ant Labs, la prima volta scarica ~49 MB)'],
   ['isolata', 'Voce isolata', 'Prima un modello AI tiene solo la voce (via musica, TV, gente), poi la pulisce. La prima volta scarica ~172 MB in più, ed è più lento'],
 ];
 
@@ -32,10 +32,11 @@ export async function faiTogliRumore(clipId: string, forza: Forza = 'pulita') {
   try {
     const isolata = forza === 'isolata';
     const nuovo = ['pulita', 'delicata', 'isolata'].includes(forza);
+    const clear = forza === 'podcast' || forza === 'naturale';
     if (!(await confermaAvvioAI({
       compito: 'Togli i rumori · ' + (FORZE.find((f) => f[0] === forza)?.[1] ?? forza), clip: clipId,
-      modello: isolata ? 'Demucs + MossFormer2' : nuovo ? 'MossFormer2' : 'DeepFilterNet',
-      ...(nuovo ? { repo: MODELLO_RUMORE.repo, mb: isolata ? 172 + 94 : 94, ids: isolata ? ['rumore', 'separa'] : ['rumore'] } : {}), locale: !nuovo,
+      modello: isolata ? 'Demucs + MossFormer2' : nuovo ? 'MossFormer2' : clear ? 'Clear (Desert Ant Labs)' : 'DeepFilterNet',
+      ...(nuovo ? { repo: MODELLO_RUMORE.repo, mb: isolata ? 172 + 94 : 94, ids: isolata ? ['rumore', 'separa'] : ['rumore'] } : clear ? { mb: 49 } : {}), locale: !nuovo && !clear,
     }))) return;
     await togliRumore(clipId, forza);
     avviso('🎙 Rumori tolti: se non ti piace, "Audio originale" rimette com\'era (o Ctrl+Z)', 'ok', 4200);

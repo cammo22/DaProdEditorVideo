@@ -137,6 +137,11 @@ button, select, summary { touch-action: manipulation; }
 .as { position: relative; margin: 4px 0 8px; }
 .as-tela { width: 100%; display: block; border-radius: 6px; background: #0b0a10; box-shadow: 0 0 0 1px #000, 0 4px 14px rgba(0, 0, 0, 0.45); }
 .as-vista { position: absolute; left: 6px; top: 6px; padding: 1px 7px; border-radius: 9px; background: rgba(0, 0, 0, 0.6); color: var(--oro); font: 800 10px var(--ui); letter-spacing: 1px; text-transform: uppercase; }
+.as-prova { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; margin-top: 6px; }
+.as-prova label { grid-column: 1 / -1; font: 700 11px var(--ui); color: var(--testo2, #aaa); }
+.as-cursore { width: 100%; accent-color: var(--oro); }
+.as-tempo { font: 700 11px var(--mono, monospace); color: var(--oro); min-width: 44px; text-align: right; }
+.sf-modello { margin: 2px 0 8px; }
 .hub { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
 .hub-gruppo { margin: 12px 0 2px; font: 800 11px var(--ui); letter-spacing: 1.2px; text-transform: uppercase; color: var(--testo3); }
 .hub-riga { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 8px; background: #1d1c24; box-shadow: inset 0 0 0 1px #000; }

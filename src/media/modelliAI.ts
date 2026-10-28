@@ -42,8 +42,9 @@ const repoDa = (s: string) => (/^[\w.-]+\/[\w.-]+/.exec(s)?.[0] ?? '');
 
 export function modelliHub(): ModelloHub[] {
   const out: ModelloHub[] = [];
-  const consigliati = new Set(['ben2', 'modnet', 'sam3', 'whisper-base']);
-  for (const m of MODELLI_RITAGLIO) {
+  const consigliati = new Set(['sam3', 'whisper-base']);
+  // per togliere lo sfondo c'è un modo solo, SAM 3 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
+  for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam3')) {
     out.push({
       id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, mb: m.id === 'sam3' ? 300 : undefined, consigliato: consigliati.has(m.id), repos: m.repo,
       async scarica(avanza) {
