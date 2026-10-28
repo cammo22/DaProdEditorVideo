@@ -19,6 +19,7 @@ import { spiegaErroreAI } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiaveHFSalvata } from './libreriaAI';
+import { segnaModelloPronto } from './modelliPronti';
 
 export interface ModelloRitaglio {
   id: string;
@@ -76,7 +77,12 @@ function lavoratore(): Worker {
       caricamento.stato(`Scarico il modello: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
     } else if (m.tipo === 'avviso') { caricamento?.stato(m.msg ?? '', 0); }
     else if (m.tipo === 'scheda-guasta') schedaGuasta();
-    else if (m.tipo === 'pronto') { caricamento?.ok((m.repo ? m.repo + ' · ' : '') + (m.device ?? '')); caricamento = null; }
+    else if (m.tipo === 'pronto') {
+      // un modello caricato per intero (anche da un uso vero) è «pronto» per il Centro AI
+      const questo = m.repo ? MODELLI_RITAGLIO.find((x) => x.repo[0] === m.repo) : undefined;
+      if (questo) segnaModelloPronto(questo.id, m.repo!);
+      caricamento?.ok((m.repo ? m.repo + ' · ' : '') + (m.device ?? '')); caricamento = null;
+    }
     else if (m.tipo === 'maschera') { attese.get(m.id!)?.ok(m.dati!); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
       const err: Error & { schedaGuasta?: boolean } = new Error(m.msg || 'errore del modello');
@@ -311,6 +317,9 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
   stato('Fatto', 1);
   return { ok: true, maschere: m, ms: performance.now() - t0, dispositivo };
 }
+
+/** scarica e avvia un modello in anticipo (Centro AI): torna "repo · dove gira"; la prossima volta si carica dalla cache senza rete */
+export const caricaModelloRitaglio = (m: ModelloRitaglio, stato?: (fase: string, k: number) => void): Promise<string> => segmentatore.carica(m, (fase, k) => stato?.(fase, k));
 
 /** carica il modello della clip in anticipo (quando si comincia a cliccare): al primo clic la selezione è già pronta, senza aspettare il caricamento */
 export async function scaldaRitaglio(c: Clip, stato?: (fase: string, k: number) => void): Promise<string | null> {

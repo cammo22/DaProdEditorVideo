@@ -66,6 +66,17 @@ export async function svuotaModelli(): Promise<boolean> {
   try { return 'caches' in self ? await caches.delete(CACHE) : false; } catch { return false; }
 }
 
+/** toglie dalla cache i file di un modello (si riscaricano quando servono) */
+export async function togliRepoModello(repo: string): Promise<number> {
+  let n = 0;
+  try {
+    if (!('caches' in self)) return 0;
+    const c = await caches.open(CACHE);
+    for (const req of await c.keys()) if (req.url.includes('huggingface.co/' + repo + '/')) { if (await c.delete(req)) n++; }
+  } catch { /* niente cache */ }
+  return n;
+}
+
 /** lo stato del motore NVIDIA (solo nell'app) */
 export async function statoNvidia(): Promise<StatoMotore | null> {
   const m = motoreNemo();

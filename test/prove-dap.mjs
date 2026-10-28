@@ -38,7 +38,7 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
       riepilogo: document.querySelector('.stato .att')?.textContent ?? '',
       finite: [...document.querySelectorAll('.att-pannello .att-riga[data-stato="finita"]')].map((x) => ({ titolo: x.querySelector('b')?.textContent, barraNascosta: x.querySelector('.att-pista')?.hidden })),
     }));
-    prova('riaperto il pannello: nessuna riga in corso rimasta ferma, riepilogo a riposo e lavoro nello storico senza barra', lav === 1 && pannello.righe === 0 && /Nessuna attività/.test(pannello.riepilogo) && pannello.finite.some((t) => /Copie leggere/.test(t.titolo) && t.barraNascosta), JSON.stringify({ lav, pannello }));
+    prova('riaperto il pannello: nessuna riga in corso rimasta ferma, riepilogo a riposo e lavoro nello storico senza barra', lav === 1 && pannello.righe === 0 && /Nessuna attività|^✓/.test(pannello.riepilogo) && pannello.finite.some((t) => /Copie leggere/.test(t.titolo) && t.barraNascosta), JSON.stringify({ lav, pannello }));
     await page.keyboard.press('Escape');
 
     // ———————————————————————————————————————————————————————————
@@ -210,7 +210,7 @@ export async function proveDap({ page: paginaDi, prova, OUT }) {
     await page.evaluate(() => document.querySelector('.bin-cat[data-c="tit:sott"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     await page.waitForTimeout(400);
     const carte = await page.evaluate(() => [...document.querySelectorAll('.gen-sott .carta-nome')].map((x) => x.textContent));
-    prova('Titoli → Sottotitoli: genera con l\'AI, riga al cursore, fai parlare, posizione e grandezza', carte.length === 4 && carte.some((t) => /AI/.test(t)) && carte.some((t) => /parlare/.test(t)), JSON.stringify(carte));
+    prova('Titoli → Sottotitoli: genera con l\'AI, riga al cursore, fai parlare, posizione e grandezza', carte.length === 3 && carte.some((t) => /AI/.test(t)) && carte.some((t) => /Riga al cursore/.test(t)), JSON.stringify(carte));
     // "Podcast" del togli rumori: passa da Clear (qui finto: dimezza il volume) e la clip va sul file nuovo
     const pod = await page.evaluate(async () => {
       const { CL, AA, importaFile, P } = window.__dpvTest;

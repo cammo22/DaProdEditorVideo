@@ -194,10 +194,10 @@ async function proveSfondo({ page, prova, OUT }) {
       maschera: async (px) => { const m = new Uint8Array(px.w * px.h); for (let y = 0; y < px.h; y++) for (let x = 0; x < px.w; x++) if (Math.hypot(x / px.w - 0.5, (y / px.h - 0.5) * 0.56) < 0.2) m[y * px.w + x] = 255; return m; },
     });
   });
-  // il quadratino AI apre l'editor della clip: lì si controlla la scena e poi si toglie lo sfondo (il consenso arriva solo allora)
+  // il quadratino AI mostra qui sotto i passi (cosa tengo, controlla la scena, anteprima, tutta la clip): il consenso arriva solo al lavoro
   await page.click('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]');
-  await page.waitForSelector('.editor-clip');
-  await page.click('.editor-clip button:has-text("Togli lo sfondo a tutta la clip")');
+  await page.waitForSelector('.isp-gruppo[data-g=sfondo] .pp-tessera:has-text("Scegli tu")');
+  await page.click('.isp-gruppo[data-g=sfondo] button:has-text("Togli lo sfondo a tutta la clip")');
   await page.waitForSelector('.ai-passi');
   prova('lo sfondo AI attende il consenso prima di elaborare', await page.evaluate(() => {
     const c = window.__dpv.doc.clips.find(x => x.name === 'Fondale verde');
@@ -211,14 +211,14 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
   const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
   prova('dopo il consenso lo sfondo AI viene elaborato', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
-  prova('l\'editor ha "Scegli tu" tra le scelte; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('.editor-clip .pp-tessera:has-text("Scegli tu")').count()) === 1 && (await page.locator('.editor-clip .isp-gruppo[data-g=sfondo] details.pp-piu summary:has-text("Avanzate")').count()) === 1);
+  prova('l\'editor ha "Scegli tu" tra le scelte; il resto (modello, precisione, bordo…) sta in "Avanzate"', (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera:has-text("Scegli tu")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] details.pp-piu summary:has-text("Avanzate")').count()) === 1);
   const cambia = async (modo) => { await page.evaluate((m) => { const sel = [...document.querySelectorAll('.isp-gruppo[data-g=sfondo] select')].find((x) => [...x.options].some((o) => o.value === 'persona')); sel.value = m; sel.dispatchEvent(new Event('change', { bubbles: true })); }, modo); await page.waitForTimeout(500); return page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').ritaglio); };
   let r2 = await cambia('persona');
   prova('"Solo persone" (da Avanzate) mette il modello veloce per le persone (MODNet)', r2?.modo === 'persona' && r2.modello === 'modnet', JSON.stringify(r2));
   r2 = await cambia('oggetti');
   prova('"Clicca tu" (da Avanzate) mette i clic da fare, il segui acceso e SAM 3', r2?.modo === 'oggetti' && Array.isArray(r2.punti) && r2.segui === true && r2.modello === 'sam3', JSON.stringify(r2));
-  await page.keyboard.press('Escape');
-  await page.waitForSelector('.editor-clip', { state: 'detached' });
+
+
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));
 
   console.log('▶ Togliere lo sfondo: l\'AI (col modello finto) su un\'immagine');
@@ -448,7 +448,8 @@ async function proveSfondo({ page, prova, OUT }) {
     const ok = document.querySelector('.pos-btn.ok');
     const okAcceso = !!ok && !ok.disabled && ok.offsetParent !== null;
     document.querySelector('.pos-modi button[data-modo=persona]')?.click();
-    await new Promise((r) => setTimeout(r, 900));
+    // la maschera della persona arriva quando il modello finto ha risposto (su un computer carico anche dopo più di un secondo)
+    await new Promise((ok) => { const t = performance.now(); const g = () => { const r = window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio; if ((r.persona && r.firma && r.firma !== firmaOggetto && MK.maschereDi(r.firma)) || performance.now() - t > 8000) ok(0); else setTimeout(g, 50); }; g(); });
     const dopoPersona = JSON.parse(JSON.stringify(window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio));
     const haMascheraPersona = !!MK.maschereDi(dopoPersona.firma);
     const barPersona = [...document.querySelectorAll('.pos-modi button')].map((b) => ({ t: b.textContent, acceso: b.classList.contains('acceso') }));

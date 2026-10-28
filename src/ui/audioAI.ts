@@ -35,7 +35,7 @@ export async function faiTogliRumore(clipId: string, forza: Forza = 'pulita') {
     if (!(await confermaAvvioAI({
       compito: 'Togli i rumori · ' + (FORZE.find((f) => f[0] === forza)?.[1] ?? forza), clip: clipId,
       modello: isolata ? 'Demucs + MossFormer2' : nuovo ? 'MossFormer2' : 'DeepFilterNet',
-      ...(nuovo ? { repo: MODELLO_RUMORE.repo, mb: isolata ? 172 + 94 : 94 } : {}), locale: !nuovo,
+      ...(nuovo ? { repo: MODELLO_RUMORE.repo, mb: isolata ? 172 + 94 : 94, ids: isolata ? ['rumore', 'separa'] : ['rumore'] } : {}), locale: !nuovo,
     }))) return;
     await togliRumore(clipId, forza);
     avviso('🎙 Rumori tolti: se non ti piace, "Audio originale" rimette com\'era (o Ctrl+Z)', 'ok', 4200);
@@ -45,7 +45,7 @@ export async function faiTogliRumore(clipId: string, forza: Forza = 'pulita') {
 export async function faiSeparaVoce(clipId: string, tieni: 'entrambe' | 'voce' | 'base' = 'entrambe') {
   try {
     const rapido = separazioneRapida();
-    if (!(await confermaAvvioAI({ compito: 'Separa voce e base · ' + tieni, clip: clipId, modello: rapido ? 'Separazione rapida locale' : 'Demucs', mb: rapido ? undefined : 172, locale: rapido }))) return;
+    if (!(await confermaAvvioAI({ compito: 'Separa voce e base · ' + tieni, clip: clipId, modello: rapido ? 'Separazione rapida locale' : 'Demucs', mb: rapido ? undefined : 172, locale: rapido, ...(rapido ? {} : { ids: ['separa'] }) }))) return;
     await separaVoceBase(clipId, { tieni, rapido });
     avviso('🎤 Fatto: la voce e la base sono su due tracce nuove (l\'originale è muto). Ctrl+Z rimette tutto', 'ok', 5200);
   } catch (e) { dopoErrore(e); }

@@ -13,6 +13,7 @@ import { assicuraMotore, motoreNemo } from './nemo';
 import { spiegaErroreAI } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
+import { segnaModelloPronto } from './modelliPronti';
 
 export interface Modello { id: string; nome: string; info: string; mb: number }
 
@@ -118,7 +119,7 @@ function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: bool
 }
 
 const whisper: Trascrittore = {
-  carica: (modello, stato) => { ultimoModello = { modello, stato }; return caricaNelWorker(modello, stato); },
+  carica: (modello, stato) => { ultimoModello = { modello, stato }; return caricaNelWorker(modello, stato).then((d) => { segnaModelloPronto('whisper-' + modello.split('-').pop(), modello); return d; }); },
   trascrivi: async (audio, lingua, traduci) => {
     // l'audio passa al worker (e da lì sparisce): se serve rifare il pezzo se ne tiene una copia
     const copia = audio.slice();
@@ -139,6 +140,8 @@ const whisper: Trascrittore = {
 };
 
 let trascrittore: Trascrittore = whisper;
+/** scarica e avvia un modello Whisper in anticipo (Centro AI): la prossima volta si carica dalla cache senza rete */
+export const caricaModelloVoce = (modello: string, stato: (fase: string, prog: number) => void) => trascrittore.carica(modello, stato);
 /** per le prove: un trascrittore finto (null = torna Whisper) */
 export const impostaTrascrittore = (t: Trascrittore | null) => { trascrittore = t ?? whisper; };
 

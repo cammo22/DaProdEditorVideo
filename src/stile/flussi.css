@@ -134,3 +134,19 @@ button, select, summary { touch-action: manipulation; }
 .ai-mod .ai-diag-seg { font-weight: 800; text-align: center; }
 .ai-mod.ok .ai-diag-seg { color: var(--verde); }
 .ai-mod.forse .ai-diag-seg { color: var(--testo3); }
+.as { position: relative; margin: 4px 0 8px; }
+.as-tela { width: 100%; display: block; border-radius: 6px; background: #0b0a10; box-shadow: 0 0 0 1px #000, 0 4px 14px rgba(0, 0, 0, 0.45); }
+.as-vista { position: absolute; left: 6px; top: 6px; padding: 1px 7px; border-radius: 9px; background: rgba(0, 0, 0, 0.6); color: var(--oro); font: 800 10px var(--ui); letter-spacing: 1px; text-transform: uppercase; }
+.hub { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+.hub-gruppo { margin: 12px 0 2px; font: 800 11px var(--ui); letter-spacing: 1.2px; text-transform: uppercase; color: var(--testo3); }
+.hub-riga { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 8px; align-items: center; padding: 7px 10px; border-radius: 8px; background: #1d1c24; box-shadow: inset 0 0 0 1px #000; }
+.hub-riga.lavora { box-shadow: inset 0 0 0 1px var(--oro); }
+.hub-nome { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hub-nome small { color: var(--testo3); font-size: 11px; }
+.hub-msg { color: var(--oro); }
+.hub-msg:empty { display: none; }
+.hub-stato { font: 700 11.5px var(--ui); color: var(--testo2); white-space: nowrap; }
+.hub-stato.pronto { color: var(--verde); }
+.hub-stato.parziale { color: var(--oro); }
+.hub-progresso:empty { display: none; }
+@media (max-width: 700px) { .hub-riga { grid-template-columns: minmax(0, 1fr) auto; } .hub-stato { grid-column: 1 / -1; } }

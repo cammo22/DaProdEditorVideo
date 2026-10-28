@@ -56,7 +56,7 @@ export async function generaSottotitoli(clip?: Iterable<string>) {
   }
   const o = opzioniAI();
   const modello = MODELLI.find((m) => m.id === o.modello);
-  if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: ids ? `Solo le clip scelte (${ids.size}, incluso audio collegato)` : 'Audio di tutto il montaggio', modello: o.motore === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? o.modello, repo: modello?.id, mb: modello?.mb }))) return;
+  if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: ids ? `Solo le clip scelte (${ids.size}, incluso audio collegato)` : 'Audio di tutto il montaggio', modello: o.motore === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? o.modello, repo: modello?.id, mb: modello?.mb, ...(modello && o.motore !== 'nemotron' ? { ids: ['whisper-' + modello.id.split('-').pop()] } : {}) }))) return;
   if (lavoroSott) return;
   const progetto = progettoAttuale();
   const ctrl = new AbortController();
@@ -128,9 +128,10 @@ export async function faiParlareSottotitoli() {
 }
 
 /** una riga nuova al cursore (3 secondi, o fino alla riga dopo) col testo da scrivere subito */
-export async function nuovaRigaQui() {
+/** una riga nuova dove sta il cursore, o al fotogramma dato (quando la scheda si trascina sulla timeline): poi si scrive il testo */
+export async function nuovaRigaQui(frame?: number) {
   const p = store.doc;
-  const f = Math.round(store.head);
+  const f = Math.max(0, Math.round(frame ?? store.head));
   const r = fps(p.rate);
   const righe = sottotitoliDi(p).righe;
   if (righe.some((x) => x.da <= f && x.a > f)) { avviso('Qui c\'è già una riga: doppio clic sulla riga SOTT per cambiarla', 'info', 2600); return; }

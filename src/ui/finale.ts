@@ -345,7 +345,7 @@ export class Finale {
     const scritte = sottotitoliDi(p).righe.filter((x) => x.testo.trim()).length;
     if (scritte && !(await conferma('Sottotitoli con l\'AI', `Ci sono già ${scritte} righe scritte: l'AI le rifà tutte da capo (con Ctrl+Z tornano).`, 'Rifalle', 'Lascia stare'))) return;
     const modello = MODELLI.find((m) => m.id === this.ai.modello);
-    if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: 'Audio di tutto il montaggio · sostituisce le righe esistenti', modello: this.motoreAI() === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? this.ai.modello, repo: modello?.id, mb: modello?.mb }))) return;
+    if (!(await confermaAvvioAI({ compito: 'Scrivi sottotitoli', ambito: 'Audio di tutto il montaggio · sostituisce le righe esistenti', modello: this.motoreAI() === 'nemotron' ? 'Nemotron (motore nativo)' : modello?.nome ?? this.ai.modello, repo: modello?.id, mb: modello?.mb, ...(modello && this.motoreAI() !== 'nemotron' ? { ids: ['whisper-' + modello.id.split('-').pop()] } : {}) }))) return;
     if (this.lavoroAI) return;
     const progetto = progettoAttuale();
     const ctrl = new AbortController();
@@ -666,7 +666,7 @@ export class Finale {
     const da = s.lingua, a = this.trad.a;
     const righe = s.righe.map((x) => ({ id: x.id, testo: x.testo }));
     if (!righe.some((x) => x.testo.trim())) { avviso('Non ci sono righe da tradurre', 'info'); return; }
-    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'NLLB-200', repo: 'Xenova/nllb-200-distilled-600M', mb: 600 }))) return;
+    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'NLLB-200', repo: 'Xenova/nllb-200-distilled-600M', mb: 600, ids: ['nllb'] }))) return;
     if (this.lavoroTrad) return;
     const progetto = progettoAttuale();
     const ctrl = new AbortController();

@@ -111,31 +111,21 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       prova('c\'è il menu AI in alto e il pulsante ✨ AI', (await page.$$eval('.voce-menu', (b) => b.map((x) => x.textContent))).includes('AI') && !!(await page.$('.btn-ai')));
       await page.click('.btn-ai');
       await page.waitForSelector('.dialogo.centro-ai');
-      const carte = await page.$$eval('.ai-carta', (c) => c.map((x) => x.dataset.ai));
-      prova('il Centro AI ha una scheda per ogni funzione (sottotitoli, traduci, voce, sfondo, segui, montaggio, colore)', ['sottotitoli', 'traduci', 'voce', 'sfondo', 'segui', 'montage', 'colore'].every((k) => carte.includes(k)), JSON.stringify(carte));
-      const voce = await page.$eval('.ai-carta[data-ai="voce"] .ai-manca', (x) => x.textContent).catch(() => '');
-      prova('nel browser la voce AI dice che serve l\'app', /solo nell'app/.test(voce), voce);
+      const righe = await page.$$eval('.hub-riga', (c) => c.map((x) => x.dataset.m));
+      prova('il Centro AI è l\'elenco dei modelli (sfondo, sottotitoli, rumori, voce e base), non più le schede delle funzioni', ['ben2', 'modnet', 'sam3', 'whisper-base', 'rumore', 'separa'].every((k) => righe.includes(k)) && (await page.$$('.ai-carta')).length === 0, JSON.stringify(righe));
+      prova('niente "Cosa vuoi fare" né "Clip esplicita"', (await page.$$('select[aria-label="Cosa vuoi fare"], select[aria-label="Clip su cui usare AI"]')).length === 0);
+      await page.waitForFunction(() => [...document.querySelectorAll('.hub-riga')].every((x) => x.dataset.stato), null, { timeout: 15000 });
+      const stati = await page.$$eval('.hub-riga', (c) => c.map((x) => x.dataset.stato));
+      prova('ogni modello dice com\'è messo (pronto, da completare o da scaricare) e ha i suoi pulsanti', stati.length === righe.length && stati.every((x) => ['pronto', 'parziale', 'da-scaricare'].includes(x)) && (await page.$$('.hub-riga button')).length === righe.length * 2, JSON.stringify(stati));
+      await page.evaluate(() => { document.querySelector('.centro-ai details').open = true; });
       await page.click('.ai-controlla');
       await page.waitForFunction(() => document.querySelectorAll('.ai-diag').length >= 4, null, { timeout: 90000 });
       const diag = await page.$$eval('.ai-diag', (d) => d.map((x) => ({ ok: x.className, t: x.textContent })));
       const motore = diag.find((x) => /Motore AI/.test(x.t));
       prova('"Controlla l\'AI": il motore AI parte davvero, dai file dell\'app (niente CDN)', !!motore && /\bok\b/.test(motore.ok) && /dai file dell'app/.test(motore.t), JSON.stringify(diag));
       prova('la diagnosi dice di Hugging Face, della scheda video e dei modelli sul computer', diag.some((x) => /Hugging Face/.test(x.t)) && diag.some((x) => /Scheda video/.test(x.t)) && diag.some((x) => /Modelli sul computer/.test(x.t)));
-      // La funzione e la clip si scelgono esplicitamente: il cursore non autorizza l'AI.
-      await page.evaluate(() => { window.__dpv.select([]); window.__dpv.setHead(20); });
-      await page.selectOption('select[aria-label="Cosa vuoi fare"]', 'sfondo');
-      await page.waitForSelector('.ai-carta[data-ai="sfondo"] .ai-usa', { state: 'visible' });
-      await page.click('.ai-carta[data-ai="sfondo"] .ai-usa');
-      const senzaClip = await page.evaluate(() => ({ centro: !!document.querySelector('.centro-ai'), selezione: window.__dpv.sel.size }));
-      prova('il cursore senza clip scelta non avvia lo sfondo e lascia il Centro AI aperto', senzaClip.centro && senzaClip.selezione === 0, JSON.stringify(senzaClip));
-      const clipRossa = await page.evaluate(() => window.__dpv.doc.clips.find((c) => c.kind === 'media' && c.name === 'Rosso')?.id);
-      if (!clipRossa) throw new Error('Fixture Rosso assente');
-      await page.selectOption('select[aria-label="Clip su cui usare AI"]', clipRossa);
-      await page.click('.ai-carta[data-ai="sfondo"] .ai-usa');
-      // dopo "Controlla l'AI" il computer è carico: si aspetta che la sezione si apra (fino a 4 s) invece di mezzo secondo fisso
-      await page.waitForFunction(() => !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]'), null, { timeout: 4000 }).catch(() => {});
-      const sez = await page.evaluate(() => ({ scelta: [...window.__dpv.sel].map((id) => window.__dpv.doc.clips.find((c) => c.id === id)?.name), aperta: !!document.querySelector('.isp-gruppo[data-g="sfondo"][open]') }));
-      prova('"Usa" su "Togli lo sfondo": conserva la clip esplicita e apre la sua sezione', sez.scelta[0] === 'Rosso' && sez.aperta, JSON.stringify(sez));
+      await page.click('.centro-ai .dlg-piede .primario');
+      await page.waitForSelector('.dialogo.centro-ai', { state: 'detached' });
 
       console.log('▶ Aiuto: tasti e menu riordinati');
       const reg = await page.evaluate(() => { const a = window.__dpvTest.Z.azioni; return ['importa', 'salva', 'esporta', 'guida', 'cerca', 'centroAI', 'paginaFinale'].filter((id) => a.has(id)); });

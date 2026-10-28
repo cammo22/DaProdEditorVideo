@@ -918,24 +918,16 @@ async function settima(paginaDi, page, prova, errori) {
     });
     await page.click('.btn-ai');
     await page.waitForSelector('.dialogo.centro-ai');
-    await page.waitForFunction(() => /MossFormer2/.test(document.querySelector('.ai-carta[data-ai="rumore"] .ai-stato')?.textContent ?? '') && /separazione rapida/.test(document.querySelector('.ai-carta[data-ai="separa"] .ai-stato')?.textContent ?? ''), null, { timeout: 15000 });
+    await page.waitForFunction(() => document.querySelector('.hub-riga[data-m="rumore"]')?.dataset.stato && document.querySelector('.hub-riga[data-m="separa"]')?.dataset.stato, null, { timeout: 15000 });
     const ca = await page.evaluate(() => ({
-      carte: [...document.querySelectorAll('.ai-carta')].map((x) => x.dataset.ai),
-      rumore: document.querySelector('.ai-carta[data-ai="rumore"] .ai-stato')?.textContent,
-      separa: document.querySelector('.ai-carta[data-ai="separa"] .ai-stato')?.textContent,
-      bottoni: [...document.querySelectorAll('.ai-carta[data-ai="separa"] .ai-modello button')].map((b) => b.textContent),
-      nome: [document.querySelector('.ai-carta[data-ai="rumore"] b')?.textContent, document.querySelector('.ai-carta[data-ai="separa"] b')?.textContent],
-      comeRumore: document.querySelectorAll('.ai-carta[data-ai="rumore"] .ai-come li').length,
+      rumore: document.querySelector('.hub-riga[data-m="rumore"] .hub-stato')?.textContent,
+      separa: document.querySelector('.hub-riga[data-m="separa"] .hub-stato')?.textContent,
+      statoRumore: document.querySelector('.hub-riga[data-m="rumore"]')?.dataset.stato,
+      statoSepara: document.querySelector('.hub-riga[data-m="separa"]')?.dataset.stato,
+      nome: [document.querySelector('.hub-riga[data-m="rumore"] b')?.textContent, document.querySelector('.hub-riga[data-m="separa"] b')?.textContent],
+      bottoni: [...document.querySelectorAll('.hub-riga[data-m="separa"] button')].map((b) => b.textContent),
     }));
-    prova('il Centro AI ha le due carte nuove ("Togli i rumori", "Voce e base") con cosa fa, come si usa e lo stato: il filtro e il modello della separazione da scaricare (172 MB)', ca.carte.includes('rumore') && ca.carte.includes('separa') && ca.nome.join() === 'Togli i rumori,Voce e base' && /MossFormer2/.test(ca.rumore) && /90 MB/.test(ca.rumore) && /172 MB/.test(ca.separa) && /separazione rapida/.test(ca.separa) && ca.comeRumore === 3 && ca.bottoni.join() === 'Scarica ora,Togli il modello', JSON.stringify(ca));
-    // "Usa" sceglie la clip sotto il cursore e chiede la sezione delle Proprietà
-    await page.evaluate(() => { window.__eventi = []; document.addEventListener('dpv:sezione', (e) => window.__eventi.push(e.detail)); });
-    await page.selectOption('.centro-ai select[aria-label="Cosa vuoi fare"]', 'rumore'); // il Centro AI mostra una carta alla volta
-    await page.selectOption('.centro-ai select[aria-label="Clip su cui usare AI"]', { label: 'Poss' }); // la clip si sceglie esplicitamente: il cursore non basta
-    await page.click('.ai-carta[data-ai="rumore"] .ai-usa');
-    await page.waitForTimeout(400);
-    const usa = await page.evaluate(() => ({ eventi: window.__eventi, scelta: [...window.__dpv.sel].map((id) => window.__dpv.doc.clips.find((c) => c.id === id)?.name) }));
-    prova('"Usa" su "Togli i rumori": usa la clip scelta e chiede la sezione "audioai" delle Proprietà', usa.scelta.includes('Poss') && usa.eventi.includes('audioai'), JSON.stringify(usa));
+    prova('il Centro AI elenca i due modelli dell\audio (MossFormer2 e Demucs): da scaricare, col peso e con Scarica e Togli', ca.statoRumore === 'da-scaricare' && ca.statoSepara === 'da-scaricare' && /MossFormer2/.test(ca.nome[0]) && /Demucs/.test(ca.nome[1]) && /9\d MB/.test(ca.rumore) && /172 MB/.test(ca.separa) && ca.bottoni.join() === 'Scarica,Togli', JSON.stringify(ca));
   } catch (e) {
     prova('le prove di possibilita e del Centro AI non si sono fermate', false, String(e && e.stack || e));
   }

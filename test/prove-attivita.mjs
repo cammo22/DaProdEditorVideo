@@ -172,6 +172,10 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   prova('import con le preferenze vecchie: nessuna copia leggera né conversione; forma d\'onda e colore ripartono da soli', dati.prima.every((s) => s === '-') && dati.righe0.every((t) => /Forme d|Colore|Locandine/.test(t)) && dati.prep0.every((t) => /Forme d|Colore|Locandine/.test(t)), JSON.stringify(dati));
   prova('la clip messa in timeline non fa partire nessuna copia leggera (dopo 2,6 s)', dati.dopo.every((s) => s === '-') && dati.daAvviare === 0, JSON.stringify(dati.dopo));
 
+  // da qui si prova il motore minimo (copia leggera e conversione a mano): la preparazione automatica leggera (colore, forma d'onda, locandina) si spegne,
+  // se no su un computer carico sta ancora lavorando e falsa i conti sulle righe in corso
+  await page.evaluate(() => window.__dpvTest.LB.impostaPreparazioneAutomatica(false));
+  await page.evaluate(async () => { await new Promise((r) => setTimeout(r, 1500)); window.__dpvTest.AT.azzeraAttivita(); });
   // la copia leggera a mano: nasce da avviare, parte con Avvia, Pausa vera (riparte dallo stesso punto), poi pronta sul disco
   const px = await page.evaluate(async (ids) => {
     const { LB, AT, mediaRT } = window.__dpvTest;

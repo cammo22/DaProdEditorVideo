@@ -5,6 +5,7 @@
 //    (altrimenti una voce inglese leggerebbe parole italiane con l'accento sbagliato).
 import { spiegaErroreAI, testoErrore } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
+import { segnaModelloPronto } from './modelliPronti';
 
 /** il modello della traduzione (e quello di riserva), come li prova il worker */
 export const MODELLI_TRADUZIONE = ['Xenova/nllb-200-distilled-600M', 'onnx-community/nllb-200-distilled-600M-ONNX'];
@@ -42,13 +43,13 @@ function lavoratore(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL('./traduci.worker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = (e: MessageEvent) => {
-    const m = e.data as { tipo: string; id?: number; testi?: string[]; msg?: string; file?: string; loaded?: number; total?: number };
+    const m = e.data as { tipo: string; id?: number; testi?: string[]; msg?: string; file?: string; loaded?: number; total?: number; modello?: string };
     if (m.tipo === 'scarico' && caricamento) {
       scaricati.set(m.file!, [m.loaded!, m.total!]);
       let a = 0, b = 0;
       for (const [x, y] of scaricati.values()) { a += x; b += y; }
       caricamento.stato(`Scarico il modello di traduzione: ${(a / 1048576).toFixed(0)} di ${(b / 1048576).toFixed(0)} MB (solo la prima volta)`, b ? a / b : 0);
-    } else if (m.tipo === 'pronto') { caricamento?.ok(); caricamento = null; }
+    } else if (m.tipo === 'pronto') { segnaModelloPronto('nllb', m.modello ?? MODELLI_TRADUZIONE[0]); caricamento?.ok(); caricamento = null; }
     else if (m.tipo === 'tradotto') { attese.get(m.id!)?.ok(m.testi ?? []); attese.delete(m.id!); }
     else if (m.tipo === 'errore') {
       const err = new Error(m.msg || 'errore della traduzione');
@@ -82,6 +83,8 @@ const nllb: Traduttore = {
 };
 
 let traduttore: Traduttore = nllb;
+/** scarica e avvia il traduttore in anticipo (Centro AI) */
+export const caricaTraduttore = (stato: (fase: string, prog: number) => void) => traduttore.carica(stato);
 /** per le prove: un traduttore finto (null = torna NLLB) */
 export const impostaTraduttore = (t: Traduttore | null) => { traduttore = t ?? nllb; };
 

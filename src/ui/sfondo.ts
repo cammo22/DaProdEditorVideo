@@ -381,7 +381,7 @@ export const SECONDI_ANTEPRIMA = 5;
 async function confermaSfondo(id: string) {
   const c = clipById(store.doc, id);
   const m = c?.ritaglio && modelloRitaglio(c.ritaglio.modello);
-  return !!m && await confermaAvvioAI({ compito: 'Togli lo sfondo', clip: id, modello: m.nome, repo: m.repo[0], dettagli: 'Controlla il risultato sul monitor. Le maschere possono richiedere molto spazio; per gli oggetti scegli i punti dopo aver confermato.' });
+  return !!m && await confermaAvvioAI({ compito: 'Togli lo sfondo', clip: id, modello: m.nome, repo: m.repo[0], ids: [m.id], dettagli: 'Controlla il risultato sul monitor. Le maschere possono richiedere molto spazio; per gli oggetti scegli i punti dopo aver confermato.' });
 }
 // Un consenso per le prove interattive dello stesso modello, clip e progetto.
 // Cambiare modello/persona richiede un nuovo consenso; i punti non lo invalidano.

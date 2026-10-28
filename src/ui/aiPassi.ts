@@ -2,6 +2,7 @@
 import { store } from '../core/store';
 import { progettoAttuale } from '../media/attivita';
 import { modelliScaricati } from '../media/diagnosiAI';
+import { statoModelli } from '../media/modelliAI';
 import { usaSchedaAI, impostaSchedaAI } from '../media/libreriaAI';
 import { dialogo, h } from './dom';
 
@@ -14,10 +15,19 @@ interface RichiestaAI {
   mb?: number;
   locale?: boolean;
   dettagli?: string;
+  /** i modelli del Centro AI che servono (id di `modelliHub`): se sono tutti «pronti» non si chiede niente e si parte */
+  ids?: string[];
 }
 let aperta = false;
 export async function confermaAvvioAI(o: RichiestaAI): Promise<boolean> {
   if (aperta) return false;
+  // niente da scaricare: i modelli sono già pronti (provati dal Centro AI o da un uso vero), si parte senza chiedere
+  if (o.ids?.length) {
+    try {
+      const st = await statoModelli();
+      if (o.ids.every((id) => st.get(id)?.stato === 'pronto')) return !o.clip || store.doc.clips.some((c) => c.id === o.clip);
+    } catch { /* si chiede come prima */ }
+  }
   const progetto = progettoAttuale();
   const clip = o.clip ? store.doc.clips.find((c) => c.id === o.clip) : undefined;
   if (o.clip && !clip) return false;

@@ -761,7 +761,7 @@ export class Contenitore {
     });
     const voceSott = [
       sott('Sottotitoli con l\'AI', '✨', 'Trascinalo su una clip: scrive i sottotitoli di quella clip; lasciato su uno spazio vuoto li scrive per tutto il montaggio. Poi doppio clic su una riga (SOTT) per correggerla, tasto destro per farla parlare', (m) => void m.generaSottotitoli(), 's:ai'),
-      sott('Riga al cursore', '📝', 'Una riga nuova dove sta il cursore, col testo da scrivere', (m) => void m.nuovaRigaQui()),
+      sott('Riga al cursore', '📝', 'Trascinala sulla timeline dove vuoi la riga e poi scrivi il testo; con un clic va dove sta il cursore', (m) => void m.nuovaRigaQui(), 's:riga'),
       sott('Posizione e grandezza', '⚙', 'In basso o in alto, grandezza, fascia, nel video o solo .srt', (m) => m.stileSottotitoli()),
     ].filter((c) => !this.filtro || (c.textContent ?? '').toLowerCase().includes(this.filtro.toLowerCase()));
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' }, ...this.sezioni('titoli', [

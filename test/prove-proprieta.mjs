@@ -72,6 +72,8 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     const aperte = async (nome) => {
       await page.evaluate((n) => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.name === n); window.__dpv.select([c.id]); document.dispatchEvent(new CustomEvent('dpv:proprieta')); }, nome);
       await page.waitForSelector('.isp-corpo > .isp-gruppo', { timeout: 10000 });
+      // il pannello si rifà un fotogramma dopo la scelta: si aspetta che mostri la clip giusta (su un computer carico ci mette di più)
+      await page.waitForFunction((n) => { const i = document.querySelector('.ispettore:not(.completo) .isp-nome'); return !i || i.value === n; }, nome, { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(600);
       return page.evaluate(() => [...document.querySelectorAll('.isp-corpo > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
     };
@@ -97,61 +99,13 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     // un colore pieno non è "media": per il quadro in miniatura serve una clip video con l'immagine → si usa un titolo (visibile e movibile)
     await page.evaluate(() => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.name === 'Titolo'); window.__dpv.select([c.id]); window.__motore.vaiA(170); });
     await page.waitForTimeout(700);
-    // il quadro in miniatura sta nell'editor della clip (doppio clic): si apre da lì
-    await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
-    await page.waitForSelector('.editor-clip');
-    await page.evaluate(() => document.querySelectorAll('.editor-clip .isp-gruppo:not([open]) > summary').forEach((x) => { if (x.parentElement.dataset.g === 'immagine') x.click(); }));
-    await page.waitForTimeout(400);
-    const mq = await page.evaluate(() => {
-      const t = document.querySelector('.mq-tela');
-      if (!t) return null;
-      t.scrollIntoView({ block: 'center', behavior: 'instant' });
-      const b = t.getBoundingClientRect();
-      return { x: b.x, y: b.y, w: b.width, h: b.height };
-    });
-    prova('nelle Proprietà c\'è il quadro in miniatura', !!mq && mq.w > 150, JSON.stringify(mq));
-    if (mq) {
-      const tf = () => page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); return { x: c.tf.x, y: c.tf.y, s: c.tf.scale, r: c.tf.rot }; });
-      // il pannello si assesta (su un computer carico anche dopo mezzo secondo): si rimisura il quadro subito prima di ogni gesto
-      const rimisura = async () => {
-        await page.waitForTimeout(400);
-        return page.evaluate(() => { const t = document.querySelector('.mq-tela'); t.scrollIntoView({ block: 'center', behavior: 'instant' }); const b = t.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; });
-      };
-      Object.assign(mq, await rimisura());
-      const prima = await tf();
-      // il riquadro del titolo sta al centro (poco sopra): si trascina da lì verso destra e in basso
-      // su un computer carico il riquadro del titolo a volte non è ancora al suo posto (i caratteri si caricano): si riprova fino a tre volte
-      await page.evaluate(() => document.fonts.ready);
-      let dopo = prima;
-      for (let giro = 0; giro < 3 && !(dopo.x > prima.x + 20); giro++) {
-        if (giro) { await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); window.__dpv.select([c.id]); window.__motore.vaiA(170); }); Object.assign(mq, await rimisura()); }
-        await page.mouse.move(mq.x + mq.w / 2, mq.y + mq.h * 0.53);
-        await page.mouse.down();
-        await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20, { steps: 6 });
-        await page.mouse.up();
-        await page.waitForTimeout(400);
-        dopo = await tf();
-      }
-      prova('trascinando dentro il quadro in miniatura il titolo si sposta (a destra e in basso)', dopo.x > prima.x + 20 && dopo.y > prima.y + 10, JSON.stringify({ prima, dopo }));
-      Object.assign(mq, await rimisura());
-      await page.mouse.move(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20);
-      await page.mouse.wheel(0, -300);
-      await page.waitForTimeout(700);
-      const z = await tf();
-      prova('la rotella sul quadro in miniatura ingrandisce', z.s > dopo.s * 1.1, JSON.stringify({ dopo, z }));
-      await page.mouse.dblclick(mq.x + mq.w / 2 + 40, mq.y + mq.h * 0.53 + 20);
-      await page.waitForTimeout(300);
-      const r = await tf();
-      prova('il doppio clic la rimette a tutto quadro', r.x === 0 && r.y === 0 && r.s === 1, JSON.stringify(r));
-    }
+    // il quadro in miniatura non c'è più (la rotella sopra di lui ingrandiva invece di scorrere il pannello)
+    prova('niente quadro in miniatura nelle Proprietà: la rotella scorre il pannello', (await page.locator('.mq-tela').count()) === 0);
     // le posizioni pronte
     await page.evaluate(() => [...document.querySelectorAll('.pp-tessera')].find((b) => b.textContent.includes('In basso a destra')).click());
     await page.waitForTimeout(300);
     const bd = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Titolo'); return { x: c.tf.x, y: c.tf.y, s: c.tf.scale }; });
     prova('"In basso a destra" mette un riquadro piccolo nell\'angolo', bd.x > 300 && bd.y > 200 && bd.s < 0.5, JSON.stringify(bd));
-    await page.keyboard.press('Escape');
-    await page.waitForSelector('.editor-clip', { state: 'detached' });
-
     // ———————————————————————————————————————————————————————————
     console.log('▶ 1.4.0: effetti e look con l\'anteprima, durata, entrata e uscita, ritaglio');
     await page.evaluate(() => {

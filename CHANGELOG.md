@@ -4,6 +4,15 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.3] — 2026-10-28 · Il Centro AI è l'elenco dei modelli, e lo sfondo AI si fa dal pannello
+
+- **Centro AI = hub dei modelli**: via «Cosa vuoi fare», le schede delle funzioni e «Clip esplicita». C'è l'elenco dei modelli (sfondo e segui, sottotitoli, traduzione, rumori, voce e base) con lo stato di ognuno, **Scarica / Completa / Ricontrolla** e **Togli**, più «Controlla e ripara tutto», la diagnosi, la scheda video, la chiave Hugging Face e lo spazio occupato.
+- **«Pronto» ora vuol dire provato**: un modello è pronto solo se è stato caricato per intero da qui o da un uso vero e i suoi file sono ancora nella cache. Prima bastava qualche file di un modello con lo stesso nome (e al primo uso dello sfondo si scaricava altro). Scaricare passa dalla stessa strada dell'uso: la volta dopo non si scarica più niente. Se un modello cade su uno di ricambio (SAM 3 senza chiave) lo dice.
+- Se tutti i modelli che servono sono pronti, **non compare più il dialogo «Consenti download e avvia»**: l'AI parte.
+- **Togli lo sfondo AI dal pannello Proprietà**, tutto lì: cosa tengo, «Controlla questo fotogramma», anteprima, genera, avanzate. Con **un'anteprima dentro il pannello** (l'immagine del monitor nella vista scelta: immagine, maschera, scacchi o contorno). Non si apre più l'editor in una finestra che copriva il monitor.
+- **Tolto il quadro in miniatura** da Posizione: la rotella scorreva il pannello solo fuori da lì, sopra ingrandiva.
+- **«Riga al cursore» si trascina** sulla timeline: si lascia dove si vuole e poi si scrive il testo.
+
 ## [1.6.2] — 2026-10-28 · Un filtro del rumore serio: MossFormer2
 
 - **Togli i rumori** usa ora **MossFormer2 di ClearerVoice-Studio** (Alibaba, Apache-2.0), un modello per la voce molto più forte di DeepFilterNet: a parità di parlato con rumore bianco a 5 dB il segnale sale di circa 10 dB, con ventola e ronzio di 7,5, con rumore rosa di 7. Le scelte sono tre: **Voce pulita**, **Naturale** (tiene un po' di stanza) e **Voce isolata** (prima Demucs tiene solo la voce, poi MossFormer2 la pulisce).

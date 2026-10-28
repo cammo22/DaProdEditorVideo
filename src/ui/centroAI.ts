@@ -11,15 +11,16 @@ import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
 import { MODELLI_TRADUZIONE } from '../media/traduci';
-import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, possibilita, statoAudioAI, togliModelloRumore, togliSeparazione } from '../media/audioAI';
+import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, possibilita, togliModelloRumore, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
-import { diagnosi, modelliScaricati, statoNvidia, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
+import { diagnosi, modelliScaricati, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
 import { LS_CHIAVE_HF, chiaveHFSalvata, impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
 import { raccontaHardware } from '../media/hardware';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { avviso, conferma, dialogo, evidenzia, h } from './dom';
 import { vaiFinale, vaiPagina, vaiSezione } from './guida';
 import { fonteCerca } from './cerca';
+import { modelliHub, statoModelli, type ModelloHub } from '../media/modelliAI';
 
 export interface FunzioneAI {
   id: string;
@@ -129,86 +130,95 @@ export const FUNZIONI_AI: FunzioneAI[] = [
 ];
 
 const mb = (b: number) => (b >= 1 << 30 ? (b / (1 << 30)).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / (1 << 20))) + ' MB');
-const DOVE: Record<FunzioneAI['dove'], string> = { tutto: 'app e browser', app: 'solo nell\'app', locale: 'sul computer, senza modelli' };
 
-/** la finestra del Centro AI */
+/** la finestra del Centro AI: un posto solo per controllare i modelli (e il motore). Le funzioni si usano dalle Proprietà. */
 export function finestraCentroAI(subito = false) {
-  const d = dialogo('Centro AI · tutte le funzioni intelligenti', { largo: true });
+  const d = dialogo('Centro AI · i modelli', { largo: true });
   d.el.classList.add('centro-ai');
-  const selezione = h('select', { 'aria-label': 'Clip su cui usare AI', on: { change: () => { store.select(selezione.value ? [selezione.value] : []); aggiornaPrerequisiti(); } } },
-    h('option', { value: '' }, 'Scegli una clip per audio, sfondo o tracking'),
-    store.doc.clips.filter((c) => c.kind === 'media').map((c) => h('option', { value: c.id }, c.name)));
-  selezione.value = store.sel.size === 1 ? [...store.sel][0] : '';
-  const compito = h('select', { 'aria-label': 'Cosa vuoi fare', on: { change: () => carte.forEach((c) => { c.hidden = c.dataset.ai !== compito.value; }) } }, FUNZIONI_AI.map((f) => h('option', { value: f.id }, f.nome)));
-  const aggiornaPrerequisiti = () => carte.forEach((c) => {
-    const f = FUNZIONI_AI.find((f) => f.id === c.dataset.ai)!;
-    c.querySelector('.ai-manca')!.textContent = f.manca() ?? 'Pronto per scegliere modello e opzioni';
-  });
-  const stati = new Map<string, HTMLElement>();
-  const carte = FUNZIONI_AI.map((f) => {
-    const stato = h('div', { class: 'ai-stato' }, f.modelli ? 'controllo i modelli…' : '');
-    stati.set(f.id, stato);
-    const motivo = f.manca();
-    // i modelli grossi si scaricano a parte: "Scarica ora" e "Togli il modello"
-    const modello = f.installa ? h('div', { class: 'ai-riga ai-modello' },
-      h('button', { class: 'btn-mini ai-scarica', on: { click: async (ev: Event) => {
-        const b = ev.currentTarget as HTMLButtonElement;
-        b.disabled = true;
-        try { await f.installa!(); avviso(`${f.nome}: il modello è sul computer`, 'ok', 2600); } catch (e) { avviso(spiegaErroreAI(e), 'errore', 5200); } finally { b.disabled = false; void aggiornaAudio(); }
-      } } }, 'Scarica ora'),
-      f.togli ? h('button', { class: 'btn-mini ai-togli', on: { click: async () => { await f.togli!(); void aggiornaAudio(); } } }, 'Togli il modello') : null) : null;
-    return h('article', { class: 'ai-carta', 'data-ai': f.id },
-      h('header', null, h('span', { class: 'ai-ic' }, f.icona), h('b', null, f.nome), h('span', { class: 'ai-dove ' + f.dove }, DOVE[f.dove])),
-      h('p', null, f.cosaFa),
-      h('ol', { class: 'ai-come' }, f.come.map((c) => h('li', null, c))),
-      stato,
-      modello,
-      h('p', { class: 'ai-manca' }, motivo ?? 'Pronto per scegliere modello e opzioni'),
-      h('button', { class: 'btn primario ai-usa', on: { click: () => { const manca = f.manca(); if (manca) { avviso(manca, 'info', 4000); return; } d.chiudi(); f.apri(); } } }, 'Scegli opzioni e modello →'));
-  });
+  const lista = modelliHub();
+  const righe = new Map<string, { el: HTMLElement; stato: HTMLElement; msg: HTMLElement; scarica: HTMLButtonElement; togli: HTMLButtonElement }>();
+  let occupato = false;
 
-  // ——— lo stato dei modelli (dalla cache) e del motore NVIDIA
-  void (async () => {
-    const [scaricati, nv] = await Promise.all([modelliScaricati(), statoNvidia()]);
-    for (const f of FUNZIONI_AI) {
-      const el = stati.get(f.id)!;
-      if (!f.modelli) { el.textContent = f.dove === 'app' ? '' : 'Pronto: non serve scaricare niente'; continue; }
-      const ci = f.modelli.filter((m) => scaricati.has(m.repo));
-      const righe: (string | HTMLElement)[] = [];
-      if (ci.length) righe.push(h('span', { class: 'ai-ok' }, '✓ sul computer: ', ci.map((m) => `${m.nome} (${mb(scaricati.get(m.repo)!)})`).join(', ')));
-      else {
-        const piccolo = f.modelli.filter((m) => m.mb).sort((a, b) => (a.mb ?? 0) - (b.mb ?? 0))[0];
-        righe.push(h('span', null, '⬇ il modello si scarica la prima volta' + (piccolo ? ` (da ${piccolo.mb} MB)` : '') + ', poi resta sul computer'));
-      }
-      if (f.id === 'sottotitoli' && nv) righe.push(h('span', { class: nv.installato ? 'ai-ok' : '' }, nv.installato ? ` · motore NVIDIA pronto (${nv.backend})` : ' · nell\'app il motore NVIDIA si scarica la prima volta'));
-      el.replaceChildren(...righe);
+  /** com'è messo ogni modello, dalla cache e da quello che si è caricato davvero */
+  const disegna = async () => {
+    const st = await statoModelli(lista);
+    for (const m of lista) {
+      const r = righe.get(m.id)!;
+      const s = st.get(m.id)!;
+      r.el.dataset.stato = s.stato;
+      r.stato.className = 'hub-stato ' + s.stato;
+      r.stato.textContent = s.stato === 'pronto' ? `✓ sul computer${s.bytes ? ' · ' + mb(s.bytes) : ''}` : s.stato === 'parziale' ? '◐ da completare' : '⬇ da scaricare' + (m.mb ? ` · ~${m.mb} MB` : '');
+      r.scarica.textContent = s.stato === 'pronto' ? 'Ricontrolla' : s.stato === 'parziale' ? 'Completa' : 'Scarica';
+      r.togli.disabled = s.stato === 'da-scaricare';
+      r.scarica.disabled = occupato;
     }
-    const v = stati.get('voce');
-    if (v) v.replaceChildren(nv ? h('span', { class: nv.installato ? 'ai-ok' : '' }, nv.installato ? `✓ motore NVIDIA pronto (${nv.backend})` : '⬇ il motore NVIDIA e la voce si scaricano la prima volta') : h('span', null, 'nel browser non c\'è'));
-    void aggiornaAudio();
-  })();
-
-  /** lo stato dei due motori dell'audio (togli rumori, voce e base): dove stanno e quanto pesano */
-  async function aggiornaAudio() {
-    const s = await statoAudioAI();
-    const r = stati.get('rumore'), v = stati.get('separa');
-    const nome = (k: string) => (k === 'in-uso' ? ' · sta lavorando adesso' : k === 'errore' ? ' · l\'ultima volta non è riuscito' : '');
-    if (r) r.replaceChildren(h('span', { class: s.rumore.stato === 'pronto' || s.rumore.stato === 'in-uso' ? 'ai-ok' : '' }, (s.rumore.stato === 'da-scaricare' ? '⬇ il filtro (MossFormer2, ' : '✓ pronto: il filtro (MossFormer2, ') + s.rumore.peso + ')' + nome(s.rumore.stato)));
-    if (v) {
-      const pronto = s.separa.stato === 'pronto' || (s.separa.stato === 'in-uso' && !s.separa.ripiego);
-      v.replaceChildren(h('span', { class: pronto ? 'ai-ok' : '' }, pronto ? `✓ sul computer: ${MODELLO_SEPARAZIONE.nome} (${s.separa.peso})` : `⬇ il modello (${s.separa.peso}) si scarica la prima volta`),
-        h('span', null, ' · senza il modello c\'è la separazione rapida (senza AI, meno precisa)' + (s.separa.ripiego ? ': per ora userebbe quella' : '') + nome(s.separa.stato)));
-    }
-  }
-
-  // ——— la diagnosi
-  const esito = h('div', { class: 'ai-diagnosi' });
-  const controlla = h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI') as HTMLButtonElement;
-  const fai = async () => {
-    controlla.disabled = true;
-    esito.replaceChildren(h('p', { class: 'nota' }, 'Controllo: avvio il motore AI, guardo la scheda video, provo a raggiungere Hugging Face…'));
-    try { disegnaDiagnosi(esito, await diagnosi()); } finally { controlla.disabled = false; }
   };
+
+  /** scarica (o ricarica dalla cache) un modello per la strada dell'uso vero, con il testo di avanzamento sulla sua riga */
+  const scarica = async (m: ModelloHub): Promise<boolean> => {
+    const r = righe.get(m.id)!;
+    r.msg.textContent = 'Preparo…';
+    r.el.classList.add('lavora');
+    try {
+      await m.scarica((fase, k) => { r.msg.textContent = fase + (k > 0 && k < 1 ? ` · ${Math.round(k * 100)}%` : ''); });
+      r.msg.textContent = '';
+      return true;
+    } catch (e) {
+      r.msg.textContent = '';
+      avviso(`${m.nome}: ${spiegaErroreAI(e)}`, 'errore', 7000);
+      return false;
+    } finally { r.el.classList.remove('lavora'); }
+  };
+  const bloccaTutto = (si: boolean) => { occupato = si; for (const r of righe.values()) { r.scarica.disabled = si; if (si) r.togli.disabled = true; } };
+
+  const gruppi = [...new Set(lista.map((m) => m.gruppo))];
+  const tabella = h('div', { class: 'hub' }, gruppi.flatMap((g) => [
+    h('h4', { class: 'hub-gruppo' }, g),
+    ...lista.filter((m) => m.gruppo === g).map((m) => {
+      const stato = h('span', { class: 'hub-stato' }, '…');
+      const msg = h('small', { class: 'hub-msg' });
+      const bScarica = h('button', { class: 'btn-mini', on: { click: async () => { bloccaTutto(true); await scarica(m); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
+      const bTogli = h('button', { class: 'btn-mini', title: 'Toglie il modello dal computer (si riscarica quando serve)', on: { click: async () => { bloccaTutto(true); await m.togli(); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Togli') as HTMLButtonElement;
+      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome), h('small', null, m.info), msg), stato, bScarica, bTogli);
+      righe.set(m.id, { el, stato, msg, scarica: bScarica, togli: bTogli });
+      return el;
+    }),
+  ]));
+  void disegna();
+
+  // ——— controlla e ripara: il motore, la scheda video, la rete e i modelli consigliati
+  const esito = h('div', { class: 'ai-diagnosi' });
+  const progresso = h('p', { class: 'nota hub-progresso' });
+  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: () => void fai() } }, '🔧 Controlla e ripara tutto') as HTMLButtonElement;
+  async function fai() {
+    ripara.disabled = true;
+    bloccaTutto(true);
+    try {
+      progresso.textContent = 'Controllo il motore AI, la scheda video e la connessione…';
+      let g = await diagnosi();
+      // il motore non parte con la scheda video: si prova sul processore
+      if (!g.libreria.ok && usaSchedaAI()) {
+        impostaSchedaAI(false); scheda.checked = false;
+        progresso.textContent = 'Il motore non parte con la scheda video: provo sul processore…';
+        g = await diagnosi();
+      }
+      disegnaDiagnosi(esito, g);
+      if (!g.libreria.ok) { progresso.textContent = 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.'; return; }
+      const st = await statoModelli(lista);
+      const daFare = lista.filter((m) => m.consigliato && st.get(m.id)!.stato !== 'pronto');
+      if (!daFare.length) { progresso.textContent = 'Fatto: il motore funziona e i modelli consigliati sono sul computer.'; return; }
+      if (!g.internet) { progresso.textContent = 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.'; return; }
+      let ok = 0;
+      const falliti: string[] = [];
+      for (const [i, m] of daFare.entries()) {
+        progresso.textContent = `Scarico ${m.nome} (${i + 1} di ${daFare.length})…`;
+        if (await scarica(m)) ok++; else falliti.push(m.nome);
+        await disegna();
+      }
+      progresso.textContent = falliti.length ? `${ok} modelli a posto, non sono riuscito con: ${falliti.join(', ')}.` : `Fatto: ${ok} modelli scaricati e provati, adesso partono senza scaricare niente.`;
+    } catch (e) { progresso.textContent = 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e); }
+    finally { ripara.disabled = false; bloccaTutto(false); await disegna(); void aggSpazio(); }
+  }
 
   // ——— le impostazioni
   const scheda = h('input', { type: 'checkbox', checked: usaSchedaAI() }) as HTMLInputElement;
@@ -220,8 +230,10 @@ export function finestraCentroAI(subito = false) {
   const aggSpazio = async () => { const m = await modelliScaricati(); const tot = [...m.values()].reduce((s, x) => s + x, 0); spazio.textContent = m.size ? `${m.size} modelli sul computer · ${mb(tot)}` : 'Nessun modello scaricato'; };
   void aggSpazio();
   const svuota = h('button', { class: 'btn-mini', on: { click: async () => {
-    if (!(await conferma('Libera lo spazio dei modelli', 'I modelli AI scaricati si tolgono dal computer. Si riscaricano da soli la prossima volta che servono (serve internet).', 'Toglili', 'Annulla'))) return;
-    await svuotaModelli(); await aggSpazio();
+    if (!(await conferma('Libera lo spazio dei modelli', 'I modelli AI scaricati si tolgono dal computer. Si riscaricano da qui, o da soli la prossima volta che servono (serve internet).', 'Toglili', 'Annulla'))) return;
+    await svuotaModelli();
+    try { localStorage.removeItem('dpv-modelli-pronti'); } catch { /* niente */ }
+    await disegna(); await aggSpazio();
   } } }, 'Libera lo spazio');
   const nvidia = motoreNemo() ? h('div', { class: 'ai-imp' },
     h('span', null, 'Motore NVIDIA (sottotitoli e voce nell\'app)'),
@@ -231,62 +243,17 @@ export function finestraCentroAI(subito = false) {
       await aggSpazio();
     } } }, 'Togli motore e modelli')) : null;
 
-  // ——— lo stato dei modelli e il pulsante che sistema quello che si può sistemare
-  const elencoModelli = h('div', { class: 'ai-modelli' });
-  const progressoRipara = h('p', { class: 'nota' });
-  const disegnaModelli = async () => {
-    const m = await modelliScaricati();
-    const s = await statoAudioAI().catch(() => null);
-    elencoModelli.replaceChildren(...FUNZIONI_AI.filter((f) => f.modelli?.length).map((f) => {
-      const ci = f.modelli!.filter((x) => m.has(x.repo));
-      const ok = ci.length > 0 || (f.id === 'separa' && s?.separa.stato === 'pronto') || (f.id === 'rumore' && s?.rumore.stato === 'pronto');
-      return h('div', { class: 'ai-mod ' + (ok ? 'ok' : 'forse') }, h('span', { class: 'ai-diag-seg' }, ok ? '✓' : '⬇'), h('b', null, f.nome),
-        h('span', null, ok ? `sul computer${ci.length ? ': ' + ci.map((x) => x.nome).join(', ') : ''}` : 'si scarica da solo la prima volta che serve'));
-    }));
-  };
-  void disegnaModelli();
-  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: async () => {
-    ripara.disabled = true;
-    try {
-      progressoRipara.textContent = 'Controllo il motore AI, la scheda video e la connessione…';
-      let g = await diagnosi();
-      // il motore non parte con la scheda video: si prova sul processore
-      if (!g.libreria.ok && usaSchedaAI()) {
-        impostaSchedaAI(false); scheda.checked = false;
-        progressoRipara.textContent = 'Il motore non parte con la scheda video: provo sul processore…';
-        g = await diagnosi();
-      }
-      disegnaDiagnosi(esito, g);
-      const s = await statoAudioAI().catch(() => null);
-      if (s && s.rumore.stato === 'da-scaricare' && g.internet) {
-        progressoRipara.textContent = 'Scarico il modello per togliere i rumori…';
-        await installaRumore((c, t) => { progressoRipara.textContent = `Scarico il modello per togliere i rumori… ${t ? Math.round((c / t) * 100) : 0}%`; });
-      }
-      if (s && s.separa.stato === 'da-scaricare' && g.internet) {
-        progressoRipara.textContent = 'Scarico il modello per separare voce e base…';
-        await installaSeparazione((c, t) => { progressoRipara.textContent = `Scarico il modello per separare voce e base… ${t ? Math.round((c / t) * 100) : 0}%`; });
-      }
-      progressoRipara.textContent = !g.libreria.ok ? 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.'
-        : !g.internet ? 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.'
-          : 'Fatto: il motore funziona e i modelli grossi sono a posto. Gli altri si scaricano da soli la prima volta che li usi.';
-    } catch (e) { progressoRipara.textContent = 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e); }
-    finally { ripara.disabled = false; void disegnaModelli(); void aggSpazio(); }
-  } } }, '🔧 Controlla e ripara tutto');
-
   d.corpo.append(
-    h('section', { class: 'ai-sezione ai-stato-modelli' }, h('h4', null, 'Modelli e motore'), h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla che tutto funzioni e sistema quello che si può: scheda video, modelli, connessione.')), progressoRipara, elencoModelli),
-    h('p', { class: 'ai-intro' }, 'Tutte le funzioni AI di DaProd Video. Girano sul tuo computer: le immagini, l\'audio e i testi non vanno da nessuna parte. Ogni modello si scarica una volta sola (serve internet la prima volta), poi va anche senza rete.'),
-    h('label', { class: 'ai-scelta' }, 'Cosa vuoi fare ', compito),
-    h('label', { class: 'ai-scelta' }, 'Clip esplicita (non serve per i sottotitoli del montaggio) ', selezione),
-    h('div', { class: 'ai-griglia' }, carte),
-    h('section', { class: 'ai-sezione' }, h('h4', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, controlla, h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione per i modelli, e ti dice cosa fare.')), esito),
+    h('section', { class: 'ai-sezione' },
+      h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione, e scarica i modelli consigliati. «Pronto» vuol dire provato: il modello parte da qui senza riscaricare.')),
+      progresso, tabella),
+    h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
       h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video (WebGPU) c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video (WebGPU) quando c\'è'),
       h('div', { class: 'ai-imp' }, spazio, svuota),
       h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (come SAM 3). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face (SAM 3)'), chiaveHF, salvaChiave),
       nvidia));
   d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
-  carte.forEach((c) => { c.hidden = c.dataset.ai !== compito.value; });
   if (subito) void fai();
   return d;
 }

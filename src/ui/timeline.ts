@@ -1826,7 +1826,7 @@ export class Timeline {
         this.fantasma = null; this.fantasmaBlocco = null; this.bersaglioFx = null;
         if (dato.startsWith('x:') || dato.startsWith('t:')) this.fantasmaBlocco = this.anteprimaBlocco(q.x, q.y, dato);
         else if (dato.startsWith('e:')) this.bersaglioFx = this.clipDrop(q.x, q.y, dato.slice(2))?.id ?? null;
-        else if (dato.startsWith('s:')) this.bersaglioFx = this.colpo(q.x, q.y).clip?.media ? this.colpo(q.x, q.y).clip!.id : null;
+        else if (dato === 's:ai') this.bersaglioFx = this.colpo(q.x, q.y).clip?.media ? this.colpo(q.x, q.y).clip!.id : null;
         else this.fantasma = this.anteprimaDrop(q.x, q.y, dato);
         this.sporca();
       },
@@ -2357,6 +2357,10 @@ export class Timeline {
       const sec = (g.len / fps(p.rate)).toFixed(1).replace('.', ',').replace(',0', '');
       const dove = g.dove === 'taglio' ? ' sul taglio' : g.dove === 'inizio' ? ' all\'inizio della clip' : g.dove === 'fine' ? ' alla fine della clip' : tipo === 'transizione' ? ' · mettila sopra un taglio per farla lavorare' : '';
       avviso(`${tipo === 'effetto' ? '⚡' : '✦'} ${nomeBlocco(b.fxb!)} · ${sec} s${dove}`, g.taglio || tipo === 'effetto' ? 'tasto' : 'info', 1800);
+    } else if (dato === 's:riga') {
+      // una riga di sottotitolo nel punto lasciato: poi si scrive il testo
+      this.mostraSott = true;
+      void import('./sottotitoliRapidi').then((m) => m.nuovaRigaQui(f));
     } else if (dato === 's:ai') {
       // i sottotitoli con l'AI: su una clip scrivono quelli della clip, altrove quelli di tutto il montaggio
       const c = this.colpo(x, y).clip;
