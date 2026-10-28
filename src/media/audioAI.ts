@@ -12,7 +12,7 @@ import { newClip, newTrack, trackOf, uid } from '../core/progetto';
 import { f2s } from '../core/timecode';
 import { store } from '../core/store';
 import { StatisticheMono } from '../core/separa';
-import { NOMI_FORZA, PODCAST, mescolaDi } from '../core/rumore';
+import { NOMI_FORZA, PODCAST, mescolaDi, usaMossFormer } from '../core/rumore';
 import { Ricampionatore } from '../core/ricampiona';
 import { voceDaPodcast } from './clear';
 import { invoke, isTauri, type FileScelto } from '../platform';
@@ -23,11 +23,11 @@ import { spiegaErroreAI, testoErrore } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiudi as chiudiMedia, importa, mediaRT, type MediaRT } from './libreria';
-import { MODELLO_SEPARAZIONE, modelloInCache, ottieniModello, togliModello, type ModelloAudio } from './modelliAudio';
+import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, modelloInCache, ottieniModello, togliModello, type ModelloAudio } from './modelliAudio';
 import type { DaPagina, DaWorker, InizioRumore, InizioSepara } from './audioAI.worker';
 
 export type Forza = ForzaRumore;
-export { MODELLO_SEPARAZIONE };
+export { MODELLO_SEPARAZIONE, MODELLO_RUMORE };
 
 export interface Possibilita { rumore: boolean; separa: boolean; perche?: string }
 
@@ -308,7 +308,7 @@ class Ponte {
 }
 
 /** per le prove: dove sta la libreria, il modello (indirizzo, dimensione minima), il modello finto, il ripiego */
-const impostazioniProva: { base?: string; modello?: ModelloAudio; finta?: { attesaMs?: number } | null; ripiego?: 'auto' | 'solo' | 'mai' } = {};
+const impostazioniProva: { base?: string; modello?: ModelloAudio; finta?: { attesaMs?: number } | null; ripiego?: 'auto' | 'solo' | 'mai'; modelloRumore?: ModelloAudio; fintaRumore?: { maschera?: number } | null } = {};
 export const impostaProveAudioAI = (o: typeof impostazioniProva | null) => { for (const k of Object.keys(impostazioniProva)) delete (impostazioniProva as Record<string, unknown>)[k]; if (o) Object.assign(impostazioniProva, o); };
 
 const nomeBase = (nome: string) => nome.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || 'audio';
@@ -364,7 +364,7 @@ function ancoraValida(a: Clip, t: Tratto, s: Sorgente, corrente = false): string
 }
 
 /** toglie il rumore dall'audio della clip (la parte usata più un po' di margine): la clip passa a un file nuovo "pulito"; Ctrl+Z torna indietro */
-export async function togliRumore(clipId: string, forza: Forza = 'media'): Promise<void> {
+export async function togliRumore(clipId: string, forza: Forza = 'pulita'): Promise<void> {
   const p0 = store.doc;
   const c0 = p0.clips.find((c) => c.id === clipId);
   if (!c0) throw new Error('Non trovo la clip');
@@ -429,6 +429,7 @@ export async function togliRumore(clipId: string, forza: Forza = 'media'): Promi
           const hw = messaggioScheda();
           const inizio: InizioRumore = {
             tipo: 'inizia', lavoro: 'rumore', sr: t.sr, canali: t.canali, mescola: mescolaDi(forza), base,
+            motore: usaMossFormer(forza) ? 'mossformer' : 'deepfilter', modello: impostazioniProva.modelloRumore ?? MODELLO_RUMORE, finta: impostazioniProva.fintaRumore ?? null,
             isola: isolata ? {
               sr: t.sr, canali: t.canali, totale: t.n, media: stat.media, dev: stat.dev, base, scheda: hw.scheda, hw,
               modello: impostazioniProva.modello ?? MODELLO_SEPARAZIONE, finta: impostazioniProva.finta ?? null,
@@ -641,21 +642,14 @@ export interface StatoMotoreAudio { stato: 'pronto' | 'da-scaricare' | 'in-uso' 
 
 const mb = (b: number) => `${Math.max(1, Math.round(b / 1048576))} MB`;
 
-/** i file di DeepFilterNet ci sono nell'app? (se no si prendono dalla rete, una volta, e il browser li tiene) */
-async function rumoreLocale(): Promise<boolean> {
-  const base = impostazioniProva.base ?? baseLocaleAI();
-  if (!base) return false;
-  try { const r = await fetch(base + 'deepfilternet/df_bg.wasm', { method: 'HEAD' }); return r.ok; } catch { return false; }
-}
-
 export async function statoAudioAI(): Promise<{ rumore: StatoMotoreAudio; separa: StatoMotoreAudio & { ripiego: boolean } }> {
   const usati = [...inCorso.values()];
-  const locale = await rumoreLocale();
-  const nel = await modelloInCache(impostazioniProva.modello ?? MODELLO_SEPARAZIONE);
+  const nelRumore = await modelloInCache(impostazioniProva.modelloRumore ?? MODELLO_RUMORE);
   const rumore: StatoMotoreAudio = {
-    stato: usati.includes('rumore') ? 'in-uso' : ultimiErrori.rumore ? 'errore' : locale ? 'pronto' : 'da-scaricare',
-    peso: locale ? '34 MB, dentro il programma' : '34 MB, dalla rete la prima volta',
+    stato: usati.includes('rumore') ? 'in-uso' : ultimiErrori.rumore ? 'errore' : nelRumore ? 'pronto' : 'da-scaricare',
+    peso: nelRumore ? mb(nelRumore) : `${mb(MODELLO_RUMORE.peso)}, una volta sola`,
   };
+  const nel = await modelloInCache(impostazioniProva.modello ?? MODELLO_SEPARAZIONE);
   const stato = usati.includes('separa') ? 'in-uso' : nel ? (ultimiErrori.separa ? 'errore' : 'pronto') : ultimiErrori.separa ? 'errore' : 'da-scaricare';
   const separa = {
     stato: stato as StatoMotoreAudio['stato'],
@@ -678,6 +672,20 @@ export async function installaSeparazione(avanza?: (caricati: number, totali: nu
   });
   ultimiErrori.separa = '';
 }
+
+/** scarica il modello del filtro del rumore (MossFormer2, ~94 MB, una volta sola) */
+export async function installaRumore(avanza?: (caricati: number, totali: number) => void): Promise<void> {
+  const m = impostazioniProva.modelloRumore ?? MODELLO_RUMORE;
+  await inLavoro('Scarico il modello per togliere i rumori', async (l) => {
+    l.imposta(0, `${m.nome}: ${mb(m.peso)}, una volta sola`);
+    await ottieniModello(m, {
+      segnale: l.segnale,
+      avanza: (a, t) => { l.imposta(t ? a / t : null, `${m.nome}: ${(a / 1048576).toFixed(0)} di ${((t || m.peso) / 1048576).toFixed(0)} MB`); avanza?.(a, t); },
+    });
+  });
+  ultimiErrori.rumore = '';
+}
+export const togliModelloRumore = () => togliModello(impostazioniProva.modelloRumore ?? MODELLO_RUMORE);
 
 /** toglie il modello dal computer (si riscarica quando serve) */
 export const togliSeparazione = () => togliModello(impostazioniProva.modello ?? MODELLO_SEPARAZIONE);

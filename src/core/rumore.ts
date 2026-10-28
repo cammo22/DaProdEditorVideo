@@ -22,10 +22,12 @@ export const SR_DF = 48000;
  * (tiene solo la voce); "podcast" e "naturale" sono Clear (src/media/clear.ts): rumore ed eco via, voce da podcast, volume giusto.
  * (La catena voce della 1.5.3, compressore e silenzio fra le parole, è stata tolta: suonava peggio.)
  */
-export const MESCOLA: Record<ForzaRumore, number> = { leggera: 0.6, media: 0.85, forte: 1, isolata: 1, podcast: 1, naturale: 1 };
+export const MESCOLA: Record<ForzaRumore, number> = { pulita: 1, delicata: 0.7, isolata: 1, leggera: 0.6, media: 0.85, forte: 1, podcast: 1, naturale: 1 };
+/** dalla 1.6.2 le scelte vere sono tre (Voce pulita, Naturale, Voce isolata) e usano MossFormer2 (src/core/mossformer.ts); le altre restano per i progetti vecchi */
+export const usaMossFormer = (f: ForzaRumore | undefined) => f === 'pulita' || f === 'delicata' || f === 'isolata';
 /** Clear: quanto della voce rifatta e a che volume (LUFS) */
 export const PODCAST: Partial<Record<ForzaRumore, { forza: number; lufs: number }>> = { podcast: { forza: 1, lufs: -19 }, naturale: { forza: 0.8, lufs: -19 } };
-export const NOMI_FORZA: Record<ForzaRumore, string> = { leggera: 'Rumore tolto (leggera)', media: 'Rumore tolto (media)', forte: 'Rumore tolto (forte)', isolata: 'Voce isolata', podcast: 'Voce da podcast', naturale: 'Voce da podcast, naturale' };
+export const NOMI_FORZA: Record<ForzaRumore, string> = { pulita: 'Voce pulita', delicata: 'Voce pulita (naturale)', leggera: 'Rumore tolto (leggera)', media: 'Rumore tolto (media)', forte: 'Rumore tolto (forte)', isolata: 'Voce isolata', podcast: 'Voce da podcast', naturale: 'Voce da podcast, naturale' };
 export const mescolaDi = (f: ForzaRumore | undefined) => MESCOLA[f ?? 'media'] ?? MESCOLA.media;
 
 /** una coda di campioni che si riempie in fondo e si svuota davanti */

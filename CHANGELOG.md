@@ -4,6 +4,13 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.2] — 2026-10-28 · Un filtro del rumore serio: MossFormer2
+
+- **Togli i rumori** usa ora **MossFormer2 di ClearerVoice-Studio** (Alibaba, Apache-2.0), un modello per la voce molto più forte di DeepFilterNet: a parità di parlato con rumore bianco a 5 dB il segnale sale di circa 10 dB, con ventola e ronzio di 7,5, con rumore rosa di 7. Le scelte sono tre: **Voce pulita**, **Naturale** (tiene un po' di stanza) e **Voce isolata** (prima Demucs tiene solo la voce, poi MossFormer2 la pulisce).
+- Il modello (94 MB, 8 bit) si scarica la prima volta da Hugging Face e poi resta sul computer; lavora sul processore, a pezzi da 4 secondi cuciti senza spostare un campione (circa 1× il tempo reale). Se non si scarica o non parte, si usa il filtro di prima (DeepFilterNet, dentro il programma) e lo si dice.
+- «Controlla e ripara tutto» del Centro AI scarica anche questo modello. I progetti già puliti con Leggera/Media/Forte/Podcast restano com'erano (e «Audio originale» funziona).
+- Prove: il front-end e il flusso sono in `src/core/mossformer.ts` e si provano da Node (`test/unit/mossformer.test.mjs`); il confronto con torchaudio ha dato differenze sotto 1e-8.
+
 ## [1.6.1] — 2026-10-27 · Più semplice: Attività, Finale, LIVE e Proprietà rifatti
 
 - **Attività** com'era nella 1.5.5: la barra in basso mostra cosa sta facendo il programma, il popup ha i lavori con avanzamento e tempi, ⚡ Sovraccarica, Pausa, Pulisci. In più la sezione «Prepara i file»: copie leggere (proxy), forme d'onda, locandine, colore e velocità con un clic. Locandina, colore e forma d'onda ripartono di nuovo da soli all'import (si vedono le forme d'onda dei file audio).

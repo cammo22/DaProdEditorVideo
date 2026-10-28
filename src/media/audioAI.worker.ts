@@ -6,6 +6,7 @@
 // memoria non c'è mai più di un pezzo) e riceve quello che esce (messaggio "uscita"). Tutto sul computer di chi monta.
 import { Ricampionatore, lunghezzaUscita } from '../core/ricampiona';
 import { PulitoreMono, PulitoreStereo, type FiltroTrama, SR_DF } from '../core/rumore';
+import { MF, PulitoreMossFormer, PulitoreMossFormerStereo, type EseguiMaschera } from '../core/mossformer';
 import { DEMUCS, SeparatoreDemucs, SeparatoreRapido, modelloFinto, type EseguiModello } from '../core/separa';
 import { CDN_DEEPFILTERNET, CDN_ORT, applicaPotenza, applicaThread, dispositivi, erroreDellaScheda, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda } from './libreriaAI';
 import { ottieniModello, type ModelloAudio } from './modelliAudio';
@@ -13,6 +14,11 @@ import { spiegaErroreAI } from './erroriAI';
 
 export interface InizioRumore {
   tipo: 'inizia'; lavoro: 'rumore'; sr: number; canali: 1 | 2; mescola: number; base: string;
+  /** il filtro: 'mossformer' (il nuovo, ~94 MB la prima volta) o 'deepfilter' (quello di prima, dentro l'app) */
+  motore?: 'deepfilter' | 'mossformer';
+  modello?: ModelloAudio;
+  /** per le prove: una maschera costante al posto del modello vero */
+  finta?: { maschera?: number } | null;
   /** "voce isolata": prima Demucs tiene solo la voce (via musica, TV, rumori), poi il filtro. Come per la separazione */
   isola?: Omit<InizioSepara, 'tipo' | 'lavoro' | 'emetti' | 'ripiego'> | null;
 }
@@ -37,7 +43,7 @@ export type DaWorker =
   | { tipo: 'stato'; testo: string; k?: number }
   | { tipo: 'avviso'; msg: string }
   | { tipo: 'scheda-guasta' }
-  | { tipo: 'pronto'; motore: 'deepfilternet' | 'demucs' | 'rapido' | 'voce'; dispositivo?: Dispositivo | 'finta' }
+  | { tipo: 'pronto'; motore: 'deepfilternet' | 'mossformer' | 'demucs' | 'rapido' | 'voce'; dispositivo?: Dispositivo | 'finta' }
   | { tipo: 'uscita'; nome: 'pulito' | 'voce' | 'base'; ch: Float32Array[] }
   | { tipo: 'ricevuto' }
   | { tipo: 'finito' }
@@ -62,7 +68,49 @@ async function caricaDeepFilter(base: string): Promise<{ crea: () => Promise<any
   return { crea: () => mod.DeepFilter.create({ wasmUrl }), dove };
 }
 
-async function avviaRumore(m: InizioRumore): Promise<Motore> {
+/** quello che dà il filtro del rumore (a 48 kHz, coi canali della clip): audio dentro, audio pulito fuori */
+interface Pulitore48 { push(ch: Float32Array[]): Promise<Float32Array[]>; fine(): Promise<Float32Array[]>; chiudi(): void }
+
+/** MossFormer2: scarica (la prima volta) il modello e lo avvia sul processore (è quantizzato a 8 bit: la scheda video non lo sa fare) */
+async function preparaMossFormer(m: InizioRumore): Promise<{ esegui: EseguiMaschera; chiudi: () => void }> {
+  if (m.finta) {
+    const k = m.finta.maschera ?? 0.5;
+    return { esegui: async () => new Float32Array(MF.T * MF.BINS).fill(k), chiudi: () => {} };
+  }
+  manda({ tipo: 'stato', testo: 'Cerco il modello…' });
+  const bytes = await ottieniModello(m.modello!, {
+    avanza: (a, t) => manda({ tipo: 'stato', testo: `Scarico il modello: ${(a / 1048576).toFixed(0)} di ${((t || m.modello!.peso) / 1048576).toFixed(0)} MB (una volta sola)`, k: t ? a / t : 0 }),
+  });
+  manda({ tipo: 'stato', testo: 'Avvio il modello…' });
+  const ort = await caricaOrt(m.base);
+  const sess = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+  return {
+    esegui: async (feat) => {
+      const ris = await sess.run({ [sess.inputNames[0]]: new ort.Tensor('float32', feat, [1, MF.T, MF.FEAT]) });
+      const t = ris[sess.outputNames[0]];
+      const d = new Float32Array(t.data as Float32Array);
+      t.dispose?.();
+      return d;
+    },
+    chiudi: () => { void sess.release?.().catch?.(() => {}); },
+  };
+}
+
+async function creaPulitore(m: InizioRumore): Promise<Pulitore48> {
+  if (m.motore === 'mossformer') {
+    try {
+      const { esegui, chiudi } = await preparaMossFormer(m);
+      const mono = m.canali === 1 ? new PulitoreMossFormer(esegui, m.mescola) : null;
+      const stereo = m.canali === 2 ? new PulitoreMossFormerStereo(esegui, m.mescola) : null;
+      return {
+        async push(ch) { return mono ? [await mono.push(ch[0])] : [...(await stereo!.push(ch[0], ch[1]))]; },
+        async fine() { return mono ? [await mono.fine()] : [...(await stereo!.fine())]; },
+        chiudi,
+      };
+    } catch (e) {
+      manda({ tipo: 'avviso', msg: `Il filtro nuovo (MossFormer) non si avvia (${spiegaErroreAI(e)}): uso il filtro classico, un po' meno preciso` });
+    }
+  }
   manda({ tipo: 'stato', testo: 'Preparo il filtro del rumore…' });
   const { crea } = await caricaDeepFilter(m.base);
   const filtri: any[] = [await crea()];
@@ -70,15 +118,25 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
   let k = 0;
   const mono = m.canali === 1 ? new PulitoreMono(filtri[0] as FiltroTrama, m.mescola) : null;
   const stereo = m.canali === 2 ? new PulitoreStereo(() => filtri[k++] as FiltroTrama, m.mescola) : null;
+  return {
+    async push(ch) { return mono ? [mono.push(ch[0])] : [...stereo!.push(ch[0], ch[1])]; },
+    async fine() { return mono ? [mono.fine()] : [...stereo!.fine()]; },
+    chiudi: () => { for (const f of filtri) f.destroy?.(); },
+  };
+}
+
+async function avviaRumore(m: InizioRumore): Promise<Motore> {
+  manda({ tipo: 'stato', testo: 'Preparo il filtro del rumore…' });
+  const pulitore = await creaPulitore(m);
   const esce = (ch: Float32Array[]) => {
     if (!ch[0].length) return;
     manda({ tipo: 'uscita', nome: 'pulito', ch }, ch.map((x) => x.buffer));
   };
   /** dai al filtro l'audio a 48 kHz (già coi canali della clip) */
-  const filtra = (r: Float32Array[]) => esce(mono ? [mono.push(r[0])] : [...stereo!.push(r[0], r[1])]);
-  const chiudiFiltro = () => {
-    esce(mono ? [mono.fine()] : [...stereo!.fine()]);
-    for (const f of filtri) f.destroy?.();
+  const filtra = async (r: Float32Array[]) => esce(await pulitore.push(r));
+  const chiudiFiltro = async () => {
+    esce(await pulitore.fine());
+    pulitore.chiudi();
   };
 
   // "voce isolata": Demucs prima del filtro. Se il modello non si avvia, si pulisce solo col filtro (e lo si dice)
@@ -89,10 +147,10 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
   }
   if (!demucs || !m.isola) {
     const ric = Array.from({ length: m.canali }, () => new Ricampionatore(m.sr, SR_DF));
-    manda({ tipo: 'pronto', motore: 'deepfilternet' });
+    manda({ tipo: 'pronto', motore: m.motore === 'mossformer' ? 'mossformer' : 'deepfilternet' });
     return {
-      async dati(ch) { filtra(ch.map((x, i) => ric[i].processa(x))); },
-      async fine() { filtra(ric.map((x) => x.fine())); chiudiFiltro(); },
+      async dati(ch) { await filtra(ch.map((x, i) => ric[i].processa(x))); },
+      async fine() { await filtra(ric.map((x) => x.fine())); await chiudiFiltro(); },
     };
   }
   const iso = m.isola;
@@ -100,15 +158,15 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
   // ingresso → 44,1 kHz stereo (Demucs) → la voce → 48 kHz (il filtro) coi canali della clip
   const ricIn = [new Ricampionatore(m.sr, DEMUCS.SR), new Ricampionatore(m.sr, DEMUCS.SR)];
   const ricVoce = [new Ricampionatore(DEMUCS.SR, SR_DF), new Ricampionatore(DEMUCS.SR, SR_DF)];
-  const alFiltro = (l: Float32Array, r: Float32Array) => {
-    if (m.canali === 2) { filtra([l, r]); return; }
+  const alFiltro = async (l: Float32Array, r: Float32Array) => {
+    if (m.canali === 2) { await filtra([l, r]); return; }
     const n = Math.min(l.length, r.length), x = new Float32Array(n);
     for (let i = 0; i < n; i++) x[i] = (l[i] + r[i]) * 0.5;
-    filtra([x]);
+    await filtra([x]);
   };
   const sep = new SeparatoreDemucs({
     totale: lunghezzaUscita(iso.totale, m.sr, DEMUCS.SR), media: iso.media, dev: iso.dev, esegui: demucs.esegui,
-    uscita: async (v) => { alFiltro(ricVoce[0].processa(v[0]), ricVoce[1].processa(v[1])); },
+    uscita: async (v) => { await alFiltro(ricVoce[0].processa(v[0]), ricVoce[1].processa(v[1])); },
     avanza: (x) => manda({ tipo: 'stato', testo: 'Isolo la voce…', k: x }),
   });
   return {
@@ -116,8 +174,8 @@ async function avviaRumore(m: InizioRumore): Promise<Motore> {
     async fine() {
       await sep.push(ricIn[0].fine(), ricIn[1].fine());
       await sep.fine();
-      alFiltro(ricVoce[0].fine(), ricVoce[1].fine());
-      chiudiFiltro();
+      await alFiltro(ricVoce[0].fine(), ricVoce[1].fine());
+      await chiudiFiltro();
       await sessione?.release?.().catch?.(() => {});
       sessione = null;
     },

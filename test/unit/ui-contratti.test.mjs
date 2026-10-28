@@ -6,7 +6,7 @@ const src = (p) => readFileSync(new URL('../../src/' + p, import.meta.url), 'utf
 test('Finale prepara misure esplicite, espone navigazione e stato export', () => {
   const s = src('ui/finale.ts');
   assert.ok(s.includes('const path = await salvaMediaSulDisco(nome, blob);\n      if (ctrl.signal.aborted || progetto !== progettoAttuale())'), 'controllo dopo scrittura prima di importare nel progetto');
-  for (const nome of ['await preparaOra(', 'senzaColoreMisurato(', 'fin-percorso', 'fin-esporta-fisso']) assert.ok(s.includes(nome), nome);
+  for (const nome of ['await preparaOra(', 'senzaColoreMisurato(', 'fin-vai']) assert.ok(s.includes(nome), nome);
 });
 test('Effetti legge i parametri dal catalogo e consente intensità zero', () => {
   const s = src('ui/ispettore.ts');
@@ -43,10 +43,11 @@ test('LIVE espone fase autorevole e sezioni sorgenti audio registrazioni', () =>
 test('Attività conserva Sovraccarica e permette scartare le proposte in batch', () => {
   const s = src('ui/attivita.ts');
   assert.ok(s.includes('sovraccarica(!inSovraccarico())'));
-  assert.ok(s.includes('scartaDaAvviare({ media: [...this.scelti] })'));
+  assert.ok(s.includes('scartaDaAvviare()'));
 });
 test('Attività espone manuali, preparazioni, capacità e retry del motore', () => {
   const s = src('ui/attivita.ts');
-  for (const nome of ['attivitaDaAvviare()', 'proponiPreparazioni(', 'azioniAttivita(', 'avviaRiga(', 'pausaRiga(', 'riprendiRiga(', 'riprovaRiga(', 'Non avviare altro']) assert.ok(s.includes(nome), nome);
-  assert.ok(!s.includes('getBoundingClientRect()'), 'nessun popover flottante sopra la timeline');
+  for (const nome of ['attivitaDaAvviare()', 'proponiPreparazioni(', 'azioniAttivita(', 'avviaRiga(', 'pausaRiga(', 'riprendiRiga(', 'riprovaRiga(', 'pausaLavori(', 'daPreparare(']) assert.ok(s.includes(nome), nome);
+  // il popup sta in basso a destra sopra la barra di stato (dalla 1.6.0), non dentro la libreria
+  assert.ok(s.includes('document.body.appendChild(this.pannello)'));
 });

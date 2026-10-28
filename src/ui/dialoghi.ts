@@ -198,7 +198,7 @@ export function finestraInfo() {
     h('div', { class: 'info-logo' }, h('span', { class: 'marchio-grande' }, 'Da', h('b', null, 'Prod'), ' Video')),
     h('p', null, `Versione ${VERSIONE} · ${edizione}`),
     h('p', null, 'Il montaggio vecchio stile, moderno dentro: due monitor, la centralina, i VU a lancetta, le tendine SMPTE e la EDL. Sotto il cofano WebCodecs, WebGL2, Web Audio e Mediabunny; l\'app è Tauri 2 (Rust).'),
-    h('p', { class: 'nota' }, 'Open source, licenza MIT. Font DSEG (OFL), Orbitron e Rajdhani (OFL). Mediabunny (MPL-2.0). DeepFilterNet (MIT/Apache-2.0), Demucs, LiteRT.js (Apache-2.0).'),
+    h('p', { class: 'nota' }, 'Open source, licenza MIT. Font DSEG (OFL), Orbitron e Rajdhani (OFL). Mediabunny (MPL-2.0). DeepFilterNet (MIT/Apache-2.0), MossFormer2 di ClearerVoice-Studio (Apache-2.0), Demucs, LiteRT.js (Apache-2.0).'),
     // la licenza di Clear chiede la scritta e il collegamento in un posto che si trova
     h('p', { class: 'nota info-crediti' }, 'Togli rumori "Podcast": Clear, ', h('a', { href: 'https://desertant.com', on: { click: (e: MouseEvent) => { e.preventDefault(); apriLink('https://desertant.com'); } } }, 'Powered by Desert Ant Labs'), ' (Desert Ant Labs Source-Available License 1.0).'));
   d.piede.append(

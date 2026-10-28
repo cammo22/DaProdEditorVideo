@@ -2,6 +2,7 @@
 // Qui sta quello che si vede e si preme: la sezione "Pulisci e separa" nelle Proprietà (per le clip audio e per le riprese con
 // l'audio), i due comandi (Ctrl+K, menu Modifica, tasto destro sulla clip). Il lavoro vero è in src/media/audioAI.ts.
 import { confermaAvvioAI } from './aiPassi';
+import { MODELLO_RUMORE } from '../media/modelliAudio';
 import { store } from '../core/store';
 import type { Clip } from '../core/tipi';
 import { registra as reg } from '../azioni';
@@ -15,12 +16,9 @@ export const separazioneRapida = () => { try { return localStorage.getItem(RAPID
 const impostaRapida = (v: boolean) => { try { if (v) localStorage.setItem(RAPIDO, 'si'); else localStorage.removeItem(RAPIDO); } catch { /* niente */ } };
 
 const FORZE: [Forza, string, string][] = [
-  ['leggera', 'Leggera', 'Toglie il fruscio e lascia molto del suono di prima (DeepFilterNet)'],
-  ['media', 'Media', 'Va bene quasi sempre: voce pulita, rumore molto più basso (DeepFilterNet)'],
-  ['forte', 'Forte', 'Tutto il rumore che il modello sente va via (può togliere un po\' di naturalezza)'],
-  ['isolata', 'Voce isolata', 'Prima un modello AI tiene solo la voce (via musica, TV, gente), poi toglie il rumore. La prima volta scarica il modello (~172 MB), è più lento'],
-  ['podcast', 'Podcast', 'Voce da studio: rumore ed eco via, voce calda e presente, volume da podcast (−19 LUFS). Clear di Desert Ant Labs, la prima volta scarica ~49 MB'],
-  ['naturale', 'Podcast naturale', 'Come Podcast ma più morbido: resta un po\' del suono della stanza, il respiro, la naturalezza'],
+  ['pulita', 'Voce pulita', 'Toglie fruscio, ventole, strada e riverbero e lascia la voce chiara (MossFormer2 di ClearerVoice, la prima volta scarica ~94 MB)'],
+  ['delicata', 'Naturale', 'Come Voce pulita ma tiene un po\' del suono della stanza: più morbida, meno “da studio”'],
+  ['isolata', 'Voce isolata', 'Prima un modello AI tiene solo la voce (via musica, TV, gente), poi la pulisce. La prima volta scarica ~172 MB in più, ed è più lento'],
 ];
 
 /** quando una lavorazione sbaglia lo dice (le frasi sono già in italiano); "fermato" = l'hai fermata tu */
@@ -30,10 +28,15 @@ function dopoErrore(e: unknown) {
   avviso(msg, 'errore', 7000);
 }
 
-export async function faiTogliRumore(clipId: string, forza: Forza = 'media') {
+export async function faiTogliRumore(clipId: string, forza: Forza = 'pulita') {
   try {
-    const speciale = ['isolata', 'podcast', 'naturale'].includes(forza);
-    if (!(await confermaAvvioAI({ compito: 'Togli i rumori · ' + forza, clip: clipId, modello: forza === 'isolata' ? 'Demucs + DeepFilterNet' : speciale ? 'Clear' : 'DeepFilterNet', mb: forza === 'isolata' ? 172 : speciale ? 49 : undefined, locale: !speciale }))) return;
+    const isolata = forza === 'isolata';
+    const nuovo = ['pulita', 'delicata', 'isolata'].includes(forza);
+    if (!(await confermaAvvioAI({
+      compito: 'Togli i rumori · ' + (FORZE.find((f) => f[0] === forza)?.[1] ?? forza), clip: clipId,
+      modello: isolata ? 'Demucs + MossFormer2' : nuovo ? 'MossFormer2' : 'DeepFilterNet',
+      ...(nuovo ? { repo: MODELLO_RUMORE.repo, mb: isolata ? 172 + 94 : 94 } : {}), locale: !nuovo,
+    }))) return;
     await togliRumore(clipId, forza);
     avviso('🎙 Rumori tolti: se non ti piace, "Audio originale" rimette com\'era (o Ctrl+Z)', 'ok', 4200);
   } catch (e) { dopoErrore(e); }
@@ -136,7 +139,7 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
   if (!poss.rumore) righe.push(h('p', { class: 'nota avviso-rosso' }, poss.perche ?? 'Su questa clip non si può'));
   righe.push(
     scheda('rumore', '🎙', 'Togli i rumori', 'Una voce con fruscio, ventola o rumore di fondo: il rumore va via e la voce resta.',
-      FORZE.map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'media'))),
+      FORZE.map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'pulita'))),
     scheda('separa', '🎤', 'Separa voce e musica', 'Da una canzone: la voce da una parte e la base (lo strumentale) dall\'altra, su due tracce nuove.',
       [
         bottone('separa', 'separa:entrambe', 'Voce e base', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),

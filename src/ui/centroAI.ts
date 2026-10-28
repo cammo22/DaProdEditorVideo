@@ -11,7 +11,7 @@ import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
 import { MODELLI_TRADUZIONE } from '../media/traduci';
-import { MODELLO_SEPARAZIONE, installaSeparazione, possibilita, statoAudioAI, togliSeparazione } from '../media/audioAI';
+import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, possibilita, statoAudioAI, togliModelloRumore, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, statoNvidia, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
 import { LS_CHIAVE_HF, chiaveHFSalvata, impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
@@ -86,11 +86,15 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   },
   {
     id: 'rumore', nome: 'Togli i rumori', icona: '🎙', dove: 'tutto',
-    cosaFa: 'Toglie il rumore di fondo da un parlato (ventola, fruscio, strada) e lascia la voce. È DeepFilterNet3, un\'AI fatta per la voce: lavora sul computer, senza scaricare niente.',
-    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli: Leggera, Media o Forte, Voce isolata (musica o TV sotto), Podcast o Podcast naturale (voce da studio, anche senza eco)', 'Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
+    cosaFa: 'Toglie il rumore di fondo da un parlato (ventola, fruscio, strada, riverbero) e lascia la voce chiara. È MossFormer2 di ClearerVoice (Alibaba), un\'AI fatta per la voce: lavora sul computer.',
+    come: ['Scegli la clip audio (o la ripresa con l\'audio)', 'Proprietà → Audio AI → Togli i rumori, e scegli: Voce pulita, Naturale (tiene un po\' di stanza) o Voce isolata (via musica o TV sotto)', 'La prima volta si scarica il modello (94 MB). Aspetta la barra in basso a destra: Ctrl+Z torna com\'era, "Audio originale" rimette il file di prima'],
+    modelli: [{ repo: MODELLO_RUMORE.repo, nome: MODELLO_RUMORE.nome, mb: Math.round(MODELLO_RUMORE.peso / 1048576) }],
     manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
     apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
+    installa: () => installaRumore(),
+    togli: () => togliModelloRumore(),
   },
+
   {
     id: 'separa', nome: 'Voce e base', icona: '🎤', dove: 'tutto',
     cosaFa: 'Divide una canzone in voce (il cantato) e base (la musica), su due tracce nuove, così puoi abbassare la voce, fare un karaoke o tenere solo il cantato. Usa Demucs, un\'AI per la musica.',
@@ -189,7 +193,7 @@ export function finestraCentroAI(subito = false) {
     const s = await statoAudioAI();
     const r = stati.get('rumore'), v = stati.get('separa');
     const nome = (k: string) => (k === 'in-uso' ? ' · sta lavorando adesso' : k === 'errore' ? ' · l\'ultima volta non è riuscito' : '');
-    if (r) r.replaceChildren(h('span', { class: s.rumore.stato === 'pronto' || s.rumore.stato === 'in-uso' ? 'ai-ok' : '' }, (s.rumore.stato === 'da-scaricare' ? '⬇ il filtro (DeepFilterNet3, ' : '✓ pronto: il filtro (DeepFilterNet3, ') + s.rumore.peso + ')' + nome(s.rumore.stato)));
+    if (r) r.replaceChildren(h('span', { class: s.rumore.stato === 'pronto' || s.rumore.stato === 'in-uso' ? 'ai-ok' : '' }, (s.rumore.stato === 'da-scaricare' ? '⬇ il filtro (MossFormer2, ' : '✓ pronto: il filtro (MossFormer2, ') + s.rumore.peso + ')' + nome(s.rumore.stato)));
     if (v) {
       const pronto = s.separa.stato === 'pronto' || (s.separa.stato === 'in-uso' && !s.separa.ripiego);
       v.replaceChildren(h('span', { class: pronto ? 'ai-ok' : '' }, pronto ? `✓ sul computer: ${MODELLO_SEPARAZIONE.nome} (${s.separa.peso})` : `⬇ il modello (${s.separa.peso}) si scarica la prima volta`),
@@ -235,7 +239,7 @@ export function finestraCentroAI(subito = false) {
     const s = await statoAudioAI().catch(() => null);
     elencoModelli.replaceChildren(...FUNZIONI_AI.filter((f) => f.modelli?.length).map((f) => {
       const ci = f.modelli!.filter((x) => m.has(x.repo));
-      const ok = ci.length > 0 || (f.id === 'separa' && s?.separa.stato === 'pronto');
+      const ok = ci.length > 0 || (f.id === 'separa' && s?.separa.stato === 'pronto') || (f.id === 'rumore' && s?.rumore.stato === 'pronto');
       return h('div', { class: 'ai-mod ' + (ok ? 'ok' : 'forse') }, h('span', { class: 'ai-diag-seg' }, ok ? '✓' : '⬇'), h('b', null, f.nome),
         h('span', null, ok ? `sul computer${ci.length ? ': ' + ci.map((x) => x.nome).join(', ') : ''}` : 'si scarica da solo la prima volta che serve'));
     }));
@@ -254,6 +258,10 @@ export function finestraCentroAI(subito = false) {
       }
       disegnaDiagnosi(esito, g);
       const s = await statoAudioAI().catch(() => null);
+      if (s && s.rumore.stato === 'da-scaricare' && g.internet) {
+        progressoRipara.textContent = 'Scarico il modello per togliere i rumori…';
+        await installaRumore((c, t) => { progressoRipara.textContent = `Scarico il modello per togliere i rumori… ${t ? Math.round((c / t) * 100) : 0}%`; });
+      }
       if (s && s.separa.stato === 'da-scaricare' && g.internet) {
         progressoRipara.textContent = 'Scarico il modello per separare voce e base…';
         await installaSeparazione((c, t) => { progressoRipara.textContent = `Scarico il modello per separare voce e base… ${t ? Math.round((c / t) * 100) : 0}%`; });

@@ -296,7 +296,7 @@ export class Ispettore {
     const barre = (profilo: number[]) => h('span', { class: 'aud-prev' }, ...profilo.map((v, i) => h('i', { style: `height:${v}%;animation-delay:${i * 60}ms` })));
     const uniforme = [30, 55, 70, 45, 80, 60, 35, 75, 50, 65, 40, 55];
     const voci: { nome: string; info: string; profilo: number[]; ai?: boolean; clic: () => void; acceso?: () => boolean }[] = [
-      { nome: 'Voce pulita', ai: true, info: 'AI: toglie fruscio, ventole e rumori di fondo e lascia la voce (DeepFilterNet)', profilo: [40, 45, 42, 46, 44, 45, 43, 46, 44, 45, 42, 44], clic: () => void faiTogliRumore(id0(), 'media') },
+      { nome: 'Voce pulita', ai: true, info: 'AI: toglie fruscio, ventole e rumori di fondo e lascia la voce (MossFormer2)', profilo: [40, 45, 42, 46, 44, 45, 43, 46, 44, 45, 42, 44], clic: () => void faiTogliRumore(id0(), 'pulita') },
       { nome: 'Voce isolata', ai: true, info: 'AI: tiene solo la voce (via musica, TV, gente) e poi toglie il rumore', profilo: [10, 20, 80, 90, 30, 15, 85, 95, 40, 10, 70, 60], clic: () => void faiTogliRumore(id0(), 'isolata') },
       ...EFFETTI_AUDIO.filter((e) => adatte(e, audio).length && !['fadeIn', 'fadeOut', 'incrocio', 'dissolviAudio'].includes(e.id)).map((e) => ({
         nome: e.nome, info: e.info,

@@ -27,6 +27,15 @@ export const MODELLO_SEPARAZIONE: ModelloAudio = {
   minimo: 100 * 1048576,
 };
 
+/** MossFormer2_SE_48K (ClearerVoice-Studio, Apache-2.0) quantizzato a 8 bit, finestra fissa di 4 s: il filtro del rumore (src/core/mossformer.ts) */
+export const MODELLO_RUMORE: ModelloAudio = {
+  url: 'https://huggingface.co/ipsilondev/MossFormer2-SE-48K-ONNX/resolve/main/model.onnx',
+  repo: 'ipsilondev/MossFormer2-SE-48K-ONNX',
+  nome: 'MossFormer2 (ClearerVoice)',
+  peso: 94268636,
+  minimo: 80 * 1048576,
+};
+
 /** il nome della cache: quella di transformers.js (vedi diagnosiAI.ts) */
 export const CACHE_MODELLI = 'transformers-cache';
 

@@ -165,6 +165,10 @@ async function aBlob(c: HTMLCanvasElement | OffscreenCanvas): Promise<Blob | nul
   } catch { return null; }
 }
 
+/** locandina, colore e forma d'onda ripartono da soli all'import (leggeri); le prove del motore minimo li spengono */
+let preparazioneAutomatica = true;
+export const impostaPreparazioneAutomatica = (on: boolean) => { preparazioneAutomatica = on; };
+
 /**
  * All'import e alla riapertura: si usa SOLO quello che c'è già (memoria delle misure, copia leggera sul disco o tornata
  * da un .dap). Niente decodifica, niente code, niente righe nel Centro attività. Vale anche con le preferenze vecchie
@@ -191,7 +195,7 @@ async function leggiPreparato(item: MediaItem, r: MediaRT) {
     avvisaPrep(r.id);
     // le cose leggere (locandina, colore, forma d'onda) partono da sole, a turno nella corsia leggera: si vedono nel Centro attività.
     // La copia leggera e il controllo della velocità restano a richiesta (pulsanti nel Centro attività).
-    if (rt.get(r.id) === r) for (const cosa of ['locandina', 'colore', 'picchi'] as const) proponiPreparazione(item, cosa, { avvia: true });
+    if (preparazioneAutomatica && rt.get(r.id) === r) for (const cosa of ['locandina', 'colore', 'picchi'] as const) proponiPreparazione(item, cosa, { avvia: true });
   })();
 }
 

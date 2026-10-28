@@ -44,6 +44,7 @@ await build({
         progetto: path.join(radice, 'src/core/progetto.ts'),
         progetti: path.join(radice, 'src/progetti.ts'),
         store: path.join(radice, 'src/core/store.ts'),
+        mossformer: path.join(radice, 'src/core/mossformer.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

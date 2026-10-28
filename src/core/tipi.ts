@@ -215,7 +215,7 @@ export interface AudioFx {
 }
 
 /** quanto togliere del rumore: leggera tiene un po' d'ambiente, forte toglie tutto quello che l'AI toglie */
-export type ForzaRumore = 'leggera' | 'media' | 'forte' | 'isolata' | 'podcast' | 'naturale';
+export type ForzaRumore = 'pulita' | 'delicata' | 'isolata' | 'leggera' | 'media' | 'forte' | 'podcast' | 'naturale';
 
 export interface Transform {
   /** spostamento in pixel del progetto, dal centro */

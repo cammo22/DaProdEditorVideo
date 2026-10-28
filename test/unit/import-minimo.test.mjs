@@ -13,6 +13,7 @@ const memoria = memoriaFinta({ 'dpv-proxy': 'sempre', 'dpv-normalizza': 'si' });
 const disco = discoFinto();
 const AT = await carica('attivita');
 const L = await carica('libreria');
+L.impostaPreparazioneAutomatica(false); // questo file prova l'import minimo: la preparazione automatica (1.6.0) ha le sue prove
 const PX = await carica('proxy');
 const video = videoDiProva();
 
