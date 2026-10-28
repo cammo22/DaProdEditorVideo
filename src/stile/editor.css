@@ -57,7 +57,7 @@ button svg { pointer-events: none; }
   height: 100%;
   display: grid;
   grid-template-columns: var(--bin) 6px minmax(0, 1fr) 6px var(--lato);
-  grid-template-rows: 44px var(--alto) auto 7px minmax(0, 1fr) 22px;
+  grid-template-rows: 44px minmax(160px, min(var(--alto), calc(100vh - 340px))) auto 7px minmax(120px, 1fr) 22px;
   grid-template-areas:
     'testa testa testa testa testa'
     'bin bbin monitor blato lato'

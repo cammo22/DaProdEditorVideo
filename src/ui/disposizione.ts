@@ -24,7 +24,8 @@ export class Disposizione {
       const b = JSON.parse(localStorage.getItem(CHIAVE) ?? 'null') as { o: Record<string, string>; cls: string[] } | null;
       if (!b) return;
       for (const [k, v] of Object.entries(b.o)) this.radice.style.setProperty(k, v);
-      for (const c of b.cls) this.radice.classList.add(c);
+      // la pulsantiera (tasti, ripple, calamita) non si ricorda chiusa: una scelta fatta per sbaglio la faceva sparire per sempre
+      for (const c of b.cls) if (c !== 'senza-puls') this.radice.classList.add(c);
     } catch { /* niente */ }
   }
 

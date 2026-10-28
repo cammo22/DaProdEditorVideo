@@ -4,6 +4,10 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.4] — 2026-10-28 · La barra dei tasti sopra la timeline non si perde più
+
+- **Pulsantiera sempre al suo posto** (taglia, elimina, ripple, calamita, trasparenza, foto, zoom): se il banco ricordava «Pulsantiera spenta» da Vista, o un divisore trascinato troppo in giù, la barra spariva o restava mezza fuori e la timeline si schiacciava. Adesso la pulsantiera **non si ricorda più chiusa** (si riapre sempre all'avvio) e il monitor non può più mangiare lo spazio della barra e della timeline: restano sempre in vista, anche con la finestra bassa.
+
 ## [1.6.3] — 2026-10-28 · Il Centro AI è l'elenco dei modelli, e lo sfondo AI si fa dal pannello
 
 - **Centro AI = hub dei modelli**: via «Cosa vuoi fare», le schede delle funzioni e «Clip esplicita». C'è l'elenco dei modelli (sfondo e segui, sottotitoli, traduzione, rumori, voce e base) con lo stato di ognuno, **Scarica / Completa / Ricontrolla** e **Togli**, più «Controlla e ripara tutto», la diagnosi, la scheda video, la chiave Hugging Face e lo spazio occupato.

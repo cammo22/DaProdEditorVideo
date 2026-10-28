@@ -454,9 +454,10 @@ async function proveSfondo({ page, prova, OUT }) {
     const haMascheraPersona = !!MK.maschereDi(dopoPersona.firma);
     const barPersona = [...document.querySelectorAll('.pos-modi button')].map((b) => ({ t: b.textContent, acceso: b.classList.contains('acceso') }));
     document.querySelector('.pos-modi button[data-modo=oggetto]')?.click();
-    await new Promise((r) => setTimeout(r, 900));
-    const dopoOggetto = JSON.parse(JSON.stringify(window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio));
-    const selezione = await new Promise((ok) => { const t = performance.now(); const g = () => { if (MK.maschereDi(dopoOggetto.firma) || performance.now() - t > 6000) ok(!!MK.maschereDi(dopoOggetto.firma)); else setTimeout(g, 50); }; g(); });
+    // tornando a «Oggetto» la firma si rifà quando il modello finto ha risposto: si aspetta la firma nuova (e la sua maschera), non una foto a tempo
+    const viva = () => window.__dpv.doc.clips.find((x) => x.name === 'Pallina').ritaglio;
+    const selezione = await new Promise((ok) => { const t = performance.now(); const g = () => { const r = viva(); if ((r.firma && !r.persona && MK.maschereDi(r.firma)) || performance.now() - t > 12000) ok(!!r.firma && !r.persona && !!MK.maschereDi(r.firma)); else setTimeout(g, 50); }; g(); });
+    const dopoOggetto = JSON.parse(JSON.stringify(viva()));
     return { bar, okAcceso, persona: dopoPersona.persona, firmaCambia: dopoPersona.firma !== firmaOggetto, punti: dopoPersona.punti.length, haMascheraPersona, barPersona, tornaOggetto: !dopoOggetto.persona, modello: dopoOggetto.modello, selezione };
   }));
   await page.screenshot({ path: path.join(OUT, 'sfondo-selezione.png') });
