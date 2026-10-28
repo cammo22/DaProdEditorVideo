@@ -27,6 +27,14 @@ export const MF = {
   SCALA: 32768,
 } as const;
 
+/**
+ * La finestra su cui lavora il modello. Il modello a 8 bit del processore ne vuole una da 4 s; quello a precisione piena che gira
+ * sulla scheda video è fatto per 15 s (1871 fotogrammi), con 1 s buttato per lato quando le finestre si cuciono.
+ */
+export interface Finestra { FINESTRA: number; T: number; PASSO: number; SCARTO: number }
+export const FIN4: Finestra = { FINESTRA: MF.FINESTRA, T: MF.T, PASSO: MF.PASSO, SCARTO: MF.SCARTO };
+export const FIN15: Finestra = { FINESTRA: 720000, T: 1871, PASSO: 624000, SCARTO: 48000 };
+
 /** dalla maschera: tutte le frequenze di tutti i fotogrammi (T×961), dato il fbank (T×180) */
 export type EseguiMaschera = (feat: Float32Array) => Promise<Float32Array>;
 
@@ -218,16 +226,32 @@ export function sintesi(re: Float32Array, im: Float32Array, T: number, lunghezza
 }
 
 /** un pezzo di esattamente FINESTRA campioni (audio vero, tra -1 e 1) → lo stesso pezzo con la maschera applicata */
-export async function pulisciFinestra(x: Float32Array, esegui: EseguiMaschera): Promise<Float32Array> {
-  const s = new Float64Array(MF.FINESTRA);
-  for (let i = 0; i < x.length && i < MF.FINESTRA; i++) s[i] = x[i] * MF.SCALA;
+export async function pulisciFinestra(x: Float32Array, esegui: EseguiMaschera, fin: Finestra = FIN4): Promise<Float32Array> {
+  const s = new Float64Array(fin.FINESTRA);
+  for (let i = 0; i < x.length && i < fin.FINESTRA; i++) s[i] = x[i] * MF.SCALA;
   const maschera = await esegui(caratteristiche(s));
   const { re, im, T } = analisi(s);
   if (maschera.length < T * MF.BINS) throw new Error('il modello ha risposto con una maschera troppo corta: non è il modello giusto');
   for (let k = 0; k < T * MF.BINS; k++) { re[k] *= maschera[k]; im[k] *= maschera[k]; }
-  const y = sintesi(re, im, T, MF.FINESTRA);
+  const y = sintesi(re, im, T, fin.FINESTRA);
   for (let i = 0; i < y.length; i++) y[i] /= MF.SCALA;
   return y;
+}
+
+/**
+ * L'ultima finestra non è piena: quello che manca si riempie con l'audio stesso, andata e ritorno (riflesso). Con gli zeri, cioè col
+ * silenzio digitale, il modello sbaglia la maschera di TUTTA la finestra (misurato: la somiglianza con la maschera giusta crolla da 0,998
+ * a 0,19), e il parlato prima del silenzio veniva rovinato. Quello che sta oltre il vero audio si butta comunque.
+ */
+export function completaConRiflesso(x: Float32Array, validi: number): Float32Array {
+  const n = x.length;
+  if (validi >= n || validi < 2) return x;
+  const giro = 2 * (validi - 1);
+  for (let i = validi; i < n; i++) {
+    const p = i % giro;
+    x[i] = x[p < validi ? p : giro - p];
+  }
+  return x;
 }
 
 const rms = (x: Float32Array) => { let s = 0; for (let i = 0; i < x.length; i++) s += x[i] * x[i]; return Math.sqrt(s / Math.max(1, x.length)); };
@@ -237,7 +261,7 @@ const rms = (x: Float32Array) => { let s = 0; for (let i = 0; i < x.length; i++)
  * l'ingresso (il modello non ha ritardo: ogni finestra si ricuce a quella prima senza spostare niente).
  */
 export class PulitoreMossFormer {
-  private buf = new Float32Array(MF.FINESTRA * 2);
+  private buf: Float32Array;
   /** indice globale del primo campione di `buf` */
   private base = 0;
   private entrati = 0;
@@ -249,7 +273,9 @@ export class PulitoreMossFormer {
    * @param mescola 1 = tutto pulito, meno = si tiene un po' dell'originale
    * @param silenzio sotto questo livello (rms, tra 0 e 1) la finestra non passa dal modello: esce com'è (silenzio, o lati di un parlato mono)
    */
-  constructor(private esegui: EseguiMaschera, private mescola = 1, private silenzio = 1e-5) {}
+  constructor(private esegui: EseguiMaschera, private mescola = 1, private silenzio = 1e-5, private fin: Finestra = FIN4) {
+    this.buf = new Float32Array(fin.FINESTRA * 2);
+  }
 
   private fetta(da: number, a: number): Float32Array {
     const out = new Float32Array(Math.max(0, a - da));
@@ -260,9 +286,9 @@ export class PulitoreMossFormer {
   private dentro() { return Math.min(this.buf.length, this.entrati - this.base); }
 
   private async finestra(s: number): Promise<Float32Array> {
-    const dentro = this.fetta(s, s + MF.FINESTRA);
+    const dentro = this.fetta(s, s + this.fin.FINESTRA);
     if (rms(dentro) < this.silenzio) return dentro;
-    return pulisciFinestra(dentro, this.esegui);
+    return pulisciFinestra(completaConRiflesso(dentro, Math.max(0, Math.min(this.fin.FINESTRA, this.entrati - s))), this.esegui, this.fin);
   }
 
   private mescolaCon(pulito: Float32Array, secco: Float32Array): Float32Array {
@@ -274,16 +300,16 @@ export class PulitoreMossFormer {
 
   /** butta quello che non serve più davanti al buffer */
   private pota() {
-    const serve = Math.max(0, this.emesso - MF.SCARTO - 1);
+    const serve = Math.max(0, this.emesso - this.fin.SCARTO - 1);
     const daTogliere = Math.min(serve, this.entrati) - this.base;
-    if (daTogliere < MF.FINESTRA) return;
+    if (daTogliere < this.fin.FINESTRA) return;
     this.buf.copyWithin(0, daTogliere, this.entrati - this.base);
     this.base += daTogliere;
   }
 
   async push(x: Float32Array): Promise<Float32Array> {
     if (this.entrati - this.base + x.length > this.buf.length) {
-      const nuovo = new Float32Array(Math.max(this.buf.length * 2, this.entrati - this.base + x.length + MF.FINESTRA));
+      const nuovo = new Float32Array(Math.max(this.buf.length * 2, this.entrati - this.base + x.length + this.fin.FINESTRA));
       nuovo.set(this.buf.subarray(0, this.entrati - this.base));
       this.buf = nuovo;
     }
@@ -291,10 +317,10 @@ export class PulitoreMossFormer {
     this.entrati += x.length;
     const pezzi: Float32Array[] = [];
     for (;;) {
-      const s = this.nFinestre * MF.PASSO;
-      if (this.entrati < s + MF.FINESTRA) break;
+      const s = this.nFinestre * this.fin.PASSO;
+      if (this.entrati < s + this.fin.FINESTRA) break;
       const y = await this.finestra(s);
-      const da = this.nFinestre === 0 ? 0 : MF.SCARTO, a = MF.FINESTRA - MF.SCARTO;
+      const da = this.nFinestre === 0 ? 0 : this.fin.SCARTO, a = this.fin.FINESTRA - this.fin.SCARTO;
       pezzi.push(this.mescolaCon(y.slice(da, a), this.fetta(s + da, s + a)));
       this.emesso = s + a;
       this.nFinestre++;
@@ -306,7 +332,7 @@ export class PulitoreMossFormer {
   /** gli ultimi campioni: l'ultima finestra si completa con silenzio */
   async fine(): Promise<Float32Array> {
     if (this.emesso >= this.entrati) return new Float32Array(0);
-    const s = this.nFinestre === 0 ? 0 : this.emesso - MF.SCARTO;
+    const s = this.nFinestre === 0 ? 0 : this.emesso - this.fin.SCARTO;
     const y = await this.finestra(s);
     const da = this.emesso - s;
     const fuori = this.mescolaCon(y.slice(da, this.entrati - s), this.fetta(this.emesso, this.entrati));
@@ -331,9 +357,9 @@ function unisci(pezzi: Float32Array[]): Float32Array {
 export class PulitoreMossFormerStereo {
   private c: PulitoreMossFormer;
   private s: PulitoreMossFormer;
-  constructor(esegui: EseguiMaschera, mescola = 1) {
-    this.c = new PulitoreMossFormer(esegui, mescola);
-    this.s = new PulitoreMossFormer(esegui, mescola, 2e-3);
+  constructor(esegui: EseguiMaschera, mescola = 1, fin: Finestra = FIN4) {
+    this.c = new PulitoreMossFormer(esegui, mescola, 1e-5, fin);
+    this.s = new PulitoreMossFormer(esegui, mescola, 2e-3, fin);
   }
   private unisci(c: Float32Array, s: Float32Array): [Float32Array, Float32Array] {
     const n = Math.min(c.length, s.length);

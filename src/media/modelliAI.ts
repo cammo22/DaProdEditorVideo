@@ -7,7 +7,7 @@
 import { MODELLI, caricaModelloVoce } from './voce';
 import { MODELLI_RITAGLIO, caricaModelloRitaglio } from './ritaglio';
 import { MODELLI_TRADUZIONE, caricaTraduttore } from './traduci';
-import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, togliModelloRumore, togliSeparazione } from './audioAI';
+import { MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, modelloRumoreScelto, togliModelloRumore, togliSeparazione } from './audioAI';
 import { modelloInCache } from './modelliAudio';
 import { modelliScaricati, togliRepoModello } from './diagnosiAI';
 import { dimenticaModello, modelliPronti, segnaModelloPronto } from './modelliPronti';
@@ -74,9 +74,10 @@ export function modelliHub(): ModelloHub[] {
     },
     async togli() { for (const r of MODELLI_TRADUZIONE) await togliRepoModello(r); dimentica('nllb'); },
   });
+  const rumore = modelloRumoreScelto();
   out.push({
-    id: 'rumore', gruppo: 'Audio', nome: 'MossFormer2 · togli i rumori', info: 'il filtro per le voci (ClearerVoice)', mb: Math.round(MODELLO_RUMORE.peso / 1048576), consigliato: true, repos: [MODELLO_RUMORE.repo], file: MODELLO_RUMORE.url,
-    async scarica(avanza) { await installaRumore((a, t) => avanza(`${(a / 1048576).toFixed(0)} di ${((t || MODELLO_RUMORE.peso) / 1048576).toFixed(0)} MB`, t ? a / t : 0)); },
+    id: 'rumore', gruppo: 'Audio', nome: 'MossFormer2 · togli i rumori', info: 'il filtro per le voci (ClearerVoice): sulla scheda video pulisce 15 s in meno di un secondo', mb: Math.round(rumore.peso / 1048576), consigliato: true, repos: [rumore.repo], file: rumore.url,
+    async scarica(avanza) { await installaRumore((a, t) => avanza(`${(a / 1048576).toFixed(0)} di ${((t || rumore.peso) / 1048576).toFixed(0)} MB`, t ? a / t : 0)); },
     async togli() { await togliModelloRumore(); },
   });
   out.push({

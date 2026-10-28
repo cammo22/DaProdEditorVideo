@@ -36,6 +36,18 @@ export const MODELLO_RUMORE: ModelloAudio = {
   minimo: 80 * 1048576,
 };
 
+/**
+ * Lo stesso MossFormer2_SE_48K a precisione piena (227 MB, finestra fissa di 15 s) per la scheda video: sul processore è lento (a 8 bit,
+ * circa un secondo di audio per secondo), sulla scheda video (WebGPU) pulisce 15 s in 0,15 s. Esportato da `mhavo/mossformer2-se-48k-onnx`.
+ */
+export const MODELLO_RUMORE_GPU: ModelloAudio = {
+  url: 'https://huggingface.co/mhavo/mossformer2-se-48k-onnx/resolve/main/mossformer2_se_48k.onnx',
+  repo: 'mhavo/mossformer2-se-48k-onnx',
+  nome: 'MossFormer2 (ClearerVoice, scheda video)',
+  peso: 227418161,
+  minimo: 200 * 1048576,
+};
+
 /** il nome della cache: quella di transformers.js (vedi diagnosiAI.ts) */
 export const CACHE_MODELLI = 'transformers-cache';
 

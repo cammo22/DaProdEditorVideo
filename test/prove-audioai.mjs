@@ -404,7 +404,7 @@ async function seconda(paginaDi, page, prova, errori) {
     prova('niente NaN, niente valori fuori scala, WAV a 16 bit', rum.wav.finito && rum.wav.picco <= 1 && rum.wav.bit === 16 && rum.wav.sr === 48000, JSON.stringify(rum.wav));
     prova('annulla riporta file e punto di prima (e il media nuovo sparisce), ripeti rimette il pulito', rum.annulla.media && rum.annulla.srcIn && rum.annulla.mediaN === rum.prima.mediaN && !rum.annulla.pulito && rum.ripeti.mediaCambiato && rum.ripeti.pulito && Math.abs(rum.ripeti.srcIn - 1) < 1e-9, JSON.stringify([rum.annulla, rum.ripeti]));
     prova('tornaOriginale: file e punto di prima, niente più "originale a cui tornare"; si annulla anche lui', rum.torna.media && rum.torna.srcIn && !rum.torna.ancora && !rum.torna.pulito, JSON.stringify(rum.torna));
-    prova('statoAudioAI: i modelli del rumore (MossFormer2) e della separazione sono da scaricare', rum.stato.rumore.stato === 'da-scaricare' && /9\d MB/.test(rum.stato.rumore.peso) && rum.stato.separa.stato === 'da-scaricare' && /172 MB/.test(rum.stato.separa.peso), JSON.stringify(rum.stato));
+    prova('statoAudioAI: i modelli del rumore (MossFormer2) e della separazione sono da scaricare', rum.stato.rumore.stato === 'da-scaricare' && /(9\d|217) MB/.test(rum.stato.rumore.peso) && rum.stato.separa.stato === 'da-scaricare' && /172 MB/.test(rum.stato.separa.peso), JSON.stringify(rum.stato));
   } catch (e) {
     prova('le prove del rumore non si sono fermate', false, String(e && e.stack || e));
   }
@@ -927,7 +927,7 @@ async function settima(paginaDi, page, prova, errori) {
       nome: [document.querySelector('.hub-riga[data-m="rumore"] b')?.textContent, document.querySelector('.hub-riga[data-m="separa"] b')?.textContent],
       bottoni: [...document.querySelectorAll('.hub-riga[data-m="separa"] button')].map((b) => b.textContent),
     }));
-    prova('il Centro AI elenca i due modelli dell\audio (MossFormer2 e Demucs): da scaricare, col peso e con Scarica e Togli', ca.statoRumore === 'da-scaricare' && ca.statoSepara === 'da-scaricare' && /MossFormer2/.test(ca.nome[0]) && /Demucs/.test(ca.nome[1]) && /9\d MB/.test(ca.rumore) && /172 MB/.test(ca.separa) && ca.bottoni.join() === 'Scarica,Togli', JSON.stringify(ca));
+    prova('il Centro AI elenca i due modelli dell\audio (MossFormer2 e Demucs): da scaricare, col peso e con Scarica e Togli', ca.statoRumore === 'da-scaricare' && ca.statoSepara === 'da-scaricare' && /MossFormer2/.test(ca.nome[0]) && /Demucs/.test(ca.nome[1]) && /(9\d|217) MB/.test(ca.rumore) && /172 MB/.test(ca.separa) && ca.bottoni.join() === 'Scarica,Togli', JSON.stringify(ca));
   } catch (e) {
     prova('le prove di possibilita e del Centro AI non si sono fermate', false, String(e && e.stack || e));
   }

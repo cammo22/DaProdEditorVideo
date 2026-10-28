@@ -12,7 +12,9 @@ export function servi(dir, porta = 0) {
       if (p.endsWith('/')) p += 'index.html';
       const f = path.join(dir, p);
       if (!f.startsWith(dir) || !fs.existsSync(f)) { res.writeHead(404); res.end('no'); return; }
-      res.writeHead(200, { 'content-type': TIPI[path.extname(f)] ?? 'application/octet-stream' });
+      // COI=1: come l'app con le intestazioni che permettono i thread del wasm (SharedArrayBuffer); serve solo alle misure a mano
+      const coi = process.env.COI ? { 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' } : {};
+      res.writeHead(200, { 'content-type': TIPI[path.extname(f)] ?? 'application/octet-stream', ...coi });
       fs.createReadStream(f).pipe(res);
     });
     s.listen(porta, '127.0.0.1', () => ok({ url: `http://127.0.0.1:${s.address().port}`, chiudi: () => s.close() }));

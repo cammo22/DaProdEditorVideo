@@ -75,3 +75,28 @@ test('MossFormer: lo stereo con i due canali uguali esce con i due canali uguali
   let e = 0; for (let i = 0; i < n; i++) e = Math.max(e, Math.abs(a[i] - b[i]));
   assert.ok(e < 1e-6, 'errore ' + e);
 });
+
+test('MossFormer: l\'ultima finestra si completa con l\'audio stesso, andata e ritorno, mai con gli zeri (col silenzio il modello sbaglia tutta la maschera)', () => {
+  const x = Float32Array.from([1, 2, 3, 0, 0, 0, 0, 0]);
+  M.completaConRiflesso(x, 3);
+  assert.deepEqual(Array.from(x), [1, 2, 3, 2, 1, 2, 3, 2]);
+  const piena = Float32Array.from([5, 6, 7]);
+  assert.equal(M.completaConRiflesso(piena, 3), piena, 'una finestra piena non si tocca');
+});
+
+test('MossFormer su scheda video: finestre da 15 s (1871 fotogrammi), cucite senza spostare né perdere campioni, anche con meno di una finestra', async () => {
+  assert.equal(M.FIN15.T, 1871);
+  assert.equal(M.caratteristiche(new Float64Array(M.FIN15.FINESTRA)).length, M.FIN15.T * M.MF.FEAT);
+  assert.equal(M.FIN15.PASSO + 2 * M.FIN15.SCARTO, M.FIN15.FINESTRA);
+  const viste = [];
+  const esegui = async (feat) => { viste.push(feat.length / M.MF.FEAT); return new Float32Array((feat.length / M.MF.FEAT) * M.MF.BINS).fill(1); };
+  for (const n of [48000 * 12, 48000 * 40 + 777]) {
+    viste.length = 0;
+    const x = segnale(n);
+    const y = await flusso(x, 100000, new M.PulitoreMossFormer(esegui, 1, 1e-5, M.FIN15));
+    assert.equal(y.length, x.length);
+    let e = 0; for (let i = 0; i < x.length; i++) e = Math.max(e, Math.abs(x[i] - y[i]));
+    assert.ok(e < 2e-3, 'maschera 1 = lo stesso audio (errore ' + e + ')');
+    assert.ok(viste.every((t) => t === M.FIN15.T), 'il modello riceve sempre 1871 fotogrammi');
+  }
+});

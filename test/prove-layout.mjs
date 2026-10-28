@@ -13,7 +13,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1009 } });
   await page.addInitScript(() => {
     localStorage.setItem('dpv-banco', JSON.stringify({ o: { '--bin': '960px' }, cls: ['lato-lungo'] }));
-    localStorage.setItem('dpv-versione-vista', '1.6.5');
+    localStorage.setItem('dpv-versione-vista', '1.6.6');
   });
   await page.goto(srv.url + '/app/');
   await page.waitForSelector('.bin-albero');

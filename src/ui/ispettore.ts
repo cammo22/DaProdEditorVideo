@@ -469,6 +469,7 @@ export class Ispettore {
           ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
           : null,
         modo === 'oggetti' ? this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video) : null,
+        modo === 'oggetti' ? this.spunta('Precisione massima: SAM 3 su ogni fotogramma (circa 3 volte più lento)', (c) => !!c.ritaglio?.preciso, (c, v) => { if (c.ritaglio) c.ritaglio.preciso = v || undefined; }, video) : null,
         this.spunta('Inverti: tieni lo sfondo', (c) => !!c.ritaglio?.inverti, (c, v) => { if (c.ritaglio) c.ritaglio.inverti = v || undefined; }, video),
         h('p', { class: 'nota' }, `Il modello ${det.nome} si scarica da Hugging Face la prima volta e poi resta nel computer; le immagini non escono mai. Guarda il risultato col tasto SFONDO sopra il monitor.`)));
     }

@@ -2,7 +2,7 @@
 // browser) gira qui, lontano dall'interfaccia. La libreria (transformers.js) sta dentro l'app (src/media/libreriaAI.ts,
 // con la CDN di riserva); il modello si scarica da Hugging Face una volta e resta nella cache del browser/app. L'audio
 // non esce mai dal computer: tutto il lavoro si fa qui.
-import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type Tipo } from './libreriaAI';
+import { caricaConRipieghi, dispositivi, erroreDellaScheda, libreria, nomeTipo, progressoScarico, testoErrore, tipiScheda, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda, type Tipo } from './libreriaAI';
 
 type Pipeline = (audio: Float32Array, opz: Record<string, unknown>) => Promise<{ text: string; chunks?: { timestamp: [number, number | null]; text: string }[] }>;
 
@@ -13,9 +13,13 @@ let base = '';
 const manda = (m: unknown) => (self as unknown as Worker).postMessage(m);
 
 /** i tipi del modello da provare: sulla scheda il codificatore preciso e il decodificatore leggero, sul processore q8 */
-const tipi = (d: Dispositivo): Tipo[] => (d === 'webgpu'
-  ? [{ encoder_model: 'fp32', decoder_model_merged: 'q4' }, 'fp32']
-  : ['q8', 'fp32']);
+const tipi = (d: Dispositivo, repo = ''): Tipo[] => {
+  // large-v3-turbo: i pesi a 4 bit di codificatore e decodificatore (564 MB in tutto, invece di 1,6 GB); sul processore è pesante ma va
+  if (/large-v3-turbo/.test(repo)) return d === 'webgpu' ? (tipiScheda().includes('fp16') ? [{ encoder_model: 'q4f16', decoder_model_merged: 'q4f16' }, { encoder_model: 'fp16', decoder_model_merged: 'q4' }] : [{ encoder_model: 'q4', decoder_model_merged: 'q4' }]) : [{ encoder_model: 'q4', decoder_model_merged: 'q4' }, 'q8'];
+  return d === 'webgpu'
+    ? [{ encoder_model: 'fp32', decoder_model_merged: 'q4' }, 'fp32']
+    : ['q8', 'fp32'];
+};
 
 async function carica(modello: string, conScheda = true) {
   if (asr && caricato === modello && (conScheda || dispositivo === 'wasm')) { manda({ tipo: 'pronto', device: dispositivo }); return; }

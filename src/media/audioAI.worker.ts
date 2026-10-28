@@ -6,7 +6,7 @@
 // memoria non c'è mai più di un pezzo) e riceve quello che esce (messaggio "uscita"). Tutto sul computer di chi monta.
 import { Ricampionatore, lunghezzaUscita } from '../core/ricampiona';
 import { PulitoreMono, PulitoreStereo, type FiltroTrama, SR_DF } from '../core/rumore';
-import { MF, PulitoreMossFormer, PulitoreMossFormerStereo, type EseguiMaschera } from '../core/mossformer';
+import { FIN15, FIN4, MF, PulitoreMossFormer, PulitoreMossFormerStereo, type EseguiMaschera, type Finestra } from '../core/mossformer';
 import { DEMUCS, SeparatoreDemucs, SeparatoreRapido, modelloFinto, type EseguiModello } from '../core/separa';
 import { CDN_DEEPFILTERNET, CDN_ORT, applicaPotenza, applicaThread, dispositivi, erroreDellaScheda, testoErrore, usaImpostazioneScheda, type Dispositivo, type ImpostazioneScheda } from './libreriaAI';
 import { ottieniModello, type ModelloAudio } from './modelliAudio';
@@ -17,6 +17,9 @@ export interface InizioRumore {
   /** il filtro: 'mossformer' (il nuovo, ~94 MB la prima volta) o 'deepfilter' (quello di prima, dentro l'app) */
   motore?: 'deepfilter' | 'mossformer';
   modello?: ModelloAudio;
+  /** il modello a precisione piena per la scheda video (finestra da 15 s): si prova prima, se no si usa `modello` sul processore */
+  modelloGpu?: ModelloAudio;
+  scheda?: boolean; hw?: ImpostazioneScheda;
   /** per le prove: una maschera costante al posto del modello vero */
   finta?: { maschera?: number } | null;
   /** "voce isolata": prima Demucs tiene solo la voce (via musica, TV, rumori), poi il filtro. Come per la separazione */
@@ -71,11 +74,42 @@ async function caricaDeepFilter(base: string): Promise<{ crea: () => Promise<any
 /** quello che dà il filtro del rumore (a 48 kHz, coi canali della clip): audio dentro, audio pulito fuori */
 interface Pulitore48 { push(ch: Float32Array[]): Promise<Float32Array[]>; fine(): Promise<Float32Array[]>; chiudi(): void }
 
-/** MossFormer2: scarica (la prima volta) il modello e lo avvia sul processore (è quantizzato a 8 bit: la scheda video non lo sa fare) */
-async function preparaMossFormer(m: InizioRumore): Promise<{ esegui: EseguiMaschera; chiudi: () => void }> {
+/**
+ * MossFormer2: scarica (la prima volta) il modello e lo avvia. Prima la scheda video con il modello a precisione piena (finestre da 15 s,
+ * circa 100 volte più veloce del processore); se non c'è, o non parte, il processore col modello a 8 bit (finestre da 4 s).
+ */
+async function preparaMossFormer(m: InizioRumore): Promise<{ esegui: EseguiMaschera; chiudi: () => void; fin: Finestra; dove: string }> {
   if (m.finta) {
     const k = m.finta.maschera ?? 0.5;
-    return { esegui: async () => new Float32Array(MF.T * MF.BINS).fill(k), chiudi: () => {} };
+    return { esegui: async () => new Float32Array(MF.T * MF.BINS).fill(k), chiudi: () => {}, fin: FIN4, dove: 'finta' };
+  }
+  if (m.modelloGpu && m.scheda !== false) {
+    try {
+      if (m.hw) usaImpostazioneScheda(m.hw);
+      if ((await dispositivi(true)).includes('webgpu')) {
+        manda({ tipo: 'stato', testo: 'Cerco il modello (scheda video)…' });
+        const bytes = await ottieniModello(m.modelloGpu, {
+          avanza: (a, t) => manda({ tipo: 'stato', testo: `Scarico il modello: ${(a / 1048576).toFixed(0)} di ${((t || m.modelloGpu!.peso) / 1048576).toFixed(0)} MB (una volta sola)`, k: t ? a / t : 0 }),
+        });
+        manda({ tipo: 'stato', testo: 'Avvio il modello sulla scheda video…' });
+        const ort = await caricaOrt(m.base);
+        const sess = await ort.InferenceSession.create(bytes, { executionProviders: ['webgpu'], graphOptimizationLevel: 'all' });
+        const lancia = async (feat: Float32Array) => {
+          const ris = await sess.run({ [sess.inputNames[0]]: new ort.Tensor('float32', feat, [1, FIN15.T, MF.FEAT]) });
+          const t = ris[sess.outputNames[0]];
+          const d = new Float32Array((await t.getData()) as Float32Array);
+          t.dispose?.();
+          return d;
+        };
+        // una prova a vuoto: se la scheda sbaglia (o il modello non è quello giusto) si scopre qui e si ripiega sul processore
+        const prova = await lancia(new Float32Array(FIN15.T * MF.FEAT));
+        if (prova.length < FIN15.T * MF.BINS) throw new Error('il modello ha risposto con una maschera troppo corta');
+        return { esegui: lancia, chiudi: () => { void sess.release?.().catch?.(() => {}); }, fin: FIN15, dove: 'webgpu' };
+      }
+    } catch (e) {
+      if (erroreDellaScheda(e)) manda({ tipo: 'scheda-guasta' });
+      manda({ tipo: 'avviso', msg: `La scheda video non riesce a far girare il filtro (${spiegaErroreAI(e)}): uso il processore, più lento` });
+    }
   }
   manda({ tipo: 'stato', testo: 'Cerco il modello…' });
   const bytes = await ottieniModello(m.modello!, {
@@ -93,15 +127,18 @@ async function preparaMossFormer(m: InizioRumore): Promise<{ esegui: EseguiMasch
       return d;
     },
     chiudi: () => { void sess.release?.().catch?.(() => {}); },
+    fin: FIN4,
+    dove: 'wasm',
   };
 }
 
 async function creaPulitore(m: InizioRumore): Promise<Pulitore48> {
   if (m.motore === 'mossformer') {
     try {
-      const { esegui, chiudi } = await preparaMossFormer(m);
-      const mono = m.canali === 1 ? new PulitoreMossFormer(esegui, m.mescola) : null;
-      const stereo = m.canali === 2 ? new PulitoreMossFormerStereo(esegui, m.mescola) : null;
+      const { esegui, chiudi, fin, dove } = await preparaMossFormer(m);
+      manda({ tipo: 'stato', testo: dove === 'webgpu' ? 'Tolgo i rumori sulla scheda video…' : 'Tolgo i rumori sul processore (più lento)…' });
+      const mono = m.canali === 1 ? new PulitoreMossFormer(esegui, m.mescola, 1e-5, fin) : null;
+      const stereo = m.canali === 2 ? new PulitoreMossFormerStereo(esegui, m.mescola, fin) : null;
       return {
         async push(ch) { return mono ? [await mono.push(ch[0])] : [...(await stereo!.push(ch[0], ch[1]))]; },
         async fine() { return mono ? [await mono.fine()] : [...(await stereo!.fine())]; },

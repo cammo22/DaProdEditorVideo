@@ -15,14 +15,16 @@ type Elaboratore = ((img: unknown, o: Record<string, unknown>) => Promise<Record
 type ModelloSam = (inputs: Record<string, unknown>) => Promise<{ pred_masks: unknown; iou_scores: Tensore }>;
 
 interface Msg {
-  tipo: string; id?: number; famiglia?: string; repo?: string[]; w?: number; h?: number; rgba?: Uint8ClampedArray;
+  tipo: string; id?: number; famiglia?: string; repo?: string[]; w?: number; h?: number; rgba?: Uint8ClampedArray; slot?: string;
   punti?: { x: number; y: number; dentro: boolean }[]; riquadro?: [number, number, number, number]; base?: string; scheda?: boolean;
   hw?: ImpostazioneScheda; chiaveHF?: string;
 }
 
 let T: LibreriaAI | null = null;
 let sfondo: ((img: unknown) => Promise<Immagine | Immagine[]>) | null = null;
-let sam: { model: ModelloSam; processor: Elaboratore } | null = null;
+type Sam = { model: ModelloSam; processor: Elaboratore };
+/** i modelli SAM caricati, uno per «posto»: 'p' è quello della scelta (SAM 3), 'traccia' quello più leggero che segue l'oggetto di fotogramma in fotogramma */
+const sams = new Map<string, { sam: Sam; chiave: string }>();
 let caricato = '';
 let dispositivo: Dispositivo = 'wasm';
 let base = '';
@@ -36,13 +38,15 @@ const tipi = (d: Dispositivo, repo = ''): Tipo[] => {
   return d === 'webgpu' ? tipiScheda() : ['q8', 'fp16', 'fp32'];
 };
 
-async function carica(famiglia: string, repo: string[], conScheda = true) {
+async function carica(famiglia: string, repo: string[], conScheda = true, slot = 'p') {
   const chiave = famiglia + ':' + repo.join(',');
-  if (caricato === chiave && (sfondo || sam) && (conScheda || dispositivo === 'wasm')) { manda({ tipo: 'pronto', device: dispositivo }); return; }
+  if (famiglia === 'sam' && sams.get(slot)?.chiave === chiave && (conScheda || dispositivo === 'wasm')) { manda({ tipo: 'pronto', device: dispositivo, slot }); return; }
+  if (famiglia !== 'sam' && caricato === chiave && sfondo && (conScheda || dispositivo === 'wasm')) { manda({ tipo: 'pronto', device: dispositivo }); return; }
   const lib = await libreria(base);
   T = lib.T;
   const progress_callback = progressoScarico(manda);
-  sfondo = null; sam = null;
+  // il modello che si carica prende il posto dell'altra famiglia (la pipeline dello sfondo o il SAM principale)
+  if (famiglia !== 'sam') { sfondo = null; sams.delete('p'); } else if (slot === 'p') sfondo = null;
   const ok = await caricaConRipieghi(repo, await dispositivi(conScheda), tipi, async (r, device, dtype) => {
     if (famiglia === 'sam') {
       const processor = await T!.AutoProcessor.from_pretrained(r, { progress_callback });
@@ -52,11 +56,10 @@ async function carica(famiglia: string, repo: string[], conScheda = true) {
     }
     return { sfondo: await T!.pipeline('background-removal', r, { progress_callback, device, dtype }) as (img: unknown) => Promise<Immagine | Immagine[]> };
   });
-  sfondo = ok.v.sfondo ?? null;
-  sam = ok.v.sam ?? null;
-  caricato = chiave;
+  if (famiglia === 'sam') sams.set(slot, { sam: ok.v.sam as Sam, chiave });
+  else { sfondo = ok.v.sfondo ?? null; caricato = chiave; }
   dispositivo = ok.device;
-  manda({ tipo: 'pronto', device: `${ok.device === 'webgpu' ? 'scheda video' : 'processore'} · ${nomeTipo(ok.dtype)}`, repo: ok.repo, libreria: lib.dove });
+  manda({ tipo: 'pronto', device: `${ok.device === 'webgpu' ? 'scheda video' : 'processore'} · ${nomeTipo(ok.dtype)}`, repo: ok.repo, libreria: lib.dove, slot });
 }
 
 const senzaAlfa = (rgba: Uint8ClampedArray) => {
@@ -79,6 +82,7 @@ async function maschera(m: Msg): Promise<Uint8Array> {
     if (r.width !== w || r.height !== h) return ridimensiona(o, r.width, r.height, w, h);
     return o;
   }
+  const sam = sams.get(m.slot ?? 'p')?.sam ?? sams.get('p')?.sam;
   if (!sam) throw new Error('modello non caricato');
   const opz: Record<string, unknown> = {};
   // il riquadro e i punti si danno insieme: nei fotogrammi dopo il primo il riquadro dice dove sta l'oggetto e i punti (nel cuore
@@ -134,7 +138,7 @@ self.onmessage = async (e: MessageEvent) => {
     if (m.base !== undefined) base = m.base;
     if (m.hw) usaImpostazioneScheda(m.hw);
     if (typeof m.chiaveHF === 'string') impostaChiaveHF(m.chiaveHF);
-    if (m.tipo === 'carica') await carica(m.famiglia!, m.repo!, m.scheda !== false);
+    if (m.tipo === 'carica') await carica(m.famiglia!, m.repo!, m.scheda !== false, m.slot ?? 'p');
     else if (m.tipo === 'maschera') {
       const dati = await mascheraSicura(m);
       manda({ tipo: 'maschera', id: m.id, dati }, [dati.buffer]);

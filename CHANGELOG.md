@@ -4,6 +4,16 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.6.6] — 2026-10-28 · I modelli sulla scheda video: togli i rumori ~10 volte più veloce, sfondo che segue 3 volte più veloce, Whisper più preciso
+
+Misurato sulla scheda video (RTX 4060, WebGPU) con i modelli veri, non a occhio:
+- **Togli i rumori (MossFormer2) sulla scheda video**: il modello a precisione piena (227 MB, finestre da 15 s) pulisce 15 s in **0,15 s** (il processore col modello a 8 bit: circa un secondo di audio per secondo). Un clip di 12 s: 5 s in tutto contro 17. Senza scheda video resta il modello a 8 bit sul processore. Le maschere dei due modelli sono uguali (somiglianza 0,998).
+- **Bug trovato misurando**: l'ultima finestra non piena si completava con zeri, e col silenzio digitale il modello sbaglia la maschera di tutta la finestra (somiglianza 0,19): la coda di ogni clip usciva rovinata. Ora si completa con l'audio stesso, andata e ritorno (vale anche per il processore).
+- **Sfondo AI che segue 3 volte più veloce**: SAM 3 guarda ogni fotogramma in 1,4 s (la scheda è al limite: q4 e fp16 uguali); SAM 2.1 tiny in 0,3 s. Ora SAM 3 fa il fotogramma dei clic e torna ogni 6 fotogrammi, SAM 2.1 segue l'oggetto negli altri (riquadro e punti dalla maschera di SAM 3). In Avanzate c'è **Precisione massima** (SAM 3 su ogni fotogramma). Su una ripresa vera le maschere si somigliano al 76% (stessi oggetti, contorni un po' diversi).
+- **Whisper «Preciso» = large-v3-turbo** a 4 bit (564 MB): 30 s di parlato in 2,6 s, più veloce del small (3,1 s) e sbaglia molto meno.
+- «Voce isolata» (Demucs + MossFormer2) ora gira sulla scheda video: circa 1× il tempo reale (prima ~4×).
+- Per le misure a mano: `test/_banco-modelli.mjs` (Whisper, NLLB, SAM 3), `test/_banco-sam.mjs`, `test/_banco-sam-vero.mjs`, `test/_banco-mf-gpu.mjs`, `test/_banco-mf-conf.mjs`.
+
 ## [1.6.5] — 2026-10-28 · Sfondo AI con un modo solo (SAM 3), niente avvisi a raffica, voce migliorata
 
 - **Togli lo sfondo AI = un modo solo**: clicchi su cosa tenere e **SAM 3** fa tutto. Via «Automatico», «Persone», «Scegli tu», i tasti 🧍 Persona / 📦 Oggetto sul monitor (la Persona usava un modello più debole e veniva il contorno sbagliato) e la scelta del modello. Il Centro AI mostra un solo modello per lo sfondo.

@@ -23,11 +23,16 @@ import { spiegaErroreAI, testoErrore } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiudi as chiudiMedia, importa, mediaRT, type MediaRT } from './libreria';
-import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, modelloInCache, ottieniModello, togliModello, type ModelloAudio } from './modelliAudio';
+import { MODELLO_RUMORE, MODELLO_RUMORE_GPU, MODELLO_SEPARAZIONE, modelloInCache, ottieniModello, togliModello, type ModelloAudio } from './modelliAudio';
 import type { DaPagina, DaWorker, InizioRumore, InizioSepara } from './audioAI.worker';
 
 export type Forza = ForzaRumore;
-export { MODELLO_SEPARAZIONE, MODELLO_RUMORE };
+export { MODELLO_SEPARAZIONE, MODELLO_RUMORE, MODELLO_RUMORE_GPU };
+
+/** il filtro del rumore gira sulla scheda video (modello a precisione piena) se c'è e non è spenta; se no sul processore (modello a 8 bit) */
+export const rumoreSullaScheda = () => !impostazioniProva.modelloRumore && typeof navigator !== 'undefined' && !!(navigator as { gpu?: unknown }).gpu && messaggioScheda().scheda;
+/** il modello del filtro che serve a questo computer */
+export const modelloRumoreScelto = (): ModelloAudio => impostazioniProva.modelloRumore ?? (rumoreSullaScheda() ? MODELLO_RUMORE_GPU : MODELLO_RUMORE);
 
 export interface Possibilita { rumore: boolean; separa: boolean; perche?: string }
 
@@ -430,6 +435,7 @@ export async function togliRumore(clipId: string, forza: Forza = 'pulita'): Prom
           const inizio: InizioRumore = {
             tipo: 'inizia', lavoro: 'rumore', sr: t.sr, canali: t.canali, mescola: mescolaDi(forza), base,
             motore: usaMossFormer(forza) ? 'mossformer' : 'deepfilter', modello: impostazioniProva.modelloRumore ?? MODELLO_RUMORE, finta: impostazioniProva.fintaRumore ?? null,
+            ...(rumoreSullaScheda() ? { modelloGpu: MODELLO_RUMORE_GPU, scheda: hw.scheda, hw } : {}),
             isola: isolata ? {
               sr: t.sr, canali: t.canali, totale: t.n, media: stat.media, dev: stat.dev, base, scheda: hw.scheda, hw,
               modello: impostazioniProva.modello ?? MODELLO_SEPARAZIONE, finta: impostazioniProva.finta ?? null,
@@ -644,10 +650,11 @@ const mb = (b: number) => `${Math.max(1, Math.round(b / 1048576))} MB`;
 
 export async function statoAudioAI(): Promise<{ rumore: StatoMotoreAudio; separa: StatoMotoreAudio & { ripiego: boolean } }> {
   const usati = [...inCorso.values()];
-  const nelRumore = await modelloInCache(impostazioniProva.modelloRumore ?? MODELLO_RUMORE);
+  const mRumore = modelloRumoreScelto();
+  const nelRumore = await modelloInCache(mRumore);
   const rumore: StatoMotoreAudio = {
     stato: usati.includes('rumore') ? 'in-uso' : ultimiErrori.rumore ? 'errore' : nelRumore ? 'pronto' : 'da-scaricare',
-    peso: nelRumore ? mb(nelRumore) : `${mb(MODELLO_RUMORE.peso)}, una volta sola`,
+    peso: nelRumore ? mb(nelRumore) : `${mb(mRumore.peso)}, una volta sola`,
   };
   const nel = await modelloInCache(impostazioniProva.modello ?? MODELLO_SEPARAZIONE);
   const stato = usati.includes('separa') ? 'in-uso' : nel ? (ultimiErrori.separa ? 'errore' : 'pronto') : ultimiErrori.separa ? 'errore' : 'da-scaricare';
@@ -675,7 +682,7 @@ export async function installaSeparazione(avanza?: (caricati: number, totali: nu
 
 /** scarica il modello del filtro del rumore (MossFormer2, ~94 MB, una volta sola) */
 export async function installaRumore(avanza?: (caricati: number, totali: number) => void): Promise<void> {
-  const m = impostazioniProva.modelloRumore ?? MODELLO_RUMORE;
+  const m = modelloRumoreScelto();
   await inLavoro('Scarico il modello per togliere i rumori', async (l) => {
     l.imposta(0, `${m.nome}: ${mb(m.peso)}, una volta sola`);
     await ottieniModello(m, {
@@ -685,7 +692,7 @@ export async function installaRumore(avanza?: (caricati: number, totali: number)
   });
   ultimiErrori.rumore = '';
 }
-export const togliModelloRumore = () => togliModello(impostazioniProva.modelloRumore ?? MODELLO_RUMORE);
+export const togliModelloRumore = async () => { const a = await togliModello(impostazioniProva.modelloRumore ?? MODELLO_RUMORE); const b = impostazioniProva.modelloRumore ? false : await togliModello(MODELLO_RUMORE_GPU); return a || b; };
 
 /** toglie il modello dal computer (si riscarica quando serve) */
 export const togliSeparazione = () => togliModello(impostazioniProva.modello ?? MODELLO_SEPARAZIONE);

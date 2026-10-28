@@ -419,6 +419,33 @@ async function proveSfondo({ page, prova, OUT }) {
   prova('oggetti: il primo fotogramma si fa coi clic, tutti gli altri col riquadro e coi punti nel cuore della maschera di prima', ogg.ok && ogg.primaClic.punti === 2 && ogg.dopo && ogg.tutte === ogg.n, JSON.stringify(ogg));
   prova('oggetti senza "segui": ogni fotogramma ha i suoi clic', ogg.ok2 && ogg.solo, JSON.stringify(ogg));
   prova('senza clic il lavoro non parte e dice cosa fare', !ogg.ok3 && /clicca/i.test(ogg.motivo3 ?? ''), ogg.motivo3);
+  // il seguire è più leggero: SAM 3 fa il primo fotogramma (e ogni tanto ritorna), SAM 2.1 segue l'oggetto negli altri; «Precisione massima» = SAM 3 sempre
+  const ibrido = await page.evaluate(async () => {
+    const { RT } = window.__dpvTest;
+    const c = () => window.__dpv.doc.clips.find((x) => x.name === 'Pallina');
+    const prima = RT.segmentatoreAttuale();
+    const prova = async (preciso) => {
+      const carichi = [], slot = [];
+      RT.impostaSegmentatore({
+        carica: async (m, _st, sl) => { carichi.push((sl ?? 'p') + ':' + m.id); return 'finto'; },
+        maschera: async (px, o) => {
+          slot.push(o?.slot ?? 'p');
+          const mk = new Uint8Array(px.w * px.h);
+          const [x0, y0, x1, y1] = o?.riquadro ?? [0.3, 0.4, 0.5, 0.6];
+          for (let y = 0; y < px.h; y++) for (let x = 0; x < px.w; x++) if (x / px.w >= x0 && x / px.w <= x1 && y / px.h >= y0 && y / px.h <= y1) mk[y * px.w + x] = 255;
+          return mk;
+        },
+      });
+      window.__dpv.edit('Ibrido', () => { c().ritaglio = { modo: 'oggetti', modello: 'sam3', bordo: 0, morbido: 0.2, qualita: 0, punti: [{ x: 0.4, y: 0.5, dentro: true }], da: 2, segui: true, ...(preciso ? { preciso: true } : {}) }; });
+      const es = await RT.elaboraRitaglio(window.__dpv.doc, c(), {});
+      return { ok: es.ok, n: es.maschere?.n, carichi, p: slot.filter((x) => x === 'p').length, traccia: slot.filter((x) => x === 'traccia').length, K: RT.INTERVALLO_SAM3 };
+    };
+    const out = { veloce: await prova(false), preciso: await prova(true) };
+    RT.impostaSegmentatore(prima);
+    return out;
+  });
+  prova('seguire: SAM 3 fa il primo fotogramma e ogni 6, SAM 2.1 tiene dietro alla pallina negli altri (si carica il modello leggero)', ibrido.veloce.ok && ibrido.veloce.carichi.includes('traccia:sam2') && ibrido.veloce.traccia > ibrido.veloce.p && ibrido.veloce.p >= 2 && ibrido.veloce.p + ibrido.veloce.traccia === ibrido.veloce.n, JSON.stringify(ibrido.veloce));
+  prova('«Precisione massima»: SAM 3 su ogni fotogramma, il modello leggero non si carica nemmeno', ibrido.preciso.ok && ibrido.preciso.traccia === 0 && !ibrido.preciso.carichi.some((x) => x.startsWith('traccia')) && ibrido.preciso.p === ibrido.preciso.n, JSON.stringify(ibrido.preciso));
   // un clic mostra subito la selezione; si può controllare l'anteprima prima di confermare tutta la clip
   const clicco = await conConfermeAI(page, () => page.evaluate(async () => {
     const { MK, USF, RT } = window.__dpvTest;

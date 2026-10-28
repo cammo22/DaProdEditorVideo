@@ -53,23 +53,38 @@ export const modelloDiPartenza = (modo: Ritaglio['modo']) => modelliPer(modo)[0]
 
 /** chi disegna le maschere: di solito il worker coi modelli veri; le prove ne mettono uno finto */
 export interface Segmentatore {
-  carica: (m: ModelloRitaglio, stato: (fase: string, prog: number) => void) => Promise<string>;
-  /** un fotogramma (RGBA) → la maschera (w×h byte). Oggetti: i clic, o il riquadro (frazioni) che suggerisce dov'è */
-  maschera: (px: Pixel, o?: { punti?: NonNullable<Ritaglio['punti']>; riquadro?: [number, number, number, number] }) => Promise<Uint8Array>;
+  carica: (m: ModelloRitaglio, stato: (fase: string, prog: number) => void, slot?: Slot) => Promise<string>;
+  /** un fotogramma (RGBA) → la maschera (w×h byte). Oggetti: i clic, o il riquadro (frazioni) che suggerisce dov'è. `slot` = quale modello lavora */
+  maschera: (px: Pixel, o?: OpzMaschera) => Promise<Uint8Array>;
 }
+
+/** i due posti dei modelli SAM: la scelta (SAM 3, preciso ma pesante) e il seguire (SAM 2.1 tiny, 5 volte più veloce) */
+export type Slot = 'p' | 'traccia';
+export interface OpzMaschera { punti?: NonNullable<Ritaglio['punti']>; riquadro?: [number, number, number, number]; slot?: Slot }
+
+/**
+ * Quale modello segue l'oggetto negli altri fotogrammi. SAM 3 guarda ogni fotogramma per 1,4 s (la scheda video è al limite: misurato
+ * con q4 e con fp16, uguale), SAM 2.1 tiny per 0,3 s. Il primo fotogramma (quello dei clic) lo fa SAM 3; dopo, SAM 2.1 riceve il
+ * riquadro e i punti nel cuore della maschera di SAM 3 e la segue. Spegnibile (prove di confronto) con `impostaTracciaVeloce(false)`.
+ */
+let tracciaVeloce = true;
+export const impostaTracciaVeloce = (on: boolean) => { tracciaVeloce = on; };
+/** ogni quanti fotogrammi torna in campo SAM 3 mentre l'altro segue */
+export const INTERVALLO_SAM3 = 6;
+const modelloTraccia = (mod: ModelloRitaglio, r: Ritaglio): ModelloRitaglio | null => (tracciaVeloce && !r.preciso && mod.id === 'sam3' ? modelloRitaglio('sam2') ?? null : null);
 
 // ——— il worker ———
 let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (d: Uint8Array) => void; no: (e: Error) => void }>();
-let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void; dacache: boolean; chiave: string } | null = null;
+let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void; dacache: boolean; chiave: string; slot: Slot } | null = null;
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL('./ritaglio.worker.ts', import.meta.url), { type: 'module' });
   worker.onmessage = (e: MessageEvent) => {
-    const m = e.data as { tipo: string; id?: number; dati?: Uint8Array; msg?: string; device?: string; repo?: string; file?: string; loaded?: number; total?: number; schedaGuasta?: boolean };
+    const m = e.data as { tipo: string; id?: number; dati?: Uint8Array; msg?: string; device?: string; repo?: string; file?: string; loaded?: number; total?: number; schedaGuasta?: boolean; slot?: string };
     if (m.tipo === 'scarico' && caricamento) {
       scaricati.set(m.file!, [m.loaded!, m.total!]);
       let a = 0, b = 0;
@@ -81,9 +96,10 @@ function lavoratore(): Worker {
     else if (m.tipo === 'pronto') {
       // un modello caricato per intero (anche da un uso vero) è «pronto» per il Centro AI
       const questo = m.repo ? MODELLI_RITAGLIO.find((x) => x.repo[0] === m.repo) : undefined;
-      if (questo) segnaModelloPronto(questo.id, m.repo!);
+      if (questo && caricamento?.slot !== 'traccia') segnaModelloPronto(questo.id, m.repo!);
       const testo = (m.repo ? m.repo + ' · ' : '') + (m.device ?? '');
-      if (caricamento) segnaInUso(caricamento.chiave, questo, m.repo, m.device, testo);
+      if (caricamento && caricamento.slot === 'traccia') inUsoTraccia = { chiave: caricamento.chiave, testo };
+      else if (caricamento) segnaInUso(caricamento.chiave, questo, m.repo, m.device, testo);
       caricamento?.ok(testo); caricamento = null;
     }
     else if (m.tipo === 'maschera') { attese.get(m.id!)?.ok(m.dati!); attese.delete(m.id!); }
@@ -101,6 +117,7 @@ function lavoratore(): Worker {
     attese.clear();
     worker = null;
     inUso = null;
+    inUsoTraccia = null;
   };
   return worker;
 }
@@ -108,6 +125,8 @@ function lavoratore(): Worker {
 /** quale modello sta lavorando adesso nel worker (per dirlo a chi guarda: nome, indirizzo, dove gira) */
 export interface ModelloInUso { id: string; nome: string; repo: string; dove: string; /** non è quello chiesto: ha preso il suo posto un ricambio */ ripiego: boolean }
 let inUso: { chiave: string; testo: string; info: ModelloInUso } | null = null;
+/** il modello del seguire già nel worker (chiave) */
+let inUsoTraccia: { chiave: string; testo: string } | null = null;
 export const modelloInUso = (): ModelloInUso | null => inUso?.info ?? null;
 
 function segnaInUso(chiave: string, trovato: ModelloRitaglio | undefined, repo: string | undefined, device: string | undefined, testo: string) {
@@ -121,32 +140,36 @@ function segnaInUso(chiave: string, trovato: ModelloRitaglio | undefined, repo: 
 
 /** l'ultimo modello caricato (per ricaricarlo se bisogna ripartire) */
 let ultimoCarico: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
+let ultimoTraccia: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
 
-function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
+function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false, slot: Slot = 'p'): Promise<string> {
   const chiave = m.id + '|' + m.repo.join(',');
   // lo stesso modello è già dentro il worker: non si rimanda niente (a ogni clic si ricaricava e si rileggeva tutto il modello)
-  if (!senzaScheda && worker && inUso?.chiave === chiave) return Promise.resolve(inUso.testo);
+  if (!senzaScheda && worker) {
+    if (slot === 'p' && inUso?.chiave === chiave) return Promise.resolve(inUso.testo);
+    if (slot === 'traccia' && inUsoTraccia?.chiave === chiave) return Promise.resolve(inUsoTraccia.testo);
+  }
   return new Promise((ok, no) => {
     scaricati.clear();
-    caricamento = { ok, no, stato, dacache: !!modelliPronti()[m.id], chiave };
+    caricamento = { ok, no, stato, dacache: !!modelliPronti()[m.id], chiave, slot };
     const hw = messaggioScheda();
     const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
-    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa, chiaveHF: chiaveHFSalvata() });
+    lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa, chiaveHF: chiaveHFSalvata(), slot });
   });
 }
 
 /** un fotogramma al worker */
-function inviaMaschera(px: Pixel, o?: { punti?: NonNullable<Ritaglio['punti']>; riquadro?: [number, number, number, number] }): Promise<Uint8Array> {
+function inviaMaschera(px: Pixel, o?: OpzMaschera): Promise<Uint8Array> {
   return new Promise((ok, no) => {
     const id = ++seq;
     attese.set(id, { ok, no });
     const rgba = new Uint8ClampedArray(px.data);
-    lavoratore().postMessage({ tipo: 'maschera', id, w: px.w, h: px.h, rgba, punti: o?.punti, riquadro: o?.riquadro }, [rgba.buffer]);
+    lavoratore().postMessage({ tipo: 'maschera', id, w: px.w, h: px.h, rgba, punti: o?.punti, riquadro: o?.riquadro, slot: o?.slot }, [rgba.buffer]);
   });
 }
 
 const conIlWorker: Segmentatore = {
-  carica: (m, stato) => { ultimoCarico = { m, stato }; return caricaNelWorker(m, stato); },
+  carica: (m, stato, slot = 'p') => { if (slot === 'traccia') ultimoTraccia = { m, stato }; else ultimoCarico = { m, stato }; return caricaNelWorker(m, stato, false, slot); },
   maschera: async (px, o) => {
     try {
       return await inviaMaschera(px, o);
@@ -158,9 +181,11 @@ const conIlWorker: Segmentatore = {
       worker?.terminate();
       worker = null;
       inUso = null;
+      inUsoTraccia = null;
       caricamento = null;
       attese.clear();
       await caricaNelWorker(ultimoCarico.m, ultimoCarico.stato, true);
+      if (ultimoTraccia) await caricaNelWorker(ultimoTraccia.m, ultimoTraccia.stato, true, 'traccia').catch(() => {});
       return inviaMaschera(px, o);
     }
   },
@@ -168,6 +193,8 @@ const conIlWorker: Segmentatore = {
 
 let segmentatore: Segmentatore = conIlWorker;
 export const impostaSegmentatore = (s: Segmentatore | null) => { segmentatore = s ?? conIlWorker; };
+/** chi disegna le maschere adesso (le prove lo rimettono com'era dopo averne usato uno loro) */
+export const segmentatoreAttuale = () => segmentatore;
 
 // ——— il lavoro ———
 export interface OpzioniElabora {
@@ -273,6 +300,12 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
       if (ferma()) return { ok: false, motivo: 'Fermato' };
       if (!px.length) return { ok: false, motivo: 'Non riesco a leggere la ripresa' };
       w = px[0].w; h = px[0].h;
+      // il modello che segue: più leggero di quello della scelta (se non si carica si va avanti col principale)
+      const seguitore = modelloTraccia(mod, r);
+      let slotSegue: Slot = 'p';
+      if (seguitore && r.segui !== false) {
+        try { await segmentatore.carica(seguitore, (fase, k) => stato(fase, 0.1 + k * 0.05), 'traccia'); slotSegue = 'traccia'; } catch { slotSegue = 'p'; }
+      }
       const tClic = r.da ?? c.srcIn;
       let i0 = 0;
       for (let i = 1; i < px.length; i++) if (Math.abs(piano.t0 + i * piano.dt - tClic) < Math.abs(piano.t0 + i0 * piano.dt - tClic)) i0 = i;
@@ -288,7 +321,9 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
           const hint = r.segui !== false && prec ? (suggerimento(prec, w, h) ?? ultimoBuono) : null;
           // dopo il primo fotogramma: il riquadro (dov'è) e qualche punto nel cuore della maschera di prima (quale)
           const nucleo = hint && prec ? puntiNucleo(prec, w, h) : [];
-          const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}) } : { punti });
+          // ogni INTERVALLO_SAM3 fotogrammi la guida torna a SAM 3 (con riquadro e punti della maschera di prima): corregge la deriva del modello leggero
+          const slot: Slot = slotSegue === 'traccia' && Math.abs(i - i0) % INTERVALLO_SAM3 === 0 ? 'p' : slotSegue;
+          const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}), slot } : { punti });
           // buchi riempiti e isole tolte: si tiene quello che tocca il fotogramma di prima (o i clic nel primo)
           const m = pulisciMaschera(grezza, w, h, { vicino: hint ? prec : null, tieni: hint ? undefined : clic, soloConnessi: true });
           suoi[i] = m;
