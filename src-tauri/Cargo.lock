@@ -635,6 +635,8 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
+ "windows-sys 0.61.2",
+ "winreg",
 ]
 
 [[package]]

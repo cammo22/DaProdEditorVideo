@@ -133,6 +133,68 @@ export const FUNZIONI_AI: FunzioneAI[] = [
 
 const mb = (b: number) => (b >= 1 << 30 ? (b / (1 << 30)).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / (1 << 20))) + ' MB');
 
+/** quanto spazio prendono i modelli sul computer (lo usano il Centro AI e la pagina iniziale) */
+export async function spazioModelli(): Promise<{ n: number; byte: number; testo: string }> {
+  const m = await modelliScaricati();
+  const byte = [...m.values()].reduce((s, x) => s + x, 0);
+  return { n: m.size, byte, testo: m.size ? `${m.size} modelli sul computer · ${mb(byte)}` : 'Nessun modello scaricato' };
+}
+
+/** com'è messa la scorta di modelli: quanti pronti, e quanti di quelli consigliati (sono quelli che «Controlla e ripara tutto» scarica) */
+export async function riassuntoModelli(): Promise<{ pronti: number; totale: number; consigliati: number; consigliatiPronti: number }> {
+  const lista = modelliHub();
+  const st = await statoModelli(lista);
+  const pronto = (m: ModelloHub) => st.get(m.id)?.stato === 'pronto';
+  const cons = lista.filter((m) => m.consigliato);
+  return { pronti: lista.filter(pronto).length, totale: lista.length, consigliati: cons.length, consigliatiPronti: cons.filter(pronto).length };
+}
+
+export interface OpzioniRiparaAI {
+  lista?: ModelloHub[];
+  /** cosa sto facendo adesso, a parole */
+  passo?: (testo: string) => void;
+  /** come si scarica un modello (il Centro AI ci mette l'avanzamento sulla riga); di partenza si scarica e basta */
+  scarica?: (m: ModelloHub) => Promise<boolean>;
+  dopoDiagnosi?: (g: Diagnosi) => void;
+  /** il motore non partiva con la scheda video e l'ho spenta */
+  schedaSpenta?: () => void;
+  dopoModello?: () => Promise<void> | void;
+}
+
+/**
+ * «Controlla e ripara tutto» senza finestra: il motore AI, la scheda video, la rete e i modelli consigliati.
+ * Lo usano il Centro AI (col suo avanzamento) e «Aggiusta tutto» della pagina iniziale. `testo` è la frase da dire.
+ */
+export async function riparaAI(o: OpzioniRiparaAI = {}): Promise<{ ok: boolean; testo: string }> {
+  const passo = o.passo ?? (() => {});
+  const lista = o.lista ?? modelliHub();
+  const scaricaUno = o.scarica ?? (async (m: ModelloHub) => { try { await m.scarica(() => {}); return true; } catch { return false; } });
+  try {
+    passo('Controllo il motore AI, la scheda video e la connessione…');
+    let g = await diagnosi();
+    // il motore non parte con la scheda video: si prova sul processore
+    if (!g.libreria.ok && usaSchedaAI()) {
+      impostaSchedaAI(false); o.schedaSpenta?.();
+      passo('Il motore non parte con la scheda video: provo sul processore…');
+      g = await diagnosi();
+    }
+    o.dopoDiagnosi?.(g);
+    if (!g.libreria.ok) return { ok: false, testo: 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.' };
+    const st = await statoModelli(lista);
+    const daFare = lista.filter((m) => m.consigliato && st.get(m.id)!.stato !== 'pronto');
+    if (!daFare.length) return { ok: true, testo: 'Fatto: il motore funziona e i modelli consigliati sono sul computer.' };
+    if (!g.internet) return { ok: false, testo: 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.' };
+    let ok = 0;
+    const falliti: string[] = [];
+    for (const [i, m] of daFare.entries()) {
+      passo(`Scarico ${m.nome} (${i + 1} di ${daFare.length})…`);
+      if (await scaricaUno(m)) ok++; else falliti.push(m.nome);
+      await o.dopoModello?.();
+    }
+    return falliti.length ? { ok: false, testo: `${ok} modelli a posto, non sono riuscito con: ${falliti.join(', ')}.` } : { ok: true, testo: `Fatto: ${ok} modelli scaricati e provati, adesso partono senza scaricare niente.` };
+  } catch (e) { return { ok: false, testo: 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e) }; }
+}
+
 /** la finestra del Centro AI: un posto solo per controllare i modelli (e il motore). Le funzioni si usano dalle Proprietà. */
 export function finestraCentroAI(subito = false) {
   const d = dialogo('Centro AI · i modelli', { largo: true });
@@ -196,30 +258,9 @@ export function finestraCentroAI(subito = false) {
     ripara.disabled = true;
     bloccaTutto(true);
     try {
-      progresso.textContent = 'Controllo il motore AI, la scheda video e la connessione…';
-      let g = await diagnosi();
-      // il motore non parte con la scheda video: si prova sul processore
-      if (!g.libreria.ok && usaSchedaAI()) {
-        impostaSchedaAI(false); scheda.checked = false;
-        progresso.textContent = 'Il motore non parte con la scheda video: provo sul processore…';
-        g = await diagnosi();
-      }
-      disegnaDiagnosi(esito, g);
-      if (!g.libreria.ok) { progresso.textContent = 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.'; return; }
-      const st = await statoModelli(lista);
-      const daFare = lista.filter((m) => m.consigliato && st.get(m.id)!.stato !== 'pronto');
-      if (!daFare.length) { progresso.textContent = 'Fatto: il motore funziona e i modelli consigliati sono sul computer.'; return; }
-      if (!g.internet) { progresso.textContent = 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.'; return; }
-      let ok = 0;
-      const falliti: string[] = [];
-      for (const [i, m] of daFare.entries()) {
-        progresso.textContent = `Scarico ${m.nome} (${i + 1} di ${daFare.length})…`;
-        if (await scarica(m)) ok++; else falliti.push(m.nome);
-        await disegna();
-      }
-      progresso.textContent = falliti.length ? `${ok} modelli a posto, non sono riuscito con: ${falliti.join(', ')}.` : `Fatto: ${ok} modelli scaricati e provati, adesso partono senza scaricare niente.`;
-    } catch (e) { progresso.textContent = 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e); }
-    finally { ripara.disabled = false; bloccaTutto(false); await disegna(); void aggSpazio(); }
+      const r = await riparaAI({ lista, passo: (t) => { progresso.textContent = t; }, scarica, dopoDiagnosi: (g) => disegnaDiagnosi(esito, g), schedaSpenta: () => { scheda.checked = false; }, dopoModello: disegna });
+      progresso.textContent = r.testo;
+    } finally { ripara.disabled = false; bloccaTutto(false); await disegna(); void aggSpazio(); }
   }
 
   // ——— le impostazioni
@@ -234,7 +275,7 @@ export function finestraCentroAI(subito = false) {
     } catch { avviso('Non riesco a cambiare la chiave: il browser non permette di salvare le impostazioni. Controlla lo spazio e i permessi, poi riprova.', 'errore', 6000); }
   } } }, 'Salva');
   const spazio = h('span', { class: 'nota' }, '…');
-  const aggSpazio = async () => { const m = await modelliScaricati(); const tot = [...m.values()].reduce((s, x) => s + x, 0); spazio.textContent = m.size ? `${m.size} modelli sul computer · ${mb(tot)}` : 'Nessun modello scaricato'; };
+  const aggSpazio = async () => { spazio.textContent = (await spazioModelli()).testo; };
   void aggSpazio();
   const svuota = h('button', { class: 'btn-mini', on: { click: async () => {
     if (!(await conferma('Libera lo spazio dei modelli', 'I modelli AI scaricati si tolgono dal computer. Si riscaricano da qui, o da soli la prossima volta che servono (serve internet).', 'Toglili', 'Annulla'))) return;

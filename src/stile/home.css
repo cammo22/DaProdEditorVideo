@@ -1,0 +1,90 @@
+/* La pagina iniziale «da banco di montaggio»: pannelli di metallo con le viti, LED, display a sette segmenti.
+   Le regole vecchie `.home-*` stanno ancora in editor.css; qui sopra le stesse classi si ridisegnano con `.home.hm`
+   e le classi nuove cominciano con `hm-`. */
+.home.hm { background: radial-gradient(120% 90% at 50% 0%, rgba(53, 16, 70, 0.55), rgba(8, 7, 12, 0.97) 70%); align-items: start; }
+.home.hm .hm-dentro { width: min(1280px, 97vw); max-height: none; padding: 18px 16px 28px; gap: 16px; }
+.hm-testa { padding-bottom: 12px; border-bottom: 1px solid var(--bordo); }
+.hm-targa { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 6px; background: #060509; box-shadow: inset 0 2px 6px #000, 0 1px 0 rgba(255, 255, 255, 0.07); }
+.hm-targa .hm-seg { font-size: 15px; }
+.home.hm .home-chiudi { margin-left: 6px; }
+
+.hm-corpo { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.hm-destra { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* il pannello: metallo scuro, bordo nero, viti negli angoli */
+.home.hm .hm-col { position: relative; background: var(--metallo); border: 1px solid #000; border-radius: 12px; padding: 16px 16px 16px; gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 10px 28px rgba(0, 0, 0, 0.45); overflow: visible; }
+.home.hm .hm-col::before, .home.hm .hm-col::after { content: ''; position: absolute; top: 7px; width: 7px; height: 7px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #6d6a78, #25232c 70%); box-shadow: 0 0 0 1px #000, inset 0 -1px 0 rgba(0, 0, 0, 0.5); }
+.home.hm .hm-col::before { left: 7px; }
+.home.hm .hm-col::after { right: 7px; }
+.home.hm .hm-ultimi { overflow: visible; }
+
+/* l'intestazione: targhetta incisa col suo LED */
+.hm-intesta { display: flex; align-items: center; gap: 9px; margin: 6px 0 0; padding: 5px 10px; border-radius: 6px; background: #100f15; box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255, 255, 255, 0.06);
+  font: 900 13px var(--marchio); letter-spacing: 2px; text-transform: uppercase; color: var(--oro); }
+.hm-conta { margin-left: auto; font: 700 11px var(--ui); letter-spacing: 1px; color: var(--testo3); text-transform: none; }
+.hm-centro { margin-left: auto; letter-spacing: 0; }
+
+/* i LED */
+.hm-led { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: #2b2a31; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.7), 0 0 0 1px #000; }
+.hm-led.ok { background: radial-gradient(circle at 35% 35%, #e0fff0, var(--verde) 60%); box-shadow: 0 0 8px var(--verde), 0 0 0 1px #000; }
+.hm-led.no { background: radial-gradient(circle at 35% 35%, #ffe3ea, var(--rosso) 60%); box-shadow: 0 0 8px var(--rosso), 0 0 0 1px #000; }
+.hm-led.forse { background: radial-gradient(circle at 35% 35%, #fff0d2, var(--ambra) 60%); box-shadow: 0 0 8px var(--ambra), 0 0 0 1px #000; }
+
+/* il display a sette segmenti */
+.hm-seg { font-family: var(--tc); color: var(--verde); text-shadow: 0 0 8px rgba(93, 255, 180, 0.55); letter-spacing: 1px; }
+.hm-unita { font: 700 12px var(--ui); color: var(--testo2); }
+
+/* da dove comincio */
+.hm-nuovo { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.05); }
+.hm-strade { display: flex; flex-direction: column; gap: 8px; }
+.home.hm .home-grande, .home.hm .hm-strada { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; text-align: left; }
+.hm-etichetta-doppia { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.hm-etichetta-doppia b { font: 800 14px var(--ui); }
+.hm-etichetta-doppia small { font: 600 11px var(--ui); opacity: 0.75; }
+.home.hm .home-montage small { color: rgba(255, 255, 255, 0.85); }
+.hm-rec { width: 14px; height: 14px; border-radius: 50%; flex: none; background: radial-gradient(circle at 35% 30%, #ffd3dc, var(--rosso) 60%); box-shadow: 0 0 10px var(--rosso); }
+.home.hm .home-impara { margin-top: 2px; }
+
+/* i recenti */
+.home.hm .home-griglia { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.home.hm .home-carta { background: #1a1921; border: 1px solid #000; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.home.hm .home-carta:hover { box-shadow: 0 0 0 2px var(--oro), 0 8px 20px rgba(0, 0, 0, 0.5); }
+.hm-quando { font-family: var(--tc) !important; font-size: 9.5px !important; color: var(--verde) !important; opacity: 0.75; letter-spacing: 0.5px; }
+.home.hm .home-nulla { border: 2px dashed rgba(255, 255, 255, 0.1); }
+
+/* come sta il PC: le finestrelle */
+.hm-tessere { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px; }
+.hm-tessera { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 9px; background: #07060b; box-shadow: inset 0 2px 7px #000, 0 1px 0 rgba(255, 255, 255, 0.07); min-width: 0; }
+.hm-tessera[hidden] { display: none; }
+.hm-tessera-testa { display: flex; align-items: center; gap: 7px; }
+.hm-titolo { font: 800 10.5px var(--ui); letter-spacing: 1.3px; text-transform: uppercase; color: var(--testo3); }
+.hm-valore { font: 800 19px var(--ui); color: var(--testo); min-height: 28px; display: flex; align-items: baseline; gap: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-valore .hm-seg { font-size: 22px; }
+.hm-sotto { font: 600 11.5px var(--ui); color: var(--testo2); line-height: 1.25; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hm-azione { color: var(--oro); }
+
+/* Aggiusta tutto */
+.hm-aggiusta { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.05); }
+.hm-aggiusta-testa { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.hm-aggiusta-tasto { padding: 11px 22px; font: 900 15px var(--marchio); letter-spacing: 1.5px; text-transform: uppercase; }
+.hm-aggiusta-tasto .hm-led { background: #6b4d00; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6); }
+.hm-aggiusta-tasto.lavora .hm-led { background: radial-gradient(circle at 35% 35%, #fff, #35e8ff 60%); box-shadow: 0 0 8px var(--cia); animation: hm-lampeggia 0.8s infinite; }
+.hm-aggiusta-riga { font: 700 13px var(--ui); color: var(--testo2); }
+.hm-aggiusta-riga.no { color: var(--ambra); }
+.hm-passi { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.hm-passo { display: grid; grid-template-columns: 22px minmax(120px, 190px) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 7px; background: #0c0b11; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7); font: 600 13px var(--ui); }
+.hm-passo b { font-weight: 800; color: var(--testo); }
+.hm-passo-testo { color: var(--testo2); }
+.hm-segno { font: 900 15px var(--ui); text-align: center; color: var(--testo3); }
+.hm-passo.ok .hm-segno { color: var(--verde); text-shadow: 0 0 8px rgba(93, 255, 180, 0.6); }
+.hm-passo.salta .hm-segno { color: #3f9a74; }
+.hm-passo.salta .hm-passo-testo { color: var(--testo3); }
+.hm-passo.no .hm-segno { color: var(--rosso); text-shadow: 0 0 8px rgba(255, 77, 109, 0.6); }
+.hm-passo.no .hm-passo-testo { color: #ffb3c0; }
+.hm-passo.corre .hm-segno { color: var(--cia); animation: hm-lampeggia 0.8s infinite; }
+@keyframes hm-lampeggia { 50% { opacity: 0.35; } }
+
+@media (max-width: 1000px) { .hm-corpo { grid-template-columns: 1fr; } .hm-passo { grid-template-columns: 22px 1fr; } .hm-passo-testo { grid-column: 2; } }
+@media (prefers-reduced-motion: reduce) { .hm-aggiusta-tasto.lavora .hm-led, .hm-passo.corre .hm-segno { animation: none; } }

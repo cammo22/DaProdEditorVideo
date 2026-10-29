@@ -7,6 +7,7 @@
 
 mod aggiorna;
 mod audio_riserva;
+mod associazioni;
 mod conversioni;
 mod motori;
 
@@ -205,6 +206,29 @@ async fn registrazione_percorso(app: AppHandle, name: String) -> Esito<String> {
         n += 1;
     }
     Ok(p.to_string_lossy().into_owned())
+}
+
+/// Le cartelle di lavoro: Video/DaProd Video e, dentro, Registrazioni. Le crea se mancano ("Aggiusta tutto" della pagina
+/// iniziale). Ritorna per ognuna il percorso e se l'ha dovuta creare adesso.
+#[derive(serde::Serialize)]
+struct CartellaLavoro {
+    nome: &'static str,
+    percorso: String,
+    creata: bool,
+}
+
+#[tauri::command]
+async fn cartelle_lavoro(app: AppHandle) -> Esito<Vec<CartellaLavoro>> {
+    let base = app.path().video_dir().or_else(|_| app.path().app_data_dir()).map_err(|e| e.to_string())?;
+    let principale = base.join("DaProd Video");
+    let registrazioni = principale.join("Registrazioni");
+    let mut fuori = Vec::new();
+    for (nome, dir) in [("DaProd Video", principale), ("Registrazioni", registrazioni)] {
+        let creata = !dir.is_dir();
+        std::fs::create_dir_all(&dir).map_err(|e| format!("{nome}: {e}"))?;
+        fuori.push(CartellaLavoro { nome, percorso: dir.to_string_lossy().into_owned(), creata });
+    }
+    Ok(fuori)
 }
 
 /// Apre il file dell'export in scrittura; ritorna un numero da usare per scrivere e chiudere.
@@ -514,6 +538,8 @@ pub fn run() {
             apri_link,
             istantanea_percorso,
             registrazione_percorso,
+            cartelle_lavoro,
+            associazioni::associa_file,
             audio_apri,
             audio_decodifica,
             audio_chiudi,
