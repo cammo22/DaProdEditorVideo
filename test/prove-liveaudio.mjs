@@ -294,8 +294,8 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     const s0 = await page.evaluate(() => {
       const q = (s) => document.querySelectorAll(s).length;
       return {
-        pannello: q('.la'), strisce: q('.la-striscia'), compatte: q('.la-compatto canvas'), prova: q('.la-prova'), preset: q('.la-presetvoce'), disturbi: q('[data-filtro]'),
-        sticky: !!document.querySelector('.live-regia .la-compatto'),
+        pannello: q('.la'), strisce: q('.la-striscia'), compatte: q('.live-sorgenti .la-misura'), prova: q('.la-prova'), preset: q('.la-presetvoce'), disturbi: q('[data-filtro]'),
+        sticky: !!document.querySelector('.live-regia .live-sorgenti'),
       };
     });
     prova('la pagina LIVE ha solo le due barre dei livelli in cima: niente filtri, preset, mixer né "Prova l\'audio"', s0.pannello === 0 && s0.strisce === 0 && s0.compatte === 2 && s0.prova === 0 && s0.preset === 0 && s0.disturbi === 0 && s0.sticky, JSON.stringify(s0));
@@ -434,8 +434,8 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     await page.waitForFunction(() => document.querySelector('.live').classList.contains('in-onda'), null, { timeout: 12000 });
     await page.waitForTimeout(1200);
     const sat = await page.evaluate(() => ({
-      pc: document.querySelectorAll('.la-compatto .la-misura')[0].dataset.clip, voce: document.querySelectorAll('.la-compatto .la-misura')[1].dataset.clip,
-      picco: Number(document.querySelectorAll('.la-compatto .la-misura')[0].dataset.livello),
+      pc: document.querySelectorAll('.live-sorgenti .la-misura')[1].dataset.clip, voce: document.querySelectorAll('.live-sorgenti .la-misura')[0].dataset.clip,
+      picco: Number(document.querySelectorAll('.live-sorgenti .la-misura')[1].dataset.livello),
     }));
     await page.screenshot({ path: `${OUT}/live-audio-registra.png` });
     await page.keyboard.press('f');
@@ -449,10 +449,10 @@ export async function proveLiveAudio({ page: paginaDi, prova, OUT }) {
     const piccola = await page.evaluate(() => {
       const col = document.querySelector('.live-comandi');
       const fuori = [...document.querySelectorAll('.live-comandi *')].filter((e) => { const r = e.getBoundingClientRect(); const c = col.getBoundingClientRect(); return r.width > 0 && (r.right > c.right + 1 || r.left < c.left - 1); }).map((e) => e.className || e.tagName);
-      return { scrollX: col.scrollWidth > col.clientWidth + 1, fuori: fuori.slice(0, 5), compatto: document.querySelector('.live-regia .la-compatto').getBoundingClientRect().height };
+      return { scrollX: col.scrollWidth > col.clientWidth + 1, fuori: fuori.slice(0, 5), compatto: document.querySelector('.live-regia .live-sorgenti .la-misura').getBoundingClientRect().height };
     });
     await page.screenshot({ path: `${OUT}/live-audio-piccola.png` });
-    prova('a 1000×640 niente esce dalla colonna dei comandi e le barre piccole restano in cima', !piccola.scrollX && piccola.fuori.length === 0 && piccola.compatto > 10 && piccola.compatto < 40, JSON.stringify(piccola));
+    prova('a 1000×640 niente esce dalla colonna dei comandi e le barre piccole restano in cima', !piccola.scrollX && piccola.fuori.length === 0 && piccola.compatto > 8 && piccola.compatto < 20, JSON.stringify(piccola));
     await page.setViewportSize({ width: 1600, height: 950 });
 
     await page.evaluate(() => { clearInterval(window.__giroLive); document.querySelectorAll('.tela-live-prova').forEach((e) => e.remove()); });

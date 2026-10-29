@@ -1006,20 +1006,24 @@ button svg { pointer-events: none; }
 .live-conto.batti { animation: live-batti 1s ease-out; }
 @keyframes live-batti { 0% { transform: scale(1.7); opacity: 0; } 18% { transform: scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(0.85); opacity: 0.15; } }
 /* la colonna dei comandi: la regia resta in alto, le scelte scorrono sotto */
-.live-comandi { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 0 4px 0 2px; }
+.live-comandi { display: flex; flex-direction: column; gap: 6px; min-height: 0; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 0 4px 0 2px; }
 .live-comandi > * { min-width: 0; max-width: 100%; }
-.live-regia { position: sticky; top: 0; z-index: 1; display: flex; flex-direction: column; gap: 6px; background: var(--pann); padding-bottom: 6px; border-bottom: 1px solid var(--bordo); }
-.live-tempo { font: 400 54px var(--tc); color: #3a1820; text-align: center; background: #0a0709; border-radius: 8px; padding: 8px 0; box-shadow: inset 0 2px 8px #000; letter-spacing: 2px; }
+.live-regia { position: sticky; top: 0; z-index: 1; display: flex; flex-direction: column; gap: 5px; background: var(--pann); padding-bottom: 8px; border-bottom: 1px solid var(--bordo); }
+.live-display { position: relative; background: #0a0709; border-radius: 8px; padding: 15px 0 3px; box-shadow: inset 0 2px 8px #000; }
+.live-display .live-fase-certa { position: absolute; top: 4px; left: 10px; right: 10px; margin: 0; padding: 0; border: 0; font: 800 9.5px var(--ui); letter-spacing: 1.4px; color: var(--testo3); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-tempo { font: 400 42px/1.1 var(--tc); color: #3a1820; text-align: center; letter-spacing: 2px; }
 .live.in-onda .live-tempo { color: var(--rosso); text-shadow: 0 0 12px rgba(255, 77, 109, 0.6); }
 .live.in-pausa .live-tempo { color: var(--oro); text-shadow: 0 0 10px rgba(255, 213, 74, 0.5); }
-.live-stato { text-align: center; font: 700 13px var(--ui); color: var(--testo2); min-height: 17px; }
-.live-info { text-align: center; font: 600 11px var(--ui); color: var(--testo3); min-height: 14px; }
-.live-tasti { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 6px; }
+.live-stato { text-align: center; font: 700 12.5px var(--ui); color: var(--testo2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-info { text-align: center; font: 600 10.5px var(--ui); color: var(--testo3); margin-top: -3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-info:empty { display: none; }
+.live-gruppo { display: flex; flex-direction: column; gap: 4px; }
+.live-tasti { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 4px; }
 .live-tasti.due { grid-template-columns: 1fr 1.4fr; }
 .live-tasti.tre { grid-template-columns: 1fr 1fr 1.5fr; }
-.live-tasti.tre .live-btn { height: 36px; font-size: 11.5px; padding: 0 4px; }
+.live-tasti.tre .live-btn { height: 30px; min-height: 30px; font-size: 11px; padding: 0 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #0b0a0e; }
 .live-btn.cam.acceso { color: #d9fbe6; border-color: #1c6b3e; background: linear-gradient(180deg, #2f9c63, #1e6d44); }
-.live-btn { height: 48px; border-radius: 9px; border: 1px solid #000; background: var(--metallo-chiaro); color: var(--testo); font: 800 13px var(--ui); letter-spacing: 0.5px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 0 #0b0a0e; }
+.live-btn { height: 40px; border-radius: 9px; border: 1px solid #000; background: var(--metallo-chiaro); color: var(--testo); font: 800 13px var(--ui); letter-spacing: 0.5px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 0 #0b0a0e; }
 .live-tasti.due .live-btn { height: 34px; font-size: 11.5px; }
 .live-btn:disabled { opacity: 0.4; cursor: default; }
 .live-btn.reg { background: linear-gradient(180deg, #5a1a26, #3a0f18); color: #ffd9df; }
@@ -1029,12 +1033,33 @@ button svg { pointer-events: none; }
 .live-vu-riga { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 7px; color: var(--testo3); padding: 2px 2px 0; }
 .live-vu { width: 100%; height: 10px; cursor: pointer; border-radius: 2px; background: #0a090d; }
 .live-vu-nome { font: 600 10.5px var(--ui); color: var(--testo3); min-width: 70px; text-align: right; }
-.live-sez { margin: 8px 2px 0; font: 800 10.5px var(--ui); letter-spacing: 1.2px; text-transform: uppercase; color: var(--testo3); }
+.live-sez { margin: 8px 2px 3px; font: 800 10.5px var(--ui); letter-spacing: 1.2px; text-transform: uppercase; color: var(--testo3); }
 .live-comandi .fin-interruttore { padding: 9px 12px; gap: 9px; font-size: 13px; }
+/* le sorgenti: interruttore, scelta e misuratore sulla stessa riga; le colonne si allineano fra le righe come i canali di un banco */
+.live-sorgenti { display: grid; grid-template-columns: max-content minmax(0, 1fr) 88px 22px; gap: 4px 6px; align-items: center; min-width: 0; }
+.live-sorgenti > .fin-interruttore { grid-column: 1; }
+.live-sorgenti .fin-interruttore { height: 28px; padding: 0 9px; gap: 6px; font-size: 12px; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #0a090d; }
+.live-sorgenti .fin-interruttore.acceso, .live-configurazione .fin-interruttore.acceso { box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.45), 0 1px 0 #0a090d; }
+.live-sorgenti .fin-int-testo, .live-configurazione .fin-int-testo { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.live-sorgenti .live-sel { max-width: none; width: 100%; height: 28px; font-size: 11.5px; }
+.live-sorgenti > .live-sel-cam { grid-column: 2 / -1; }
+.live-sorgenti > .la-stato { font: 600 10.5px var(--ui); color: var(--testo3); text-align: left; }
+.live-sorg-misura { display: flex; align-items: center; height: 28px; padding: 0 5px; border-radius: 6px; background: #0c0b10; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.04); transition: opacity 0.2s; min-width: 0; }
+.live-sorg-misura.spenta { opacity: 0.35; }
+.live-sorgenti > .live-btn { grid-column: 1 / -1; height: 26px; font-size: 11.5px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #0b0a0e; }
+.live-sorgenti > .live-prime { grid-column: 1 / -1; }
 .live-riga { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .live-riga > .fin-interruttore { flex: 1; min-width: 0; }
-.live-sel { max-width: 46%; min-width: 0; height: 32px; border-radius: 7px; border: 1px solid #000; background: #15141a; color: var(--testo2); font: 600 11.5px var(--ui); padding: 0 6px; }
+.live-sel { max-width: 46%; min-width: 0; height: 28px; border-radius: 7px; border: 1px solid #000; background: #15141a; color: var(--testo2); font: 600 11.5px var(--ui); padding: 0 6px; }
 .live-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.live-griglia { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 4px; }
+.live-configurazione .fin-interruttore { height: 28px; padding: 0 9px; gap: 7px; font-size: 11.5px; white-space: nowrap; min-width: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #0a090d; }
+.live-configurazione .live-btn { height: 26px; font-size: 11px; padding: 0 10px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #0b0a0e; }
+.live-riga.live-qualita { justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
+.live-schermo-scelta { margin-top: 5px; }
+.live-schermo-scelta label { display: flex; align-items: center; gap: 8px; font: 700 11px var(--ui); color: var(--testo3); }
+.live-schermo-scelta label > .live-sel { flex: 1; max-width: none; }
+.live-schermo-scelta .nota { margin: 4px 2px 0; font-size: 11px; }
 .live-chips .chip { padding: 3px 9px; }
 .live-chips .chip.acceso { background: linear-gradient(180deg, #ff8a9e, #d9344f); box-shadow: 0 0 10px rgba(255, 77, 109, 0.35); }
 .live-riga.cam-scelte { justify-content: space-between; flex-wrap: wrap; }

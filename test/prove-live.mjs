@@ -140,7 +140,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     prova('webcam con permesso negato: una richiesta sola e l\'avviso spiega dove dare il permesso', errW.negato.chiamate === 1 && /permesso/.test(errW.negato.avviso) && /NotAllowedError/.test(errW.negato.avviso), JSON.stringify(errW.negato));
 
     // niente più filtri audio nella pagina
-    const senzaFiltri = await page.evaluate(() => ({ filtri: document.querySelectorAll('.la, [data-filtro], .la-presetvoce').length, barre: document.querySelectorAll('.live-regia .la-compatto canvas').length }));
+    const senzaFiltri = await page.evaluate(() => ({ filtri: document.querySelectorAll('.la, [data-filtro], .la-presetvoce').length, barre: document.querySelectorAll('.live-regia .live-sorgenti .la-misura').length }));
     prova('nella pagina LIVE non ci sono più i filtri audio (restano le barre dei livelli)', senzaFiltri.filtri === 0 && senzaFiltri.barre === 2, JSON.stringify(senzaFiltri));
     await page.evaluate(() => { for (const i of window.__giri ?? []) clearInterval(i); });
 
