@@ -5,10 +5,36 @@
 
 export type Rate = { num: number; den: number };
 
+/** Colore SDR: nessuna conversione log implicita. Tutti i campi assenti sono neutri. */
+export interface PuntoColore { id: string; x: number; y: number }
+export type CanaleCurva = 'master' | 'red' | 'green' | 'blue' | 'luma';
+export interface ColoreAvanzato {
+  lift?: [number, number, number];
+  gamma?: [number, number, number];
+  gain?: [number, number, number];
+  curve?: Partial<Record<CanaleCurva, PuntoColore[]>>;
+  lut?: { id: string; /** 0..1 */ intensita: number };
+}
+/** Una sola copia nel progetto, anche nei pacchetti .dap/.daprod. Mai texture o typed array nel JSON. */
+export interface RisorsaLut {
+  id: string; hash: string; nome: string; n: number;
+  domainMin: [number, number, number]; domainMax: [number, number, number]; dati: number[];
+}
+export type RuoloAudio = 'nessuno' | 'voce' | 'musica';
+export interface Ducking {
+  attivo: boolean;
+  /** riduzione positiva in dB */ quantita: number;
+  /** tempi in secondi di timeline */ attacco: number; rilascio: number;
+  /** soglia RMS in dBFS, non riconoscimento del parlato */ soglia: number;
+  isteresi: number; minimo: number; hold: number;
+}
+
 /** fx = la vecchia corsia FX a parte (1.0.4): all'apertura i suoi blocchi passano sulle tracce video e lei sparisce */
 export type TrackKind = 'video' | 'audio' | 'fx';
 
 export interface Track {
+  ruoloAudio?: RuoloAudio;
+  ducking?: Ducking;
   id: string;
   kind: TrackKind;
   name: string;
@@ -151,6 +177,7 @@ export interface Ritaglio {
 }
 
 export interface VideoFx {
+  colore?: ColoreAvanzato;
   /** livello del nero / luminosità -1..1 */
   bright: number;
   /** guadagno / contrasto 0..2 */
@@ -304,6 +331,12 @@ export interface GenSpec {
 export interface Curva { k: number; s?: boolean }
 
 export interface Clip {
+  /** la scelta della clip prevale su quella della traccia */
+  ruoloAudio?: RuoloAudio;
+  ducking?: Ducking;
+  /** attenuazione in dB, separata dalla linea elastica manuale */
+  duckKeys?: Key[];
+  duckFirma?: string;
   id: string;
   track: string;
   kind: ClipKind;
@@ -435,6 +468,7 @@ export type LookFinale = 'nessuno' | 'cinema' | 'caldo' | 'freddo' | 'vivace' | 
 
 /** i ritocchi finali: valgono per tutto il montaggio, nei monitor e nell'export */
 export interface Master {
+  colore?: ColoreAvanzato;
   /** colore automatico su tutte le riprese (livelli e bilanciamento del bianco) */
   auto: boolean;
   /** forza del colore automatico 0..1 */
@@ -463,6 +497,7 @@ export interface Master {
 }
 
 export interface Project {
+  luts?: RisorsaLut[];
   format: 'daprod-video';
   v: 1;
   name: string;

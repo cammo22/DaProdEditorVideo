@@ -8,6 +8,7 @@ import { f2s } from '../core/timecode';
 import { mediaRT } from './libreria';
 import { bufferSuono, suoniFx } from './suoni';
 import { Stiratore } from './stira';
+import { conDucking } from '../core/ducking';
 
 const SUONA = new Set(['media', 'tone', 'beep']);
 
@@ -18,7 +19,7 @@ const SUONA = new Set(['media', 'tone', 'beep']);
  */
 export function conIncroci(p: Project): Project {
   const trs = transizioniAttive(p);
-  if (!trs.length) return p;
+  if (!trs.length) return conDucking(p);
   const audio = new Set(p.tracks.filter((t) => t.kind === 'audio').map((t) => t.id));
   const nuovi = new Map<string, Clip>();
   for (const x of trs) {
@@ -30,7 +31,7 @@ export function conIncroci(p: Project): Project {
       nuovi.set(c.id, { ...c, trIn: newTransition('mix', Math.min(L, c.len)) });
     }
   }
-  return nuovi.size ? { ...p, clips: p.clips.map((c) => nuovi.get(c.id) ?? c) } : p;
+  return conDucking(nuovi.size ? { ...p, clips: p.clips.map((c) => nuovi.get(c.id) ?? c) } : p);
 }
 
 /** la clip audio attaccata dopo c con transizione in testa (allunga c per l'incrocio) */
@@ -46,7 +47,7 @@ function codaIncrocio(p: Project, c: Clip): number {
  */
 export function guadagnoClip(c: Clip, lf: number, coda: number): number {
   const db = c.gainKeys.length ? keyValue(c.gainKeys, lf, c.gain) : c.gain;
-  let g = dbToGain(db);
+  let g = dbToGain(db + keyValue(c.duckKeys ?? [], lf, 0));
   // le dissolvenze con la loro forma (dritta, morbida, analogica, veloce, a S): la stessa del disegno
   g *= fadeAl(c, lf);
   if (c.trIn && lf < c.trIn.len) g *= Math.max(0, lf / c.trIn.len);
@@ -57,7 +58,7 @@ export function guadagnoClip(c: Clip, lf: number, coda: number): number {
 }
 
 /** punti dell'inviluppo (fotogrammi locali) dove il guadagno cambia pendenza */
-function puntiInviluppo(c: Clip, coda: number): number[] {
+export function puntiInviluppo(c: Clip, coda: number): number[] {
   const s = new Set<number>([0, c.len, c.len + coda]);
   const add = (a: number, b: number, n = 6) => { for (let i = 0; i <= n; i++) s.add(a + ((b - a) * i) / n); };
   // le dissolvenze curve hanno bisogno di più punti (fra un punto e l'altro la rampa è dritta)
@@ -70,6 +71,10 @@ function puntiInviluppo(c: Clip, coda: number): number[] {
   for (let i = 0; i < c.gainKeys.length; i++) {
     s.add(c.gainKeys[i].f);
     if (i) add(c.gainKeys[i - 1].f, c.gainKeys[i].f);
+  }
+  for (let i = 0; i < (c.duckKeys?.length ?? 0); i++) {
+    s.add(c.duckKeys![i].f);
+    if (i) add(c.duckKeys![i - 1].f, c.duckKeys![i].f, 24);
   }
   return [...s].filter((x) => x >= 0 && x <= c.len + coda).sort((a, b) => a - b);
 }
@@ -102,7 +107,7 @@ function suonaTono(ctx: BaseAudioContext, c: Clip, uscita: AudioNode, inizio: nu
 }
 
 /** programma l'inviluppo su un GainNode: t0 = tempo del contesto in cui la timeline è a startSec */
-function applicaInviluppo(g: GainNode, p: Project, c: Clip, coda: number, t0: number, startSec: number, now: number) {
+export function applicaInviluppo(g: GainNode, p: Project, c: Clip, coda: number, t0: number, startSec: number, now: number) {
   const r = p.rate;
   const toCtx = (lf: number) => t0 + f2s(c.start + lf, r) - startSec;
   const pts = puntiInviluppo(c, coda);

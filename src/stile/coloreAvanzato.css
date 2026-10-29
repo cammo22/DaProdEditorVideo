@@ -1,0 +1,13 @@
+.colore-avanzato { display: grid; gap: 12px; padding: 12px; color: inherit; min-width: 0; }
+.colore-avanzato fieldset { min-width: 0; border: 1px solid #67647366; border-radius: 6px; padding: 10px; display: grid; gap: 8px; }
+.colore-avanzato legend { padding: 0 5px; font-weight: 600; }
+.colore-avanzato label { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.colore-avanzato input[type=number] { width: 85px; min-width: 0; }
+.colore-avanzato select { min-width: 0; max-width: 100%; }
+.colore-avanzato .ca-ruote { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 8px; }
+.colore-avanzato .ca-disco { width: 112px; height: 112px; border-radius: 50%; margin: 4px auto; position: relative; touch-action: none; cursor: crosshair; background: radial-gradient(circle, #999 0%, transparent 75%), conic-gradient(from 90deg, #f66, #ff6, #6f6, #6ff, #66f, #f6f, #f66); }
+.colore-avanzato .ca-punto { position: absolute; width: 10px; height: 10px; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 1px #111; pointer-events: none; }
+.colore-avanzato .ca-curva { width: 100%; height: auto; display: block; border: 1px solid #777; touch-action: none; cursor: crosshair; }
+.colore-avanzato .ca-punto-riga { display: flex; gap: 6px; flex-wrap: wrap; }
+.colore-avanzato .ca-numero { font-size: 12px; }
+.colore-avanzato .ca-stato { min-height: 1.4em; overflow-wrap: anywhere; }

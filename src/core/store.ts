@@ -4,7 +4,7 @@ import type { Clip, MediaItem, Project, Sequenza } from './tipi';
 import { newProject, progettoAperto } from './progetto';
 import { FORMATI } from './tipi';
 
-type Snap = Pick<Project, 'tracks' | 'clips' | 'markers' | 'inF' | 'outF' | 'media' | 'w' | 'h' | 'rate' | 'drop' | 'name' | 'master' | 'sottotitoli' | 'sequenze' | 'seqAttiva' | 'cartelle'> & { label: string };
+type Snap = Pick<Project, 'luts' | 'tracks' | 'clips' | 'markers' | 'inF' | 'outF' | 'media' | 'w' | 'h' | 'rate' | 'drop' | 'name' | 'master' | 'sottotitoli' | 'sequenze' | 'seqAttiva' | 'cartelle'> & { label: string };
 
 export type StoreEvent = 'doc' | 'sel' | 'head' | 'view' | 'status';
 
@@ -53,7 +53,7 @@ class Store {
 
   private snap(label: string): Snap {
     const d = this.doc;
-    return structuredClone({ tracks: d.tracks, clips: d.clips, markers: d.markers, inF: d.inF, outF: d.outF, media: d.media, w: d.w, h: d.h, rate: d.rate, drop: d.drop, name: d.name, master: d.master, sottotitoli: d.sottotitoli, sequenze: d.sequenze, seqAttiva: d.seqAttiva, cartelle: d.cartelle, label });
+    return structuredClone({ luts: d.luts, tracks: d.tracks, clips: d.clips, markers: d.markers, inF: d.inF, outF: d.outF, media: d.media, w: d.w, h: d.h, rate: d.rate, drop: d.drop, name: d.name, master: d.master, sottotitoli: d.sottotitoli, sequenze: d.sequenze, seqAttiva: d.seqAttiva, cartelle: d.cartelle, label });
   }
 
   private restore(s: Snap) {

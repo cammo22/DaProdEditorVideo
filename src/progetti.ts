@@ -1,3 +1,4 @@
+import { migraColoreAudio } from './core/coloreAudioProgetto';
 // Progetti: nuovo, apri, salva, autosalvataggio, importazione dei file e ricollegamento dei media.
 // Nell'app (Tauri) i media si ritrovano dal percorso; nel browser dalle "maniglie" dei file che Chrome
 // permette di ricordare (basta un clic per ridare il permesso).
@@ -423,6 +424,7 @@ function valida(o: unknown): Project | null {
   // dalla 1.0.5: gli FX stanno sulle tracce video (la corsia a parte della 1.0.4 sparisce), e le transizioni delle
   // clip video diventano blocchetti
   migraBlocchi(p);
+  migraColoreAudio(p);
   return p;
 }
 
