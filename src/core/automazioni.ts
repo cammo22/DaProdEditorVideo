@@ -50,9 +50,9 @@ export function descrittore(path: string): Descrittore | null {
   if (path === 'gain') return { get: (c) => c.gain, set: (c, v) => { c.gain = v; } };
   if (path === 'pan') return { get: (c) => c.pan, set: (c, v) => { c.pan = v; } };
   const [grp, k, k2, k3] = path.split('.');
-  if (grp === 'tf' && k in TF && !k2) return { get: (c) => (c.tf as unknown as Record<string, number | undefined>)[k] ?? TF[k], set: (c, v) => { (c.tf as unknown as Record<string, number>)[k] = v; } };
-  if (grp === 'fx' && k in FX && !k2) return { get: (c) => (c.fx as unknown as Record<string, number | undefined>)[k] ?? FX[k], set: (c, v) => { (c.fx as unknown as Record<string, number>)[k] = v; } };
-  if (grp === 'fx' && k === 'colore' && k2 in RUOTE && k3 in CANALE) {
+  if (grp === 'tf' && Object.hasOwn(TF, k) && !k2) return { get: (c) => (c.tf as unknown as Record<string, number | undefined>)[k] ?? TF[k], set: (c, v) => { (c.tf as unknown as Record<string, number>)[k] = v; } };
+  if (grp === 'fx' && Object.hasOwn(FX, k) && !k2) return { get: (c) => (c.fx as unknown as Record<string, number | undefined>)[k] ?? FX[k], set: (c, v) => { (c.fx as unknown as Record<string, number>)[k] = v; } };
+  if (grp === 'fx' && k === 'colore' && Object.hasOwn(RUOTE, k2) && Object.hasOwn(CANALE, k3)) {
     const i = CANALE[k3];
     return {
       get: (c) => c.fx.colore?.[k2 as 'lift']?.[i] ?? RUOTE[k2],
@@ -200,6 +200,16 @@ export function togliLinea(c: Clip, path: string, lf: number) {
   const v = valoreAl(c, path, lf);
   delete c.anim[path];
   descrittore(path)?.set(c, v);
+  if (!Object.keys(c.anim).length) delete c.anim;
+}
+
+/**
+ * Toglie le linee animate di un parametro (o di tutto un gruppo: "tf" toglie "tf.x", "tf.scale"…). Serve a chi mette un
+ * valore fisso (Muto, Azzera colore, posizioni pronte…): senza, la linea comanderebbe ancora e il comando non si vedrebbe.
+ */
+export function togliAnimazione(c: Clip, ...percorsi: string[]) {
+  if (!c.anim) return;
+  for (const k of Object.keys(c.anim)) if (percorsi.some((p) => k === p || k.startsWith(p + '.'))) delete c.anim[k];
   if (!Object.keys(c.anim).length) delete c.anim;
 }
 

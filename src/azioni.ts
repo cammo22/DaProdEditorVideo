@@ -5,6 +5,7 @@ import { motore } from './motore';
 import * as M from './core/montaggio';
 import { clipById, end, isVideoClip, newClip, newTrack, nextTrackName, projectEnd, srcTimeAt, TITLE0, trackOf, uid } from './core/progetto';
 import { fps, frameToTc, s2f } from './core/timecode';
+import { togliAnimazione } from './core/automazioni';
 import { avviso } from './ui/dom';
 import { finestraVelocita } from './ui/velocita';
 import type { Clip, Transition } from './core/tipi';
@@ -621,7 +622,7 @@ reg({
 function opacitaSel(delta: number) {
   const ids = [...store.sel].filter((id) => { const c = clipById(store.doc, id); return c && isVideoClip(c); });
   if (!ids.length) { avviso('Seleziona una clip video', 'info', 1000); return; }
-  store.edit('Trasparenza', (p) => { for (const c of p.clips) if (ids.includes(c.id)) { c.opacity = Math.max(0, Math.min(1, Math.round((c.opacity + delta) * 20) / 20)); c.opKeys = []; } });
+  store.edit('Trasparenza', (p) => { for (const c of p.clips) if (ids.includes(c.id)) { c.opacity = Math.max(0, Math.min(1, Math.round((c.opacity + delta) * 20) / 20)); c.opKeys = []; togliAnimazione(c, 'opacity'); } });
   const c = clipById(store.doc, ids[0])!;
   avviso(`Opacità ${Math.round(c.opacity * 100)}%`, 'tasto', 800);
 }

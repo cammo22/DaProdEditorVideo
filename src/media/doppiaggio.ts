@@ -3,6 +3,7 @@
 // lingua se i sottotitoli sono tradotti. Ogni frase va al suo posto: se la voce è più lunga dello spazio che ha, si
 // accelera un po' (col tono giusto, src/media/stira.ts); poi l'audio intero diventa un file e va su una traccia sua.
 import type { Clip, Project, Sottotitolo } from '../core/tipi';
+import { togliAnimazione } from '../core/automazioni';
 import { end, newClip, newTrack, nextTrackName, uid } from '../core/progetto';
 import { f2s, fps } from '../core/timecode';
 import { sottotitoliDi } from '../core/sottotitoli';
@@ -178,7 +179,7 @@ export function posaVoce(p: Project, mediaId: string, duratasec: number, silenzi
       if (!usati.has(t.id) || t.id === tr.id) continue;
       const soloDialoghi = p.clips.filter((c) => c.track === t.id && c.kind !== 'fx').every((c) => dialoghi.some((d) => d.id === c.id));
       if (soloDialoghi) t.mute = true;
-      else for (const c of dialoghi) if (c.track === t.id) { c.gain = -40; c.gainKeys = []; }
+      else for (const c of dialoghi) if (c.track === t.id) { c.gain = -40; c.gainKeys = []; togliAnimazione(c, 'gain'); }
     }
   }
   return nuovi;

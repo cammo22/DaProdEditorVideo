@@ -199,7 +199,7 @@ export class EditorMaschere {
     const { x: px, y: py } = this.punto(e);
     const presa = this.presa(x, px, py);
     const [u, v] = x.mappa.daSchermo(px, py);
-    if (!presa && x.m.forma === 'bezier' && this.att!.disegna) {
+    if ((!presa || presa.tipo === 'sposta') && x.m.forma === 'bezier' && this.att!.disegna) {
       // un punto nuovo (in fondo alla fila)
       const mid = x.m.id, cid = x.c.id;
       const uu = Math.max(0, Math.min(1, u)), vv = Math.max(0, Math.min(1, v));

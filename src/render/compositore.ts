@@ -1804,6 +1804,7 @@ export class Compositore {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
     gl.uniform1i(u.u_numClic, 0);
+    gl.uniform1i(u.u_formaOn, 0); // la sovrimpressione non passa dalle maschere della clip di prima
     gl.uniform1i(u.u_tex, 0);
     gl.uniform2f(u.u_res, cw, ch);
     gl.uniform2f(u.u_size, cw, ch);

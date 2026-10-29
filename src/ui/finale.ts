@@ -5,6 +5,7 @@ import { progettoAttuale } from '../media/attivita';
 import { confermaAvvioAI } from './aiPassi';
 import { store } from '../core/store';
 import type { LookFinale, Master, Project, Sottotitoli } from '../core/tipi';
+import { togliAnimazione } from '../core/automazioni';
 import { MASTER0, TITLE0, end, isVideoClip, masterDi, newClip, projectEnd, trackOf, uid } from '../core/progetto';
 import * as M from '../core/montaggio';
 import { nuovoBlocco, posaBlocco } from '../core/blocchi';
@@ -705,6 +706,7 @@ export class Finale {
         c.afx = { ...c.afx, norm: c.afx?.norm ?? c.gain };
         c.gain = g;
         c.gainKeys = [];
+        togliAnimazione(c, 'gain');
         n++;
       }
     });

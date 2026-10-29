@@ -3,7 +3,7 @@
 // chiuso in "Avanzate". Il colore di tutto il montaggio sta nella pagina Finale.
 import { store } from '../core/store';
 import type { Clip, TitleSpec } from '../core/tipi';
-import { copiaLeggera, descrittore, haLinea, mettiChiave, percorsiAnimati, togliLinea, valutaClip } from '../core/automazioni';
+import { copiaLeggera, descrittore, haLinea, mettiChiave, percorsiAnimati, togliAnimazione, togliLinea, valutaClip } from '../core/automazioni';
 import { nuovaMaschera, nomeForma } from '../core/maschereForma';
 import { creaRombo, frameLocale, nomeParametro, parametriAnimabili, valoreVivo } from './keyframe';
 import { clipById, end, isVideoClip, mediaOf, newClip, newTrack, nextTrackName, trackOf, FX0 } from '../core/progetto';
@@ -155,7 +155,7 @@ export class Ispettore {
       // — la posizione: il quadro in miniatura che si trascina, le posizioni pronte, l'opacità
       const pronte = h('div', { class: 'pp-griglia' }, posizioniPronte().map((x) => h('button', {
         class: 'pp-tessera', title: x.titolo,
-        on: { click: () => store.edit(x.nome, () => { for (const c of vive()) { c.tf = x.fn(c); c.tfFine = undefined; c.via = undefined; } }) },
+        on: { click: () => store.edit(x.nome, () => { for (const c of vive()) { c.tf = x.fn(c); c.tfFine = undefined; c.via = undefined; togliAnimazione(c, 'tf.x', 'tf.y', 'tf.scale', 'tf.sx', 'tf.rot'); } }) },
       }, disegnino(x.box), h('span', null, x.nome))));
       out.push(this.gruppo('immagine', 'Posizione e movimento', [
         h('label', { class: 'etichetta' }, 'Posizioni pronte'), pronte,
@@ -174,7 +174,7 @@ export class Ispettore {
           this.cursore('Verticale', -p.h, p.h, 1, (c) => Math.round(c.tf.y), (c, v) => { c.tf.y = v; }, 'px', video, 'tf.y'),
           this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video, 'tf.rot'),
           this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video, 'tf.angoli'),
-          this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video), 'tf.ombra'),
+          this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video, 'tf.ombra')),
         video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l\'opacità la toglie.') : null,
       ], primo.kind === 'media'));
 
@@ -213,7 +213,7 @@ export class Ispettore {
         this.cursore('Saturazione', 0, 200, 1, (c) => Math.round(c.fx.sat * 100), (c, v) => { c.fx.sat = v / 100; }, '%', video, 'fx.sat'),
         this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, ' (freddo ↔ caldo)', video, 'fx.temp'),
         this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video, 'fx.hue'),
-        this.pulsanti([['💧 Bilancia il bianco (clic sul monitor)', () => bilanciaBianco(video[0].id)], ['Azzera il colore', () => store.edit('Azzera colore', () => { for (const c of vive()) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
+        this.pulsanti([['💧 Bilancia il bianco (clic sul monitor)', () => bilanciaBianco(video[0].id)], ['Azzera il colore', () => store.edit('Azzera colore', () => { for (const c of vive()) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; togliAnimazione(c, 'fx.bright', 'fx.contrast', 'fx.sat', 'fx.hue', 'fx.temp'); c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
         h('p', { class: 'nota' }, 'Per dare lo stesso colore a tutto il montaggio c\'è la pagina Finale. Doppio clic su un cursore = valore di partenza.'),
       ]));
     }
@@ -222,7 +222,7 @@ export class Ispettore {
     if (audio.length) {
       out.push(this.gruppo('audio', 'Volume', [
         this.cursore('Volume', -40, 12, 0.5, (c) => c.gain, (c, v) => { c.gain = v; c.gainKeys = []; }, 'dB', audio, 'gain'),
-        this.pulsanti([['−6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -6; c.gainKeys = []; } })], ['0 dB', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 0; c.gainKeys = []; } })], ['+6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 6; c.gainKeys = []; } })], ['Muto', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -60; c.gainKeys = []; } })]]),
+        this.pulsanti([['−6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -6; c.gainKeys = []; togliAnimazione(c, 'gain'); } })], ['0 dB', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 0; c.gainKeys = []; togliAnimazione(c, 'gain'); } })], ['+6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 6; c.gainKeys = []; togliAnimazione(c, 'gain'); } })], ['Muto', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -60; c.gainKeys = []; togliAnimazione(c, 'gain'); } })]]),
         this.cursore('Panorama', -100, 100, 1, (c) => Math.round(c.pan * 100), (c, v) => { c.pan = v / 100; }, '', audio, 'pan'),
         h('p', { class: 'nota' }, 'Nella timeline la linea gialla è il volume: un clic ci mette un punto da portare su e giù (per alzare o abbassare solo in quel momento); Maiusc+trascina alza o abbassa tutto il tratto.'),
       ], true));
@@ -774,7 +774,6 @@ export class Ispettore {
   }
 
   // ——— mattoncini ———
-  /** una sezione del pannello; `principale` = quella che serve per questo tipo di elemento: parte aperta (se non l'hai chiusa tu) */
   /** i keyframe: i parametri che si muovono nel tempo, e un menu per farne muovere altri (colore, ruote, maschere, effetti…) */
   private animazioniGruppo(c0: Clip): HTMLElement {
     const id = c0.id;
@@ -888,6 +887,7 @@ export class Ispettore {
     return this.gruppo('maschere', 'Maschere (forme)', righe, !!c0.maschere?.length);
   }
 
+  /** una sezione del pannello; `principale` = quella che serve per questo tipo di elemento: parte aperta (se non l'hai chiusa tu) */
   private gruppo(id: string, titolo: string, righe: (HTMLElement | null)[], principale = false): HTMLElement {
     const grip = h('span', { class: 'isp-grip', title: 'Trascina per spostare la sezione (l\'ordine si ricorda)' }, '⠿');
     const aperta = this.aperti.has(id) || (principale && !this.chiusi.has(id));

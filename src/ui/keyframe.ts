@@ -4,7 +4,7 @@
 import '../stile/keyframe.css';
 import { store } from '../core/store';
 import type { Clip, ModoAnim } from '../core/tipi';
-import { end, tfAl } from '../core/progetto';
+import { end, keyValue, tfAl } from '../core/progetto';
 import { MODI_ANIM, chiaveVicina, descrittore, haChiaveA, haLinea, impostaModoChiave, mettiChiave, togliChiave, togliLinea, valoreAl, valoreFermo } from '../core/automazioni';
 import { effettoTempo, parametroFx } from '../core/blocchi';
 import { nomeForma } from '../core/maschereForma';
@@ -20,6 +20,9 @@ export function frameLocale(c: Clip): number | null {
 /** il valore «vivo» di un parametro al fotogramma locale lf: con la linea è quello animato, senza è quello che si vede adesso (anche in movimento) */
 export function valoreVivo(c: Clip, path: string, lf: number): number {
   if (haLinea(c, path)) return valoreAl(c, path, lf);
+  // la vecchia linea elastica: la prima chiave parte da dove si vede adesso (se no al primo rombo il valore salterebbe)
+  if (path === 'opacity' && c.opKeys.length) return keyValue(c.opKeys, lf, c.opacity);
+  if (path === 'gain' && c.gainKeys.length) return keyValue(c.gainKeys, lf, c.gain);
   if (path.startsWith('tf.')) {
     const k = path.slice(3);
     const t = tfAl(c, lf) as unknown as Record<string, number | undefined>;

@@ -352,3 +352,26 @@ test('annulla e ripeti: una chiave e una maschera tornano come prima', async () 
   assert.equal(store.doc.clips[0].maschere[0].forma, 'ellisse');
   void c;
 });
+
+// ——— revisione ———
+
+test('togliAnimazione: toglie la linea (o il gruppo) e pulisce anim; percorsi strani non passano', () => {
+  const { c } = clip();
+  A.mettiChiave(c, 'gain', 5, -10);
+  A.mettiChiave(c, 'tf.x', 5, 20);
+  A.mettiChiave(c, 'tf.scale', 5, 1.5);
+  A.togliAnimazione(c, 'tf');
+  assert.deepEqual(Object.keys(c.anim), ['gain']);
+  A.togliAnimazione(c, 'gain');
+  assert.equal(c.anim, undefined);
+  assert.equal(A.descrittore('tf.constructor'), null);
+  assert.equal(A.descrittore('fx.toString'), null);
+});
+
+test('prima chiave su un\'opacità con la vecchia linea elastica: il valore di partenza non salta', () => {
+  const { c } = clip({ opacity: 1 });
+  c.opKeys = [{ f: 0, v: 1 }, { f: 40, v: 0 }];
+  const prima = P.clipOpacity(c, 20);
+  A.mettiChiave(c, 'opacity', 20, P.keyValue(c.opKeys.length ? c.opKeys : [{ f: 0, v: 1 }, { f: 40, v: 0 }], 20, 1));
+  vicino(P.clipOpacity(c, 20), prima);
+});
