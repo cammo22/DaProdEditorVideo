@@ -11,19 +11,22 @@ import { MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, modelloRumore
 import { modelloInCache } from './modelliAudio';
 import { modelliScaricati, togliRepoModello } from './diagnosiAI';
 import { dimenticaModello, modelliPronti, segnaModelloPronto } from './modelliPronti';
+import type { RequisitiAI } from './idoneitaAI';
 
 export type Gruppo = 'Togli lo sfondo e segui' | 'Sottotitoli' | 'Traduzione' | 'Audio';
 export type StatoModello = 'pronto' | 'parziale' | 'da-scaricare';
 export type Avanzamento = (fase: string, k: number) => void;
 
-export interface ModelloHub {
+export interface ModelloHub extends RequisitiAI {
   id: string;
   gruppo: Gruppo;
   nome: string;
   info: string;
+  /** a cosa serve, in una riga (indipendente dalla variante e dal computer) */
+  uso: string;
   /** quanto pesa, circa, se si sa */
   mb?: number;
-  /** quelli che «Controlla e ripara tutto» scarica (gli altri si scelgono a mano) */
+  /** suggerimento per la scelta: nessun modello viene selezionato o scaricato da solo */
   consigliato: boolean;
   /** dove cercare i suoi file nella cache (più indirizzi: ogni funzione prova i ricambi) */
   repos: string[];
@@ -46,7 +49,7 @@ export function modelliHub(): ModelloHub[] {
   // per togliere lo sfondo c'è un modo solo, SAM 3 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
   for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam3')) {
     out.push({
-      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, mb: m.id === 'sam3' ? 300 : undefined, consigliato: consigliati.has(m.id), repos: m.repo,
+      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, uso: 'Ritaglia gli oggetti scelti con i clic e li segue nella ripresa.', ramGB: 8, thread: 8, mb: 300, consigliato: consigliati.has(m.id), repos: m.repo,
       async scarica(avanza) {
         const r = repoDa(await caricaModelloRitaglio(m, avanza));
         if (!r || r === m.repo[0]) { ricorda(m.id, r || m.repo[0]); return; }
@@ -60,13 +63,13 @@ export function modelliHub(): ModelloHub[] {
   }
   for (const w of MODELLI) {
     out.push({
-      id: 'whisper-' + w.id.split('-').pop(), gruppo: 'Sottotitoli', nome: `Whisper ${w.nome}`, info: w.info, mb: w.mb, consigliato: w.id.endsWith('base'), repos: [w.id],
+      id: 'whisper-' + w.id.split('-').pop(), gruppo: 'Sottotitoli', nome: `Whisper ${w.nome}`, info: w.info, uso: 'Ascolta il parlato e scrive i sottotitoli con i tempi.', ramGB: w.mb > 500 ? 8 : 4, thread: w.mb > 500 ? 8 : 4, mb: w.mb, consigliato: w.id.endsWith('base'), repos: [w.id],
       async scarica(avanza) { await caricaModelloVoce(w.id, avanza); ricorda('whisper-' + w.id.split('-').pop(), w.id); },
       async togli() { await togliRepoModello(w.id); dimentica('whisper-' + w.id.split('-').pop()); },
     });
   }
   out.push({
-    id: 'nllb', gruppo: 'Traduzione', nome: 'NLLB-200 di Meta', info: 'traduce i sottotitoli in nove lingue', mb: 600, consigliato: false, repos: MODELLI_TRADUZIONE,
+    id: 'nllb', gruppo: 'Traduzione', nome: 'NLLB-200 di Meta', info: 'traduce i sottotitoli in nove lingue', uso: 'Traduce il testo dei sottotitoli in un’altra lingua.', processore: true, ramGB: 8, thread: 4, mb: 600, consigliato: false, repos: MODELLI_TRADUZIONE,
     async scarica(avanza) {
       await caricaTraduttore(avanza);
       const b = await modelliScaricati();
@@ -76,12 +79,12 @@ export function modelliHub(): ModelloHub[] {
   });
   const rumore = modelloRumoreScelto();
   out.push({
-    id: 'rumore', gruppo: 'Audio', nome: 'MossFormer2 · togli i rumori', info: 'il filtro per le voci (ClearerVoice): sulla scheda video pulisce 15 s in meno di un secondo', mb: Math.round(rumore.peso / 1048576), consigliato: true, repos: [rumore.repo], file: rumore.url,
+    id: 'rumore', gruppo: 'Audio', nome: 'MossFormer2 · togli i rumori', info: 'il filtro per le voci (ClearerVoice)', uso: 'Toglie il rumore di fondo dai dialoghi e lascia la voce.', ramGB: 4, thread: 8, mb: Math.round(rumore.peso / 1048576), consigliato: true, repos: [rumore.repo], file: rumore.url,
     async scarica(avanza) { await installaRumore((a, t) => avanza(`${(a / 1048576).toFixed(0)} di ${((t || rumore.peso) / 1048576).toFixed(0)} MB`, t ? a / t : 0)); },
     async togli() { await togliModelloRumore(); },
   });
   out.push({
-    id: 'separa', gruppo: 'Audio', nome: 'Demucs · voce e base', info: 'separa il cantato dalla musica e isola le voci', mb: Math.round(MODELLO_SEPARAZIONE.peso / 1048576), consigliato: true, repos: [MODELLO_SEPARAZIONE.repo], file: MODELLO_SEPARAZIONE.url,
+    id: 'separa', gruppo: 'Audio', nome: 'Demucs · voce e base', info: 'separa il cantato dalla musica e isola le voci', uso: 'Divide la canzone in voce e base su due tracce.', ramGB: 8, thread: 8, mb: Math.round(MODELLO_SEPARAZIONE.peso / 1048576), consigliato: true, repos: [MODELLO_SEPARAZIONE.repo], file: MODELLO_SEPARAZIONE.url,
     async scarica(avanza) { await installaSeparazione((a, t) => avanza(`${(a / 1048576).toFixed(0)} di ${((t || MODELLO_SEPARAZIONE.peso) / 1048576).toFixed(0)} MB`, t ? a / t : 0)); },
     async togli() { await togliSeparazione(); },
   });

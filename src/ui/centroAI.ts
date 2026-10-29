@@ -15,7 +15,8 @@ import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazion
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
 import { LS_CHIAVE_HF, chiaveHFSalvata, impostaSchedaAI, usaSchedaAI } from '../media/libreriaAI';
-import { raccontaHardware } from '../media/hardware';
+import { hardwareNoto, raccontaHardware, rilevaHardware } from '../media/hardware';
+import { idoneitaAI } from '../media/idoneitaAI';
 import { spiegaErroreAI } from '../media/erroriAI';
 import { avviso, conferma, dialogo, evidenzia, h } from './dom';
 import { vaiFinale, vaiPagina, vaiSezione } from './guida';
@@ -23,6 +24,7 @@ import { fonteCerca } from './cerca';
 import { modelliHub, statoModelli, type ModelloHub } from '../media/modelliAI';
 import { liberaVram } from '../media/vram';
 import { registra as reg } from '../azioni';
+import '../stile/copieAI.css';
 
 export interface FunzioneAI {
   id: string;
@@ -140,7 +142,7 @@ export async function spazioModelli(): Promise<{ n: number; byte: number; testo:
   return { n: m.size, byte, testo: m.size ? `${m.size} modelli sul computer · ${mb(byte)}` : 'Nessun modello scaricato' };
 }
 
-/** com'è messa la scorta di modelli: quanti pronti, e quanti di quelli consigliati (sono quelli che «Controlla e ripara tutto» scarica) */
+/** com'è messa la scorta di modelli: anche quelli consigliati restano opzionali */
 export async function riassuntoModelli(): Promise<{ pronti: number; totale: number; consigliati: number; consigliatiPronti: number }> {
   const lista = modelliHub();
   const st = await statoModelli(lista);
@@ -153,22 +155,18 @@ export interface OpzioniRiparaAI {
   lista?: ModelloHub[];
   /** cosa sto facendo adesso, a parole */
   passo?: (testo: string) => void;
-  /** come si scarica un modello (il Centro AI ci mette l'avanzamento sulla riga); di partenza si scarica e basta */
-  scarica?: (m: ModelloHub) => Promise<boolean>;
   dopoDiagnosi?: (g: Diagnosi) => void;
   /** il motore non partiva con la scheda video e l'ho spenta */
   schedaSpenta?: () => void;
-  dopoModello?: () => Promise<void> | void;
 }
 
 /**
- * «Controlla e ripara tutto» senza finestra: il motore AI, la scheda video, la rete e i modelli consigliati.
- * Lo usano il Centro AI (col suo avanzamento) e «Aggiusta tutto» della pagina iniziale. `testo` è la frase da dire.
+ * Controlla il motore AI, la scheda video, la rete e i modelli già presenti. Non scarica modelli: si scelgono uno per
+ * uno nel Centro AI. Vale anche da «Aggiusta tutto» della pagina iniziale. `testo` è la frase da dire.
  */
 export async function riparaAI(o: OpzioniRiparaAI = {}): Promise<{ ok: boolean; testo: string }> {
   const passo = o.passo ?? (() => {});
   const lista = o.lista ?? modelliHub();
-  const scaricaUno = o.scarica ?? (async (m: ModelloHub) => { try { await m.scarica(() => {}); return true; } catch { return false; } });
   try {
     passo('Controllo il motore AI, la scheda video e la connessione…');
     let g = await diagnosi();
@@ -181,26 +179,18 @@ export async function riparaAI(o: OpzioniRiparaAI = {}): Promise<{ ok: boolean; 
     o.dopoDiagnosi?.(g);
     if (!g.libreria.ok) return { ok: false, testo: 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.' };
     const st = await statoModelli(lista);
-    const daFare = lista.filter((m) => m.consigliato && st.get(m.id)!.stato !== 'pronto');
-    if (!daFare.length) return { ok: true, testo: 'Fatto: il motore funziona e i modelli consigliati sono sul computer.' };
-    if (!g.internet) return { ok: false, testo: 'Senza internet non posso scaricare i modelli mancanti: quelli già sul computer funzionano.' };
-    let ok = 0;
-    const falliti: string[] = [];
-    for (const [i, m] of daFare.entries()) {
-      passo(`Scarico ${m.nome} (${i + 1} di ${daFare.length})…`);
-      if (await scaricaUno(m)) ok++; else falliti.push(m.nome);
-      await o.dopoModello?.();
-    }
-    return falliti.length ? { ok: false, testo: `${ok} modelli a posto, non sono riuscito con: ${falliti.join(', ')}.` } : { ok: true, testo: `Fatto: ${ok} modelli scaricati e provati, adesso partono senza scaricare niente.` };
+    const pronti = lista.filter((m) => st.get(m.id)?.stato === 'pronto').length;
+    return { ok: true, testo: `Il motore funziona. ${pronti} modelli sul computer; gli altri sono opzionali: scegli «Scarica» nel Centro AI se ti servono. Nessun modello scaricato dal controllo.` };
   } catch (e) { return { ok: false, testo: 'Non sono riuscito a sistemare tutto: ' + spiegaErroreAI(e) }; }
 }
 
 /** la finestra del Centro AI: un posto solo per controllare i modelli (e il motore). Le funzioni si usano dalle Proprietà. */
 export function finestraCentroAI(subito = false) {
-  const d = dialogo('Centro AI · i modelli', { largo: true });
+  const d = dialogo('Centro AI · i modelli', { largo: true, onChiudi: () => document.removeEventListener('dpv:hardware', aggiornaHardware) });
   d.el.classList.add('centro-ai');
-  const lista = modelliHub();
-  const righe = new Map<string, { el: HTMLElement; stato: HTMLElement; msg: HTMLElement; scarica: HTMLButtonElement; togli: HTMLButtonElement }>();
+  let lista = modelliHub();
+  let hardware = hardwareNoto();
+  const righe = new Map<string, { el: HTMLElement; stato: HTMLElement; msg: HTMLElement; peso: HTMLElement; macchina: HTMLElement; scarica: HTMLButtonElement; togli: HTMLButtonElement }>();
   let occupato = false;
 
   /** com'è messo ogni modello, dalla cache e da quello che si è caricato davvero */
@@ -215,6 +205,11 @@ export function finestraCentroAI(subito = false) {
       r.scarica.textContent = s.stato === 'pronto' ? 'Ricontrolla' : s.stato === 'parziale' ? 'Completa' : 'Scarica';
       r.togli.disabled = s.stato === 'da-scaricare';
       r.scarica.disabled = occupato;
+      r.togli.disabled ||= occupato;
+      r.peso.textContent = `Download completo: circa ${m.mb} MB · resta su questo computer`;
+      const idoneita = idoneitaAI(m, hardware, usaSchedaAI());
+      r.macchina.textContent = `${idoneita.dove} · ${idoneita.testo}`;
+      r.macchina.dataset.esito = idoneita.ok === false ? 'lento' : 'stima';
     }
   };
 
@@ -241,31 +236,44 @@ export function finestraCentroAI(subito = false) {
     ...lista.filter((m) => m.gruppo === g).map((m) => {
       const stato = h('span', { class: 'hub-stato' }, '…');
       const msg = h('small', { class: 'hub-msg' });
-      const bScarica = h('button', { class: 'btn-mini', on: { click: async () => { bloccaTutto(true); await scarica(m); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
-      const bTogli = h('button', { class: 'btn-mini', title: 'Toglie il modello dal computer (si riscarica quando serve)', on: { click: async () => { bloccaTutto(true); await m.togli(); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Togli') as HTMLButtonElement;
-      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome), h('small', null, m.info), msg), stato, bScarica, bTogli);
-      righe.set(m.id, { el, stato, msg, scarica: bScarica, togli: bTogli });
+      const peso = h('small', { class: 'hub-peso' });
+      const macchina = h('small', { class: 'hub-macchina' });
+      const attuale = () => lista.find((x) => x.id === m.id)!;
+      const bScarica = h('button', { class: 'btn-mini', disabled: true, on: { click: async () => { bloccaTutto(true); await scarica(attuale()); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
+      const bTogli = h('button', { class: 'btn-mini', disabled: true, title: 'Toglie il modello dal computer (potrai scaricarlo di nuovo)', on: { click: async () => { bloccaTutto(true); try { await attuale().togli(); } finally { bloccaTutto(false); await disegna(); void aggSpazio(); } } } }, 'Togli') as HTMLButtonElement;
+      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, 'Opzionale')), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
+      righe.set(m.id, { el, stato, msg, peso, macchina, scarica: bScarica, togli: bTogli });
       return el;
     }),
   ]));
   void disegna();
+  function aggiornaHardware() {
+    hardware = hardwareNoto();
+    lista = modelliHub(); // anche il peso di MossFormer cambia fra scheda video e processore
+    void disegna();
+  }
+  document.addEventListener('dpv:hardware', aggiornaHardware);
+  void rilevaHardware().then(aggiornaHardware).catch(() => {
+    for (const r of righe.values()) r.macchina.textContent = 'Hardware non rilevato: prestazioni da verificare; è disponibile il processore.';
+  });
 
-  // ——— controlla e ripara: il motore, la scheda video, la rete e i modelli consigliati
+  // ——— controlla: nessun modello viene scaricato da questo tasto, nemmeno con subito=true
   const esito = h('div', { class: 'ai-diagnosi' });
   const progresso = h('p', { class: 'nota hub-progresso' });
-  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: () => void fai() } }, '🔧 Controlla e ripara tutto') as HTMLButtonElement;
+  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: () => void fai() } }, '🔍 Controlla l’AI') as HTMLButtonElement;
   async function fai() {
+    if (occupato) return;
     ripara.disabled = true;
     bloccaTutto(true);
     try {
-      const r = await riparaAI({ lista, passo: (t) => { progresso.textContent = t; }, scarica, dopoDiagnosi: (g) => disegnaDiagnosi(esito, g), schedaSpenta: () => { scheda.checked = false; }, dopoModello: disegna });
+      const r = await riparaAI({ lista, passo: (t) => { progresso.textContent = t; }, dopoDiagnosi: (g) => disegnaDiagnosi(esito, g), schedaSpenta: () => { scheda.checked = false; aggiornaHardware(); } });
       progresso.textContent = r.testo;
     } finally { ripara.disabled = false; bloccaTutto(false); await disegna(); void aggSpazio(); }
   }
 
   // ——— le impostazioni
   const scheda = h('input', { type: 'checkbox', checked: usaSchedaAI() }) as HTMLInputElement;
-  scheda.addEventListener('change', () => impostaSchedaAI(scheda.checked));
+  scheda.addEventListener('change', () => { impostaSchedaAI(scheda.checked); aggiornaHardware(); });
   // la chiave di Hugging Face: serve ai modelli «gated» come SAM 3 (si crea gratis su huggingface.co → Settings → Access Tokens)
   const chiaveHF = h('input', { type: 'password', class: 'campo-testo', placeholder: 'hf_…', value: chiaveHFSalvata(), 'aria-label': 'Chiave Hugging Face', autocomplete: 'off' }) as HTMLInputElement;
   const salvaChiave = h('button', { class: 'btn-mini', on: { click: () => {
@@ -294,7 +302,8 @@ export function finestraCentroAI(subito = false) {
 
   d.corpo.append(
     h('section', { class: 'ai-sezione' },
-      h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione, e scarica i modelli consigliati. «Pronto» vuol dire provato: il modello parte da qui senza riscaricare.')),
+      h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
+      h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),
       progresso, tabella),
     h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),

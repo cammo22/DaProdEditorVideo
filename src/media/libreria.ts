@@ -1,8 +1,8 @@
 // Il contenitore (bin): i file importati, aperti con Mediabunny (WebCodecs) e tenuti vivi finché servono.
 // Dalla 1.5.8 l'import e la riapertura leggono i metadati (contenitore, tracce, durata, dimensioni, codec) e il file è
 // subito usabile dall'originale. Dalla 1.6.0 locandina, colore automatico e forma d'onda ripartono da soli (sono
-// leggeri e si leggono dalla memoria delle misure, cache.ts, se già fatti); la copia leggera e il controllo della
-// velocità li prepara l'utente con proponiPreparazione() (pulsanti nel Centro attività).
+// leggeri e si leggono dalla memoria delle misure, cache.ts, se già fatti). All'import le copie leggere dei video
+// pesanti partono in fondo alla coda; il controllo della velocità resta a richiesta nel Centro attività.
 // Le miniature della timeline restano «a richiesta»: si leggono solo i fotogrammi delle clip che si vedono.
 import {
   ALL_FORMATS, AudioBufferSink, BlobSource, CanvasSink, Input, StreamSource,
@@ -11,7 +11,7 @@ import {
 import type { MediaItem, Project } from '../core/tipi';
 import { autoColore, uid } from '../core/progetto';
 import { invoke, isTauri, type FileScelto } from '../platform';
-import { proponiProxy, proxyEsistente, modoProxy, type Proxy } from './proxy';
+import { copieLeggereAutomatiche, proponiProxy, proxyEsistente, modoProxy, ripresaPesante, type Proxy } from './proxy';
 import { attivitaDaAvviare, avviaRiga, annullaChiave, daAvviare, giaInCorso, proponi, rigaAttivita, type Attivita, type Lavoro, type Proposto } from './attivita';
 import { chiaveMedia, comprimiPicchi, espandiPicchi, leggiCache, scriviCache } from './cache';
 
@@ -170,11 +170,10 @@ let preparazioneAutomatica = true;
 export const impostaPreparazioneAutomatica = (on: boolean) => { preparazioneAutomatica = on; };
 
 /**
- * All'import e alla riapertura: si usa SOLO quello che c'è già (memoria delle misure, copia leggera sul disco o tornata
- * da un .dap). Niente decodifica, niente code, niente righe nel Centro attività. Vale anche con le preferenze vecchie
- * («Copie leggere: sempre», dpv-normalizza): da sole non fanno più partire niente.
+ * Si legge quello che c'è già e si preparano le cose leggere in fondo. Solo per i nuovi import, se richiesto nelle
+ * impostazioni, si preparano anche i proxy dei video pesanti. Alla riapertura le copie nuove non partono.
  */
-async function leggiPreparato(item: MediaItem, r: MediaRT) {
+async function leggiPreparato(item: MediaItem, r: MediaRT, nuovoImport = false) {
   const chiave = chiaveMedia(item);
   if (r.v && r.vDecodable) await locandinaSalvata(r, chiave);
   void (async () => {
@@ -194,9 +193,20 @@ async function leggiPreparato(item: MediaItem, r: MediaRT) {
     }
     avvisaPrep(r.id);
     // le cose leggere (locandina, colore, forma d'onda) partono da sole, a turno nella corsia leggera: si vedono nel Centro attività.
-    // La copia leggera e il controllo della velocità restano a richiesta (pulsanti nel Centro attività).
     if (preparazioneAutomatica && rt.get(r.id) === r) for (const cosa of ['locandina', 'colore', 'picchi'] as const) proponiPreparazione(item, cosa, { avvia: true });
+    if (nuovoImport) void preparaProxyAutomatico(item, r);
   })();
+}
+
+/** Nessuna attesa nell'import: i metadati si controllano in fondo, poi il proxy va dietro ai lavori chiesti a mano. */
+async function preparaProxyAutomatico(item: MediaItem, r: MediaRT) {
+  const valido = () => copieLeggereAutomatiche() && modoProxy() !== 'mai' && rt.get(r.id) === r && r.stato === 'ok' && !r.proxy;
+  if (!valido()) return;
+  try {
+    if (!(await ripresaPesante(item, r)) || !valido()) return;
+    const p = proponiProxy(item, r, () => sorgente(r), { avvia: true, forza: true, priorita: () => -1000 + prioritaDi(item.id)() });
+    if (p) { avvisaPrep(item.id); void p.esito.then(() => avvisaPrep(item.id)); }
+  } catch { /* metadati non leggibili: resta disponibile «Prepara copia leggera» */ }
 }
 
 // ——— le preparazioni manuali ———
@@ -234,7 +244,7 @@ const chiavePrep = (cosa: Preparazione, id: string) => (cosa === 'proxy' ? 'prox
 /**
  * Prepara un lavoro per un file: nasce «da avviare» (riga nel Centro attività, parte con Avvia) o, con avvia:true, parte
  * subito. null = non serve o non si può (già fatta, già in giro, file senza video/audio, Copie leggere = Mai…).
- * Mai chiamata dal programma da solo: solo da un gesto dell'utente.
+ * Locandina, colore e picchi si preparano anche in automatico.
  */
 export function proponiPreparazione(m: MediaItem | string, cosa: Preparazione, o: OpzioniPreparazione = {}): Proposto<unknown> | null {
   const item = typeof m === 'string' ? cercaMedia(m) : m;
@@ -334,7 +344,7 @@ export function statoPreparazione(id: string, cosa: Preparazione): StatoPreparaz
     case 'picchi': return !(r.a && r.aDecodable) ? 'non-serve' : r.peaks && r.peaksDone >= r.peaks.length ? 'fatta' : r.erroriPrep?.picchi ? 'errore' : 'non-fatta';
     case 'proxy':
       if (r.proxy || r.proxyStato === 'pronto') return 'fatta';
-      if (!video || modoProxy() === 'mai' || (item && (item.type !== 'video' || item.duration < 2))) return 'non-serve';
+      if (!video || modoProxy() === 'mai' || (item && (item.type !== 'video' || item.duration <= 0))) return 'non-serve';
       if (r.proxyStato === 'no') return 'non-serve';
       if (r.proxyStato === 'errore') return 'errore';
       return 'non-fatta';
@@ -448,8 +458,8 @@ export async function importa(sel: FileScelto, opz: { soloDescrizione?: boolean 
     }
     r.stato = 'ok';
     if (opz.soloDescrizione) { input.dispose(); rt.delete(id); return { item: base, rt: r }; }
-    // solo letture (memoria delle misure, copia leggera già sul disco): nessun lavoro parte da solo
-    await leggiPreparato(base, r);
+    // L'import non aspetta le preparazioni di fondo né la copia leggera.
+    await leggiPreparato(base, r, true);
     return { item: base, rt: r };
   } catch (e) {
     rt.get(id)?.input?.dispose();

@@ -15,7 +15,7 @@ import { finestraAggiornamenti, finestraNovita } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { finestraGuida } from './guida';
 import { finestraCentroAI, FUNZIONI_AI } from './centroAI';
-import { modoProxy, impostaModoProxy, svuotaProxy } from '../media/proxy';
+import { copieLeggereAutomatiche, impostaCopieLeggereAutomatiche, modoProxy, impostaModoProxy, svuotaProxy } from '../media/proxy';
 import { svuotaCache } from '../media/cache';
 
 export type Pagina = 'montaggio' | 'finale' | 'live' | 'montage';
@@ -120,9 +120,10 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: 'Mixer', fn: () => { b.pagina('montaggio'); b.mostraLato('mixer'); } },
       { sep: true },
       { nome: 'Copie leggere per il monitor (proxy)', sotto: [
-        // dalla 1.5.8 nessuna copia si fa da sola: la scelta dice solo per quali file si offre «Prepara copia leggera»
-        { nome: 'Offrile per le riprese pesanti (consigliato)', spunta: modoProxy() === 'auto', fn: () => { impostaModoProxy('auto'); avviso('Copie leggere: si offrono per le riprese pesanti (le prepari tu, non partono da sole)', 'info'); } },
-        { nome: 'Offrile per tutti i video', spunta: modoProxy() === 'sempre', fn: () => { impostaModoProxy('sempre'); avviso('Copie leggere: si offrono per tutti i video (le prepari tu, non partono da sole)', 'info'); } },
+        { nome: 'Copie leggere automatiche', spunta: copieLeggereAutomatiche(), fn: () => { impostaCopieLeggereAutomatiche(!copieLeggereAutomatiche()); avviso(copieLeggereAutomatiche() ? 'Ai prossimi import le riprese pesanti avranno una copia leggera in fondo alla coda (se non hai scelto Mai)' : 'Copie automatiche spente: resta «Prepara copia leggera» nel Centro attività', 'info'); } },
+        { sep: true },
+        { nome: 'Usale per le riprese pesanti (consigliato)', spunta: modoProxy() === 'auto', fn: () => { impostaModoProxy('auto'); avviso('Il monitor usa le copie pronte; le nuove seguono la scelta «Copie leggere automatiche»', 'info'); } },
+        { nome: 'Offri la preparazione anche per i video leggeri', spunta: modoProxy() === 'sempre', fn: () => { impostaModoProxy('sempre'); avviso('Puoi preparare a mano anche i video leggeri; in automatico partono solo quelli pesanti', 'info'); } },
         { nome: 'Mai (il monitor legge gli originali)', spunta: modoProxy() === 'mai', fn: () => { impostaModoProxy('mai'); avviso('Copie leggere spente: il monitor legge gli originali', 'info'); } },
         { sep: true },
         { nome: 'Svuota le copie leggere (si rifanno a mano)', fn: async () => { await svuotaProxy(); avviso('Copie leggere tolte dal disco: per rifarle, «Prepara copia leggera»', 'ok', 2600); } },
