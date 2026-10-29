@@ -81,7 +81,7 @@ export interface LibreriaAI {
 
 let promessa: Promise<{ T: LibreriaAI; dove: 'locale' | 'cdn' }> | null = null;
 
-/** la chiave di Hugging Face (per i modelli che la chiedono, come SAM 3): viaggia solo verso huggingface.co */
+/** la chiave di Hugging Face (per i modelli che la chiedono, se richiesto): viaggia solo verso huggingface.co */
 let chiaveHF = '';
 export const impostaChiaveHF = (k: string) => { chiaveHF = (k ?? '').trim(); };
 export const LS_CHIAVE_HF = 'dpv-hf-chiave';

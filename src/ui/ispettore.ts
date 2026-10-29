@@ -460,7 +460,7 @@ export class Ispettore {
       { id: 'nessuno', nome: 'Off', info: 'Lo sfondo resta com’è', cls: 'off', acceso: modo === 'nessuno', clic: () => impostaModo(ids, 'nessuno') },
       { id: 'colori', nome: 'Colore', info: 'Toglie un colore (green screen o blu): scegli il colore o prendilo dal monitor', cls: 'colore', acceso: modo === 'colori', clic: () => impostaModo(ids, 'colori') },
       { id: 'luma', nome: 'Luce', info: 'Toglie il nero o il bianco del fondo', cls: 'luce', acceso: modo === 'luma', clic: () => impostaModo(ids, 'luma') },
-      ...(disp.has('oggetti') ? [{ id: 'ai', nome: 'AI ✨', info: 'Toglie lo sfondo con SAM 3: clicchi su una persona o su un oggetto e lo tiene, il resto va via', cls: 'ai', acceso: inAI, clic: () => { if (modo !== 'oggetti') cliccaCosaTenere(c0.id); } }] : []),
+      ...(disp.has('oggetti') ? [{ id: 'ai', nome: 'AI ✨', info: 'Toglie lo sfondo con SAM 2.1: clicchi su una persona o su un oggetto e lo tiene, il resto va via', cls: 'ai', acceso: inAI, clic: () => { if (modo !== 'oggetti') cliccaCosaTenere(c0.id); } }] : []),
     ];
     righe.push(h('div', { class: 'pp-griglia sf-modi' }, tessereModi.map((t) => h('button', {
       class: 'pp-tessera' + (t.acceso ? ' acceso' : ''), title: t.info, 'data-modo': t.id,
@@ -518,8 +518,8 @@ export class Ispettore {
           ]));
       } else {
         righe.push(
-          h('p', { class: 'nota sf-spiega' }, 'Questa clip usa un modo vecchio (senza clic). Ora si fa tutto con SAM 3: clicchi su cosa tenere e lui lo ritaglia.'),
-          this.pulsanti([['🖱 Clicca su cosa tenere (SAM 3)', () => cliccaCosaTenere(c0.id)]]));
+          h('p', { class: 'nota sf-spiega' }, 'Questa clip usa un modo vecchio (senza clic). Ora si fa tutto con SAM 2.1: clicchi su cosa tenere e lui lo ritaglia.'),
+          this.pulsanti([['🖱 Clicca su cosa tenere', () => cliccaCosaTenere(c0.id)]]));
       }
       righe.push(
         h('label', { class: 'etichetta' }, '2 · Controlla la scena'),
@@ -551,7 +551,6 @@ export class Ispettore {
           ? h('div', { class: 'isp-chips' }, punti.map((q, i) => h('button', { class: 'chip ' + (q.dentro ? 'acceso' : ''), title: 'Clic: toglie questo punto', on: { click: () => togliPunto(c0.id, i) } }, (q.dentro ? '＋ ' : '－ ') + (i + 1))))
           : null,
         modo === 'oggetti' ? this.spunta('Segui nel video (per tutta la clip)', (c) => c.ritaglio?.segui !== false, (c, v) => { if (c.ritaglio) c.ritaglio.segui = v; }, video) : null,
-        modo === 'oggetti' ? this.spunta('Precisione massima: SAM 3 su ogni fotogramma (circa 3 volte più lento)', (c) => !!c.ritaglio?.preciso, (c, v) => { if (c.ritaglio) c.ritaglio.preciso = v || undefined; }, video) : null,
         this.spunta('Inverti: tieni lo sfondo', (c) => !!c.ritaglio?.inverti, (c, v) => { if (c.ritaglio) c.ritaglio.inverti = v || undefined; }, video),
         h('p', { class: 'nota' }, `Il modello ${det.nome} si scarica da Hugging Face la prima volta e poi resta nel computer; le immagini non escono mai. Guarda il risultato col tasto SFONDO sopra il monitor.`)));
     }

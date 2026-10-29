@@ -1,9 +1,20 @@
 // Togliere lo sfondo: le cose pure (niente browser, niente modelli) che servono sia alla chiave a colori sia al
 // ritaglio con l'AI: i valori di partenza, la firma dei parametri, dove cadono i campioni nel tempo, il colore
 // dello sfondo trovato da solo, il riquadro di una maschera, la levigatura da un fotogramma all'altro.
-import type { Clip, MediaItem, Ritaglio, VideoFx } from './tipi';
+import type { Clip, MediaItem, Project, Ritaglio, VideoFx } from './tipi';
 
 export const RITAGLIO0: Ritaglio = { modo: 'soggetto', modello: 'ben2', bordo: 0, morbido: 0.3, qualita: 1 };
+
+/** I progetti vecchi usavano SAM 3: le maschere vanno rifatte col modello nuovo. */
+export function migraRitagli(p: Project): void {
+  for (const clips of [p.clips, ...(p.sequenze ?? []).map((s) => s.clips ?? [])]) {
+    for (const c of clips) if (c.ritaglio?.modello === 'sam3') {
+      c.ritaglio.modello = 'sam2';
+      delete c.ritaglio.firma;
+      delete c.ritaglio.preciso;
+    }
+  }
+}
 
 /** precisione: fotogrammi al secondo, lato lungo dell'immagine che si dà al modello, e il nome */
 export const QUALITA_RITAGLIO = [

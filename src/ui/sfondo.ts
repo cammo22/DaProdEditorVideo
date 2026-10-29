@@ -34,7 +34,7 @@ export const SPIEGA_MODO: Record<'soggetto' | 'persona' | 'oggetti', string> = {
 
 export const NOMI_MODO: Record<ModoSfondo, string> = {
   nessuno: 'Niente', colori: 'Colore (green screen)', luma: 'Luce (toglie nero o bianco)',
-  persona: 'AI · Persone (vecchio)', soggetto: 'AI · Automatico (vecchio)', oggetti: 'AI · SAM 3',
+  persona: 'AI · Persone (vecchio)', soggetto: 'AI · Automatico (vecchio)', oggetti: 'AI · SAM 2.1',
 };
 
 const IMMAGINE_O_VIDEO = (c: Clip) => c.kind === 'media' && puoRitagliare(mediaOf(store.doc, c));
@@ -203,11 +203,11 @@ export function cliccaCosaTenere(id: string) {
 
 /**
  * Quale modello fa questa selezione, in parole, per chi guarda le Proprietà e la barra sul monitor: il nome, e se il modello è già nel
- * computer, se si scarica la prima volta o se al suo posto ne è partito uno di ricambio. Un solo modo (SAM 3: clicchi e lui sceglie).
+ * computer, se si scarica la prima volta o se al suo posto ne è partito uno di ricambio. Un solo modo (SAM 2.1: clicchi e lui sceglie).
  */
 export function dettaglioModello(c: Clip): { nome: string; stato: string; ripiego: boolean } {
   const r = c.ritaglio;
-  const mod = r ? modelloDi(r) : modelloRitaglio('sam3')!;
+  const mod = r ? modelloDi(r) : modelloRitaglio('sam2')!;
   const uso = modelloInUso();
   if (uso && (uso.id === mod.id || uso.ripiego)) {
     return { nome: uso.nome, ripiego: uso.ripiego, stato: uso.ripiego ? `di ricambio: ${mod.nome} non si è potuto usare (se vuole la chiave Hugging Face mettila nel Centro AI) · ${uso.dove}` : uso.dove };

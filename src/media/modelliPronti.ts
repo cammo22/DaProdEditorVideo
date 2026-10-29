@@ -3,7 +3,7 @@
 // non far dipendere i moduli dei modelli dall'elenco del Centro AI.
 const CHIAVE = 'dpv-modelli-pronti';
 
-export const modelliPronti = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(CHIAVE) ?? '{}'); } catch { return {}; } };
+export const modelliPronti = (): Record<string, string> => { try { const o = JSON.parse(localStorage.getItem(CHIAVE) ?? '{}'); if ('sam3' in o) { delete o.sam3; localStorage.setItem(CHIAVE, JSON.stringify(o)); } return o; } catch { return {}; } };
 const scrivi = (o: Record<string, string>) => { try { localStorage.setItem(CHIAVE, JSON.stringify(o)); } catch { /* niente */ } };
 export const segnaModelloPronto = (id: string, repo: string) => { const o = modelliPronti(); if (o[id] !== repo) { o[id] = repo; scrivi(o); } };
 export const dimenticaModello = (id: string) => { const o = modelliPronti(); delete o[id]; scrivi(o); };
