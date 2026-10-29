@@ -14,6 +14,7 @@ import { spiegaErroreAI } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { segnaModelloPronto } from './modelliPronti';
+import { registraVram, segnaUsoAI } from './vram';
 
 export interface Modello { id: string; nome: string; info: string; mb: number }
 
@@ -91,7 +92,19 @@ let avvisoVoce: ((msg: string) => void) | null = null;
 /** l'ultimo modello caricato (per ricaricarlo se bisogna ripartire) */
 let ultimoModello: { modello: string; stato: (fase: string, prog: number) => void } | null = null;
 
+// la scheda video si libera quando il modello non serve (src/media/vram.ts)
+registraVram('voce', {
+  libera: () => {
+    if (!worker) return false;
+    worker.terminate();
+    worker = null;
+    return true;
+  },
+  occupato: () => attese.size > 0 || caricamento !== null,
+});
+
 function caricaNelWorker(modello: string, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
+  segnaUsoAI();
   return new Promise((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
@@ -105,6 +118,7 @@ function caricaNelWorker(modello: string, stato: (fase: string, prog: number) =>
 export const ATTESA_PEZZO_MS = { valore: 10 * 60 * 1000 };
 
 function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: boolean): Promise<Pezzo[]> {
+  segnaUsoAI();
   return new Promise((ok, no) => {
     const id = ++seq;
     const orologio = setTimeout(() => {

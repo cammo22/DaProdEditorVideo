@@ -20,6 +20,7 @@ import { baseLocaleAI } from './libreriaAI';
 import { messaggioScheda, schedaGuasta } from './hardware';
 import { chiaveHFSalvata } from './libreriaAI';
 import { modelliPronti, segnaModelloPronto } from './modelliPronti';
+import { registraVram, segnaUsoAI } from './vram';
 
 export interface ModelloRitaglio {
   id: string;
@@ -142,7 +143,19 @@ function segnaInUso(chiave: string, trovato: ModelloRitaglio | undefined, repo: 
 let ultimoCarico: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
 let ultimoTraccia: { m: ModelloRitaglio; stato: (fase: string, prog: number) => void } | null = null;
 
+// la scheda video si libera quando il modello non serve (src/media/vram.ts): il worker si chiude, il modello torna dalla cache
+registraVram('sfondo', {
+  libera: () => {
+    if (!worker) return false;
+    worker.terminate();
+    worker = null; inUso = null; inUsoTraccia = null; caricamento = null;
+    return true;
+  },
+  occupato: () => attese.size > 0 || caricamento !== null,
+});
+
 function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false, slot: Slot = 'p'): Promise<string> {
+  segnaUsoAI();
   const chiave = m.id + '|' + m.repo.join(',');
   // lo stesso modello è già dentro il worker: non si rimanda niente (a ogni clic si ricaricava e si rileggeva tutto il modello)
   if (!senzaScheda && worker) {
@@ -160,6 +173,7 @@ function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number)
 
 /** un fotogramma al worker */
 function inviaMaschera(px: Pixel, o?: OpzMaschera): Promise<Uint8Array> {
+  segnaUsoAI();
   return new Promise((ok, no) => {
     const id = ++seq;
     attese.set(id, { ok, no });
