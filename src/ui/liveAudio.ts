@@ -44,6 +44,8 @@ export class LivelloStereo {
     this.el.width = Math.round(r.width * this.dpr);
     this.el.height = Math.round(r.height * this.dpr);
     this.visto = '';
+    // ridimensionare svuota il disegno: a riposo nessuno lo rifà, quindi i LED spenti si ridisegnano subito
+    this.disegna(this.misura.clip(performance.now()));
   }
 
   aggiorna(picchi: Picchi, ora: number) {
@@ -224,6 +226,7 @@ export class PannelloAudio {
       h('p', { class: 'nota' }, 'Le regolazioni valgono dal vivo e finiscono nella registrazione. La voce si prova subito con "Prova l\'audio"; l\'audio del computer si vede quando parte la registrazione, dopo aver scelto lo schermo.'));
     this.aggiorna();
     this.sincronizza();
+    this.scriviStati(null, performance.now());
   }
 
   /** i pezzi di una sorgente per le righe compatte di LIVE: la barra stereo a LED e la scritta di stato */
