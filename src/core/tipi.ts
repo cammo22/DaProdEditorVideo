@@ -196,7 +196,7 @@ export interface Ritaglio {
   da?: number;
   /** oggetti: i clic valgono per tutta la ripresa (camera ferma) o si seguono da un fotogramma all'altro */
   segui?: boolean;
-  /** oggetti: SAM 3 su ogni fotogramma (circa 3 volte più lento); di partenza SAM 3 guida e SAM 2.1 tiny segue, con SAM 3 che torna ogni pochi fotogrammi */
+  /** impostazione dei progetti vecchi, conservata per compatibilità */
   preciso?: boolean;
   /** oggetti: il clic sceglie una PERSONA (il modello delle persone trova tutti, il clic dice quale) invece di un oggetto qualunque (SAM) */
   persona?: boolean;

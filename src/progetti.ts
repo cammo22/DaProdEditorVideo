@@ -1,3 +1,4 @@
+import { migraRitagli } from './core/sfondo';
 import { migraColoreAudio } from './core/coloreAudioProgetto';
 // Progetti: nuovo, apri, salva, autosalvataggio, importazione dei file e ricollegamento dei media.
 // Nell'app (Tauri) i media si ritrovano dal percorso; nel browser dalle "maniglie" dei file che Chrome
@@ -436,6 +437,7 @@ function valida(o: unknown): Project | null {
   p.master = { ...MASTER0, ...(p.master ?? {}) };
   // dalla 1.0.5: gli FX stanno sulle tracce video (la corsia a parte della 1.0.4 sparisce), e le transizioni delle
   // clip video diventano blocchetti
+  migraRitagli(p);
   migraBlocchi(p);
   migraColoreAudio(p);
   migraTitoliHtml(p);

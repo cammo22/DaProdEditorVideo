@@ -83,3 +83,7 @@ Cosa ne abbiamo preso: **l'idea**, non il codice. Titoli e grafiche scritti in H
 - `src/core/animazioni.ts` e `src/render/anim/*.ts` (animazioni su tela 2D, 1.1.4): stessa ispirazione, ridisegnate da zero.
 
 Caratteri dei titoli HTML: solo quelli già nel programma, tutti con licenza SIL OFL 1.1 (@fontsource: Orbitron, Rajdhani, Montserrat, Oswald, Bebas Neue, Archivo Black, Space Mono, Playfair Display; DSEG7 di Keshikan, `src/stile/font/DSEG-LICENSE.txt`).
+
+## SAM 2.1 Tiny · Apache-2.0
+
+Il ritaglio usa [SAM 2.1 Tiny di Meta](https://huggingface.co/facebook/sam2.1-hiera-tiny), nella [conversione ONNX CardAnvilModels](https://huggingface.co/CardAnvilModels/sam2.1-hiera-tiny-ONNX): la scheda dichiara Apache-2.0 e copia invariata della conversione ONNX Community. I pesi si scaricano al primo uso, non sono inclusi nell’app. La licenza è nel repository del modello.

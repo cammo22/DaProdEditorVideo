@@ -38,8 +38,7 @@ export const MODELLI_RITAGLIO: ModelloRitaglio[] = [
   { id: 'birefnet', nome: 'BiRefNet', info: 'alta risoluzione, molto pulita sui contorni netti', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet-ONNX', 'onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'birefnet-lite', nome: 'BiRefNet Lite', info: 'più leggera e veloce, per i computer senza scheda video', modi: ['soggetto'], famiglia: 'sfondo', repo: ['onnx-community/BiRefNet_lite-ONNX'], licenza: 'MIT' },
   { id: 'modnet', nome: 'MODNet', info: 'persone e ritratti, velocissima anche senza scheda video', modi: ['persona'], famiglia: 'sfondo', repo: ['Xenova/modnet'], licenza: 'Apache-2.0' },
-  { id: 'sam3', nome: 'SAM 3', info: 'toglie lo sfondo: clicchi su una persona o un oggetto e lo tiene (Meta, 2025). La prima volta scarica ~300 MB; se non parte ripiega da solo su SAM 2.1 o SlimSAM', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam3-tracker-ONNX', 'onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'SAM License (Meta)' },
-  { id: 'sam2', nome: 'SAM 2.1', info: 'clicchi sull\'oggetto e lo ritaglia (se non c\'è usa SlimSAM)', modi: ['oggetti'], famiglia: 'sam', repo: ['onnx-community/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
+  { id: 'sam2', nome: 'SAM 2.1', info: 'clicchi sull\'oggetto e lo ritaglia (se non c\'è usa SlimSAM)', modi: ['oggetti'], famiglia: 'sam', repo: ['CardAnvilModels/sam2.1-hiera-tiny-ONNX', 'Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
   { id: 'slimsam', nome: 'SlimSAM', info: 'la versione più piccola, per i computer più lenti', modi: ['oggetti'], famiglia: 'sam', repo: ['Xenova/slimsam-77-uniform'], licenza: 'Apache-2.0' },
 ];
 
@@ -47,7 +46,7 @@ export const modelloRitaglio = (id: string) => MODELLI_RITAGLIO.find((m) => m.id
 /** il modello che lavora per questa scelta: con "persona" il modello delle persone, se no quello della clip */
 export function modelloDi(r: Ritaglio): ModelloRitaglio {
   if (r.modo === 'oggetti' && r.persona) return modelloRitaglio('modnet')!;
-  return modelloRitaglio(r.modello) ?? modelloRitaglio(modelloDiPartenza(r.modo))!;
+  return modelloRitaglio(r.modello === 'sam3' ? 'sam2' : r.modello) ?? modelloRitaglio(modelloDiPartenza(r.modo))!;
 }
 export const modelliPer = (modo: Ritaglio['modo']) => MODELLI_RITAGLIO.filter((m) => m.modi.includes(modo));
 export const modelloDiPartenza = (modo: Ritaglio['modo']) => modelliPer(modo)[0].id;
@@ -59,20 +58,13 @@ export interface Segmentatore {
   maschera: (px: Pixel, o?: OpzMaschera) => Promise<Uint8Array>;
 }
 
-/** i due posti dei modelli SAM: la scelta (SAM 3, preciso ma pesante) e il seguire (SAM 2.1 tiny, 5 volte più veloce) */
+/** I posti del worker restano disponibili per chi usa il segmentatore. */
 export type Slot = 'p' | 'traccia';
 export interface OpzMaschera { punti?: NonNullable<Ritaglio['punti']>; riquadro?: [number, number, number, number]; slot?: Slot }
-
-/**
- * Quale modello segue l'oggetto negli altri fotogrammi. SAM 3 guarda ogni fotogramma per 1,4 s (la scheda video è al limite: misurato
- * con q4 e con fp16, uguale), SAM 2.1 tiny per 0,3 s. Il primo fotogramma (quello dei clic) lo fa SAM 3; dopo, SAM 2.1 riceve il
- * riquadro e i punti nel cuore della maschera di SAM 3 e la segue. Spegnibile (prove di confronto) con `impostaTracciaVeloce(false)`.
- */
-let tracciaVeloce = true;
-export const impostaTracciaVeloce = (on: boolean) => { tracciaVeloce = on; };
-/** ogni quanti fotogrammi torna in campo SAM 3 mentre l'altro segue */
+// Compatibilità con le integrazioni precedenti: ora c'è un solo modello per tutti i fotogrammi.
+export const impostaTracciaVeloce = (_on: boolean) => {};
 export const INTERVALLO_SAM3 = 6;
-const modelloTraccia = (mod: ModelloRitaglio, r: Ritaglio): ModelloRitaglio | null => (tracciaVeloce && !r.preciso && mod.id === 'sam3' ? modelloRitaglio('sam2') ?? null : null);
+const modelloTraccia = (_mod: ModelloRitaglio, _r: Ritaglio): ModelloRitaglio | null => null;
 
 // ——— il worker ———
 let worker: Worker | null = null;
@@ -342,7 +334,7 @@ export async function elaboraRitaglio(p: Project, c: Clip, o: OpzioniElabora = {
           const hint = r.segui !== false && prec ? (suggerimento(prec, w, h) ?? ultimoBuono) : null;
           // dopo il primo fotogramma: il riquadro (dov'è) e qualche punto nel cuore della maschera di prima (quale)
           const nucleo = hint && prec ? puntiNucleo(prec, w, h) : [];
-          // ogni INTERVALLO_SAM3 fotogrammi la guida torna a SAM 3 (con riquadro e punti della maschera di prima): corregge la deriva del modello leggero
+          // Se disponibile, la guida torna periodicamente al modello principale.
           const slot: Slot = slotSegue === 'traccia' && Math.abs(i - i0) % INTERVALLO_SAM3 === 0 ? 'p' : slotSegue;
           const grezza = await segmentatore.maschera(px[i], hint ? { riquadro: hint, ...(nucleo.length ? { punti: nucleo } : {}), slot } : { punti });
           // buchi riempiti e isole tolte: si tiene quello che tocca il fotogramma di prima (o i clic nel primo)

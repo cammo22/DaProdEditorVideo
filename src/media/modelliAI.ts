@@ -45,11 +45,11 @@ const repoDa = (s: string) => (/^[\w.-]+\/[\w.-]+/.exec(s)?.[0] ?? '');
 
 export function modelliHub(): ModelloHub[] {
   const out: ModelloHub[] = [];
-  const consigliati = new Set(['sam3', 'whisper-base']);
-  // per togliere lo sfondo c'è un modo solo, SAM 3 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
-  for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam3')) {
+  const consigliati = new Set(['sam2', 'whisper-base']);
+  // per togliere lo sfondo c'è un modo solo, SAM 2.1 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
+  for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam2')) {
     out.push({
-      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, uso: 'Ritaglia gli oggetti scelti con i clic e li segue nella ripresa.', ramGB: 8, thread: 8, mb: 300, consigliato: consigliati.has(m.id), repos: m.repo,
+      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, uso: 'Ritaglia gli oggetti scelti con i clic e li segue nella ripresa.', ramGB: 8, thread: 8, mb: 78, consigliato: consigliati.has(m.id), repos: m.repo,
       async scarica(avanza) {
         const r = repoDa(await caricaModelloRitaglio(m, avanza));
         if (!r || r === m.repo[0]) { ricorda(m.id, r || m.repo[0]); return; }

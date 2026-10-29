@@ -4,6 +4,10 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.7.1] — 2026-10-29 · Ritaglio con SAM 2.1
+
+- **Togli lo sfondo**: SAM 2.1 Tiny sostituisce SAM 3; i progetti vecchi passano al nuovo modello e rifanno le maschere.
+
 ## [1.7.0] — 2026-10-29 · Si chiama DaProd Editor Video: banco nuovo, colore da professionisti, keyframe, maschere, titoli animati, montaggio dal testo
 
 - **Nome nuovo**: DaProd Editor Video. Progetti, cartelle e aggiornamenti restano gli stessi di prima.
