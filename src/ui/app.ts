@@ -25,7 +25,7 @@ import { attivaRotella } from './rotella';
 import { finestraEsporta, finestraInfo, finestraProgetto, finestraTasti, esportaEdl, esportaFotogramma, VERSIONE } from './dialoghi';
 import { apri, apriFile, salvaPacchetto, autosalva, importaDaDrop, importaDialogo, importaFile, nuovo, ricollega, riprendi, salva } from '../progetti';
 import { invoke, isAndroid, isTauri, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
-import { novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
+import { finestraNovita, novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { statoDecoder } from '../media/fotogrammi';
 import { CentroAttivita } from './attivita';
@@ -124,6 +124,7 @@ export function avvia(radice: HTMLElement) {
   const barra = barraTitolo({
     info: () => finestraInfo(), progetti: () => home.mostra(), salva: () => void salva(), importa: () => void importaDialogo(),
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),
+    novita: () => finestraNovita(),
     aggiornamenti: tastoAggiornamenti(icona),
   });
   const testa = h('header', { class: 'testata' },
