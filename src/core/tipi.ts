@@ -375,6 +375,8 @@ export interface GenSpec {
 export interface Curva { k: number; s?: boolean }
 
 export interface Clip {
+  /** Parlato per il montaggio dal testo: secondi della sorgente, così i tagli e la velocità non lo spostano. */
+  parlato?: { id: string; media: string; da: number; a: number; parole: { da: number; a: number; testo: string }[] };
   /** la scelta della clip prevale su quella della traccia */
   ruoloAudio?: RuoloAudio;
   ducking?: Ducking;

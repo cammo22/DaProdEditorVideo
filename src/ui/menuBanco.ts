@@ -64,6 +64,7 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { sep: true }, voce('tagliaAppunti'), voce('copia'), voce('incolla'), { sep: true }, voce('tutto'), voce('selezionaDopo'), voce('deseleziona'),
     ]],
     ['Montaggio', () => [
+      voce('montaggioTesto'), { sep: true },
       voce('taglia'), voce('elimina'), voce('eliminaChiudi'), voce('separa'), { sep: true },
       voce('dissolvenza'), voce('tendina'), voce('passaggioNero'), voce('dissolviInOut'), { sep: true },
       voce('inserisci'), voce('sovrascrivi'), voce('solleva'), voce('estrai'), voce('rivedi'), voce('abbina'), voce('estendi'), { sep: true },

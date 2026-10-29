@@ -35,13 +35,13 @@ async function carica(modello: string, conScheda = true) {
 
 const LINGUE: Record<string, string> = { it: 'italian', en: 'english', es: 'spanish', fr: 'french', de: 'german', pt: 'portuguese' };
 
-async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean) {
+async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean, parole = false) {
   if (!asr) throw new Error('modello non caricato');
   const opz = {
     // "auto": Whisper riconosce da solo la lingua
     ...(lingua && lingua !== 'auto' ? { language: LINGUE[lingua] ?? 'italian' } : {}),
     task: traduci ? 'translate' : 'transcribe',
-    chunk_length_s: 30, stride_length_s: 5, return_timestamps: true,
+    chunk_length_s: 30, stride_length_s: 5, return_timestamps: parole ? 'word' : true,
   };
   try {
     return await asr(audio, opz);
@@ -57,13 +57,13 @@ async function trascrivi(audio: Float32Array, lingua?: string, traduci?: boolean
 class SchedaGuasta extends Error {}
 
 self.onmessage = async (e: MessageEvent) => {
-  const m = e.data as { tipo: string; id?: number; modello?: string; audio?: Float32Array; lingua?: string; traduci?: boolean; base?: string; scheda?: boolean; hw?: ImpostazioneScheda };
+  const m = e.data as { tipo: string; id?: number; modello?: string; audio?: Float32Array; lingua?: string; traduci?: boolean; parole?: boolean; base?: string; scheda?: boolean; hw?: ImpostazioneScheda };
   try {
     if (m.base !== undefined) base = m.base;
     if (m.hw) usaImpostazioneScheda(m.hw);
     if (m.tipo === 'carica') await carica(m.modello!, m.scheda !== false);
     else if (m.tipo === 'trascrivi') {
-      const out = await trascrivi(m.audio!, m.lingua, m.traduci);
+      const out = await trascrivi(m.audio!, m.lingua, m.traduci, m.parole);
       const pezzi = (out.chunks?.length ? out.chunks : [{ timestamp: [0, null] as [number, number | null], text: out.text }])
         .map((c) => ({ da: c.timestamp[0], a: c.timestamp[1], testo: c.text }));
       manda({ tipo: 'testo', id: m.id, pezzi });

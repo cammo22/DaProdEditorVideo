@@ -8,6 +8,7 @@ import { fps, frameToTc, s2f } from './core/timecode';
 import { togliAnimazione } from './core/automazioni';
 import { avviso } from './ui/dom';
 import { finestraVelocita } from './ui/velocita';
+import { finestraMontaggioTesto } from './ui/montaggioTesto';
 import type { Clip, Transition } from './core/tipi';
 import { STILI_CONTO, type StileConto } from './render/grafica';
 import { applicaPresetTitolo, presetTitolo } from './core/generatori';
@@ -32,6 +33,7 @@ const reg = (a: Azione) => azioni.set(a.id, a);
  *  loro tasti, nella ricerca (Ctrl+K), nella guida dei tasti e nei menu */
 export const registra = reg;
 export const esegui = (id: string) => azioni.get(id)?.fn();
+reg({ id: 'montaggioTesto', nome: 'Testo · monta dal parlato…', gruppo: 'Montaggio', fn: () => finestraMontaggioTesto() });
 
 /** stato dei modi della centralina */
 export const modi = {
