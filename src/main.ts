@@ -27,6 +27,7 @@ import '@fontsource/caveat/latin-700.css';
 import './stile/editor.css';
 import './stile/flussi.css';
 import './stile/guscio.css';
+import './stile/titoliHtml.css';
 import { avvia } from './ui/app';
 import { h } from './ui/dom';
 import { isTauri } from './platform';
@@ -60,6 +61,8 @@ if (problema) {
   banco = avvia(radice);
   // i caratteri delle animazioni arrivano in silenzio: quando ci sono, il monitor ridisegna
   void caricaFontAnimazioni().then(() => import('./motore').then((m) => m.motore.ridisegna()));
+  // i titoli animati HTML si disegnano a parte: quando arriva un fotogramma nuovo il monitor ridisegna
+  void Promise.all([import('./render/titoliHtml'), import('./motore')]).then(([h, m]) => h.quandoPronto(() => m.motore.ridisegna()));
   setTimeout(() => { avvio.classList.add('via'); setTimeout(() => avvio.remove(), 500); }, isTauri ? 500 : 900);
 }
 

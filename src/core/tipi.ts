@@ -307,7 +307,15 @@ export interface AnimSpec {
   v: Record<string, string | number | boolean>;
 }
 
+/** un titolo animato HTML (src/core/titoliHtml.ts): quale modello e i valori dei suoi campi (testi, colori, tempi) */
+export interface HtmlSpec {
+  id: string;
+  v: Record<string, string | number | boolean>;
+}
+
 export interface GenSpec {
+  /** un titolo animato fatto di HTML e CSS, disegnato fotogramma per fotogramma (la clip è un titolo) */
+  html?: HtmlSpec;
   /** un'animazione pronta: sottopancia, testo che si muove, grafico, fondo, effetto da cerimonia… (la clip è un titolo) */
   anim?: AnimSpec;
   color?: string;

@@ -7,6 +7,7 @@ import type { MediaItem, Project } from './core/tipi';
 import { FORMATI } from './core/tipi';
 import { ALTEZZA, MASTER0, newProject } from './core/progetto';
 import { migraBlocchi } from './core/blocchi';
+import { migraTitoliHtml } from './core/titoliHtml';
 import { apri as apriMedia, chiudi as chiudiMedia, importa, impostaCercaMedia, impostaControlloVelocita, mediaRT, usoDiMedia, type MediaRT, type OpzioniPreparazione } from './media/libreria';
 import { cambiaProgetto, inSovraccarico, nuova, proponi, type Lavoro, type Proposto } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
@@ -434,6 +435,7 @@ function valida(o: unknown): Project | null {
   // clip video diventano blocchetti
   migraBlocchi(p);
   migraColoreAudio(p);
+  migraTitoliHtml(p);
   return p;
 }
 

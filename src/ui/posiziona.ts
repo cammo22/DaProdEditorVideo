@@ -38,7 +38,7 @@ export function riquadroClip(p: Project, c: Clip, tf: Transform, f: number): Riq
   // i titoli stanno su una tela grande: il riquadro si stringe attorno alle lettere
   let bx0 = tf.cropL, by0 = tf.cropT, bx1 = 1 - tf.cropR, by1 = 1 - tf.cropB;
   // le animazioni del catalogo riempiono il quadro: il riquadro è tutto il quadro (si sposta e si ingrandisce intera)
-  if (c.kind === 'title' && !c.gen?.anim) {
+  if (c.kind === 'title' && !c.gen?.anim && !c.gen?.html) {
     const t = f2s(Math.max(0, f - c.start), p.rate);
     const spec = specAlTempo(c.gen?.title ?? TITLE0, t);
     const tt = telaTitolo(spec, W, H);

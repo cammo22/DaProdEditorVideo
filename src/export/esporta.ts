@@ -12,6 +12,7 @@ import { f2s, fps } from '../core/timecode';
 import { mixaggio } from '../media/audio';
 import { mediaRT } from '../media/libreria';
 import { caricaFontAnimazioni } from '../render/font';
+import { preparaStrati } from '../render/titoliHtml';
 import { Compositore } from '../render/compositore';
 import { pianoVideo, type Sorgente } from '../render/piano';
 import { dialogoSalva, invoke, isTauri, nomeDaPercorso, scarica, type FileScelto } from '../platform';
@@ -290,6 +291,7 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
             if (src && src.clip.kind === 'media') presi.set(src, await lettori.prendi(src.clip, src.t, giro));
           }
         }
+        await preparaStrati(pp, strati, canvas!.width);
         comp.render(pp, strati, false, f, (s) => presi.get(s) ?? null, (s) => lettori.dopo(s.clip));
         if (ctx2d && quadro && geo) {
           // subito dopo il disegno: il quadro nero e l'immagine al suo posto
@@ -337,6 +339,7 @@ export async function fotogrammaPng(p: Project, f: number): Promise<Blob> {
     const strati = pianoVideo(p, f);
     const presi = new Map<Sorgente, Fotogramma | null>();
     for (const s of strati) for (const src of [s.b, s.a]) if (src && src.clip.kind === 'media') presi.set(src, await lettori.prendi(src.clip, src.t, 0));
+    await preparaStrati(p, strati, canvas.width);
     comp.render(p, strati, false, f, (s) => presi.get(s) ?? null, (s) => lettori.dopo(s.clip));
     return await canvas.convertToBlob({ type: 'image/png' });
   } finally {

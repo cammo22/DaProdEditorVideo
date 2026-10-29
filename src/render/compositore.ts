@@ -21,6 +21,7 @@ import { disegnaSovr, firmaSovr } from './sovrimpressione';
 import { nuovaTela } from './grafica';
 import { disegnaCountdown, motoTitolo, specAlTempo, telaTitolo } from './grafica';
 import { disegnaAnimazione, firmaAnim } from './animazioni';
+import { fotogrammaHtml, misuraResa } from './titoliHtml';
 import { TITLE0 } from '../core/progetto';
 import { anelliClic, DISEGNA_CLIC, UNIFORM_CLIC } from './cursore';
 
@@ -1944,6 +1945,16 @@ export class Compositore {
       const t = this.upload('cd:' + c.id + ':' + i, tela as TexImageSource, tela.width, tela.height, frame + ':' + s.lf);
       tex = t.tex;
       sw = W; sh = H;
+    } else if (c.kind === 'title' && c.gen?.html) {
+      // un titolo animato HTML: il fotogramma di questo istante (preparato prima nell'export, in anticipo nel monitor)
+      const d = c.len * p.rate.den / p.rate.num;
+      const { rw, rh } = misuraResa(W, H, this.canvas.width);
+      const tela = fotogrammaHtml(c.gen.html, rw, rh, s.local, d, playing ? 6 : 2, p.rate.den / p.rate.num);
+      if (!tela) return false;
+      const t = this.upload('ht:' + c.id + ':' + i, tela as TexImageSource, rw, rh, tela);
+      tex = t.tex;
+      sw = W; sh = H;
+      fit = false;
     } else if (c.kind === 'title' && c.gen?.anim) {
       // un'animazione del catalogo: disegnata a ogni fotogramma su una tela grande quanto il progetto
       const tela = disegnaAnimazione(c.gen.anim, W, H, s.local, c.len * p.rate.den / p.rate.num);
