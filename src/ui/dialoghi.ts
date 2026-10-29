@@ -2,112 +2,35 @@
 import { store } from '../core/store';
 import { CADENZE, RISOLUZIONI, formatoDa, sceltaDa } from '../core/tipi';
 import { projectEnd } from '../core/progetto';
-import { frameToTc, durataUmana, f2s } from '../core/timecode';
+import { frameToTc } from '../core/timecode';
 import { azioni } from '../azioni';
-import { esporta, fotogrammaPng, scegliCodec, type Formato, type Qualita } from '../export/esporta';
+import { fotogrammaPng } from '../export/esporta';
 import { creaEdl } from '../export/edl';
 import { dialogoSalva, edizione, invoke, isTauri, salvaTesto, scarica, apriLink } from '../platform';
 import { avviso, dialogo, h } from './dom';
 import { motore } from '../motore';
+import { pannelloEsporta, type PannelloEsporta } from './esportazione';
 
 declare const __VERSIONE__: string;
 export const VERSIONE = __VERSIONE__;
 
-/** la finestra dell'export; dalla pagina Finale arriva già con formato, qualità e misura scelti */
-export function finestraEsporta(preset: { formato?: string; qualita?: string; misura?: string } = {}) {
+/** la finestra dell'export (Ctrl+M): lo stesso pannello della pagina Finale (preset, cosa esce, coda). Si può chiudere
+ *  quando si vuole: le esportazioni in coda continuano da sole e si vedono anche in Attività. */
+export function finestraEsporta(scelta: { preset?: string } = {}) {
   const p = store.doc;
   motore.stop();
   const fine = projectEnd(p);
   if (!fine) { avviso('La timeline è vuota: prima monta qualcosa', 'info'); return; }
-  let annulla = false;
-  let lavorando = false;
-  let fatto = false;
-  // mentre esporta la finestra resta aperta (Esc o un clic fuori non la chiudono): si ferma con Annulla
-  const d = dialogo('Esporta il master', { largo: true, chiudibile: () => { if (lavorando) avviso('L\'export è in corso: premi Annulla per fermarlo', 'info', 2200); return !lavorando; } });
-  const nome = h('input', { class: 'campo-testo', value: p.name.replace(/[\\/:*?"<>|]/g, '_') }) as HTMLInputElement;
-  const formato = h('select', { class: 'mini-select' },
-    h('option', { value: 'mp4' }, 'MP4 · H.264 + AAC (va ovunque)'),
-    h('option', { value: 'mov' }, 'MOV · QuickTime'),
-    h('option', { value: 'webm' }, 'WebM · VP9 + Opus (web)'),
-    h('option', { value: 'wav' }, 'WAV · solo audio 48 kHz')) as HTMLSelectElement;
-  const misura = h('select', { class: 'mini-select' },
-    h('option', { value: '1' }, `Come il progetto · ${p.w}×${p.h}`),
-    h('option', { value: '0.5' }, `Metà · ${Math.round(p.w / 2)}×${Math.round(p.h / 2)}`),
-    p.h > 720 ? h('option', { value: String(720 / p.h) }, `720p · ${Math.round(p.w * 720 / p.h)}×720`) : null,
-    p.h < 2160 ? h('option', { value: String(2160 / p.h) }, `4K · ${Math.round(p.w * 2160 / p.h)}×2160`) : null) as HTMLSelectElement;
-  const qualita = h('select', { class: 'mini-select' },
-    h('option', { value: 'media' }, 'Media (file leggero)'),
-    h('option', { value: 'alta', selected: true }, 'Alta (consigliata)'),
-    h('option', { value: 'altissima' }, 'Altissima (master)'),
-    h('option', { value: 'bassa' }, 'Bassa (anteprima)')) as HTMLSelectElement;
-  const haInOut = p.inF !== null && p.outF !== null;
-  if (preset.formato) formato.value = preset.formato;
-  if (preset.qualita) qualita.value = preset.qualita;
-  if (preset.misura && [...misura.options].some((o) => o.value === preset.misura)) misura.value = preset.misura;
-  const soloInOut = h('input', { type: 'checkbox', checked: haInOut, disabled: !haInOut }) as HTMLInputElement;
-  const codec = h('span', { class: 'nota' }, 'controllo i codec…');
-  const aggCodec = async () => {
-    const k = Number(misura.value);
-    const c = await scegliCodec(formato.value as Formato, Math.round(p.w * k / 2) * 2, Math.round(p.h * k / 2) * 2);
-    codec.textContent = formato.value === 'wav' ? 'Audio PCM 16 bit' : c.v ? `Video ${c.v.toUpperCase()} · audio ${c.a ? c.a.toUpperCase() : 'nessuno'}` : '⚠ questo sistema non codifica questo formato';
-  };
-  formato.addEventListener('change', aggCodec);
-  misura.addEventListener('change', aggCodec);
-  void aggCodec();
-  const barra = h('div', { class: 'barra-avanz' }, h('i'));
-  const stato = h('div', { class: 'export-stato' }, `Durata ${frameToTc(haInOut ? p.outF! - p.inF! : fine, p.rate, p.drop)} · ${durataUmana(f2s(haInOut ? p.outF! - p.inF! : fine, p.rate))}`);
-  d.corpo.append(
-    h('div', { class: 'form' },
-      h('label', null, 'Nome del file'), nome,
-      h('label', null, 'Formato'), formato,
-      h('label', null, 'Dimensione'), misura,
-      h('label', null, 'Qualità'), qualita,
-      h('label', null, 'Solo attacco–stacco'), h('span', null, soloInOut, haInOut ? ` ${frameToTc(p.inF!, p.rate, p.drop)} → ${frameToTc(p.outF!, p.rate, p.drop)}` : ' (segna I e O sulla timeline)'),
-      h('label', null, 'Codec'), codec),
-    stato, barra);
-  const vai = h('button', { class: 'btn primario' }, 'Esporta') as HTMLButtonElement;
-  const chiudi = h('button', { class: 'btn', on: { click: () => { if (lavorando) { annulla = true; chiudi.textContent = 'Fermo…'; } else d.chiudi(); } } }, 'Annulla') as HTMLButtonElement;
-  vai.addEventListener('click', async () => {
-    // a lavoro finito il bottone dice "Fatto" e chiude (prima faceva ripartire l'export da capo)
-    if (fatto) { d.chiudi(); return; }
-    if (lavorando) return;
-    const k = Number(misura.value);
-    lavorando = true;
-    vai.disabled = true;
-    d.el.classList.add('lavora');
-    const f = formato.value as Formato;
-    try {
-      const file = await esporta(p, {
-        formato: f, w: Math.round(p.w * k), h: Math.round(p.h * k), qualita: qualita.value as Qualita, soloInOut: soloInOut.checked,
-        nome: (nome.value || 'montaggio') + '.' + f,
-      }, (a) => {
-        (barra.firstChild as HTMLElement).style.width = (a.fatti / a.totale) * 100 + '%';
-        stato.textContent = a.fase === 'video'
-          ? `Video: ${frameToTc(Math.round(a.fatti), p.rate, p.drop)} di ${frameToTc(a.totale, p.rate, p.drop)} · ${a.fpsResa.toFixed(0)} fps${a.fpsResa > 0 ? ' · mancano ' + durataUmana((a.totale - a.fatti) / a.fpsResa) : ''}`
-          : a.fase === 'audio' ? 'Audio…' : 'Chiudo il file…';
-      }, () => annulla);
-      lavorando = false;
-      if (file) {
-        avviso(`🎬 Esportato: ${file.split(/[\\/]/).pop()}`, 'ok', 5000);
-        stato.textContent = `Fatto! ${file}`;
-        (barra.firstChild as HTMLElement).style.width = '100%';
-        vai.textContent = 'Fatto';
-        chiudi.textContent = 'Chiudi';
-        fatto = true;
-        vai.disabled = false;
-      } else { d.chiudi(); avviso('Export annullato', 'info'); }
-    } catch (e) {
-      lavorando = false;
-      vai.disabled = false;
-      d.el.classList.remove('lavora');
-      stato.textContent = '⚠ ' + (e instanceof Error ? e.message : String(e));
-      avviso('Export non riuscito', 'errore');
-    }
-  });
+  let pannello: PannelloEsporta | null = null;
+  const d = dialogo('Esporta', { largo: true, onChiudi: () => pannello?.smonta() });
+  d.el.classList.add('dlg-esporta');
+  pannello = pannelloEsporta(scelta.preset);
+  d.corpo.append(pannello.el);
   d.piede.append(
     h('button', { class: 'btn', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
     h('button', { class: 'btn', title: 'Il fotogramma sotto il cursore, a piena risoluzione', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
-    h('span', { class: 'spazio' }), chiudi, vai);
+    h('span', { class: 'spazio' }),
+    h('button', { class: 'btn', on: { click: d.chiudi } }, 'Chiudi'));
 }
 
 export async function esportaEdl() {

@@ -443,6 +443,13 @@ fn apri_link(app: AppHandle, url: String) -> Esito<()> {
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Apre la cartella del file e lo mette in evidenza (a fine esportazione: «Apri la cartella»).
+#[tauri::command]
+fn mostra_nella_cartella(app: AppHandle, path: String) -> Esito<()> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let dall_avvio = std::env::args().skip(1).find(|a| file_progetto(a));
@@ -471,6 +478,7 @@ pub fn run() {
             pacchetto_lunghezza,
             file_di_avvio,
             apri_link,
+            mostra_nella_cartella,
             istantanea_percorso,
             registrazione_percorso,
             audio_apri,
