@@ -161,18 +161,18 @@ async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { in
 
 /** il file del MediaRecorder non sa quanto dura e non ha l'indice: lo si ricopia com'è (senza ricodificare) */
 async function rimetteInOrdine(blob: Blob, mp4: boolean): Promise<Blob> {
+  let input: Input | undefined;
   try {
-    const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+    input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
     const output = new Output({ format: mp4 ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(), target: new BufferTarget() });
     const conv = await Conversion.init({ input, output });
     if (!conv.isValid) return blob;
     await conv.execute();
-    input.dispose();
     const buf = (output.target as BufferTarget).buffer;
     return buf ? new Blob([buf], { type: mp4 ? 'video/mp4' : 'video/webm' }) : blob;
   } catch {
     return blob;
-  }
+  } finally { input?.dispose(); }
 }
 
 /** nell'app la registrazione va sul disco (Video/DaProd Video), così il progetto la ritrova sempre */
@@ -302,7 +302,9 @@ const bitrate = (q: number, f: number) => Math.round((q <= 720 ? 5 : q <= 1080 ?
 interface Nastro { fatto: Promise<Tratto>; ferma: (taglio: number) => void }
 function nastro(flusso: MediaStream, tipo: string, vbps: number): Nastro {
   const tracce = flusso.getTracks().map((t) => t.clone());
-  const rec = new MediaRecorder(new MediaStream(tracce), { mimeType: tipo || undefined, videoBitsPerSecond: vbps || undefined, audioBitsPerSecond: 192_000 });
+  const opzioni: MediaRecorderOptions & { videoKeyFrameIntervalDuration?: number } = { mimeType: tipo || undefined, videoBitsPerSecond: vbps || undefined, audioBitsPerSecond: 192_000 };
+  if (vbps) opzioni.videoKeyFrameIntervalDuration = 1000;
+  const rec = new MediaRecorder(new MediaStream(tracce), opzioni);
   const dati: Blob[] = [];
   let taglio = Infinity, fermo = false, tardivi = 0, attesa = 0;
   const fatto = new Promise<Tratto>((ok) => {

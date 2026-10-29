@@ -70,13 +70,13 @@ async function distanzaChiavi(r: MediaRT, durata: number): Promise<number> {
     let k = await ps.getFirstKeyPacket({ metadataOnly: true });
     while (k && ts.length < 5) { ts.push(k.timestamp); k = await ps.getNextKeyPacket(k, { metadataOnly: true }); }
     if (ts.length < 2) return durata;
-    return (ts[ts.length - 1] - ts[0]) / (ts.length - 1);
+    return Math.max(...ts.slice(1).map((t, i) => t - ts[i]));
   } catch { return 0; }
 }
 
-/** Soglie prudenti: Full HD anche verticale, almeno 10 bit, oltre 35 Mbit/s o chiavi distanti più di 2 secondi. */
-export const SOGLIE_PROXY = Object.freeze({ latoLungo: 1920, latoCorto: 1080, bit: 10, bitrate: 35_000_000, distanzaChiavi: 2 });
-export interface DatiProxy { codec?: string; bit?: number; bitrate?: number; distanzaChiavi?: number }
+/** Fino a 1440p anche verticale; oltre 60 Mbit/s o chiavi distanti più di 2 secondi. */
+export const SOGLIE_PROXY = Object.freeze({ latoLungo: 2560, latoCorto: 1440, bit: 10, bitrate: 60_000_000, distanzaChiavi: 2 });
+export interface DatiProxy { codec?: string; bit?: number; bitrate?: number; distanzaChiavi?: number; hdr?: boolean }
 
 /** La profondità dichiarata nella stringa WebCodecs (il nome generico «vp9» non basta). */
 export function bitVideo(codec: string): number {
@@ -91,7 +91,7 @@ export function videoPesante(m: Pick<MediaItem, 'type' | 'width' | 'height' | 'v
   if (m.type !== 'video') return false;
   const codec = d.codec || m.vcodec;
   return Math.max(m.width, m.height) > SOGLIE_PROXY.latoLungo || Math.min(m.width, m.height) > SOGLIE_PROXY.latoCorto
-    || (d.bit ?? bitVideo(codec)) >= SOGLIE_PROXY.bit
+    || d.hdr === true || (d.bit ?? bitVideo(codec)) >= SOGLIE_PROXY.bit
     || /hev|hvc|av01|av1|prores|ap4[hcxs]|apch|apcn|apcs|apco|aprh|aprn/i.test(codec)
     || (d.bitrate ?? 0) > SOGLIE_PROXY.bitrate || (d.distanzaChiavi ?? 0) > SOGLIE_PROXY.distanzaChiavi;
 }
@@ -111,16 +111,19 @@ export async function ripresaPesante(m: MediaItem, r: MediaRT): Promise<boolean>
   const [config, bitrate] = await Promise.all([
     r.v.getDecoderConfig().catch(() => null), r.v.getAverageBitrate().catch(() => null),
   ]);
-  const d = { codec: config?.codec, bitrate: bitrate ?? (m.size > 0 ? m.size * 8 / m.duration : 0) };
+  const transfer = String(config?.colorSpace?.transfer ?? '');
+  const d = { codec: config?.codec, bitrate: bitrate ?? (m.size > 0 ? m.size * 8 / m.duration : 0), hdr: /^(pq|hlg|smpte2084|arib-std-b67)$/i.test(transfer) };
   if (videoPesante(m, d)) return true;
   return videoPesante(m, { ...d, distanzaChiavi: await distanzaChiavi(r, m.duration) });
 }
 
 async function apriProxy(fonte: Blob | ArrayBuffer): Promise<Proxy | null> {
   const input = new Input({ source: fonte instanceof Blob ? new BlobSource(fonte) : new BufferSource(fonte), formats: ALL_FORMATS });
+  try {
   const v = await input.getPrimaryVideoTrack();
   if (!v || !(await v.canDecode())) { input.dispose(); return null; }
   return { input, v, w: await v.getDisplayWidth(), h: await v.getDisplayHeight() };
+  } catch (e) { input.dispose(); throw e; }
 }
 
 function metti(r: MediaRT, p: Proxy) {
@@ -241,8 +244,11 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
   if (!codec) return null;
   const output = new Output({ format: codec === 'avc' ? new Mp4OutputFormat({ fastStart: 'in-memory' }) : new WebMOutputFormat(), target: new BufferTarget() });
   const input = new Input({ source: fonte(), formats: ALL_FORMATS });
+  let conv: Conversion | undefined;
+  let annulla: (() => void) | undefined;
+  let annullamento: Promise<void> | undefined;
   try {
-    const conv = await Conversion.init({
+    conv = await Conversion.init({
       input, output, tracks: 'primary',
       video: { width: w, height: h, fit: 'fill', codec, keyFrameInterval: 0.5, quality: QUALITY_MEDIUM, forceTranscode: true, hardwareAcceleration: hw },
       audio: { discard: true },
@@ -250,11 +256,19 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
     if (!conv.isValid) return null;
     // l'avanzamento si segna e basta: avvisare a ogni fotogramma farebbe ridisegnare il monitor per niente
     conv.onProgress = (p) => { r.proxyProg = p; l.imposta(p); };
-    l.segnale.addEventListener('abort', () => { void conv.cancel(); });
+    const conversione = conv;
+    annulla = () => { annullamento ??= conversione.cancel().catch(() => {}); };
+    l.segnale.addEventListener('abort', annulla);
+    if (l.segnale.aborted) annulla();
     for (;;) {
       if (l.fermato) return null;
       // in pausa finché il montaggio suona; il ✕ del centro attività la sveglia subito (se no restava appesa)
-      if (fermo) await new Promise<void>((ok) => { svegliaRiproduzione.add(ok); l.segnale.addEventListener('abort', () => ok(), { once: true }); });
+      if (fermo) await new Promise<void>((ok) => {
+        const sveglia = () => { svegliaRiproduzione.delete(sveglia); l.segnale.removeEventListener('abort', sveglia); ok(); };
+        svegliaRiproduzione.add(sveglia);
+        l.segnale.addEventListener('abort', sveglia, { once: true });
+        if (l.segnale.aborted) sveglia();
+      });
       // la Pausa dell'utente: si ferma qui (la conversione è sospesa, non buttata) e lascia la corsia agli altri
       await l.checkpoint();
       const sosp = new AbortController();
@@ -266,6 +280,9 @@ async function creaProxyCon(m: MediaItem, r: MediaRT, fonte: () => Source, l: La
       if (conv.state === 'canceled') return null;
     }
   } finally {
+    if (annulla) l.segnale.removeEventListener('abort', annulla);
+    await annullamento;
+    if (conv && conv.state !== 'done' && conv.state !== 'canceled') await conv.cancel().catch(() => {});
     input.dispose();
   }
   if (!l.valido) return null;
