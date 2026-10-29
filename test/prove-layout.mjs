@@ -18,6 +18,9 @@ try {
   await page.goto(srv.url + '/app/');
   await page.waitForSelector('.bin-albero');
   await page.waitForSelector('.avvio', { state: 'detached' });
+  // Il banco salvato viene da una versione precedente: l'app mostra le novità.
+  await page.locator('.dialogo.novita .primario').click();
+  await page.waitForSelector('.velo', { state: 'detached' });
   await page.locator('.bin-cat[data-c=titoli]').click();
   await page.screenshot({ path: path.join(out, 'layout-corretto.png') });
   const misura = () => page.evaluate(() => {

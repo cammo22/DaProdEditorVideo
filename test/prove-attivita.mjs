@@ -1,13 +1,21 @@
 // Centro attività: code, priorità, progressi e controlli nel pannello della libreria.
-// Import e riapertura non avviano preparazioni; proxy e conversioni partono solo su richiesta.
+// Con le copie automatiche spente, import e riapertura non avviano proxy o conversioni.
 // Le sezioni encoder usano WebCodecs reale; i lavori di registro iniziali sono sintetici.
 //   npm run build && node test/prove-nuove.mjs attivita
 import path from 'node:path';
+import fs from 'node:fs';
 
 export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   console.log('▶ Centro attività: registro, code e priorità');
   const contesto = await paginaDi.context().browser().newContext({ viewport: { width: 1600, height: 950 } });
   const page = await contesto.newPage();
+  const versione = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+  await page.addInitScript((versione) => {
+    localStorage.setItem('dpv-versione-vista', versione);
+    localStorage.setItem('dpv-proxy', 'sempre');
+    localStorage.setItem('dpv-proxy-automatiche', 'no');
+    localStorage.setItem('dpv-normalizza', 'si');
+  }, versione);
   const errori = [];
   page.on('pageerror', (e) => errori.push(e.message + ' @ ' + String(e.stack ?? '').split('\n').slice(1, 5).join(' | ')));
   await page.goto(paginaDi.url());
@@ -147,9 +155,7 @@ export async function proveAttivita({ page: paginaDi, prova, OUT }) {
   const dati = await page.evaluate(async () => {
     const { importaFile, ripresaDiProva, P, mediaRT, AT } = window.__dpvTest;
     AT.azzeraAttivita();
-    // le preferenze vecchie con tutto acceso: non devono far partire niente
-    localStorage.setItem('dpv-proxy', 'sempre');
-    localStorage.setItem('dpv-normalizza', 'si');
+    // La vecchia preferenza «sempre» non riaccende le copie automatiche spente.
     const base = await ripresaDiProva(3, 25);
     const nomi = [];
     const files = [];
