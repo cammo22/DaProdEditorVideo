@@ -14,7 +14,7 @@ globalThis.clearInterval = (id) => intervalli.delete(id);
 globalThis.setTimeout = () => 0;
 const avvisi = [];
 const elemento = () => ({
-  children: [], setAttribute() {},
+  children: [], setAttribute() {}, addEventListener() {},
   get firstChild() { return this.children[0]; },
   appendChild(e) { e.remove = () => { this.children = this.children.filter((x) => x !== e); }; this.children.push(e); return e; },
 });

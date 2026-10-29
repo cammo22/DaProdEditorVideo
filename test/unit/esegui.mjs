@@ -51,6 +51,8 @@ await build({
         live: path.join(radice, 'src/ui/live.ts'),
         store: path.join(radice, 'src/core/store.ts'),
         mossformer: path.join(radice, 'src/core/mossformer.ts'),
+        esportazione: path.join(radice, 'src/core/esportazione.ts'),
+        codaExport: path.join(radice, 'src/core/codaExport.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

@@ -23,7 +23,8 @@ import { LOOKS } from '../render/colore';
 import { mediaRT, preparaOra, senzaColoreMisurato, quandoPreparazioni } from '../media/libreria';
 import { motore } from '../motore';
 import { volumeLivellato } from '../effetti';
-import { finestraEsporta, esportaEdl, esportaFotogramma } from './dialoghi';
+import { esportaEdl, esportaFotogramma } from './dialoghi';
+import { pannelloEsporta } from './esportazione';
 import { avviso, clamp, conferma, h, icona } from './dom';
 
 type Campo = { aggiorna: () => void };
@@ -68,9 +69,6 @@ export class Finale {
   private riepilogo: HTMLElement;
   private menu: HTMLElement;
   private campi: Campo[] = [];
-  private formato = 'mp4';
-  private qualita = 'alta';
-  private misura = '1';
   private sezione: Sezione = 'colore';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
@@ -164,18 +162,16 @@ export class Finale {
     if (z === 'logo') return pagina(this.paginaLogo(sez));
     if (z === 'apertura') return pagina(...this.paginaApertura(sez));
     if (z === 'lingue') return pagina(...this.paginaLingue(sez));
+    // l'esportazione ha il suo pannello (preset, cosa esce, coda): lo stesso della finestra Ctrl+M
     const esporta = h('div', { class: 'fin-esporta' },
-      this.scelte('Formato', [['mp4', 'MP4'], ['mov', 'MOV'], ['webm', 'WebM'], ['wav', 'Solo audio']], () => this.formato, (v) => { this.formato = v; }),
-      this.scelte('Qualità', [['media', 'Leggera'], ['alta', 'Alta'], ['altissima', 'Master']], () => this.qualita, (v) => { this.qualita = v; }),
-      this.scelte('Misura', [['1', 'Come il progetto'], ['0.5', 'Metà']], () => this.misura, (v) => { this.misura = v; }),
-      h('button', { class: 'btn primario fin-vai', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, icona('esporta', 18), 'ESPORTA IL MASTER'),
+      pannelloEsporta().el,
       h('div', { class: 'fin-altri' },
         h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
         h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
         h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
         h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
       h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.'));
-    return pagina(sez('Esporta', 'esporta', esporta));
+    return pagina(esporta);
   }
 
   // ——— sottotitoli ———
@@ -784,10 +780,5 @@ export class Finale {
     i.addEventListener('change', () => this.cambia(nome, (m) => put(m, i.checked)));
     this.campi.push({ aggiorna: agg });
     return h('label', { class: 'isp-riga spunta' }, i, h('span', null, nome));
-  }
-
-  private scelte(nome: string, opzioni: [string, string][], get: () => string, put: (v: string) => void): HTMLElement {
-    const bottoni = opzioni.map(([v, t]) => h('button', { class: 'chip' + (get() === v ? ' acceso' : ''), 'data-v': v, on: { click: () => { put(v); bottoni.forEach((b) => b.classList.toggle('acceso', b.dataset.v === v)); } } }, t));
-    return h('div', { class: 'fin-scelte' }, h('span', null, nome), h('div', { class: 'isp-chips' }, bottoni));
   }
 }
