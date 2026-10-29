@@ -57,12 +57,12 @@ button svg { pointer-events: none; }
   height: 100%;
   display: grid;
   grid-template-columns: var(--bin) 6px minmax(0, 1fr) 6px var(--lato);
-  grid-template-rows: 44px minmax(160px, min(var(--alto), calc(100vh - 340px))) auto 7px minmax(120px, 1fr) 22px;
+  grid-template-rows: 44px minmax(160px, min(var(--alto), calc(100vh - 340px))) 7px auto minmax(120px, 1fr) 22px;
   grid-template-areas:
     'testa testa testa testa testa'
     'bin bbin monitor blato lato'
-    'puls puls puls puls puls'
     'div div div div div'
+    'puls puls puls puls puls'
     'tl tl tl tl tl'
     'stato stato stato stato stato';
   gap: 0;
@@ -78,12 +78,12 @@ button svg { pointer-events: none; }
   grid-template-areas:
     'testa testa testa testa testa'
     'bin bbin monitor blato lato'
-    'puls puls puls blato lato'
     'div div div blato lato'
+    'puls puls puls blato lato'
     'tl tl tl blato lato'
     'stato stato stato stato stato';
 }
-#app.lato-lungo.senza-lato:not(.stretto):not([data-pagina='finale']):not([data-pagina='live']):not([data-pagina='montage']) { grid-template-areas: 'testa testa testa testa testa' 'bin bbin monitor blato lato' 'puls puls puls puls puls' 'div div div div div' 'tl tl tl tl tl' 'stato stato stato stato stato'; }
+#app.lato-lungo.senza-lato:not(.stretto):not([data-pagina='finale']):not([data-pagina='live']):not([data-pagina='montage']) { grid-template-areas: 'testa testa testa testa testa' 'bin bbin monitor blato lato' 'div div div div div' 'puls puls puls puls puls' 'tl tl tl tl tl' 'stato stato stato stato stato'; }
 #app.lato-lungo .lato { border-bottom: 1px solid #000; }
 /* la pagina Finale: monitor grande, i ritocchi a destra, la timeline sotto */
 #app[data-pagina='finale'] {
@@ -531,7 +531,7 @@ button svg { pointer-events: none; }
 .jog { width: 42px; height: 42px; flex: none; cursor: grab; touch-action: none; }
 
 /* ——— pulsantiera ——— */
-.pulsantiera { display: flex; align-items: stretch; gap: 10px; padding: 6px 10px; background: linear-gradient(180deg, #25232d, #19181f); border-top: 1px solid #000; border-bottom: 1px solid #000; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+.pulsantiera { display: flex; align-items: stretch; gap: 10px; padding: 4px 10px 6px; background: linear-gradient(180deg, #25232d, #19181f); border-top: 1px solid #000; border-bottom: 0; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
 .gruppo-tasti { display: flex; gap: 5px; align-items: center; padding-right: 10px; border-right: 1px solid #000; box-shadow: 1px 0 0 var(--bordo); flex: none; }
 .gruppo-tasti:last-child { border-right: 0; box-shadow: none; }
 .tasto-num { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 58px; height: 46px; border-radius: 8px; border: 1px solid #000; color: #e4e0ee; background: linear-gradient(180deg, #43414d 0%, #33313c 45%, #2a2932 100%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 3px 0 #0a090d, 0 4px 8px rgba(0, 0, 0, 0.4); transition: transform 0.05s; }
@@ -552,10 +552,10 @@ button svg { pointer-events: none; }
 .divisore::after { content: ''; position: absolute; left: 50%; top: 2px; width: 40px; height: 2px; margin-left: -20px; border-radius: 2px; background: #3a3844; }
 
 /* ——— timeline ——— */
-.timeline { display: grid; grid-template-columns: 124px 1fr; grid-template-rows: 25px minmax(0, 1fr); min-height: 0; background: #0f0e14; border-top: 1px solid #000; position: relative; }
-.tl-schede { grid-column: 1 / -1; display: flex; gap: 2px; align-items: flex-end; padding: 0 6px; background: #0b0a0f; border-bottom: 1px solid #000; overflow-x: auto; scrollbar-width: none; }
+.timeline { display: grid; grid-template-columns: 124px 1fr; grid-template-rows: 25px minmax(0, 1fr); min-height: 0; background: #0f0e14; position: relative; }
+.tl-schede { grid-column: 1 / -1; display: flex; gap: 2px; align-items: flex-end; padding: 2px 6px 0; background: #19181f; border-bottom: 1px solid #000; overflow-x: auto; scrollbar-width: none; }
 .tl-schede::-webkit-scrollbar { display: none; }
-.tl-scheda { display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 10px; border-radius: 6px 6px 0 0; border: 1px solid #25232d; border-bottom: 0; background: #16151c; color: var(--testo3); font: 700 11.5px var(--ui); white-space: nowrap; flex: none; }
+.tl-scheda { display: inline-flex; align-items: center; gap: 5px; height: 21px; padding: 0 10px; border-radius: 6px 6px 0 0; border: 1px solid #2c2a35; border-bottom: 0; background: #121118; color: var(--testo3); font: 700 11.5px var(--ui); white-space: nowrap; flex: none; }
 .tl-scheda:hover { color: var(--testo); }
 .tl-scheda.attiva { background: #1f1d27; color: var(--oro); border-color: rgba(255, 213, 74, 0.35); box-shadow: inset 0 2px 0 var(--oro); }
 .tl-scheda.piu { padding: 0 8px; color: var(--testo2); }
@@ -781,8 +781,8 @@ button svg { pointer-events: none; }
 /* ——— telefono e tablet stretto ——— */
 #app.stretto, #app.stretto[data-pagina='finale'] {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 44px minmax(180px, 38vh) auto 7px 1fr 0 56px;
-  grid-template-areas: 'testa' 'monitor' 'puls' 'div' 'tl' 'stato' 'tel';
+  grid-template-rows: 44px minmax(180px, 38vh) 7px auto 1fr 0 56px;
+  grid-template-areas: 'testa' 'monitor' 'div' 'puls' 'tl' 'stato' 'tel';
 }
 .stretto .bordo, .stretto .pagine { display: none; }
 #app.stretto .finale { display: flex; }
@@ -834,7 +834,7 @@ button svg { pointer-events: none; }
 .isp-durata .isp-riga { grid-template-columns: 1fr 92px; }
 .isp-durata .isp-riga .nota { margin: 0; font-size: 10.5px; }
 /* la pulsantiera ci deve stare tutta anche con il tasto FOTO */
-.pulsantiera { gap: 8px; padding: 6px 8px; }
+.pulsantiera { gap: 8px; padding: 4px 8px 6px; }
 .gruppo-tasti { gap: 4px; padding-right: 8px; }
 .tasto-num { width: 54px; }
 .tasto-piccolo { padding: 0 7px; }

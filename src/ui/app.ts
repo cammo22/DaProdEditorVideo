@@ -179,7 +179,7 @@ export function avvia(radice: HTMLElement) {
   const linguetta = h('button', { class: 'linguetta-lato', title: 'Riapri il pannello delle proprietà', on: { click: () => disp.alterna('senza-lato', false) } }, '‹ Proprietà');
   radice.dataset.pagina = 'montaggio';
   radice.before(barra);
-  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, live.el, montage.el, home.el, puls.el, divisore, tl.el, statoBar, barraTel, linguetta);
+  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, live.el, montage.el, home.el, divisore, puls.el, tl.el, statoBar, barraTel, linguetta);
 
   const rimettiBanco = () => { disp.rimetti(); setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60); };
   disp.ripristina();
