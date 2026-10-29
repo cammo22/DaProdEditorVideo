@@ -1779,7 +1779,7 @@ export class Compositore {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     // i buffer delle clip non più in scena si liberano
     for (const [k, t] of this.texs) {
-      if (!this.used.has(k) && !k.startsWith('img:')) { gl.deleteTexture(t.tex); this.texs.delete(k); }
+      if (!this.used.has(k)) { gl.deleteTexture(t.tex); this.texs.delete(k); }
     }
     this.interp?.finisce();
     this.coloreGpu.finisce();

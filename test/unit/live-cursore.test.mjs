@@ -230,3 +230,41 @@ test('ponte nativo: origini dei pezzi prima di MediaRecorder, pause escluse e un
   assert.deepEqual(d.clic.map(s => [s.tMs, s.button]), [[10, 0], [230, 1]]);
   assert.deepEqual(chiamate.map(s => s[0]), ['cursore_avvia', 'cursore_ferma']);
 });
+
+test('il compositore libera le immagini uscite dal quadro e le ricarica quando tornano', async () => {
+  ambienteBrowser(); memoriaFinta(); globalThis.window = globalThis;
+  globalThis.ImageBitmap = class { width = 16; height = 16; };
+  const intervalli = [], originale = globalThis.setInterval;
+  globalThis.setInterval = (...a) => { const h = originale(...a); intervalli.push(h); return h; };
+  let Compositore;
+  try { ({ Compositore } = await carica('compositore')); }
+  finally { globalThis.setInterval = originale; for (const h of intervalli) clearInterval(h); }
+  const eliminate = [];
+  const gl = new Proxy({}, { get(_t, k) {
+    if (k === 'NO_ERROR') return 0;
+    if (/^[A-Z0-9_]+$/.test(String(k))) return k;
+    if (k === 'getShaderParameter' || k === 'getProgramParameter') return () => true;
+    if (k === 'getParameter') return p => p === 'MAX_3D_TEXTURE_SIZE' ? 65 : null;
+    if (k === 'getError' || k === 'getAttribLocation') return () => 0;
+    if (k === 'deleteTexture') return t => eliminate.push(t);
+    if (String(k).startsWith('create')) return () => ({});
+    return () => {};
+  } });
+  const cp = new Compositore({ width: 16, height: 16, getContext: () => gl });
+  const p = P.newProject({ w: 16, h: 16, rate: { num: 25, den: 1 }, drop: false });
+  const bmp = new ImageBitmap();
+  p.media.push({ id: 'foto', type: 'image', width: 16, height: 16, rotation: 0 });
+  const clip = P.newClip('media', p.tracks[1].id, 0, 10, { media: 'foto' });
+  p.clips.push(clip);
+  const { pianoVideo } = await carica('piano');
+  cp.render(p, pianoVideo(p, 0), false, 0, () => bmp);
+  const prima = cp.texs.get('img:foto')?.tex;
+  assert.ok(prima);
+  cp.render(p, pianoVideo(p, 11), false, 11, () => bmp);
+  assert.ok(eliminate.includes(prima));
+  assert.equal(cp.texs.has('img:foto'), false);
+  cp.render(p, pianoVideo(p, 0), false, 0, () => bmp);
+  assert.ok(cp.texs.get('img:foto')?.tex);
+  assert.notEqual(cp.texs.get('img:foto').tex, prima);
+  cp.distruggi();
+});
