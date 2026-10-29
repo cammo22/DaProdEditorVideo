@@ -8,6 +8,7 @@ import { leggiGeneratore } from '../core/generatori';
 import { store } from '../core/store';
 import { motore } from '../motore';
 import * as M from '../core/montaggio';
+import { fotogrammiChiave } from '../core/automazioni';
 import { CURVE, curvaFade, nomeCurva, clipById, dbToGain, end, isVideoClip, keyValue, mediaOf, newTrack, newTransition, nextTrackName, projectEnd, srcTimeAt, trackOf, ALTEZZA } from '../core/progetto';
 import type { Clip, Key, MediaItem, Project, Sottotitolo, Track, TrackKind } from '../core/tipi';
 import { SOTTO0, bordoRiga, dividiRiga, limitiRiga, rigaAl, rigaVicina, sottotitoliDi, unisciRighe } from '../core/sottotitoli';
@@ -1214,6 +1215,22 @@ export class Timeline {
   private contorniScelte: { x: number; y: number; w: number; h: number; r: number }[] = [];
   private scarto = new Set<string>();
 
+  /** i keyframe della clip scelta: un rombo per ogni fotogramma con almeno una chiave, sul bordo basso */
+  private rombiChiavi(ctx: CanvasRenderingContext2D, c: Clip, fondo: number) {
+    const sotto = Math.floor(store.head + 1e-6) - c.start;
+    for (const f of fotogrammiChiave(c)) {
+      if (f < 0 || f > c.len) continue;
+      const x = this.fX(c.start + f), y = fondo - 5;
+      if (x < -6 || x > this.W + 6) continue;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 4); ctx.lineTo(x + 4, y); ctx.lineTo(x, y + 4); ctx.lineTo(x - 4, y); ctx.closePath();
+      ctx.fillStyle = f === sotto ? '#ffffff' : '#ffd54a';
+      ctx.strokeStyle = 'rgba(0,0,0,.85)';
+      ctx.lineWidth = 1;
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
   private disegnaClip(ctx: CanvasRenderingContext2D, p: Project, c: Clip, t: Track, y: number, hh: number, r: number) {
     const x = this.fX(c.start), w = Math.max(1, c.len * this.ppf);
     const { top, alt, testa, corpoY, corpoH } = this.geo(y, hh);
@@ -1349,6 +1366,8 @@ export class Timeline {
     ctx.roundRect(x + 0.5, top + 0.5, w - 1, alt - 1, Math.min(4, w / 3));
     ctx.stroke();
     if (sel) this.contorniScelte.push({ x, y: top, w, h: alt, r: Math.min(4, w / 3) });
+    // i keyframe come piccoli rombi sul bordo basso, solo se la clip è scelta (niente cambia nell'impaginazione)
+    if (sel && c.anim) this.rombiChiavi(ctx, c, top + alt);
     // le maniglie delle dissolvenze (quadratini in alto): si trascinano verso l'interno
     if (w >= 40) {
       const [xi, xo] = this.maniglieFade(c);
@@ -2342,7 +2361,7 @@ export class Timeline {
       avviso(store.doc.tracks.length > n0 ? `${nome}: lì era occupato, ho usato una traccia nuova` : `${nome} nella timeline`, 'ok', 1600);
     } else if (dato.startsWith('g:')) {
       const g = leggiGeneratore(dato);
-      inserisciGeneratore(g.kind, f, riga?.t.kind === 'video' ? riga.t.id : undefined, { titolo: g.titolo, conto: g.conto, anim: g.anim });
+      inserisciGeneratore(g.kind, f, riga?.t.kind === 'video' ? riga.t.id : undefined, { titolo: g.titolo, conto: g.conto, anim: g.anim, html: g.html });
     } else if (dato.startsWith('x:') || dato.startsWith('t:')) {
       const { tipo, id } = this.specBlocco(dato);
       const g = this.anteprimaBlocco(x, y, dato);

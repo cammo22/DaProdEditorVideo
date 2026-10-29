@@ -2,7 +2,7 @@
 // e quelle per le cerimonie. Qui ci sono solo i dati (nome, campi da compilare, durata); come si disegnano sta in
 // src/render/animazioni.ts. Il disegno è un'altra cosa: ogni animazione è una funzione del tempo, senza stato.
 // Molte nascono dal catalogo di HyperFrames (HeyGen, Apache-2.0, https://github.com/heygen-com/hyperframes): le
-// stesse idee di movimento (entrata, tenuta, uscita), ridisegnate per questo programma. Vedi THIRD-PARTY.md.
+// stesse idee di movimento (entrata, tenuta, uscita), ridisegnate per questo programma. Vedi TERZE-PARTI.md.
 import type { AnimSpec } from './tipi';
 
 export type TipoCampo = 'testo' | 'lungo' | 'numero' | 'colore' | 'scelta' | 'spunta';
@@ -108,7 +108,7 @@ export const ANIMAZIONI: Anim[] = [
   { id: 'sc-chiusura', nome: 'Chiusura con invito', gruppo: 'social', info: 'grazie, un invito e il pulsante: per finire il video', durata: 6,
     campi: [T('titolo', 'Titolo', 'Grazie per la visione'), T('sotto', 'Riga sotto', 'Ci vediamo al prossimo video'), T('bottone', 'Pulsante', 'Iscriviti'), C('colore', 'Colore', '#ffd23f'), FONT('montserrat'), DIM] },
   { id: 'sc-post', nome: 'Post social', gruppo: 'social', info: 'una scheda stile post con avatar, testo e mi piace', durata: 6,
-    campi: [T('nome', 'Nome', 'DaProd Video'), T('utente', 'Utente', '@daprod'), L('testo', 'Testo', 'Il montaggio vecchio stile, moderno dentro.'), N('mipiace', 'Mi piace', 12840, 0, 100000000, 1), C('colore', 'Colore', '#1d9bf0'), POS, DIM] },
+    campi: [T('nome', 'Nome', 'DaProd Editor Video'), T('utente', 'Utente', '@daprod'), L('testo', 'Testo', 'Il montaggio vecchio stile, moderno dentro.'), N('mipiace', 'Mi piace', 12840, 0, 100000000, 1), C('colore', 'Colore', '#1d9bf0'), POS, DIM] },
   { id: 'sc-notifica', nome: 'Notifica del telefono', gruppo: 'social', info: 'un banner che scende dall\'alto come sul telefono', durata: 5,
     campi: [T('app', 'App', 'Messaggi'), T('titolo', 'Titolo', 'Anna'), T('testo', 'Testo', 'Sei pronto? Tra poco si parte!'), C('colore', 'Colore dell\'icona', '#34c759'), DIM] },
   { id: 'sc-chat', nome: 'Chat', gruppo: 'social', info: 'le bolle di una conversazione che arrivano una dopo l\'altra', durata: 7,

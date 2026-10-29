@@ -7,7 +7,9 @@
 
 mod aggiorna;
 mod audio_riserva;
+mod associazioni;
 mod conversioni;
+mod cursore;
 mod motori;
 
 use std::collections::HashMap;
@@ -205,6 +207,29 @@ async fn registrazione_percorso(app: AppHandle, name: String) -> Esito<String> {
         n += 1;
     }
     Ok(p.to_string_lossy().into_owned())
+}
+
+/// Le cartelle di lavoro: Video/DaProd Video e, dentro, Registrazioni. Le crea se mancano ("Aggiusta tutto" della pagina
+/// iniziale). Ritorna per ognuna il percorso e se l'ha dovuta creare adesso.
+#[derive(serde::Serialize)]
+struct CartellaLavoro {
+    nome: &'static str,
+    percorso: String,
+    creata: bool,
+}
+
+#[tauri::command]
+async fn cartelle_lavoro(app: AppHandle) -> Esito<Vec<CartellaLavoro>> {
+    let base = app.path().video_dir().or_else(|_| app.path().app_data_dir()).map_err(|e| e.to_string())?;
+    let principale = base.join("DaProd Video");
+    let registrazioni = principale.join("Registrazioni");
+    let mut fuori = Vec::new();
+    for (nome, dir) in [("DaProd Video", principale), ("Registrazioni", registrazioni)] {
+        let creata = !dir.is_dir();
+        std::fs::create_dir_all(&dir).map_err(|e| format!("{nome}: {e}"))?;
+        fuori.push(CartellaLavoro { nome, percorso: dir.to_string_lossy().into_owned(), creata });
+    }
+    Ok(fuori)
 }
 
 /// Apre il file dell'export in scrittura; ritorna un numero da usare per scrivere e chiudere.
@@ -443,14 +468,63 @@ fn apri_link(app: AppHandle, url: String) -> Esito<()> {
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Porta la finestra davanti a tutto: la rimette se era ridotta a icona, la mostra, le dà il fuoco e la tiene
+/// "sempre in primo piano" per un attimo (Windows altrimenti la lascia dietro le altre, lampeggiando sulla barra).
+fn finestra_davanti(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_always_on_top(true);
+        let _ = w.set_focus();
+        let _ = w.set_always_on_top(false);
+    }
+}
+
+/// Un progetto da aprire arrivato da fuori (doppio clic sul file con l'app già aperta, o secondo avvio): si ricorda
+/// e si dice alla finestra, che lo apre (riusa l'evento `apri-file`).
+fn passa_file(app: &AppHandle, s: String) {
+    use tauri::Emitter;
+    if let Some(a) = app.try_state::<Avvio>() {
+        if let Ok(mut x) = a.0.lock() {
+            *x = Some(s.clone());
+        }
+    }
+    let _ = app.emit("apri-file", s);
+}
+
+/// Apre la cartella del file e lo mette in evidenza (a fine esportazione: «Apri la cartella»).
+#[tauri::command]
+fn mostra_nella_cartella(app: AppHandle, path: String) -> Esito<()> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().reveal_item_in_dir(path).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let dall_avvio = std::env::args().skip(1).find(|a| file_progetto(a));
-    tauri::Builder::default()
+    let mut costruttore = tauri::Builder::default();
+    // Una sola finestra alla volta (sul computer): un secondo avvio non apre un'altra copia, passa il file
+    // (se c'è) a quella già aperta e la porta davanti. Il plugin dev'essere il primo.
+    #[cfg(desktop)]
+    {
+        costruttore = costruttore.plugin(tauri_plugin_single_instance::init(|app, argomenti, _cartella| {
+            if let Some(f) = argomenti.iter().skip(1).find(|a| file_progetto(a)) {
+                passa_file(app, f.clone());
+            }
+            finestra_davanti(app);
+        }));
+    }
+    costruttore
+        .setup(|app| {
+            // anche al primo avvio la finestra sta davanti
+            finestra_davanti(app.handle());
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Stato::default())
+        .manage(cursore::Cursore::default())
         .manage(Avvio(Mutex::new(dall_avvio)))
         .manage(audio_riserva::Decoder::default())
         .invoke_handler(tauri::generate_handler![
@@ -471,8 +545,14 @@ pub fn run() {
             pacchetto_lunghezza,
             file_di_avvio,
             apri_link,
+            mostra_nella_cartella,
             istantanea_percorso,
             registrazione_percorso,
+            cartelle_lavoro,
+            associazioni::associa_file,
+            cursore::cursore_schermi,
+            cursore::cursore_avvia,
+            cursore::cursore_ferma,
             audio_apri,
             audio_decodifica,
             audio_chiudi,
@@ -497,22 +577,19 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("errore all'avvio di DaProd Video")
         .run(|_app, _ev| {
+            if matches!(_ev, tauri::RunEvent::Exit) {
+                _app.state::<cursore::Cursore>().chiudi();
+            }
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             if let tauri::RunEvent::Opened { urls } = _ev {
-                use tauri::Emitter;
                 for u in urls {
                     let Ok(p) = u.to_file_path() else { continue };
                     let s = p.to_string_lossy().into_owned();
                     if !file_progetto(&s) {
                         continue;
                     }
-                    if let Some(a) = _app.try_state::<Avvio>() {
-                        if let Ok(mut x) = a.0.lock() {
-                            *x = Some(s.clone());
-                        }
-                    }
-                    let _ = _app.emit("apri-file", s);
+                    passa_file(_app, s);
                 }
             }
         });

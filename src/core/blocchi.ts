@@ -8,6 +8,7 @@
 import type { BloccoFx, Clip, Project, Transition } from './tipi';
 import { end, newClip, newTransition, passaPer } from './progetto';
 import { oggettoSulQuadro } from './traccia';
+import { valutaClip } from './automazioni';
 import { suonoTransizione } from './suoni';
 import { fps } from './timecode';
 import { nomeModello, tipoDi } from '../render/transizioni';
@@ -93,7 +94,7 @@ type Motore = 'flash' | 'scossa' | 'camera' | 'zoomColpo' | 'battito' | 'zoomLen
   | 'onda' | 'bolla' | 'vortice' | 'caleido' | 'calore' | 'zoomSfocato'
   | 'eco' | 'vibra' | 'raggi' | 'bokeh' | 'scintille' | 'anamorfico' | 'duotone' | 'posterizza' | 'solarizza' | 'termico' | 'visore'
   | 'retino' | 'filmMuto' | 'pizzico' | 'gocce' | 'specchio' | 'quadri' | 'rullo' | 'pesce' | 'neve' | 'pioggia' | 'polvere' | 'coriandoli'
-  | 'ologramma' | 'prisma' | 'matita' | 'tunnel' | 'nebbia' | 'braci' | 'vetro' | 'noSegnale' | 'irideChiude' | 'irideApre' | 'miniatura' | 'esagoni' | 'scansione' | 'grana' | 'nitido' | 'censura';
+  | 'ologramma' | 'prisma' | 'matita' | 'tunnel' | 'nebbia' | 'braci' | 'vetro' | 'noSegnale' | 'irideChiude' | 'irideApre' | 'miniatura' | 'esagoni' | 'scansione' | 'grana' | 'nitido' | 'censura' | 'clicLive';
 
 export interface ParametroFx { chiave: string; nome: string; min: number; max: number; def: number; passo: number }
 
@@ -111,6 +112,7 @@ export interface EffettoTempo {
 }
 
 export const EFFETTI_TEMPO: EffettoTempo[] = [
+  { id: 'clicLive', nome: 'Clic animati', info: 'Cerchietti sui clic dei video registrati con i dati del cursore LIVE', durata: 3, gruppo: 'rapidi', motore: 'clicLive', colore: '#ffd54a' },
   { id: 'flash', nome: 'Lampo', info: 'un flash bianco: sul taglio o all\'inizio', durata: 0.5, gruppo: 'rapidi', motore: 'flash', colore: '#ffffff' },
   { id: 'lampoNero', nome: 'Lampo nero', info: 'un battito di ciglia al nero', durata: 0.4, gruppo: 'rapidi', motore: 'flash', colore: '#000000' },
   { id: 'scossa', nome: 'Scossa', info: 'la camera trema per il colpo', durata: 0.5, gruppo: 'rapidi', motore: 'scossa' },
@@ -541,9 +543,12 @@ export function statoEffetti(p: Project, f: number, track?: string): StatoFx | n
   // il centro comune: la media dei centri degli effetti che ce l'hanno (pesata sulla forza)
   let px = 0, py = 0, peso = 0;
   for (const c of blocchiAccesi(p, 'effetto', track)) {
+    // I clic si disegnano nel layer della ripresa: non cambiano webcam o tracce sotto.
+    if (c.fxb?.id === 'clicLive') continue;
     if (f < c.start || f >= end(c)) continue;
     st ??= neutro();
-    applica(st, p, c, f);
+    // forza e parametri con i keyframe: si valutano per ogni blocco PRIMA dell'inviluppo e della somma
+    applica(st, p, valutaClip(c, f - c.start), f);
     const e = effettoTempo(c.fxb!.id);
     if (e && e.motore !== 'censura' && CENTRATI.has(e.motore) && (c.fxb!.pos || c.fxb!.segue)) {
       const [x, y] = centroBlocco(c, f, p);

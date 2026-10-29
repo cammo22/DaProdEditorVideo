@@ -26,6 +26,8 @@ import '@fontsource/great-vibes/latin-400.css';
 import '@fontsource/caveat/latin-700.css';
 import './stile/editor.css';
 import './stile/flussi.css';
+import './stile/guscio.css';
+import './stile/titoliHtml.css';
 import { avvia } from './ui/app';
 import { h } from './ui/dom';
 import { isTauri } from './platform';
@@ -36,7 +38,7 @@ const radice = document.getElementById('app')!;
 let banco: ReturnType<typeof avvia> | null = null;
 
 function nonSupportato(): string | null {
-  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') return 'Questo browser non ha WebCodecs, il motore video di DaProd Video.';
+  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') return 'Questo browser non ha WebCodecs, il motore video di DaProd Editor Video.';
   const c = document.createElement('canvas');
   if (!c.getContext('webgl2')) return 'Questo browser non ha WebGL2 (serve per mixare i livelli video).';
   return null;
@@ -59,10 +61,12 @@ if (problema) {
   banco = avvia(radice);
   // i caratteri delle animazioni arrivano in silenzio: quando ci sono, il monitor ridisegna
   void caricaFontAnimazioni().then(() => import('./motore').then((m) => m.motore.ridisegna()));
+  // i titoli animati HTML si disegnano a parte: quando arriva un fotogramma nuovo il monitor ridisegna
+  void Promise.all([import('./render/titoliHtml'), import('./motore')]).then(([h, m]) => h.quandoPronto(() => m.motore.ridisegna()));
   setTimeout(() => { avvio.classList.add('via'); setTimeout(() => avvio.remove(), 500); }, isTauri ? 500 : 900);
 }
 
-// agganci per le prove automatiche (test/prove.mjs) e per chi curiosa dalla console
+// Agganci per lo sviluppo e le prove automatiche (test/prove.mjs).
 import * as M from './core/montaggio';
 import * as TC from './core/timecode';
 import * as P from './core/progetto';
@@ -131,6 +135,7 @@ import * as PX from './media/proxy';
 import * as CU from './ui/clipUnica';
 import * as SR from './ui/sottotitoliRapidi';
 import * as CL from './media/clear';
-(window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco };
-// l'audio con l'AI (togliere il rumore, separare voce e base): per le prove
-Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL, LB, MH });
+// Playwright usa il build di produzione e naviga senza parametri: webdriver tiene compatibili anche foto e banchi di prova.
+if (import.meta.env.DEV || navigator.webdriver) {
+  (window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco, AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL, LB, MH };
+}

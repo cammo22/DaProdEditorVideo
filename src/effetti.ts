@@ -2,6 +2,7 @@
 // Li usano il tasto "fx" in fondo alle clip, la sezione Effetti del contenitore (anche trascinandoli su una
 // clip) e le proprietà. Ogni effetto sa dire se è acceso e sa accendersi o spegnersi.
 import type { Clip, Look, Project } from './core/tipi';
+import { togliAnimazione } from './core/automazioni';
 import { autoColore, dbToGain, gainToDb, isVideoClip, masterDi, newTransition } from './core/progetto';
 import { fps } from './core/timecode';
 import { mediaRT, PEAKS_PER_SEC } from './media/libreria';
@@ -99,6 +100,7 @@ export const EFFETTI_AUDIO: Effetto[] = [
       c.afx = { ...c.afx, norm: c.gain };
       c.gain = g;
       c.gainKeys = [];
+      togliAnimazione(c, 'gain');
     },
   },
   {

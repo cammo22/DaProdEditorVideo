@@ -1,6 +1,7 @@
 // Fabbrica del progetto, delle tracce e delle clip, più le piccole utilità sul modello.
 import type { Clip, ClipKind, Curva, Master, MediaItem, Project, Rate, Track, TrackKind, Transition, VideoFx, Transform, TitleSpec } from './tipi';
 import { f2s } from './timecode';
+import { valoreAnim } from './automazioni';
 
 let seq = 0;
 export const uid = (p = '') => p + Date.now().toString(36).slice(-5) + (seq++).toString(36) + Math.random().toString(36).slice(2, 6);
@@ -59,7 +60,7 @@ export const masterDi = (p: Project): Master => p.master ?? MASTER0;
 export const autoColore = (p: Project, c: Clip) => c.kind === 'media' && (c.fx.auto ?? masterDi(p).auto);
 
 export const TITLE0: TitleSpec = {
-  text: 'DaProd Video', style: 'fisso', font: 'Rajdhani', size: 90, color: '#ffffff', outline: '#000000',
+  text: 'DaProd Editor Video', style: 'fisso', font: 'Rajdhani', size: 90, color: '#ffffff', outline: '#000000',
   shadow: true, box: false, boxColor: '#000000aa', align: 'center', y: 0.5,
 };
 
@@ -183,6 +184,20 @@ export function tappeTf(c: Clip): { t: number; tf: Transform }[] {
 
 /** la posizione della clip al fotogramma locale lf: ferma (tf) o in movimento verso tfFine, passando per le tappe di mezzo */
 export function tfAl(c: Clip, lf: number): Transform {
+  const base = tfMovimento(c, lf);
+  if (!c.anim) return base;
+  // i campi con i keyframe prendono il posto di quelli fermi o in movimento (gli altri restano com'erano)
+  let o: Transform | null = null;
+  for (const k of CAMPI_TF) {
+    const linea = c.anim['tf.' + k];
+    if (!linea?.length) continue;
+    o ??= { ...base };
+    (o as unknown as Record<string, number>)[k] = valoreAnim(linea, lf, (base as unknown as Record<string, number | undefined>)[k] ?? PARTENZA_TF[k] ?? 0);
+  }
+  return o ?? base;
+}
+
+function tfMovimento(c: Clip, lf: number): Transform {
   if (!c.tfFine) return c.tf;
   const x = Math.max(0, Math.min(1, lf / Math.max(1, c.len - 1)));
   const tappe = tappeTf(c);
@@ -205,7 +220,8 @@ export function fadeAl(c: Clip, lf: number): number {
 /** opacità di una clip al fotogramma f (clip × linea elastica × dissolvenze) */
 export function clipOpacity(c: Clip, f: number): number {
   const lf = f - c.start;
-  let o = c.opKeys.length ? keyValue(c.opKeys, lf, c.opacity) : c.opacity;
+  const anim = c.anim?.opacity;
+  let o = anim?.length ? valoreAnim(anim, lf, c.opacity) : c.opKeys.length ? keyValue(c.opKeys, lf, c.opacity) : c.opacity;
   o *= fadeAl(c, lf);
   return Math.max(0, Math.min(1, o));
 }

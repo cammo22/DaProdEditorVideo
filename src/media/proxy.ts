@@ -1,9 +1,8 @@
 // Le copie leggere (proxy): copie delle riprese pesanti (al massimo 960 pixel di lato, un fotogramma chiave ogni mezzo
 // secondo). I monitor leggono quelle e vanno lisci anche con i file dei telefoni e dei generatori (4K, HEVC, fotogrammi
 // chiave ogni 10 secondi); l'export legge sempre gli originali. Si conservano nel disco privato del browser/app (OPFS).
-// Dalla 1.5.8 NON si fanno più da sole: né all'import, né quando la ripresa entra in timeline, né alla riapertura.
-// Se una copia c'è già (sul disco o dentro un .dap) si legge e si usa subito; se no la fa l'utente con «Prepara copia
-// leggera» (una riga da avviare nel Centro attività). Mentre il montaggio suona il lavoro si sospende (pausa vera).
+// All'import dei video pesanti partono da sole, se la preferenza è accesa. Alla riapertura si usano solo quelle già
+// pronte. Resta «Prepara copia leggera» nel Centro attività. Mentre il montaggio suona il lavoro si sospende (pausa vera).
 import {
   ALL_FORMATS, BlobSource, BufferSource, BufferTarget, Conversion, EncodedPacketSink, Input, Mp4OutputFormat, Output,
   QUALITY_MEDIUM, WebMOutputFormat, getFirstEncodableVideoCodec, type Source,
@@ -18,16 +17,25 @@ const LATO = 960;
 const CARTELLA = 'proxy-1';
 
 /**
- * La preferenza di prima (Vista → Copie leggere). Dalla 1.5.8 non fa partire più niente da sola:
+ * La preferenza di prima (Vista → Copie leggere), conservata anche per i progetti vecchi:
  *  · 'mai'    il monitor legge sempre gli originali (le copie già fatte non si usano) e «Prepara copia leggera» non si offre;
  *  · 'sempre' «Prepara copia leggera» si offre per tutti i video, anche quelli leggeri;
- *  · 'auto'   si offre solo per le riprese pesanti (grandi, HEVC/AV1, fotogrammi chiave radi).
+ *  · 'auto'   si offre solo per le riprese pesanti.
+ * L'avvio all'import ha una preferenza separata e riguarda sempre solo i video pesanti.
  * Il valore salvato in localStorage si legge e non si cancella.
  */
 export type ModoProxy = 'auto' | 'sempre' | 'mai';
 const leggiModo = (): ModoProxy => { try { const v = localStorage.getItem('dpv-proxy'); return v === 'sempre' || v === 'mai' ? v : 'auto'; } catch { return 'auto'; } };
 let modo: ModoProxy = leggiModo();
 export const modoProxy = () => modo;
+const CHIAVE_AUTO = 'dpv-proxy-automatiche';
+let automatiche = (() => { try { return localStorage.getItem(CHIAVE_AUTO) !== 'no'; } catch { return true; } })();
+export const copieLeggereAutomatiche = () => automatiche;
+export function impostaCopieLeggereAutomatiche(on: boolean) {
+  automatiche = on;
+  try { localStorage.setItem(CHIAVE_AUTO, on ? 'si' : 'no'); } catch { /* vale per questa sessione */ }
+  avvisa();
+}
 export function impostaModoProxy(m: ModoProxy) {
   modo = m;
   try { localStorage.setItem('dpv-proxy', m); } catch { /* niente memoria: vale per questa volta */ }
@@ -66,15 +74,47 @@ async function distanzaChiavi(r: MediaRT, durata: number): Promise<number> {
   } catch { return 0; }
 }
 
-/** serve un proxy? Riprese grandi, fotogrammi chiave radi o codec faticosi; mai per i file brevi (solo letture di metadati) */
+/** Soglie prudenti: Full HD anche verticale, almeno 10 bit, oltre 35 Mbit/s o chiavi distanti più di 2 secondi. */
+export const SOGLIE_PROXY = Object.freeze({ latoLungo: 1920, latoCorto: 1080, bit: 10, bitrate: 35_000_000, distanzaChiavi: 2 });
+export interface DatiProxy { codec?: string; bit?: number; bitrate?: number; distanzaChiavi?: number }
+
+/** La profondità dichiarata nella stringa WebCodecs (il nome generico «vp9» non basta). */
+export function bitVideo(codec: string): number {
+  const profondita = /^(?:vp09\.\d+\.\d+|av01\.\d\.\d+[mh])\.(\d+)/i.exec(codec);
+  if (profondita) return Number(profondita[1]);
+  if (/^avc[13]\.(6e|7a|f4)/i.test(codec)) return 10;
+  return 0;
+}
+
+/** Solo metadati: non cambia il progetto e non decodifica fotogrammi. */
+export function videoPesante(m: Pick<MediaItem, 'type' | 'width' | 'height' | 'vcodec'>, d: DatiProxy = {}): boolean {
+  if (m.type !== 'video') return false;
+  const codec = d.codec || m.vcodec;
+  return Math.max(m.width, m.height) > SOGLIE_PROXY.latoLungo || Math.min(m.width, m.height) > SOGLIE_PROXY.latoCorto
+    || (d.bit ?? bitVideo(codec)) >= SOGLIE_PROXY.bit
+    || /hev|hvc|av01|av1|prores|ap4[hcxs]|apch|apcn|apcs|apco|aprh|aprn/i.test(codec)
+    || (d.bitrate ?? 0) > SOGLIE_PROXY.bitrate || (d.distanzaChiavi ?? 0) > SOGLIE_PROXY.distanzaChiavi;
+}
+
+/** serve un proxy? Solo letture di metadati; «sempre» vale per le richieste manuali. */
 export async function serveProxy(m: MediaItem, r: MediaRT): Promise<boolean> {
-  if (modo === 'mai' || m.type !== 'video' || !r.v || !r.vDecodable || m.duration < 2) return false;
+  if (modo === 'mai' || m.type !== 'video' || !r.v || !r.vDecodable || m.duration <= 0) return false;
   if (modo === 'sempre') return true;
-  if (m.width * m.height > 1280 * 720 * 1.05) return true;
-  if (/hev|hvc|hevc|av01|av1/i.test(m.vcodec)) return true;
-  return (await distanzaChiavi(r, m.duration)) > 1.1;
+  return ripresaPesante(m, r);
 }
 const serve = serveProxy;
+
+/** Anche con la vecchia preferenza «sempre», l'automatismo sceglie solo le riprese pesanti. */
+export async function ripresaPesante(m: MediaItem, r: MediaRT): Promise<boolean> {
+  if (m.type !== 'video' || !r.v || !r.vDecodable || m.duration <= 0) return false;
+  if (videoPesante(m)) return true;
+  const [config, bitrate] = await Promise.all([
+    r.v.getDecoderConfig().catch(() => null), r.v.getAverageBitrate().catch(() => null),
+  ]);
+  const d = { codec: config?.codec, bitrate: bitrate ?? (m.size > 0 ? m.size * 8 / m.duration : 0) };
+  if (videoPesante(m, d)) return true;
+  return videoPesante(m, { ...d, distanzaChiavi: await distanzaChiavi(r, m.duration) });
+}
 
 async function apriProxy(fonte: Blob | ArrayBuffer): Promise<Proxy | null> {
   const input = new Input({ source: fonte instanceof Blob ? new BlobSource(fonte) : new BufferSource(fonte), formats: ALL_FORMATS });
@@ -129,7 +169,7 @@ export interface OpzioniProxy {
 
 /**
  * «Prepara copia leggera» per una ripresa. Ritorna la riga (da avviare, o già avviata con avvia:true) o null se non si
- * offre (non è un video decodificabile, Copie leggere = Mai, c'è già o è già in giro). Non fa partire niente da sola.
+ * offre (non è un video decodificabile, Copie leggere = Mai, c'è già o è già in giro).
  * fonte = una lettura nuova del file originale (il proxy lo legge per conto suo, senza disturbare il monitor).
  * Pausa vera (pauseSignal di Mediabunny): riparte dallo stesso fotogramma. Annulla: la copia a metà si butta
  * (sul disco si scrive solo a lavoro finito).
@@ -150,6 +190,7 @@ export function proponiProxy(m: MediaItem, r: MediaRT, fonte: () => Source, o: O
     if (r.proxy) return true;
     if (!r.input) return false;
     if (await proxyEsistente(m, r)) return true;
+    if (!l.valido || !r.input) return false;
     if (!o.forza && !(await serve(m, r))) { r.proxyStato = 'no'; avvisa(); l.imposta(1, `${m.name} · non serve (file già leggero)`); return false; }
     r.proxyStato = 'lavoro';
     r.proxyProg = 0;

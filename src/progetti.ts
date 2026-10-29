@@ -1,3 +1,4 @@
+import { migraColoreAudio } from './core/coloreAudioProgetto';
 // Progetti: nuovo, apri, salva, autosalvataggio, importazione dei file e ricollegamento dei media.
 // Nell'app (Tauri) i media si ritrovano dal percorso; nel browser dalle "maniglie" dei file che Chrome
 // permette di ricordare (basta un clic per ridare il permesso).
@@ -6,6 +7,8 @@ import type { MediaItem, Project } from './core/tipi';
 import { FORMATI } from './core/tipi';
 import { ALTEZZA, MASTER0, newProject } from './core/progetto';
 import { migraBlocchi } from './core/blocchi';
+import { pulisciAnim } from './core/automazioni';
+import { migraTitoliHtml } from './core/titoliHtml';
 import { apri as apriMedia, chiudi as chiudiMedia, importa, impostaCercaMedia, impostaControlloVelocita, mediaRT, usoDiMedia, type MediaRT, type OpzioniPreparazione } from './media/libreria';
 import { cambiaProgetto, inSovraccarico, nuova, proponi, type Lavoro, type Proposto } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
@@ -33,17 +36,19 @@ function db(): Promise<IDBDatabase> {
     r.onerror = () => ko(r.error);
   });
 }
-async function idb<T>(store: 'kv' | 'maniglie' | 'file', op: 'get' | 'put' | 'delete', key: string, val?: unknown): Promise<T | undefined> {
+async function idb<T>(store: 'kv' | 'maniglie' | 'file', op: 'get' | 'put' | 'delete', key: string, val?: unknown, propagaErrore = false): Promise<T | undefined> {
   try {
     const d = await db();
     return await new Promise((ok, ko) => {
       const tx = d.transaction(store, op === 'get' ? 'readonly' : 'readwrite');
       const s = tx.objectStore(store);
       const r = op === 'get' ? s.get(key) : op === 'put' ? s.put(val, key) : s.delete(key);
-      r.onsuccess = () => ok(r.result as T);
-      r.onerror = () => ko(r.error);
+      // La richiesta può riuscire e la transazione fallire dopo (per esempio se manca spazio).
+      tx.oncomplete = () => ok(r.result as T);
+      tx.onabort = () => ko(tx.error ?? r.error);
+      tx.onerror = () => ko(tx.error ?? r.error);
     });
-  } catch { return undefined; }
+  } catch (e) { if (propagaErrore) throw e; return undefined; }
 }
 
 /** tutte le chiavi di un deposito (per fare pulizia) */
@@ -395,6 +400,7 @@ export async function salva(come = false) {
 
 /** la revisione del documento già scritta dall'autosalvataggio (-1 = niente ancora) */
 let autosalvata = -1;
+let avvisatoAutosalvataggio = false;
 
 export async function autosalva() {
   if (!store.dirty && store.doc.saved) return;
@@ -404,25 +410,35 @@ export async function autosalva() {
   const testo = serializza();
   try {
     if (isTauri) await invoke('autosalva', { text: testo });
-    else await idb('kv', 'put', 'autosalvataggio', testo);
+    else await idb('kv', 'put', 'autosalvataggio', testo, true);
     autosalvata = rev;
-  } catch { /* spazio pieno o permessi: si riprova al prossimo giro */ }
+  } catch {
+    // La revisione resta da salvare: si riprova al prossimo giro, senza avvisi a raffica.
+    if (!avvisatoAutosalvataggio) {
+      avvisatoAutosalvataggio = true;
+      avviso('Non riesco a salvare la copia automatica: controlla lo spazio e i permessi. Per tenere il lavoro usa Salva come…', 'errore', 7000);
+    }
+  }
 }
 
 function valida(o: unknown): Project | null {
   const p = o as Project;
   if (!p || p.format !== 'daprod-video' || !Array.isArray(p.tracks) || !Array.isArray(p.clips)) return null;
   for (const m of p.media) { m.t0 ??= 0; m.markIn ??= null; m.markOut ??= null; }
-  for (const c of p.clips) { c.opKeys ??= []; c.gainKeys ??= []; c.speed ??= 1; }
+  for (const c of p.clips) { c.opKeys ??= []; c.gainKeys ??= []; c.speed ??= 1; pulisciAnim(c); }
   // le versioni di prima: tracce audio basse e niente ritocchi finali
   for (const t of p.tracks) {
     if (t.kind === 'audio' && t.height === 46) t.height = ALTEZZA.audio;
     if (t.kind === 'video' && t.height === 58) t.height = ALTEZZA.video;
   }
+  // le clip delle altre timeline: i keyframe (se ci sono) si rimettono in ordine come nella principale
+  for (const s of p.sequenze ?? []) for (const c of s.clips ?? []) pulisciAnim(c);
   p.master = { ...MASTER0, ...(p.master ?? {}) };
   // dalla 1.0.5: gli FX stanno sulle tracce video (la corsia a parte della 1.0.4 sparisce), e le transizioni delle
   // clip video diventano blocchetti
   migraBlocchi(p);
+  migraColoreAudio(p);
+  migraTitoliHtml(p);
   return p;
 }
 
@@ -430,7 +446,7 @@ function valida(o: unknown): Project | null {
 export async function apri() {
   if (store.dirty && store.doc.clips.length && !(await conferma('Apri progetto', 'Il montaggio attuale ha modifiche. Aprire un altro progetto?', 'Apri', 'Annulla'))) return;
   if (isTauri) {
-    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Video', estensioni: ['dap', 'daprod', 'dpv', 'json'], mime: [] });
+    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Editor Video', estensioni: ['dap', 'daprod', 'dpv', 'json'], mime: [] });
     if (path) await apriFile({ path });
     return;
   }
@@ -449,7 +465,7 @@ export async function apriFile(s: Sorgente) {
     const testo = s.file ? await s.file.text() : await invoke<string>('progetto_leggi', { path: s.path });
     p = valida(JSON.parse(testo));
   } catch { p = null; }
-  if (!p) { avviso('Questo file non è un progetto DaProd Video', 'errore'); return; }
+  if (!p) { avviso('Questo file non è un progetto DaProd Editor Video', 'errore'); return; }
   percorsoProgetto = s.path ?? null;
   await carica(p);
   registraRecente(p, s.path, s.path ? undefined : JSON.stringify(p));
@@ -467,7 +483,7 @@ async function apriPacchetto(s: Sorgente, dap = false) {
   try {
     const { testo, voci } = await leggiPacchetto(s);
     const p = valida(JSON.parse(testo));
-    if (!p) throw new Error('dentro non c\'è un progetto DaProd Video');
+    if (!p) throw new Error('dentro non c\'è un progetto DaProd Editor Video');
     for (const m of p.media) {
       const v = m.pacchetto ? voci.get(m.pacchetto) : undefined;
       if (!v) continue;
@@ -529,7 +545,7 @@ export async function salvaPacchetto() {
   };
   solo.addEventListener('change', () => void misura());
   d.corpo.append(
-    h('p', null, 'Il progetto e tutti i suoi file (video, musiche, immagini) in un file solo. Portalo su un altro computer e aprilo con DaProd Video: ritrovi il montaggio identico. È uno zip: i file dentro restano uguali (niente perdita di qualità) e si aprono direttamente da lì.'),
+    h('p', null, 'Il progetto e tutti i suoi file (video, musiche, immagini) in un file solo. Portalo su un altro computer e aprilo con DaProd Editor Video: ritrovi il montaggio identico. È uno zip: i file dentro restano uguali (niente perdita di qualità) e si aprono direttamente da lì.'),
     h('p', null, quanti, ' · ', peso),
     h('label', { class: 'riga-spunta' }, solo, ' Solo i file usati nel montaggio (il contenitore si alleggerisce)'),
     mancano);

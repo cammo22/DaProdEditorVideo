@@ -100,6 +100,7 @@ const P: Record<string, string> = {
   logo: '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
   lingua: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/>',
   apertura: '<rect x="3" y="5" width="18" height="14" rx="1.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 9h18M7 5v4M12 5v4M17 5v4M10 12.5l4 2.5-4 2.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>',
+  novita: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" fill="currentColor"/><path d="M18.5 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>',
   foto: '<path d="M4 8h3l2-3h6l2 3h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/>',
 };
 
@@ -110,35 +111,52 @@ export function icona(nome: keyof typeof P | string, size = 18): SVGElement {
 }
 
 // ——— avvisi (toast) ———
+/**
+ * La chiusura da sola di un avviso: dopo `ms` sparisce, ma col mouse sopra resta dov'è e riparte da capo quando il mouse esce
+ * (così si fa in tempo a leggerlo). `riarma` cambia il tempo (un avviso che si aggiorna al suo posto).
+ */
+function chiusuraAvviso(el: HTMLElement, ms: number, via: () => void): (ms: number) => void {
+  let timer = 0, sopra = false, durata = ms;
+  const arma = () => { clearTimeout(timer); if (!sopra) timer = window.setTimeout(via, durata); };
+  el.addEventListener('pointerenter', () => { sopra = true; clearTimeout(timer); });
+  el.addEventListener('pointerleave', () => { sopra = false; durata = Math.max(durata, 1500); arma(); });
+  arma();
+  return (nuovo) => { durata = nuovo; arma(); };
+}
+
 let zonaAvvisi: HTMLElement | null = null;
-export function avviso(testo: string, tipo: 'info' | 'ok' | 'errore' | 'tasto' = 'info', ms = 2200) {
+function zona(): HTMLElement {
   if (!zonaAvvisi) {
     zonaAvvisi = h('div', { class: 'avvisi', 'aria-live': 'polite' });
     document.body.appendChild(zonaAvvisi);
   }
+  return zonaAvvisi;
+}
+export function avviso(testo: string, tipo: 'info' | 'ok' | 'errore' | 'tasto' = 'info', ms = 2200) {
+  const z = zona();
   const el = h('div', { class: 'avviso ' + tipo }, testo);
-  zonaAvvisi.appendChild(el);
-  while (zonaAvvisi.children.length > 4) zonaAvvisi.firstChild?.remove();
-  setTimeout(() => { el.classList.add('via'); setTimeout(() => el.remove(), 300); }, ms);
+  z.appendChild(el);
+  while (z.children.length > 4) z.firstChild?.remove();
+  chiusuraAvviso(el, ms, () => { el.classList.add('via'); setTimeout(() => el.remove(), 300); });
 }
 
 /** un avviso che si aggiorna al suo posto: lo stesso testo che cambia (un avanzamento) non mette un avviso nuovo a ogni passo */
-const unici = new Map<string, { el: HTMLElement; timer: number }>();
+const unici = new Map<string, { el: HTMLElement; riarma: (ms: number) => void }>();
 export function avvisoUnico(chiave: string, testo: string, tipo: 'info' | 'ok' | 'errore' | 'tasto' = 'info', ms = 2200) {
-  if (!zonaAvvisi) {
-    zonaAvvisi = h('div', { class: 'avvisi', 'aria-live': 'polite' });
-    document.body.appendChild(zonaAvvisi);
-  }
+  const z = zona();
   let v = unici.get(chiave);
   if (!v || !v.el.isConnected) {
-    v = { el: h('div', { class: 'avviso ' + tipo }, testo), timer: 0 };
-    unici.set(chiave, v);
-    zonaAvvisi.appendChild(v.el);
-    while (zonaAvvisi.children.length > 4) zonaAvvisi.firstChild?.remove();
-  } else { v.el.textContent = testo; v.el.className = 'avviso ' + tipo; }
-  clearTimeout(v.timer);
-  const mio = v;
-  v.timer = window.setTimeout(() => { mio.el.classList.add('via'); setTimeout(() => { mio.el.remove(); if (unici.get(chiave) === mio) unici.delete(chiave); }, 300); }, ms);
+    const el = h('div', { class: 'avviso ' + tipo }, testo);
+    const mio: { el: HTMLElement; riarma: (ms: number) => void } = { el, riarma: () => {} };
+    mio.riarma = chiusuraAvviso(el, ms, () => { el.classList.add('via'); setTimeout(() => { el.remove(); if (unici.get(chiave) === mio) unici.delete(chiave); }, 300); });
+    unici.set(chiave, mio);
+    z.appendChild(el);
+    while (z.children.length > 4) z.firstChild?.remove();
+  } else {
+    v.el.textContent = testo;
+    v.el.className = 'avviso ' + tipo;
+    v.riarma(ms);
+  }
 }
 
 // ——— dialoghi ———

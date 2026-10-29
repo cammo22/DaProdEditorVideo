@@ -24,7 +24,9 @@ import { STILI_CONTO, disegnaCountdown, specAlTempo, telaTitolo } from '../rende
 import { ANIMAZIONI, GRUPPI_LIBRERIA, animazioniDi, nuovaAnim } from '../core/animazioni';
 import { disegnaAnimazione } from '../render/animazioni';
 import { caricaFontAnimazioni } from '../render/font';
-import { scenaAnimazione, scenaConto, scenaEffetto, scenaRitocco, scenaSala, scenaTitolo, scenaTransizione, suonaProvino, type Costruttore } from '../render/provino';
+import { GRUPPI_HTML, MODELLI_HTML, modelliDi, nuovoHtml } from '../core/titoliHtml';
+import { anteprimaHtml } from '../render/titoliHtml';
+import { scenaHtml, scenaAnimazione, scenaConto, scenaEffetto, scenaRitocco, scenaSala, scenaTitolo, scenaTransizione, suonaProvino, type Costruttore } from '../render/provino';
 
 // ——— l'albero ———
 interface Ramo { id: string; nome: string; icona: string; figli?: [string, string][] }
@@ -38,7 +40,7 @@ const TIPI: Ramo[] = [
 
 const LIBRERIA: Ramo[] = [
   { id: 'transizioni', nome: 'Transizioni', icona: 'transizione', figli: [['tr:dissolvenze', 'Dissolvenze'], ['tr:movimento', 'Movimento'], ['tr:3d', '3D e forme'], ['tr:luce', 'Luce'], ['tr:stile', 'Stile'], ['tr:tendine', 'Tendine SMPTE']] },
-  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
+  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ...GRUPPI_HTML.map((g): [string, string] => ['tit:html-' + g.id, 'Animati · ' + g.nome]), ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
   { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
   { id: 'effetti', nome: 'Effetti', icona: 'effetti', figli: [['fx:rapidi', 'Rapidi'], ['fx:lunghi', 'Lunghi'], ['fx:luci', 'Luci'], ['fx:distorsioni', 'Distorsioni'], ['fx:colore', 'Colore'], ['fx:particelle', 'Particelle'], ['fx:clip', 'Stile della clip'], ['fx:audio', 'Audio']] },
 ];
@@ -737,6 +739,21 @@ export class Contenitore {
       anteprima: anteprimaTitolo(id), provino: scenaTitolo(id), dato: 'g:title:' + id, etichetta: '📺 ' + nome,
       clic: () => { inserisciGeneratore('title', undefined, undefined, { titolo: id }); avviso(`${nome} al cursore`, 'ok', 1000); },
     });
+    // i titoli animati HTML: l'anteprima ferma è il fotogramma vero (disegnato una carta alla volta), al passaggio gira
+    const html = (m: typeof MODELLI_HTML[number]) => {
+      const cv = h('canvas', { class: 'gen-anteprima', width: 192, height: 108 }) as HTMLCanvasElement;
+      const x = cv.getContext('2d')!;
+      const g = x.createLinearGradient(0, 0, 192, 108);
+      g.addColorStop(0, '#1d2a4a'); g.addColorStop(1, '#2a1333');
+      x.fillStyle = g; x.fillRect(0, 0, 192, 108);
+      codaAnteprimeHtml = codaAnteprimeHtml.then(() => anteprimaHtml(cv, nuovoHtml(m.id))).catch(() => undefined);
+      return this.cartaLibreria({
+        cls: 'gen gen-voce', nome: m.nome, titolo: `${m.nome} · ${m.info}
+Clic: al cursore (su una traccia libera) · trascina: dove vuoi`,
+        anteprima: cv, provino: scenaHtml(m.id), dato: 'g:html:' + m.id, etichetta: '🎞 ' + m.nome, attr: { 'data-html': m.id },
+        clic: () => { inserisciGeneratore('html', undefined, undefined, { html: m.id }); avviso(`${m.nome} al cursore`, 'ok', 1000); },
+      });
+    };
     const conto = (stile: typeof STILI_CONTO[number]) => {
       const cv = h('canvas', { width: 192, height: 108 }) as HTMLCanvasElement;
       const t = disegnaCountdown(192, 108, 0.5, stile.secondi, stile.id);
@@ -766,6 +783,7 @@ export class Contenitore {
     ].filter((c) => !this.filtro || (c.textContent ?? '').toLowerCase().includes(this.filtro.toLowerCase()));
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' }, ...this.sezioni('titoli', [
       ['tit:titoli', 'Titoli', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'titoli')).map((x) => titolo(x.id, x.nome))],
+      ...GRUPPI_HTML.map((g): [string, string, HTMLElement[]] => ['tit:html-' + g.id, 'Animati · ' + g.nome, this.filtra(modelliDi(g.id)).map(html)]),
       ['tit:sott', 'Sottotitoli', voceSott],
       ['tit:tv', 'TV e social', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'tv')).map((x) => titolo(x.id, x.nome))],
       ['tit:conto', 'Countdown', this.filtra(STILI_CONTO).map(conto)],
@@ -838,6 +856,9 @@ export class Contenitore {
 }
 
 export { fps };
+
+/** le anteprime dei titoli HTML si disegnano una dopo l'altra */
+let codaAnteprimeHtml: Promise<unknown> = Promise.resolve();
 
 /** l'anteprima ferma di un'animazione: disegnata davvero a metà della sua entrata, su un fondo scuro */
 function anteprimaAnimazione(cv: HTMLCanvasElement, id: string) {

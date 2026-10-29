@@ -5,6 +5,7 @@ import { progettoAttuale } from '../media/attivita';
 import { confermaAvvioAI } from './aiPassi';
 import { store } from '../core/store';
 import type { LookFinale, Master, Project, Sottotitoli } from '../core/tipi';
+import { togliAnimazione } from '../core/automazioni';
 import { MASTER0, TITLE0, end, isVideoClip, masterDi, newClip, projectEnd, trackOf, uid } from '../core/progetto';
 import * as M from '../core/montaggio';
 import { nuovoBlocco, posaBlocco } from '../core/blocchi';
@@ -23,8 +24,10 @@ import { LOOKS } from '../render/colore';
 import { mediaRT, preparaOra, senzaColoreMisurato, quandoPreparazioni } from '../media/libreria';
 import { motore } from '../motore';
 import { volumeLivellato } from '../effetti';
-import { finestraEsporta, esportaEdl, esportaFotogramma } from './dialoghi';
+import { esportaEdl, esportaFotogramma } from './dialoghi';
+import { pannelloEsporta } from './esportazione';
 import { avviso, clamp, conferma, h, icona } from './dom';
+import { creaPannelloColoreAvanzato } from './coloreAvanzato';
 
 type Campo = { aggiorna: () => void };
 
@@ -68,13 +71,19 @@ export class Finale {
   private riepilogo: HTMLElement;
   private menu: HTMLElement;
   private campi: Campo[] = [];
-  private formato = 'mp4';
-  private qualita = 'alta';
-  private misura = '1';
   private sezione: Sezione = 'colore';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
+  // colore avanzato di una clip: la scelta, il posto del pannello e il pannello (c'è solo mentre si guarda la pagina Colore)
+  private sceltaClip: HTMLSelectElement | null = null;
+  private postoClip: HTMLElement | null = null;
+  private pannelloClip: ReturnType<typeof creaPannelloColoreAvanzato> | null = null;
+  private clipColore: string | null = null;
+  private idPannello: string | null = null;
+  private firmaClip = '';
+  private visibile = false;
+  private selVista = '';
 
   constructor() {
     this.riepilogo = h('div', { class: 'fin-riepilogo' });
@@ -89,9 +98,14 @@ export class Finale {
       h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
     this.mostra('colore');
     quandoPreparazioni(() => this.aggiornaRiepilogo());
-    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); });
+    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
+    // ogni modifica manda anche 'sel': conta come «scelta nella timeline» solo se la scelta è cambiata davvero
+    store.on('sel', () => { const f = [...store.sel].sort().join('|'); const cambiata = f !== this.selVista; this.selVista = f; this.sincronizzaClipColore(cambiata); });
     store.on('head', () => this.segnaRigaCorrente());
   }
+
+  /** la pagina Finale è in vista (o no): il pannello del colore avanzato esiste solo mentre la si guarda */
+  mostrata(on: boolean) { this.visibile = on; this.sincronizzaClipColore(true); }
 
   private m(): Master { return masterDi(store.doc); }
 
@@ -117,7 +131,50 @@ export class Finale {
     this.aggiornaRiepilogo();
     for (const c of this.campi) c.aggiorna();
     if (z === 'sottotitoli') { this.firmaSott = ''; this.aggiornaSott(); }
+    this.sincronizzaClipColore(true);
   }
+
+  /** la sezione «Colore avanzato»: si sceglie la clip, sotto c'è il pannello (LUT, ruote, curve) e il monitor mostra il risultato */
+  private coloreAvanzatoClip(): HTMLElement {
+    const scelta = h('select', { 'aria-label': 'Clip da ritoccare' });
+    scelta.onchange = () => { this.clipColore = scelta.value || null; this.sincronizzaClipColore(false); const c = this.clipColore ? store.doc.clips.find((x) => x.id === this.clipColore) : null; if (c) motore.vaiA(c.start); };
+    this.sceltaClip = scelta; this.postoClip = h('div', { class: 'ca-fin-host' }); this.firmaClip = '';
+    return h('div', { class: 'ca-fin' },
+      h('label', { class: 'ca-fin-scelta' }, h('span', null, 'Clip'), scelta),
+      h('p', { class: 'nota' }, 'LUT .cube con intensità, ruote lift/gamma/gain e curve, solo sulla clip scelta. Il monitor mostra il risultato; Ctrl+Z torna indietro. Sceglierla nella timeline cambia anche qui.'),
+      this.postoClip);
+  }
+
+  /** le riprese su cui si può lavorare di colore (video e immagini), nell'ordine della timeline */
+  private clipPerColore() {
+    const p = store.doc;
+    return p.clips.filter((c) => c.kind === 'media' && p.tracks.find((t) => t.id === c.track)?.kind === 'video').sort((a, b) => a.start - b.start);
+  }
+
+  /** tiene d'accordo la tendina, la clip scelta e il pannello del colore avanzato; col pannello solo se la pagina Colore è aperta */
+  private sincronizzaClipColore(dallaScelta: boolean) {
+    const scelta = this.sceltaClip, posto = this.postoClip;
+    if (!scelta || !posto) return;
+    if (this.sezione !== 'colore' || !this.visibile) { this.pannelloClip?.distruggi(); this.pannelloClip = null; this.idPannello = null; return; }
+    const lista = this.clipPerColore(), p = store.doc;
+    const firma = lista.map((c) => c.id + c.name + c.start).join('|');
+    if (firma !== this.firmaClip) {
+      this.firmaClip = firma;
+      scelta.replaceChildren(...lista.map((c) => h('option', { value: c.id }, `${c.name} · ${frameToTc(c.start, p.rate, p.drop)}`)));
+    }
+    // la clip scelta nella timeline passa avanti; se no resta quella di prima, se c'è ancora; se no la prima
+    const dallaTimeline = dallaScelta ? lista.find((c) => store.sel.has(c.id)) : undefined;
+    const id = dallaTimeline?.id ?? (lista.some((c) => c.id === this.clipColore) ? this.clipColore : lista[0]?.id ?? null);
+    scelta.value = id ?? ''; scelta.disabled = !id;
+    this.clipColore = id;
+    if (this.pannelloClip && this.idPannello === id) return;
+    this.idPannello = id;
+    this.pannelloClip?.distruggi(); this.pannelloClip = null;
+    if (!id) { posto.replaceChildren(h('p', { class: 'nota' }, 'Nel montaggio non ci sono riprese o immagini: mettine una in timeline e poi scegli qui quale ritoccare.')); return; }
+    this.pannelloClip = creaPannelloColoreAvanzato(id);
+    posto.replaceChildren(this.pannelloClip.el);
+  }
+
 
   private costruisci(z: Sezione): HTMLElement {
     const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
@@ -150,7 +207,8 @@ export class Finale {
           this.cursore('Grana', 0, 100, (m) => Math.round(m.grain * 100), (m, v) => { m.grain = v / 100; }, ''),
           h('div', { class: 'isp-pulsanti' },
             h('button', { class: 'btn-mini', on: { click: () => this.cambia('Azzera ritocchi', (m) => { Object.assign(m, { look: 'nessuno', intensita: 1, bright: 0, contrast: 1, sat: 1, temp: 0, tint: 0, vignette: 0, grain: 0 }); }) } }, 'Azzera look e ritocchi'),
-            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo'))));
+            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo'))),
+        sez('Colore avanzato di una clip', 'immagine', this.coloreAvanzatoClip()));
     }
     if (z === 'audio') {
       return pagina(sez('Audio finale', 'altoparlante',
@@ -164,18 +222,16 @@ export class Finale {
     if (z === 'logo') return pagina(this.paginaLogo(sez));
     if (z === 'apertura') return pagina(...this.paginaApertura(sez));
     if (z === 'lingue') return pagina(...this.paginaLingue(sez));
+    // l'esportazione ha il suo pannello (preset, cosa esce, coda): lo stesso della finestra Ctrl+M
     const esporta = h('div', { class: 'fin-esporta' },
-      this.scelte('Formato', [['mp4', 'MP4'], ['mov', 'MOV'], ['webm', 'WebM'], ['wav', 'Solo audio']], () => this.formato, (v) => { this.formato = v; }),
-      this.scelte('Qualità', [['media', 'Leggera'], ['alta', 'Alta'], ['altissima', 'Master']], () => this.qualita, (v) => { this.qualita = v; }),
-      this.scelte('Misura', [['1', 'Come il progetto'], ['0.5', 'Metà']], () => this.misura, (v) => { this.misura = v; }),
-      h('button', { class: 'btn primario fin-vai', on: { click: () => finestraEsporta({ formato: this.formato, qualita: this.qualita, misura: this.misura }) } }, icona('esporta', 18), 'ESPORTA IL MASTER'),
+      pannelloEsporta().el,
       h('div', { class: 'fin-altri' },
         h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
         h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
         h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
         h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
       h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.'));
-    return pagina(sez('Esporta', 'esporta', esporta));
+    return pagina(esporta);
   }
 
   // ——— sottotitoli ———
@@ -596,7 +652,7 @@ export class Finale {
     const f = projectEnd(p);
     store.edit('Titoli di coda', (pp) => {
       const v = M.tracciaLibera(pp, 'video', pp.tracks.filter((t) => t.kind === 'video').slice(-1)[0]?.id ?? null, f, f + len);
-      pp.clips.push(newClip('title', v, f, len, { name: 'Titoli di coda', gen: { title: { ...TITLE0, style: 'rullo', size: 64, text: `${pp.name}\n\nMontaggio\nDaProd Video\n\nMusica\n…\n\nGrazie per la visione` } } }));
+      pp.clips.push(newClip('title', v, f, len, { name: 'Titoli di coda', gen: { title: { ...TITLE0, style: 'rullo', size: 64, text: `${pp.name}\n\nMontaggio\nDaProd Editor Video\n\nMusica\n…\n\nGrazie per la visione` } } }));
     });
     avviso('Titoli di coda alla fine: il testo si cambia dalle proprietà', 'ok');
   }
@@ -709,6 +765,7 @@ export class Finale {
         c.afx = { ...c.afx, norm: c.afx?.norm ?? c.gain };
         c.gain = g;
         c.gainKeys = [];
+        togliAnimazione(c, 'gain');
         n++;
       }
     });
@@ -784,10 +841,5 @@ export class Finale {
     i.addEventListener('change', () => this.cambia(nome, (m) => put(m, i.checked)));
     this.campi.push({ aggiorna: agg });
     return h('label', { class: 'isp-riga spunta' }, i, h('span', null, nome));
-  }
-
-  private scelte(nome: string, opzioni: [string, string][], get: () => string, put: (v: string) => void): HTMLElement {
-    const bottoni = opzioni.map(([v, t]) => h('button', { class: 'chip' + (get() === v ? ' acceso' : ''), 'data-v': v, on: { click: () => { put(v); bottoni.forEach((b) => b.classList.toggle('acceso', b.dataset.v === v)); } } }, t));
-    return h('div', { class: 'fin-scelte' }, h('span', null, nome), h('div', { class: 'isp-chips' }, bottoni));
   }
 }

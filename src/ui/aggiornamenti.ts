@@ -94,7 +94,7 @@ export function markdown(md: string): HTMLElement {
 /** le novità della versione che stai usando (o di un'altra) */
 export function finestraNovita(versione = VERSIONE) {
   const n = noteDi(versione);
-  const d = dialogo(`Novità di DaProd Video ${versione}`, { largo: true });
+  const d = dialogo(`Novità di DaProd Editor Video ${versione}`, { largo: true });
   d.el.classList.add('novita');
   if (n) d.corpo.append(h('div', { class: 'novita-titolo' }, n.titolo.replace(/^\[[^\]]+\]\s*—?\s*/, '')), markdown(n.note));
   else d.corpo.append(h('p', null, 'Le novità di questa versione sono nel CHANGELOG su GitHub.'));
@@ -130,6 +130,14 @@ function fileGiusto(r: Release, v: Variante): Asset | undefined {
 }
 
 let tasto: HTMLElement | null = null;
+let ultimoControllo: { quando: number; r: Release } | null = null;
+
+/** com'è messa la versione: l'ultima release, ricordata 10 minuti (la pagina iniziale non rifà la rete a ogni apertura) */
+export async function controllaAggiornamento(forza = false): Promise<{ versione: string; nuova: boolean; release: Release }> {
+  if (forza || !ultimoControllo || Date.now() - ultimoControllo.quando > 600_000) ultimoControllo = { quando: Date.now(), r: await ultimaRelease() };
+  const r = ultimoControllo.r;
+  return { versione: r.versione, nuova: piuNuova(r.versione, VERSIONE), release: r };
+}
 
 /** il tasto in alto (solo nell'app): controlla, e si accende se c'è una versione nuova */
 export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement): HTMLElement | null {
@@ -144,7 +152,7 @@ export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement)
         tasto?.classList.add('nuova');
         testo.textContent = `Aggiornamento ${r.versione} disponibile`;
         tasto?.setAttribute('title', `È uscita la versione ${r.versione}: clic per le novità e per aggiornare`);
-        if (avvisata !== r.versione) { avvisata = r.versione; avviso(`⬆ È uscita DaProd Video ${r.versione}: clic sul tasto in alto per aggiornare`, 'info', 5000); }
+        if (avvisata !== r.versione) { avvisata = r.versione; avviso(`⬆ È uscita DaProd Editor Video ${r.versione}: clic sul tasto in alto per aggiornare`, 'info', 5000); }
       }
       setTimeout(controlla, CONTROLLO_OGNI);
     }).catch(() => { setTimeout(controlla, DOPO_ERRORE); });
@@ -210,7 +218,7 @@ export async function finestraAggiornamenti() {
       clearInterval(giro);
       (barra.firstChild as HTMLElement).style.width = '100%';
       fase.textContent = v.os === 'windows'
-        ? (v.portatile ? `Pronta: ${path}. Si apre la nuova, questa si chiude (poi puoi cancellare il file vecchio).` : 'Pronta: parte l\'installazione, DaProd Video si chiude e si riapre aggiornato.')
+        ? (v.portatile ? `Pronta: ${path}. Si apre la nuova, questa si chiude (poi puoi cancellare il file vecchio).` : 'Pronta: parte l\'installazione, DaProd Editor Video si chiude e si riapre aggiornato.')
         : 'Pronto: si apre il file .dmg. Trascina DaProd Video in Applicazioni (sostituisci quella vecchia).';
       vai.textContent = v.os === 'windows' ? 'Installa adesso' : 'Apri';
       vai.disabled = false;

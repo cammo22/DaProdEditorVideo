@@ -146,7 +146,7 @@ function chiusura(q: Q) {
 function post(q: Q) {
   const { c } = q;
   const s = gr(q), colore = col(q, 'colore', '#1d9bf0');
-  const nome = tx(q, 'nome', 'DaProd Video'), utente = tx(q, 'utente', '@daprod'), testo = tx(q, 'testo', '');
+  const nome = tx(q, 'nome', 'DaProd Editor Video'), utente = tx(q, 'utente', '@daprod'), testo = tx(q, 'testo', '');
   const W = 940 * s, pad = 40 * s;
   const fT = `500 ${40 * s}px "Montserrat", sans-serif`;
   const rr = righe(c, testo, fT, W - pad * 2);

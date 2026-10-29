@@ -32,7 +32,7 @@ export class LivelloStereo {
   private dpr = 1;
   private visto = '';
 
-  constructor(classe: string, titolo: string) {
+  constructor(classe: string, titolo: string, private segmenti = 36) {
     this.el = h('canvas', { class: 'la-misura ' + classe, title: titolo, 'data-livello': '-60', 'data-clip': '0' });
     this.el.addEventListener('click', () => { this.misura.azzera(); this.visto = ''; });
     new ResizeObserver(() => this.adatta()).observe(this.el);
@@ -44,6 +44,8 @@ export class LivelloStereo {
     this.el.width = Math.round(r.width * this.dpr);
     this.el.height = Math.round(r.height * this.dpr);
     this.visto = '';
+    // ridimensionare svuota il disegno: a riposo nessuno lo rifà, quindi i LED spenti si ridisegnano subito
+    this.disegna(this.misura.clip(performance.now()));
   }
 
   aggiorna(picchi: Picchi, ora: number) {
@@ -65,7 +67,7 @@ export class LivelloStereo {
     if (!W || !H) return;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const gap = 2 * d, bh = (H - gap) / 2, spia = Math.min(bh * 2.4, 14 * d), N = 36;
+    const gap = 2 * d, bh = (H - gap) / 2, spia = Math.min(bh * 2.4, 14 * d), N = this.segmenti;
     const x0 = 0, w = W - spia - 3 * d;
     for (let i = 0; i < 2; i++) {
       const y = i * (bh + gap);
@@ -77,7 +79,7 @@ export class LivelloStereo {
         const acceso = k < this.misura.barra[i];
         const picco = Math.abs(k - this.misura.tenuto[i]) < 1 / N + 0.001 && this.misura.tenuto[i] > 0.02;
         const on = acceso || picco;
-        ctx.fillStyle = db > -6 ? (on ? '#ff3a4a' : '#3a1418') : db > -18 ? (on ? '#ffd54a' : '#3a3214') : (on ? '#5dffb4' : '#143a28');
+        ctx.fillStyle = db > -6 ? (on ? '#ff3a4a' : '#4a1a20') : db > -18 ? (on ? '#ffd54a' : '#4a4018') : (on ? '#5dffb4' : '#1b4a35');
         ctx.fillRect(x0 + s * sw + d * 0.5, y + d * 0.5, sw - d, bh - d);
       }
     }
@@ -94,13 +96,15 @@ type Lettura = () => number;
 export class PannelloAudio {
   /** il pannello grande (nella colonna di LIVE) */
   el: HTMLElement;
-  /** le due barre piccole, sempre in vista in cima alla colonna */
-  compatto: HTMLElement;
+  /** il tasto piccolo accanto al microfono: apre il microfono per vedere il livello senza registrare */
+  provaPiccola: HTMLButtonElement;
   private sinc: (() => void)[] = [];
   private grandi: { computer: LivelloStereo; voce: LivelloStereo };
   private piccoli: { computer: LivelloStereo; voce: LivelloStereo };
   private statoPc: HTMLElement;
   private statoVoce: HTMLElement;
+  /** le scritte di stato nelle righe compatte delle sorgenti (le stesse parole delle strisce grandi) */
+  private statiPiccoli: { computer: HTMLElement; voce: HTMLElement };
   private bProva: HTMLButtonElement;
   private giro = 0;
   private ascoltaEl: HTMLElement;
@@ -113,14 +117,13 @@ export class PannelloAudio {
       voce: new LivelloStereo('grande', 'Voce (microfono), sinistro e destro. Clic: azzera la spia di saturazione'),
     };
     this.piccoli = {
-      computer: new LivelloStereo('piccolo', 'Audio del computer'),
-      voce: new LivelloStereo('piccolo', 'Voce (microfono)'),
+      computer: new LivelloStereo('piccolo', 'Audio del computer', 28),
+      voce: new LivelloStereo('piccolo', 'Voce (microfono)', 28),
     };
     this.statoPc = h('span', { class: 'la-stato' });
     this.statoVoce = h('span', { class: 'la-stato' });
-    this.compatto = h('div', { class: 'la-compatto' },
-      h('div', { class: 'la-c-riga' }, icona('altoparlante', 12), this.piccoli.computer.el),
-      h('div', { class: 'la-c-riga' }, icona('mic', 12), this.piccoli.voce.el));
+    this.statiPiccoli = { computer: h('span', { class: 'la-stato' }), voce: h('span', { class: 'la-stato' }) };
+    this.provaPiccola = h('button', { class: 'la-prova-mini', title: 'Prova il microfono: vedi il livello senza registrare', on: { click: () => this.col.prova() } }) as HTMLButtonElement;
 
     this.bProva = h('button', { class: 'la-prova', title: 'Apre il microfono per vedere i livelli e sentire i filtri, senza registrare', on: { click: () => this.col.prova() } }) as HTMLButtonElement;
     this.ascoltaEl = this.interruttore('Ascolto quello che esce (meglio con le cuffie)', 'Fa uscire dalle casse la voce trattata, per sentire i filtri. Con le casse accese il microfono la riprende e fischia: usa le cuffie',
@@ -223,7 +226,11 @@ export class PannelloAudio {
       h('p', { class: 'nota' }, 'Le regolazioni valgono dal vivo e finiscono nella registrazione. La voce si prova subito con "Prova l\'audio"; l\'audio del computer si vede quando parte la registrazione, dopo aver scelto lo schermo.'));
     this.aggiorna();
     this.sincronizza();
+    this.scriviStati(null, performance.now());
   }
+
+  /** i pezzi di una sorgente per le righe compatte di LIVE: la barra stereo a LED e la scritta di stato */
+  sorgente(chi: 'computer' | 'voce') { return { barra: this.piccoli[chi].el, stato: this.statiPiccoli[chi] }; }
 
   /** un tasto con la spia, come gli altri interruttori di LIVE */
   private interruttore(testo: string, info: string, leggi: () => boolean, clic: () => void, attr?: string, valore?: string): HTMLElement {
@@ -261,6 +268,9 @@ export class PannelloAudio {
     const prova = this.col.inProva();
     this.bProva.textContent = prova ? '■ Ferma la prova' : '▶ Prova l\'audio';
     this.bProva.classList.toggle('acceso', prova);
+    this.provaPiccola.textContent = prova ? '■' : '▶';
+    this.provaPiccola.classList.toggle('acceso', prova);
+    this.provaPiccola.title = prova ? 'Ferma la prova del microfono' : 'Prova il microfono: vedi il livello senza registrare';
     this.ascoltaEl.classList.toggle('via', !prova);
     this.sincronizza();
   }
@@ -294,9 +304,10 @@ export class PannelloAudio {
   private scriviStati(m: MixerLive | null, ora: number) {
     const a = this.col.leggi();
     const r = m?.riduzioni();
-    const scrivi = (el: HTMLElement, testo: string, avviso: boolean) => {
+    const scrivi = (el: HTMLElement, testo: string, avviso: boolean, barra?: HTMLElement, nome?: string) => {
       if (el.textContent !== testo) el.textContent = testo;
       el.classList.toggle('avviso', avviso);
+      if (barra && nome) { const t = `${nome}: ${testo} · clic: azzera la spia`; if (barra.title !== t) barra.title = t; }
     };
     const satPc = this.grandi.computer.misura.clip(ora), satVoce = this.grandi.voce.misura.clip(ora);
     const picco = (l: LivelloStereo) => { const d = l.misura.picchiDb(); return d < -59 ? 'silenzio' : `picco ${Math.round(d)} dB`; };
@@ -304,11 +315,13 @@ export class PannelloAudio {
     if (satPc) pc = 'satura: abbassa il volume';
     else if (m && r && a.abbassa && r.duck < -1) pc = `abbassato di ${Math.round(-r.duck)} dB`;
     scrivi(this.statoPc, pc, satPc);
-    let vo = m ? picco(this.grandi.voce) : 'microfono spento';
+    scrivi(this.statiPiccoli.computer, pc, satPc, this.piccoli.computer.el, 'Audio del computer');
+    let vo = m ? picco(this.grandi.voce) : 'a riposo';
     if (satVoce) vo = 'satura: abbassa il volume';
     else if (m && r && a.filtri.porta && r.porta < -10) vo = 'porta chiusa';
     else if (m && r && a.filtri.compressore && r.comp < -1) vo = `compressore ${Math.round(r.comp)} dB`;
     scrivi(this.statoVoce, vo, satVoce);
+    scrivi(this.statiPiccoli.voce, vo, satVoce, this.piccoli.voce.el, 'Microfono');
   }
 
   /** le misure per le prove */

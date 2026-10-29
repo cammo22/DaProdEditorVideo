@@ -1,6 +1,6 @@
 // Il mixer video in WebGL2. Ogni strato si disegna nel suo buffer (trasformazioni, proc amp, chiave, look),
 // poi si combina sull'uscita con la transizione e la trasparenza. Stesso codice per i monitor e per l'export.
-import type { Project, Transition } from '../core/tipi';
+import type { Clip, Project, Transition } from '../core/tipi';
 import type { Strato, Sorgente } from './piano';
 import type { VideoSample } from 'mediabunny';
 import { fotogramma, type Fotogramma } from '../media/fotogrammi';
@@ -11,16 +11,20 @@ export type Fornitore = (s: Sorgente) => Fotogramma | null;
 import { autoColore, masterDi, mediaOf, tfAl } from '../core/progetto';
 import { spostaTraccia } from '../core/traccia';
 import { mediaRT } from '../media/libreria';
-import { gradeDi, gradeNeutro } from './colore';
+import { gradeClip, gradeDi, gradeNeutro } from './colore';
+import { ColoreGpu, GLSL_COLORE, UNIFORM_COLORE } from './coloreGpu';
 import { CAMPI_FX, MAX_CENSURE, statoEffetti, type StatoFx } from '../core/blocchi';
 import { fxEffettivo } from '../core/effettiClip';
+import { firmaMaschere, rasterizzaMaschere } from '../core/maschereForma';
 import { coloriChiave, SPILL0 } from '../core/sfondo';
 import { maschereAl } from '../media/maschere';
 import { disegnaSovr, firmaSovr } from './sovrimpressione';
 import { nuovaTela } from './grafica';
 import { disegnaCountdown, motoTitolo, specAlTempo, telaTitolo } from './grafica';
 import { disegnaAnimazione, firmaAnim } from './animazioni';
+import { fotogrammaHtml, misuraResa } from './titoliHtml';
 import { TITLE0 } from '../core/progetto';
+import { anelliClic, DISEGNA_CLIC, UNIFORM_CLIC } from './cursore';
 
 const VS_LAYER = `#version 300 es
 in vec2 a_pos;
@@ -42,6 +46,7 @@ void main() {
 
 const FS_LAYER = `#version 300 es
 precision highp float;
+${UNIFORM_CLIC}
 in vec2 v_uv;
 uniform sampler2D u_tex;
 uniform int u_src;          // 0 texture, 1 barre SMPTE, 2 barre EBU, 3 colore pieno
@@ -63,6 +68,8 @@ uniform float u_keySfuma;   // sfuma il bordo
 uniform float u_keyPulisci; // toglie puntini e buchi
 uniform sampler2D u_matte, u_matte2;  // le maschere dell'AI (prima e dopo l'istante) e quanto verso la seconda
 uniform float u_matteK;
+uniform sampler2D u_forma;  // le maschere a forma della clip (rettangolo, ellisse, Bézier): copertura 0..1 in un canale solo
+uniform bool u_formaOn;
 uniform int u_vista;        // 0 normale, 1 si vede la maschera, 2 il soggetto sugli scacchi, 3 il contorno di quello che resta
 uniform bool u_mirror;
 uniform float u_temp, u_vignette;
@@ -77,6 +84,7 @@ uniform vec2 u_boxPx;         // quanti pixel del progetto fa la sorgente intera
 uniform float u_round, u_feather;
 out vec4 o;
 
+${GLSL_COLORE}
 vec2 orient(vec2 uv) {
   if (u_orient == 90) return vec2(uv.y, 1.0 - uv.x);
   if (u_orient == 180) return vec2(1.0 - uv.x, 1.0 - uv.y);
@@ -199,6 +207,7 @@ void main() {
   vec2 iq = vec2(ch * I - sh * Q, sh * I + ch * Q) * u_sat;
   rgb = vec3(Y + 0.956 * iq.x + 0.621 * iq.y, Y - 0.272 * iq.x - 0.647 * iq.y, Y - 1.106 * iq.x + 1.703 * iq.y);
   if (u_temp != 0.0) rgb *= vec3(1.0 + u_temp * 0.18, 1.0 + u_temp * 0.02, 1.0 - u_temp * 0.2);
+  rgb = coloreAvanzato(rgb);
   if (u_vignette > 0.0) { vec2 dv = v_uv - 0.5; rgb *= 1.0 - u_vignette * smoothstep(0.15, 0.6, dot(dv, dv) * 2.2); }
   rgb = clamp(rgb, 0.0, 1.0);
   // chiave
@@ -228,7 +237,10 @@ void main() {
     float k = smoothstep(soglia - mor, soglia + mor, m);
     aChiave = u_keyInv ? 1.0 - k : k;
   }
+  ${DISEGNA_CLIC}
   a *= aChiave;
+  // la passata con le maschere a forma: si moltiplica per la copertura (nessuna maschera = niente passata)
+  if (u_formaOn) a *= texture(u_forma, uv0).r;
   // angoli tondi (e l'ombra, che è lo stesso rettangolo sfumato): distanza dal rettangolo arrotondato, in pixel
   if (u_round > 0.0 || u_feather > 0.0) {
     vec2 lo = u_box.xy * u_boxPx, hi = (vec2(1.0) - u_box.zw) * u_boxPx;
@@ -270,6 +282,7 @@ in vec2 v_uv;
 uniform sampler2D u_src;
 uniform vec3 u_lift, u_gamma, u_gain, u_shadow, u_high;
 uniform float u_sat, u_contrast, u_vignette, u_grain, u_time, u_split;
+${GLSL_COLORE}
 out vec4 o;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
@@ -282,6 +295,7 @@ void main() {
     float y = dot(r, vec3(0.2126, 0.7152, 0.0722));
     r = mix(vec3(y), r, u_sat);
     r += u_shadow * (1.0 - smoothstep(0.0, 0.55, y)) + u_high * smoothstep(0.45, 1.0, y);
+    r = coloreAvanzato(r);
     vec2 d = v_uv - 0.5;
     r *= 1.0 - u_vignette * smoothstep(0.12, 0.62, dot(d, d) * 2.0);
     if (u_grain > 0.0) r += (hash(v_uv * vec2(1280.0, 720.0) + fract(u_time * 7.13)) - 0.5) * u_grain;
@@ -1534,6 +1548,7 @@ function hex(c: string): [number, number, number] {
 
 export class Compositore {
   gl: WebGL2RenderingContext;
+  readonly coloreGpu: ColoreGpu;
   private pLayer: WebGLProgram;
   private pComb: WebGLProgram;
   private pMaster: WebGLProgram;
@@ -1565,16 +1580,18 @@ export class Compositore {
     const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: true, preserveDrawingBuffer: preserve, desynchronized: false, powerPreference: 'high-performance' }) as WebGL2RenderingContext | null;
     if (!gl) throw new Error('WebGL2 non disponibile');
     this.gl = gl;
+    this.coloreGpu = new ColoreGpu(gl);
     this.pLayer = this.prog(VS_LAYER, FS_LAYER);
     this.pComb = this.prog(VS_FULL, FS_COMBINE);
     this.pMaster = this.prog(VS_FULL, FS_MASTER);
     this.pFx = this.prog(VS_FULL, FS_FX);
     for (const n of ['u_src', 'u_res', 'u_off', 'u_zoom', 'u_rot', 'u_blur', 'u_pixel', 'u_rgb', 'u_glitch', 'u_seme', 'u_desat', 'u_invert', 'u_flash', 'u_fade', 'u_luce', 'u_lucePh', 'u_bande', 'u_vhs', 'u_time', 'u_flashCol', 'u_fadeCol', 'u_bagliore', 'u_flare', 'u_flarePh', 'u_arco', 'u_arcoPh', 'u_espo', 'u_neon', 'u_onda', 'u_bolla', 'u_vortice', 'u_caleido', 'u_calore', 'u_zblur', 'u_centro', 'u_sole', 'u_tinta', 'u_semeGrana', 'u_numCensure', 'u_censure', 'u_morbidoCensure', ...CAMPI_FX.map((k) => 'u_' + k)])
       this.uF[n] = gl.getUniformLocation(this.pFx, n);
-    for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_vista',
-      'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma'])
+    for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_forma', 'u_formaOn', 'u_vista',
+      ...UNIFORM_COLORE, 'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma',
+      'u_numClic', 'u_clic', 'u_clicColore', 'u_clicRapporto'])
       this.uL[n] = gl.getUniformLocation(this.pLayer, n);
-    for (const n of ['u_src', 'u_lift', 'u_gamma', 'u_gain', 'u_shadow', 'u_high', 'u_sat', 'u_contrast', 'u_vignette', 'u_grain', 'u_time', 'u_split'])
+    for (const n of [...UNIFORM_COLORE, 'u_src', 'u_lift', 'u_gamma', 'u_gain', 'u_shadow', 'u_high', 'u_sat', 'u_contrast', 'u_vignette', 'u_grain', 'u_time', 'u_split'])
       this.uM[n] = gl.getUniformLocation(this.pMaster, n);
     for (const n of NOMI_COMBINA) this.uC[n] = gl.getUniformLocation(this.pComb, n);
     this.vao = gl.createVertexArray()!;
@@ -1590,7 +1607,7 @@ export class Compositore {
     this.blank = this.newTex();
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
     if ('addEventListener' in canvas) {
-      canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.perso = true; }, false);
+      canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); this.perso = true; this.coloreGpu.distruggi(); }, false);
     }
   }
 
@@ -1679,6 +1696,7 @@ export class Compositore {
     const gl = this.gl;
     if (this.perso || gl.isContextLost()) return;
     const cw = this.canvas.width, ch = this.canvas.height;
+    this.coloreGpu.inizia();
     this.ensureFbo(cw, ch);
     this.used.clear();
     gl.bindVertexArray(this.vao);
@@ -1748,6 +1766,7 @@ export class Compositore {
       gl.uniform1f(u.u_grain, g.grain);
       gl.uniform1f(u.u_time, (frame % 10000) / 25);
       gl.uniform1f(u.u_split, this.prima);
+      this.coloreGpu.imposta(p, g, u, false);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
     this.uscita = uscita;
@@ -1763,6 +1782,7 @@ export class Compositore {
       if (!this.used.has(k) && !k.startsWith('img:')) { gl.deleteTexture(t.tex); this.texs.delete(k); }
     }
     this.interp?.finisce();
+    this.coloreGpu.finisce();
   }
 
   private sovr: { firma: string; tela: HTMLCanvasElement | OffscreenCanvas } | null = null;
@@ -1784,6 +1804,8 @@ export class Compositore {
     const u = this.uL;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
+    gl.uniform1i(u.u_numClic, 0);
+    gl.uniform1i(u.u_formaOn, 0); // la sovrimpressione non passa dalle maschere della clip di prima
     gl.uniform1i(u.u_tex, 0);
     gl.uniform2f(u.u_res, cw, ch);
     gl.uniform2f(u.u_size, cw, ch);
@@ -1929,6 +1951,16 @@ export class Compositore {
       const t = this.upload('cd:' + c.id + ':' + i, tela as TexImageSource, tela.width, tela.height, frame + ':' + s.lf);
       tex = t.tex;
       sw = W; sh = H;
+    } else if (c.kind === 'title' && c.gen?.html) {
+      // un titolo animato HTML: il fotogramma di questo istante (preparato prima nell'export, in anticipo nel monitor)
+      const d = c.len * p.rate.den / p.rate.num;
+      const { rw, rh } = misuraResa(W, H, this.canvas.width);
+      const tela = fotogrammaHtml(c.gen.html, rw, rh, s.local, d, playing ? 6 : 2, p.rate.den / p.rate.num);
+      if (!tela) return false;
+      const t = this.upload('ht:' + c.id + ':' + i, tela as TexImageSource, rw, rh, tela);
+      tex = t.tex;
+      sw = W; sh = H;
+      fit = false;
     } else if (c.kind === 'title' && c.gen?.anim) {
       // un'animazione del catalogo: disegnata a ogni fotogramma su una tela grande quanto il progetto
       const tela = disegnaAnimazione(c.gen.anim, W, H, s.local, c.len * p.rate.den / p.rate.num);
@@ -1967,6 +1999,8 @@ export class Compositore {
     gl.disable(gl.BLEND);
     gl.useProgram(this.pLayer);
     const u = this.uL;
+    gl.uniform1i(u.u_numClic, 0); // anche la passata dell'ombra parte senza anelli
+    gl.uniform1i(u.u_formaOn, 0); // e senza maschere a forma (si accendono solo per la clip vera)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(u.u_tex, 0);
@@ -1985,6 +2019,7 @@ export class Compositore {
     gl.uniform4f(u.u_box, tf.cropL, tf.cropT, tf.cropR, tf.cropB);
     gl.uniform1i(u.u_grad, 0);
     if ((tf.ombra ?? 0) > 0) {
+      this.coloreGpu.imposta(p, gradeClip(), u, false);
       // l'ombra: lo stesso rettangolo, nero, più grande e sfumato, un po' più in basso; poi la clip ci va sopra
       const sf = Math.max(4, (tf.ombra ?? 0) * Math.min(W, H) * 0.045);
       const ex = (sf * 2) / Math.max(1, bw), ey = (sf * 2) / Math.max(1, bh);
@@ -2016,6 +2051,14 @@ export class Compositore {
     // il bordo arrotondato si sfuma di un pixel dello schermo (niente scalini)
     gl.uniform1f(u.u_feather, raggio > 0 ? Math.max(0.6, W / Math.max(1, this.fbW)) : 0);
     gl.uniform1i(u.u_src, srcKind);
+    this.passataForma(c, sw / sh, u);
+    const clic = anelliClic(p, c, s.t, s.lf);
+    gl.uniform1i(u.u_numClic, clic.n);
+    if (clic.n) {
+      gl.uniform4fv(u.u_clic, clic.punti);
+      gl.uniform3fv(u.u_clicColore, clic.colore);
+      gl.uniform1f(u.u_clicRapporto, sw / sh);
+    }
     const col = hex(c.gen?.color ?? '#000000');
     gl.uniform3f(u.u_color, col[0], col[1], col[2]);
     if (srcKind === 3 && c.gen?.color2) {
@@ -2023,6 +2066,7 @@ export class Compositore {
       gl.uniform1i(u.u_grad, 1);
       gl.uniform3f(u.u_color2, c2[0], c2[1], c2[2]);
     }
+    this.coloreGpu.imposta(p, gradeClip(fx.colore), u, !!fx.colore);
     gl.uniform1f(u.u_bright, fe.bright);
     gl.uniform1f(u.u_contrast, fe.contrast);
     gl.uniform1f(u.u_sat, fe.sat);
@@ -2083,6 +2127,27 @@ export class Compositore {
     gl.disable(gl.BLEND);
     return true;
   }
+
+  /** le maschere a forma della clip come texture a un canale (unità 6): si rifà solo se la forma, il tempo o le misure cambiano */
+  private passataForma(c: Clip, aspetto: number, u: Record<string, WebGLUniformLocation | null>) {
+    const gl = this.gl;
+    const firma = firmaMaschere(c.maschere, aspetto);
+    gl.uniform1i(u.u_forma, 6);
+    gl.activeTexture(gl.TEXTURE6);
+    if (!firma) { gl.bindTexture(gl.TEXTURE_2D, this.blank); gl.uniform1i(u.u_formaOn, 0); gl.activeTexture(gl.TEXTURE0); return; }
+    let r = this.forme.get(firma);
+    if (!r) {
+      const x = rasterizzaMaschere(c.maschere, aspetto);
+      if (!x) { gl.bindTexture(gl.TEXTURE_2D, this.blank); gl.uniform1i(u.u_formaOn, 0); gl.activeTexture(gl.TEXTURE0); return; }
+      r = x;
+      this.forme.set(firma, r);
+      if (this.forme.size > 24) this.forme.delete(this.forme.keys().next().value!);
+    } else { this.forme.delete(firma); this.forme.set(firma, r); }
+    gl.bindTexture(gl.TEXTURE_2D, this.matte('fm:' + firma, r.w, r.h, r.dati));
+    gl.uniform1i(u.u_formaOn, 1);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  private forme = new Map<string, { w: number; h: number; dati: Uint8Array }>();
 
   /** una transizione fra A (buffer 0) e B (buffer "dentro"), scritta nel buffer "fuori": nel mix (2) si appoggia su
    *  quello che c'è già; in un buffer della catena (5, 6) lo riempie da capo */
@@ -2147,6 +2212,7 @@ export class Compositore {
     const gl = this.gl;
     for (const t of this.texs.values()) gl.deleteTexture(t.tex);
     this.texs.clear();
+    this.coloreGpu.distruggi();
     for (const f of this.fbo) { gl.deleteFramebuffer(f.fb); gl.deleteTexture(f.tex); }
     this.fbo = [];
     this.interp?.distruggi();

@@ -1,5 +1,7 @@
 # Flussi UI — update 1.5.8
 
+> Documento storico: descrive la versione 1.5.8, non i flussi attuali.
+
 Base motore `faf6c9b4aec68c3e8620ecf201452c35414f363b`, consolidamento `feat/update-qa-consolidato`. Frontend e Rust del motore devono essere distribuiti insieme.
 
 ## Stato di consegna — 2026-10-24

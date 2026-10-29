@@ -5,6 +5,7 @@ import type { Clip, Key, Project, TrackKind, Transition } from './tipi';
 import { clipsOn, end, handles, keyValue, mediaOf, newClip, newTrack, nextTrackName, srcTimeAt, tfAl, trackOf, uid, isVideoClip } from './progetto';
 import { f2s } from './timecode';
 import { blocchiDi, centro } from './blocchi';
+import { dividiAnim, scalaAnim, spostaAnim } from './automazioni';
 
 /** una clip "vera" (occupa posto sulla traccia): i blocchetti FX no, stanno sopra le clip */
 export const solida = (c: Clip) => c.kind !== 'fx';
@@ -59,6 +60,8 @@ export function splitClip(p: Project, c: Clip, f: number, newLink?: string): Cli
   right.link = newLink ?? c.link;
   [c.opKeys, right.opKeys] = splitKeys(c.opKeys, lf, c.opacity);
   [c.gainKeys, right.gainKeys] = splitKeys(c.gainKeys, lf, c.gain);
+  // i keyframe: il valore del taglio sta da tutte e due le parti
+  dividiAnim(c, right, lf);
   if (c.tfFine) splitMovimento(c, right, lf);
   c.len = lf;
   c.fadeOut = 0;
@@ -355,6 +358,7 @@ export function trimClip(p: Project, id: string, edge: 'in' | 'out', d: number, 
       if (!o.ripple) g.start += d;
       g.opKeys = g.opKeys.map((k) => ({ f: k.f - d, v: k.v }));
       g.gainKeys = g.gainKeys.map((k) => ({ f: k.f - d, v: k.v }));
+      spostaAnim(g, d);
       if (o.ripple) for (const x of p.clips) if (x.track === g.track && x.id !== g.id && (solida(x) ? x.start >= oldEnd : centro(x) >= oldEnd && !alBordo.includes(x)) && !group.includes(x)) x.start -= d;
     } else {
       g.len += d;
@@ -383,6 +387,7 @@ export function rollEdit(p: Project, leftId: string, rightId: string, d: number)
   R.srcIn = Math.max(0, R.srcIn + f2s(d, p.rate) * R.speed);
   R.opKeys = R.opKeys.map((k) => ({ f: k.f - d, v: k.v }));
   R.gainKeys = R.gainKeys.map((k) => ({ f: k.f - d, v: k.v }));
+  spostaAnim(R, d);
   return d;
 }
 
@@ -601,6 +606,7 @@ export function cambiaVelocita(p: Project, ids: Set<string>, nuova: number, o: O
     const scala = (keys: Key[]) => keys.map((x) => ({ f: Math.round(x.f * k), v: x.v }));
     c.opKeys = scala(c.opKeys);
     c.gainKeys = scala(c.gainKeys);
+    scalaAnim(c, k);
     c.fadeIn = c.fadeIn ? Math.max(1, Math.round(c.fadeIn * k)) : 0;
     c.fadeOut = c.fadeOut ? Math.max(1, Math.round(c.fadeOut * k)) : 0;
     c.len = nuoveLen.get(c.id)!;

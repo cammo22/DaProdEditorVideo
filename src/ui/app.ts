@@ -25,7 +25,7 @@ import { attivaRotella } from './rotella';
 import { finestraEsporta, finestraInfo, finestraProgetto, finestraTasti, esportaEdl, esportaFotogramma, VERSIONE } from './dialoghi';
 import { apri, apriFile, salvaPacchetto, autosalva, importaDaDrop, importaDialogo, importaFile, nuovo, ricollega, riprendi, salva } from '../progetti';
 import { invoke, isAndroid, isTauri, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
-import { novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
+import { finestraNovita, novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { statoDecoder } from '../media/fotogrammi';
 import { CentroAttivita } from './attivita';
@@ -101,6 +101,7 @@ export function avvia(radice: HTMLElement) {
     if (radice.dataset.pagina === 'live' && live.registrando) avviso('La registrazione continua: torna su LIVE per fermarla', 'info', 2600);
     radice.dataset.pagina = pg;
     live.mostrata(pg === 'live');
+    finale.mostrata(pg === 'finale');
     montage.mostrata(pg === 'montage');
     // i VU vanno dove si guarda: nelle proprietà durante il montaggio, nel Finale alla fine
     if (pg === 'finale') finale.el.insertBefore(vuCornice, finale.el.children[1] ?? null);
@@ -110,7 +111,7 @@ export function avvia(radice: HTMLElement) {
     if (pg === 'finale' && radice.classList.contains('stretto')) radice.dataset.foglio = 'finale';
     setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 80);
   };
-  const home = new Home(() => pagina('montage'));
+  const home = new Home(() => pagina('montage'), () => pagina('live'));
   document.addEventListener('dpv:home', () => home.mostra());
   const tastoPagina = (pg: Pagina, nome: string, ic: string, title: string) => h('button', { class: 'pagina-btn' + (pg === 'montaggio' ? ' attiva' : ''), 'data-p': pg, title, on: { click: () => pagina(pg) } }, icona(ic, 16), h('span', null, nome));
 
@@ -124,6 +125,7 @@ export function avvia(radice: HTMLElement) {
   const barra = barraTitolo({
     info: () => finestraInfo(), progetti: () => home.mostra(), salva: () => void salva(), importa: () => void importaDialogo(),
     annulla: () => esegui('annulla'), ripeti: () => esegui('ripeti'), cerca: () => apriCerca(), progetto: () => finestraProgetto(),
+    novita: () => finestraNovita(),
     aggiornamenti: tastoAggiornamenti(icona),
   });
   const testa = h('header', { class: 'testata' },
@@ -141,7 +143,7 @@ export function avvia(radice: HTMLElement) {
   const msg = h('span', { class: 'stato-msg' }, 'Pronto. 1 taglia · 2 elimina · S separa/unisci · rotella = un fotogramma · Q/W scarto a sinistra/destra · F9 Finale · F1 tutti i tasti');
   const dec = h('span', { class: 'stato-dec' });
   const centro = new CentroAttivita(bin.el);
-  const statoBar = h('footer', { class: 'stato' }, msg, dec, centro.el, h('span', { class: 'stato-ver' }, `DaProd Video ${VERSIONE}`));
+  const statoBar = h('footer', { class: 'stato' }, msg, dec, centro.el, h('span', { class: 'stato-ver' }, `DaProd Editor Video ${VERSIONE}`));
   motore.ogniGiro(() => {
     if (Math.random() > 0.05) return;
     const s = statoDecoder();
@@ -177,7 +179,7 @@ export function avvia(radice: HTMLElement) {
   const linguetta = h('button', { class: 'linguetta-lato', title: 'Riapri il pannello delle proprietà', on: { click: () => disp.alterna('senza-lato', false) } }, '‹ Proprietà');
   radice.dataset.pagina = 'montaggio';
   radice.before(barra);
-  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, live.el, montage.el, home.el, puls.el, divisore, tl.el, statoBar, barraTel, linguetta);
+  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, live.el, montage.el, home.el, divisore, puls.el, tl.el, statoBar, barraTel, linguetta);
 
   const rimettiBanco = () => { disp.rimetti(); setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60); };
   disp.ripristina();

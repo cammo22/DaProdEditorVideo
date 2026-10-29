@@ -198,6 +198,7 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   clip video + audio legate, cartella "Clip uniche". **Sottotitoli dal montaggio** (`src/ui/sottotitoliRapidi.ts`): `generaSottotitoli(clip?)`,
   `faiParlareSottotitoli`, `nuovaRigaQui`, `stileSottotitoli`; tasto destro su clip e riga SOTT, Titoli → `tit:sott`.
 - **Sfondo AI a clic**: `scegliOggetto` (`ui/sfondo.ts`) prova subito un fotogramma (`provaSubito` → `provaOggetto` → `provaRitaglio`) e ne disegna la maschera sul monitor (`SceltaImmagine.maschera`, `tintaDa` in `posiziona.ts`); **OK/Invio** avvia tutta la clip, oppure si può controllare prima l'anteprima breve con `elaboraClip(id, true)`. `Ritaglio.persona` (tasti 🧍/📦, `impostaPersona`) usa MODNet per selezionare una persona specifica o SAM per un oggetto; `scaldaRitaglio` carica prima il modello. I clic sono raggruppati per oggetto (`punti[].g`) e le maschere vengono unite. I modelli reali non sono stati provati.
+- **Keyframe e maschere a forma**: `Clip.anim` (`src/core/automazioni.ts`, puro) = per ogni parametro numerico (percorsi `opacity`, `gain`, `pan`, `tf.*`, `fx.*`, `fx.colore.<ruota>.<r|g|b>`, `fxb.forza`, `fxb.parametri.<chiave>`, `mask.<id>.<campo>`) una lista di chiavi `{f, v, modo}` (`f` = fotogrammi dall'inizio della clip; `modo` lineare/morbida/gradino verso la chiave dopo). **Senza `anim` non cambia niente**: `valutaClip(c, lf)` ritorna la clip stessa; `tfAl`, `clipOpacity`, `guadagnoClip` e `statoEffetti` leggono le linee, `sorgente()` in `piano.ts` mette in `Sorgente.clip` la clip già valutata (monitor ed export usano lo stesso conto). `tf/tfFine/via`, `opKeys`, `gainKeys` restano: un campo con la linea nuova vince solo lui (`mettiChiave` trasforma `opKeys`/`gainKeys` in chiavi equivalenti). Taglio, bordi, velocità e cambio di frequenza spostano le chiavi (`dividiAnim/spostaAnim/scalaAnim` chiamate da `montaggio.ts`). UI: `src/ui/keyframe.ts` (rombo ◆ + frecce ◀ ▶, tasto destro = modo; `cursore(…, percorso)` in `ispettore.ts`; sezione «Keyframe» per tutti gli altri parametri), rombi sul bordo basso della clip scelta in `timeline.ts`. **Maschere** (`Clip.maschere`, `src/core/maschereForma.ts`, puro): rettangolo/ellisse/Bézier in frazioni della sorgente, sfumatura/espansione/inversione, `somma`/`sottrai` in ordine; la copertura (distanza con segno) diventa una texture a un canale (`passataForma` in `compositore.ts`, `u_forma`/`u_formaOn`, unità 6, cache per `firmaMaschere`); sul monitor la modalità è `src/ui/maschereMonitor.ts` (evento `dpv:maschera`, agganciata a `posiziona.ts`). Prove: `test/unit/keyframe.test.mjs`.
 - **Cursore che si aggancia** (`agganciaCursore` in `src/ui/timeline.ts`): sul righello si aggancia sempre (calamita `N`), Alt lo lascia libero.
 - **Motore NVIDIA** (`src-tauri/src/motori.rs` + `src/media/nemo.ts`): NeMo-Speech.cpp **0.2.0** (Apache-2.0; la 0.1.0 non aveva gli archivi), programma a parte che l'app
   scarica dalla release di NVIDIA (`nemo-speech-<versione>-{windows,macos,linux}-{x86_64,aarch64}-{cpu,cuda,vulkan,metal}`, `.sha256` a fianco) in
@@ -237,3 +238,17 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   con filtri e limitatore) sia la riproduzione sia il mixaggio.
 - Il lato Rust (`src-tauri/src/lib.rs`) fa solo I/O: media a pezzi, export in streaming, progetti, autosalvataggio.
   Su Android i percorsi sono `content://` e passano da `tauri-plugin-fs`.
+
+
+## Novità del giro definitivo (ottobre 2026)
+
+- Il nome del programma sta in `src/nome.ts` (`NOME_PROGRAMMA`).
+- La barra in `src/ui/barraTitolo.ts` ha logo, tasto Novità e chip hardware (`src/ui/chipHardware.ts`).
+- Una sola istanza desktop: `src-tauri/src/lib.rs` passa alla finestra aperta gli argomenti del secondo avvio.
+- Nella home, **Aggiusta tutto** sistema cartelle e associazioni dei progetti; le associazioni Windows sono in `src-tauri/src/associazioni.rs`.
+- Finale: preset di esportazione in `src/core/esportazione.ts`, coda in `src/core/codaExport.ts`.
+- Colore avanzato: LUT, curve e GPU in `src/render/lut.ts`, `src/render/curve.ts`, `src/render/coloreGpu.ts`; pannello in `src/ui/coloreAvanzato.ts`.
+- Ducking in `src/core/ducking.ts`: rileva l'energia audio e abbassa le altre tracce.
+- Keyframe in `src/core/automazioni.ts`; maschere in `src/core/maschereForma.ts` e `src/ui/maschereMonitor.ts`.
+- Titoli HTML in `src/core/titoliHtml.ts`.
+- Cursore LIVE: `src/ui/liveCursore.ts`, `src/core/zoomCursore.ts` e `src-tauri/src/cursore.rs`.

@@ -3,11 +3,7 @@
   <a href="https://discord.gg/Njs52aacwq"><img src=".github/discord-card.svg" alt="Entra nella community DaProd su Discord" width="720"></a>
 </p>
 
-# DaProd · Video 🎬
-
-> **Update 1.5.8:** preparazioni manuali e nuova organizzazione di Finale, LIVE, Montage e Montaggio. Verifiche eseguite e limiti noti in [docs/flussi-ui.md](docs/flussi-ui.md): runtime Tauri, AI reale, LIVE con dispositivi e compatibilità completa con vecchi progetti non sono ancora certificati. Importare o riaprire non avvia nuove copie leggere o analisi; si scelgono in **Attività**. Le descrizioni delle release precedenti possono riferirsi al vecchio comportamento automatico.
->
-> **Censura e compatibilità:** il mosaico non garantisce anonimizzazione irreversibile: controlla tutta la clip e il tracking. La **1.5.7 ignora gli effetti nuovi e NON applica la censura** dei progetti creati su questo ramo. Non usare il downgrade per consegnare immagini protette.
+# DaProd · Editor Video 🎬
 
 [![▶ PROVA ORA](https://img.shields.io/badge/%E2%96%B6_PROVA_ORA-DaProd_Video-ffd54a?style=for-the-badge&labelColor=1a1428)](https://cammo22.github.io/DaProdVideo/app/)
 
@@ -26,7 +22,7 @@ montaggio**), la **pulsantiera** con i tasti grandi, i **livelli a barra**, gli 
 scritti dall'AI** (Nemotron di NVIDIA o Whisper, sul tuo computer), **voce AI**, **velocità delle clip** (Alt+E) col movimento fluido e logo su tutto il montaggio, **più timeline** nello stesso
 progetto, la pagina **LIVE** per registrare lo schermo **con la webcam a bolla** (3-2-1, pausa, segni, telecomando),
 il **pacchetto .daprod** con dentro tutti i file e la **EDL**. Cursore sul punto, premi **1** e tagli, premi **2**
-ed elimini. Gira su **Windows, Mac e Android** e, in versione prova, **nel browser**.
+ed elimini. Arriva su **Windows, poi Linux e Mac** e, in versione prova, **nel browser**.
 
 ![Il banco di montaggio](risorse/schermata.png)
 
@@ -112,34 +108,29 @@ finestra gialla per scorrere, tira i suoi bordi per lo zoom. Ogni bordo fra i pa
 (doppio clic lo chiude). **Doppio clic sull'immagine**: schermo intero con la timeline in piccolo e i VU.
 Sul telefono: tocco = cursore, **tieni premuto** e trascina per spostare, **due dita** per lo zoom.
 
-## 📥 App per Windows, Mac e Android
+## 📥 App: Windows, poi Linux e Mac
 
-Ogni [release](https://github.com/cammo22/DaProdVideo/releases/latest) ha quattro file:
+I file delle [release](https://github.com/cammo22/DaProdVideo/releases/latest):
 
 | | File | Come si usa |
 | --- | --- | --- |
 | 🪟 Windows | `DaProd-Video-X.Y.Z-portatile.exe` | niente installazione: doppio clic e parte. Se SmartScreen avvisa: *Ulteriori informazioni → Esegui comunque* |
 | 💿 Windows | `DaProd-Video-X.Y.Z-setup.exe` | installa con il collegamento nel menu Start (senza permessi di amministratore) |
 | 🍎 Mac | `DaProd-Video-X.Y.Z.dmg` | trascina in Applicazioni; la prima volta *tasto destro → Apri* (su Sequoia: *Impostazioni → Privacy e sicurezza → Apri comunque*) |
-| 🤖 Android | `DaProd-Video-X.Y.Z.apk` | **in pausa dalla 1.0.7** (l'ultimo APK è nella release 1.0.6) |
 
 Le app sono fatte con **Tauri 2**: l'interfaccia gira nel motore web del sistema (WebView2 su Windows, WebKit
-su Mac, Chromium su Android) e i file li legge e li scrive **Rust**. Pesano pochi MB, leggono ore di girato a
+su Mac) e i file li legge e li scrive **Rust**. Pesano pochi MB, leggono ore di girato a
 pezzi senza caricarle in memoria, scrivono l'export mentre esce e **riprendono il montaggio da dove eri**.
-Requisiti: Windows 10/11, macOS 14 o più nuovo con Safari aggiornato (per l'audio serve WebKit 26), Android 8+.
+Requisiti: Windows 10/11, macOS 14 o più nuovo con Safari aggiornato (per l'audio serve WebKit 26).
 
 **È tutto automatico** (`.github/workflows/app.yml`): quando su `main` arriva una versione nuova (il campo
-`version` di `package.json`), GitHub Actions fa le prove, compila EXE, DMG e APK e pubblica da sola la release
+`version` di `package.json`), GitHub Actions fa le prove, compila le app desktop e pubblica da sola la release
 `vX.Y.Z` con le note prese dal CHANGELOG. Per una versione nuova basta alzare `version`, scrivere la voce nel
 CHANGELOG e unire.
 
 **Aggiornarsi è un clic**: nell'app c'è il tasto **Aggiornamenti** in alto (si accende da solo quando esce una
-versione nuova). Fa vedere le novità, scarica il file giusto (setup, portatile, DMG o APK) e lo apre. Alla prima
+versione nuova). Fa vedere le novità, scarica il file giusto (setup, portatile o DMG) e lo apre. Alla prima
 apertura dopo l'aggiornamento compaiono le **novità** della versione (sempre anche da *Aiuto → Novità*).
-
-Per firmare l'APK con una chiave tua aggiungi ai segreti del repository `ANDROID_KEYSTORE_BASE64`,
-`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` e `ANDROID_KEY_PASSWORD`. Senza, la CI usa una chiave che tiene
-nella sua cache (resta uguale fra le release, così gli aggiornamenti si installano sopra).
 
 ## 🌐 La versione prova su GitHub Pages
 
@@ -212,3 +203,7 @@ node test/foto.mjs     # foto del banco (computer, Finale, contenitore, timeline
 - Per ritrovare le cose: `src/ui/cerca.ts` (Ctrl+K) con quello che si trova in `fontiCerca.ts`, `src/ui/guida.ts` (F1, Come si fa), `src/ui/centroAI.ts` (Centro AI) e, sotto, `src/media/libreriaAI.ts` (la libreria AI dentro l'app e i ripieghi), `erroriAI.ts` (gli errori spiegati), `diagnosiAI.ts` (Controlla l'AI).
 - `src/azioni.ts` tutti i comandi con i loro tasti · `src/effetti.ts` gli effetti al volo · `src/export/` export ed EDL · `src/demo.ts` il montaggio dimostrativo.
 - `src-tauri/` l'app Rust, con `gen/android` per l'APK · `test/` le prove.
+
+## Limiti
+
+Il mosaico non garantisce anonimizzazione irreversibile: controlla tutta la clip e il tracking. La 1.5.7 non applica la censura dei progetti nuovi: non usare il downgrade per consegnare immagini protette.

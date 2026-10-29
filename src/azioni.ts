@@ -5,13 +5,16 @@ import { motore } from './motore';
 import * as M from './core/montaggio';
 import { clipById, end, isVideoClip, newClip, newTrack, nextTrackName, projectEnd, srcTimeAt, TITLE0, trackOf, uid } from './core/progetto';
 import { fps, frameToTc, s2f } from './core/timecode';
+import { togliAnimazione } from './core/automazioni';
 import { avviso } from './ui/dom';
 import { finestraVelocita } from './ui/velocita';
+import { finestraMontaggioTesto } from './ui/montaggioTesto';
 import type { Clip, Transition } from './core/tipi';
 import { STILI_CONTO, type StileConto } from './render/grafica';
 import { applicaPresetTitolo, presetTitolo } from './core/generatori';
 import { suonoTitolo } from './core/suoni';
 import { ANIMAZIONI, animazione, nuovaAnim } from './core/animazioni';
+import { MODELLI_HTML, modelloHtml, nuovoHtml } from './core/titoliHtml';
 import { blocchiDi, durataBlocco, nomeBlocco, nuovoBlocco, posaBlocco, postoBlocco, taglioVicino, tracciaPerBlocco, transizioniSul } from './core/blocchi';
 
 export interface Azione {
@@ -30,6 +33,7 @@ const reg = (a: Azione) => azioni.set(a.id, a);
  *  loro tasti, nella ricerca (Ctrl+K), nella guida dei tasti e nei menu */
 export const registra = reg;
 export const esegui = (id: string) => azioni.get(id)?.fn();
+reg({ id: 'montaggioTesto', nome: 'Testo · monta dal parlato…', gruppo: 'Montaggio', fn: () => finestraMontaggioTesto() });
 
 /** stato dei modi della centralina */
 export const modi = {
@@ -621,7 +625,7 @@ reg({
 function opacitaSel(delta: number) {
   const ids = [...store.sel].filter((id) => { const c = clipById(store.doc, id); return c && isVideoClip(c); });
   if (!ids.length) { avviso('Seleziona una clip video', 'info', 1000); return; }
-  store.edit('Trasparenza', (p) => { for (const c of p.clips) if (ids.includes(c.id)) { c.opacity = Math.max(0, Math.min(1, Math.round((c.opacity + delta) * 20) / 20)); c.opKeys = []; } });
+  store.edit('Trasparenza', (p) => { for (const c of p.clips) if (ids.includes(c.id)) { c.opacity = Math.max(0, Math.min(1, Math.round((c.opacity + delta) * 20) / 20)); c.opKeys = []; togliAnimazione(c, 'opacity'); } });
   const c = clipById(store.doc, ids[0])!;
   avviso(`Opacità ${Math.round(c.opacity * 100)}%`, 'tasto', 800);
 }
@@ -637,7 +641,7 @@ reg({
 });
 
 // ——— generatori (le macchine della sala) ———
-export function inserisciGeneratore(kind: 'bars' | 'color' | 'countdown' | 'title' | 'nero' | 'anim', f = head(), trackId?: string, opz: { conto?: { stile: StileConto; secondi: number }; titolo?: string; anim?: string } = {}) {
+export function inserisciGeneratore(kind: 'bars' | 'color' | 'countdown' | 'title' | 'nero' | 'anim' | 'html', f = head(), trackId?: string, opz: { conto?: { stile: StileConto; secondi: number }; titolo?: string; anim?: string; html?: string } = {}) {
   const conto = opz.conto ?? { stile: 'pellicola' as StileConto, secondi: 5 };
   const p = store.doc;
   const rr = r();
@@ -672,6 +676,12 @@ export function inserisciGeneratore(kind: 'bars' | 'color' | 'countdown' | 'titl
         pp.tracks.splice(ultimo + 1, 0, nt);
       }
       const c = newClip('title', tid, f, len, { name: an.nome, gen: { anim: nuovaAnim(an.id) } });
+      pp.clips.push(c); out.push(c.id);
+    } else if (kind === 'html') {
+      // un titolo animato HTML: una clip titolo con dentro il modello (testi, colori e tempi si cambiano dalle Proprietà)
+      const mo = modelloHtml(opz.html ?? 'neon') ?? MODELLI_HTML[0];
+      const len = Math.max(1, Math.round(rr * mo.durata));
+      const c = newClip('title', tv(len, trackId ?? pp.tracks.find((t) => t.kind === 'video' && !t.lock)?.id ?? null), f, len, { name: mo.nome, gen: { html: nuovoHtml(mo.id) } });
       pp.clips.push(c); out.push(c.id);
     } else if (kind === 'title') {
       const len = Math.round(rr * 5 * (opz.titolo ? presetTitolo(opz.titolo)?.volte ?? 1 : 1));
@@ -719,6 +729,7 @@ reg({ id: 'sottVtt', nome: 'Esporta i sottotitoli in un file .vtt (web)', gruppo
 reg({ id: 'sottImporta', nome: 'Importa i sottotitoli da un file .srt / .vtt', gruppo: 'Sottotitoli', fn: rapidi((m) => m.importaSottotitoli()) });
 reg({ id: 'sottParla', nome: 'Fai parlare i sottotitoli (voce AI)', gruppo: 'Sottotitoli', fn: rapidi((m) => void m.faiParlareSottotitoli()) });
 
+reg({ id: 'genTitoloHtml', nome: 'Titolo animato HTML (neon, display, terzo inferiore…)', gruppo: 'Generatori', fn: () => inserisciGeneratore('html') });
 reg({ id: 'genAnimazione', nome: 'Animazione (sottopancia, testo che si muove…)', gruppo: 'Generatori', tasti: ['Ctrl+Alt+N'], fn: () => inserisciGeneratore('anim') });
 
 export { head as cursore };

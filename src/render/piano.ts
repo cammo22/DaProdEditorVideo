@@ -5,6 +5,7 @@
 // prima del suo inizio (con le maniglie della sorgente, o fermandosi sul primo/ultimo fotogramma).
 import type { Clip, Project, Transition } from '../core/tipi';
 import { clipOpacity, end, mediaOf, srcTimeAt } from '../core/progetto';
+import { valutaClip } from '../core/automazioni';
 import { prevAdjacent } from '../core/montaggio';
 import { transizioniAttive } from '../core/blocchi';
 import { f2s } from '../core/timecode';
@@ -53,7 +54,8 @@ function sorgente(p: Project, c: Clip, f: number): Sorgente {
   let t = srcTimeAt(p, c, f);
   const m = mediaOf(p, c);
   if (m && m.duration > 0) t = Math.max(m.t0 || 0, Math.min(t, m.duration - 1e-3));
-  return { clip: c, t, local: f2s(f - c.start, p.rate), lf: f - c.start };
+  // la clip com'è in questo fotogramma (con i keyframe già calcolati: senza animazioni è la clip stessa)
+  return { clip: valutaClip(c, f - c.start), t, local: f2s(f - c.start, p.rate), lf: f - c.start };
 }
 
 /** strati video al fotogramma f, dal basso (V1) verso l'alto */

@@ -4,12 +4,12 @@
 /* ——— le barre ——— */
 .la-misura { display: block; width: 100%; background: transparent; cursor: pointer; }
 .la-misura.grande { height: 18px; }
-.la-misura.piccolo { height: 11px; flex: 1; min-width: 0; }
+.la-misura.piccolo { height: 12px; flex: 1; min-width: 0; }
 
-/* le due barre sempre in vista in cima alla colonna (dentro .live-regia, che resta ferma mentre la colonna scorre) */
-.la-compatto { display: flex; flex-direction: column; gap: 3px; padding: 2px 2px 0; color: var(--testo3); }
-.la-c-riga { display: flex; align-items: center; gap: 7px; }
-.la-c-riga svg { flex: none; }
+/* il tasto piccolo accanto al microfono: prova il livello senza registrare */
+.la-prova-mini { width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 1px solid #000; background: var(--metallo-chiaro); color: var(--testo2); font: 800 10px var(--ui); display: grid; place-items: center; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1); }
+.la-prova-mini:hover { color: #fff; }
+.la-prova-mini.acceso { color: #ffd9df; background: linear-gradient(180deg, #5a1a26, #3a0f18); }
 
 /* ——— il pannello ——— */
 .la { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

@@ -12,10 +12,12 @@ import { f2s, fps } from '../core/timecode';
 import { mixaggio } from '../media/audio';
 import { mediaRT } from '../media/libreria';
 import { caricaFontAnimazioni } from '../render/font';
+import { preparaStrati } from '../render/titoliHtml';
 import { Compositore } from '../render/compositore';
 import { pianoVideo, type Sorgente } from '../render/piano';
 import { dialogoSalva, invoke, isTauri, nomeDaPercorso, scarica, type FileScelto } from '../platform';
 import type { Fotogramma } from '../media/fotogrammi';
+import type { Geometria } from '../core/esportazione';
 
 export type Formato = 'mp4' | 'mov' | 'webm' | 'wav';
 export type Qualita = 'bassa' | 'media' | 'alta' | 'altissima';
@@ -30,6 +32,19 @@ export interface Opzioni {
   /** un file per il programma stesso (Rendi clip unica): nell'app va nella cartella Video/DaProd Video senza chiedere,
    *  nel browser resta in memoria; arriva a `file` quando è finito */
   interna?: { file: (f: FileScelto) => void };
+  /** il codec che si vorrebbe (se questo sistema non lo sa fare si prende il primo che c'è) */
+  codec?: VideoCodec;
+  /** bit al secondo del video e dell'audio; se mancano vale `qualita` */
+  bitrate?: number;
+  audioBps?: number;
+  /** ogni quanti fotogrammi del progetto se ne tiene uno (2 = 60 fps → 30 fps); di partenza 1 */
+  passo?: number;
+  /** l'uscita ha un'altra forma del progetto: la tela del compositore è `cw`×`ch` e si posa a (dx, dy) sul quadro `w`×`h` */
+  geometria?: Geometria | null;
+  /** senza dialogo: nell'app va in Video/DaProd Video, nel browser si scarica (serve alla coda, che lavora da sola) */
+  automatica?: boolean;
+  /** a file finito, dove sta (solo nell'app) */
+  alPercorso?: (percorso: string) => void;
 }
 
 export interface Avanzamento { fatti: number; totale: number; fase: string; fpsResa: number }
@@ -44,9 +59,10 @@ const QUALITA: Record<Qualita, Quality> = {
 let aacPronto: Promise<void> | null = null;
 
 /** sceglie i codec che questo sistema sa davvero codificare */
-export async function scegliCodec(formato: Formato, w: number, h: number): Promise<{ v: VideoCodec | null; a: AudioCodec | null }> {
+export async function scegliCodec(formato: Formato, w: number, h: number, preferito?: VideoCodec): Promise<{ v: VideoCodec | null; a: AudioCodec | null }> {
   if (formato === 'wav') return { v: null, a: 'pcm-s16' };
   const vc: VideoCodec[] = formato === 'webm' ? ['vp9', 'av1', 'vp8'] : formato === 'mov' ? ['avc', 'hevc'] : ['avc', 'hevc', 'vp9', 'av1'];
+  if (preferito && vc.includes(preferito)) vc.unshift(preferito);
   const ac: AudioCodec[] = formato === 'webm' ? ['opus', 'vorbis'] : ['aac', 'opus', 'mp3'];
   const v = await getFirstEncodableVideoCodec(vc, { width: w, height: h });
   let a = await getFirstEncodableAudioCodec(ac, { numberOfChannels: 2, sampleRate: 48000 });
@@ -62,7 +78,7 @@ export async function scegliCodec(formato: Formato, w: number, h: number): Promi
 }
 
 /** una scrittura su disco che accetta pezzi in qualunque posizione (per l'MP4 che torna indietro a sistemare le intestazioni) */
-interface Destinazione { target: BufferTarget | StreamTarget; chiudi: () => Promise<string>; annulla: () => Promise<void> }
+interface Destinazione { target: BufferTarget | StreamTarget; chiudi: () => Promise<string>; annulla: () => Promise<void>; /** il percorso sul disco (solo nell'app) */ percorso?: string }
 
 async function destinazione(nome: string, mime: string, estensione: string): Promise<Destinazione | null> {
   if (isTauri) {
@@ -78,6 +94,7 @@ async function destinazione(nome: string, mime: string, estensione: string): Pro
       target: new StreamTarget(ws, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
       chiudi: async () => { await invoke('export_chiudi', { id }); return nomeDaPercorso(path); },
       annulla: async () => { await invoke('export_chiudi', { id }).catch(() => {}); },
+      percorso: path,
     };
   }
   const w = window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> };
@@ -124,6 +141,29 @@ async function destinazioneInterna(nome: string, mime: string, consegna: (f: Fil
   return {
     target,
     chiudi: async () => { consegna({ name: nome, file: new File([target.buffer!], nome, { type: mime, lastModified: Date.now() }) }); return nome; },
+    annulla: async () => {},
+  };
+}
+
+/** la destinazione senza domande, per la coda: nell'app il file va in Video/DaProd Video (mai sovrascritto), nel browser si scarica */
+async function destinazioneAutomatica(nome: string, mime: string): Promise<Destinazione> {
+  if (isTauri) {
+    const path = await invoke<string>('registrazione_percorso', { name: nome });
+    const id = await invoke<number>('export_apri', { path });
+    const ws = new WritableStream<StreamTargetChunk>({
+      write: async (chunk) => { await invoke('export_scrivi', chunk.data, { headers: { 'x-id': String(id), 'x-pos': String(chunk.position) } }); },
+    });
+    return {
+      target: new StreamTarget(ws, { chunked: true, chunkSize: 4 * 1024 * 1024 }),
+      chiudi: async () => { await invoke('export_chiudi', { id }); return nomeDaPercorso(path); },
+      annulla: async () => { await invoke('export_chiudi', { id }).catch(() => {}); },
+      percorso: path,
+    };
+  }
+  const target = new BufferTarget();
+  return {
+    target,
+    chiudi: async () => { scarica(new Blob([target.buffer!], { type: mime }), nome); return nome; },
     annulla: async () => {},
   };
 }
@@ -194,26 +234,32 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
   const b = o.soloInOut && p.outF !== null ? p.outF : projectEnd(p);
   if (b <= a) throw new Error('Il montaggio è vuoto');
   const w = Math.round(o.w / 2) * 2, h = Math.round(o.h / 2) * 2;
-  const { v, a: ac } = await scegliCodec(o.formato, w, h);
+  const { v, a: ac } = await scegliCodec(o.formato, w, h, o.codec);
   if (o.formato !== 'wav' && !v) throw new Error(`Questo sistema non sa codificare video in ${o.formato.toUpperCase()}. Prova WebM o MP4.`);
   const mime = o.formato === 'webm' ? 'video/webm' : o.formato === 'mov' ? 'video/quicktime' : o.formato === 'wav' ? 'audio/wav' : 'video/mp4';
-  const dest = o.interna ? await destinazioneInterna(o.nome, mime, o.interna.file) : await destinazione(o.nome, mime, o.formato);
+  const dest = o.interna ? await destinazioneInterna(o.nome, mime, o.interna.file) : o.automatica ? await destinazioneAutomatica(o.nome, mime) : await destinazione(o.nome, mime, o.formato);
   if (!dest) return null;
   const format = o.formato === 'webm' ? new WebMOutputFormat() : o.formato === 'mov' ? new MovOutputFormat() : o.formato === 'wav' ? new WavOutputFormat() : new Mp4OutputFormat({ fastStart: dest.target instanceof BufferTarget ? 'in-memory' : false });
   const out = new Output({ format, target: dest.target });
   let canvas: OffscreenCanvas | null = null, comp: Compositore | null = null, vsrc: CanvasSource | null = null;
+  // se l'uscita ha un'altra forma del progetto: il compositore disegna a misura del progetto (cw×ch) e un secondo quadro
+  // (w×h) lo accoglie con le bande nere o tagliato ai lati; è quel quadro che va al codificatore
+  const geo = o.geometria ?? null;
+  let quadro: OffscreenCanvas | null = null, ctx2d: OffscreenCanvasRenderingContext2D | null = null;
+  const passo = Math.max(1, Math.round(o.passo ?? 1));
   if (o.formato !== 'wav' && v) {
-    canvas = new OffscreenCanvas(w, h);
+    canvas = new OffscreenCanvas(geo ? geo.cw : w, geo ? geo.ch : h);
     comp = new Compositore(canvas, true);
-    vsrc = new CanvasSource(canvas, { codec: v, bitrate: QUALITA[o.qualita], keyFrameInterval: 2, latencyMode: 'quality' } as ConstructorParameters<typeof CanvasSource>[1]);
-    out.addVideoTrack(vsrc, { frameRate: r });
+    if (geo) { quadro = new OffscreenCanvas(w, h); ctx2d = quadro.getContext('2d'); }
+    vsrc = new CanvasSource(quadro ?? canvas, { codec: v, bitrate: o.bitrate ?? QUALITA[o.qualita], keyFrameInterval: 2, latencyMode: 'quality' } as ConstructorParameters<typeof CanvasSource>[1]);
+    out.addVideoTrack(vsrc, { frameRate: r / passo });
   }
   let asrc: AudioBufferSource | null = null;
   if (ac) {
-    asrc = new AudioBufferSource({ codec: ac, bitrate: o.formato === 'wav' ? undefined : QUALITA[o.qualita] } as ConstructorParameters<typeof AudioBufferSource>[0]);
+    asrc = new AudioBufferSource({ codec: ac, bitrate: o.formato === 'wav' ? undefined : o.audioBps || QUALITA[o.qualita] } as ConstructorParameters<typeof AudioBufferSource>[0]);
     out.addAudioTrack(asrc);
   }
-  out.setMetadataTags({ title: p.name, comment: 'Montato con DaProd Video' });
+  out.setMetadataTags({ title: p.name, comment: 'Montato con DaProd Editor Video' });
   const lettori = new Lettori();
   const t0 = performance.now();
   try {
@@ -233,20 +279,28 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
     if (comp && vsrc) {
       // il compositore dell'export è a piena risoluzione; il progetto può essere di un'altra misura
       const pp: Project = { ...p, w: p.w, h: p.h };
-      for (let f = a; f < b; f++) {
+      for (let f = a; f < b; f += passo) {
         if (annullato()) throw new Error('annullato');
+        const giro = Math.floor((f - a) / passo);
         const tSec = f2s(f, p.rate);
         while (pezzi && audioFino < tSec + 2 && audioFino !== Infinity) await altroAudio();
         const strati = pianoVideo(pp, f);
         const presi = new Map<Sorgente, Fotogramma | null>();
         for (const s of strati) {
           for (const src of [s.b, s.a]) {
-            if (src && src.clip.kind === 'media') presi.set(src, await lettori.prendi(src.clip, src.t, f));
+            if (src && src.clip.kind === 'media') presi.set(src, await lettori.prendi(src.clip, src.t, giro));
           }
         }
+        await preparaStrati(pp, strati, canvas!.width);
         comp.render(pp, strati, false, f, (s) => presi.get(s) ?? null, (s) => lettori.dopo(s.clip));
-        await vsrc.add((f - a) / r, 1 / r);
-        lettori.pulisci(f);
+        if (ctx2d && quadro && geo) {
+          // subito dopo il disegno: il quadro nero e l'immagine al suo posto
+          ctx2d.fillStyle = '#000';
+          ctx2d.fillRect(0, 0, quadro.width, quadro.height);
+          ctx2d.drawImage(canvas!, geo.dx, geo.dy, geo.cw, geo.ch);
+        }
+        await vsrc.add((f - a) / r, Math.min(passo, b - f) / r);
+        lettori.pulisci(giro);
         if ((f - a) % 5 === 0) avanza({ fatti: f - a, totale, fase: 'video', fpsResa: (f - a) / ((performance.now() - t0) / 1000) });
       }
     }
@@ -258,7 +312,9 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
     await out.finalize();
     lettori.tutto();
     comp?.distruggi();
-    return await dest.chiudi();
+    const nomeFinale = await dest.chiudi();
+    if (dest.percorso) o.alPercorso?.(dest.percorso);
+    return nomeFinale;
   } catch (e) {
     lettori.tutto();
     comp?.distruggi();
@@ -283,6 +339,7 @@ export async function fotogrammaPng(p: Project, f: number): Promise<Blob> {
     const strati = pianoVideo(p, f);
     const presi = new Map<Sorgente, Fotogramma | null>();
     for (const s of strati) for (const src of [s.b, s.a]) if (src && src.clip.kind === 'media') presi.set(src, await lettori.prendi(src.clip, src.t, 0));
+    await preparaStrati(p, strati, canvas.width);
     comp.render(p, strati, false, f, (s) => presi.get(s) ?? null, (s) => lettori.dopo(s.clip));
     return await canvas.convertToBlob({ type: 'image/png' });
   } finally {

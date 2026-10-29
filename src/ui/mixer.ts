@@ -3,6 +3,7 @@
 import { store } from '../core/store';
 import { motore } from '../motore';
 import { banco } from '../media/audio';
+import { segnaTracciaVoce } from './duckingClip';
 import { h, clamp } from './dom';
 
 /** i due livelli dell'uscita (sinistro e destro) a barra: solo le barre a LED, con l'indicatore di picco che resta un attimo */
@@ -95,7 +96,7 @@ export class Mixer {
   private firma = '';
   private costruisci() {
     const p = store.doc;
-    const firma = p.tracks.map((t) => [t.id, t.name, t.mute, t.solo, t.opacity, t.volume, t.pan].join(',')).join(';');
+    const firma = p.tracks.map((t) => [t.id, t.name, t.mute, t.solo, t.opacity, t.volume, t.pan, t.ruoloAudio].join(',')).join(';');
     if (firma === this.firma) return;
     this.firma = firma;
     this.misure.clear();
@@ -138,7 +139,8 @@ export class Mixer {
         val,
         h('div', { class: 'striscia-btn' },
           bt(video ? 'OFF' : 'M', t.mute, 'on-rosso', () => store.edit('Muto', (pp) => { const tr = pp.tracks.find((x) => x.id === t.id)!; tr.mute = !tr.mute; }), video ? 'Spegni la traccia' : 'Muto'),
-          video ? null : bt('S', t.solo, 'on-oro', () => store.edit('Solo', (pp) => { const tr = pp.tracks.find((x) => x.id === t.id)!; tr.solo = !tr.solo; }), 'Solo'))));
+          video ? null : bt('S', t.solo, 'on-oro', () => store.edit('Solo', (pp) => { const tr = pp.tracks.find((x) => x.id === t.id)!; tr.solo = !tr.solo; }), 'Solo'),
+          video ? null : bt('V', t.ruoloAudio === 'voce', 'on-oro', () => segnaTracciaVoce(t.id, t.ruoloAudio !== 'voce'), 'Questa traccia è la voce: la musica con «Abbassa sotto la voce» si abbassa quando parla'))));
     }
     // master
     const mf = h('input', { type: 'range', class: 'fader-v', min: 0, max: 150, step: 1, value: String(Math.round(banco.volumeMaster * 100)), orient: 'vertical' }) as HTMLInputElement;

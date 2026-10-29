@@ -27,7 +27,10 @@ import * as M from '../core/montaggio';
 import { ANGOLI, bolla, presentazione, SFONDI, type Angolo } from '../core/cornici';
 import type { MediaItem } from '../core/tipi';
 import { importaFile } from '../progetti';
-import { isAndroid, salvaMediaSulDisco } from '../platform';
+import { invoke, isAndroid, salvaMediaSulDisco } from '../platform';
+import { CursoreLive } from '../media/cursoreLive';
+import { SceltaSchermoLive } from './liveCursore';
+import { applicaZoomCursore, bloccoClicLive } from '../core/zoomCursore';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
@@ -49,6 +52,25 @@ export const impostaSorgenteLive = (s: Sorgente | null, mic: (() => Promise<Medi
 };
 
 const puoRegistrare = () => !!sorgenteProva || (!!navigator.mediaDevices?.getDisplayMedia && typeof MediaRecorder !== 'undefined' && !isAndroid);
+
+async function avvisaErroreSchermo(e: unknown) {
+  if (!sorgenteProva && !navigator.mediaDevices?.getDisplayMedia) {
+    avviso('Qui non si può condividere lo schermo: usa l’app oppure Chrome o Edge su una pagina sicura (HTTPS).', 'errore', 6500);
+    return;
+  }
+  const { name = '', message = '' } = (e ?? {}) as { name?: string; message?: string };
+  let negato = /permission.*denied|permesso.*negato|denied by system|not allowed by|permissions? policy/i.test(message);
+  if (name === 'NotAllowedError' || name === 'AbortError') {
+    try {
+      const permesso = await navigator.permissions.query({ name: 'display-capture' as PermissionName });
+      negato ||= permesso.state === 'denied';
+    } catch { /* alcuni browser non espongono questo permesso */ }
+    if (!negato) return; // Il selettore è stato chiuso: non è un errore da mostrare.
+  }
+  avviso(negato
+    ? 'La condivisione dello schermo è bloccata: controlla i permessi del browser e del sistema, poi riprova.'
+    : 'Non riesco ad aggiungere la finestra: ' + (message || String(e)), 'errore', 6500);
+}
 
 function formato(soloVideo = false): string {
   const lista = soloVideo
@@ -75,7 +97,7 @@ interface Tratto { blob: Blob; taglio: number; nota: string }
 
 /** i pezzi fra una pausa e l'altra, cuciti uno dopo l'altro in un file solo, senza ricodificare, ognuno tagliato
  *  dove si è premuto PAUSA o FERMA (null se non si riesce: allora si prova pezzo per pezzo) */
-async function cuci(tratti: Tratto[], mp4: boolean, note: string[]): Promise<Blob | null> {
+async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { indice: number; daMs: number; durataMs: number }[]): Promise<Blob | null> {
   const ingressi = tratti.map((x) => new Input({ source: new BlobSource(x.blob), formats: ALL_FORMATS }));
   try {
     const v0 = await ingressi[0].getPrimaryVideoTrack();
@@ -124,6 +146,7 @@ async function cuci(tratti: Tratto[], mp4: boolean, note: string[]): Promise<Blo
         }
       }
       note.push(`pezzo ${i + 1}: ${nv} fotogrammi e ${na} pacchetti audio, ${(fine - inizio).toFixed(2)} s (taglio ${taglio.toFixed(2)} s, ${via} via)`);
+      tempi?.push({ indice: i, daMs: inizio * 1000, durataMs: (fine - inizio) * 1000 });
       inizio = fine;
     }
     await output.finalize();
@@ -231,6 +254,8 @@ class Regia {
 
 /** le scelte di LIVE: restano da una volta all'altra */
 interface Opzioni {
+  zoomCursore: boolean;
+  clicAnimati: boolean;
   mic: boolean;
   micId: string;
   /** microfono e audio del computer in due file (e due tracce), così dopo si livellano i volumi */
@@ -255,6 +280,7 @@ interface Opzioni {
   audio: ImpostazioniAudio;
 }
 const OPZ0: Opzioni = {
+  zoomCursore: false, clicAnimati: false,
   mic: true, micId: '', separato: true, sistema: true, cam: false, camId: '', camAngolo: 'bd', camTonda: true,
   qualita: 1080, fps: 30, cursore: true, conto: true, timeline: true, presentazione: false, sfondo: 'notte', finestre: false, layout: 'solo',
   audio: copiaImpostazioni(IMPOSTAZIONI0),
@@ -329,6 +355,9 @@ export class Live {
   private flussi: MediaStream[] = [];
   /** quello che si registra (schermo + audio) e come */
   private flusso: MediaStream | null = null;
+  private sceltaSchermo = new SceltaSchermoLive();
+  private cursoreLive: CursoreLive | null = null;
+  private scelteCursore = { zoom: false, clic: false };
   /** la webcam: la stessa per l'anteprima e per la registrazione */
   private cam: MediaStream | null = null;
   /** il microfono aperto solo per provarlo (i livelli e i filtri prima di partire) */
@@ -409,14 +438,14 @@ export class Live {
         if (vincoli) this.applicaVincoliMic();
       },
       mixer: () => this.mixer,
-      prova: () => void this.provaMic(),
+      prova: () => { if (!this.opz.mic && !this.micProva) avviso('Il microfono è spento: accendilo per provarlo', 'info'); else void this.provaMic(); },
       inProva: () => !!this.micProva,
       suLivelli: (pc, voce) => { if (this.tele.aperto) this.tele.livelli(pc, voce); },
     });
 
     // ——— le scelte ———
     const salva = () => this.salvaOpzioni();
-    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre']);
+    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre', 'zoomCursore', 'clicAnimati']);
     const cambia = <K extends keyof Opzioni>(k: K, v: Opzioni[K]) => {
       if (this.fase !== 'fermo' && fisse.has(k)) { avviso('Questo si cambia prima di registrare', 'info'); this.sinc.forEach((f) => f()); return false; }
       this.opz[k] = v;
@@ -424,7 +453,7 @@ export class Live {
       this.sinc.forEach((f) => f());
       return true;
     };
-    const interruttore = (k: 'mic' | 'sistema' | 'separato' | 'cam' | 'cursore' | 'conto' | 'timeline' | 'presentazione' | 'finestre', ic: string | null, testo: string, info: string, dopo?: () => void) => {
+    const interruttore = (k: 'mic' | 'sistema' | 'separato' | 'cam' | 'cursore' | 'conto' | 'timeline' | 'presentazione' | 'finestre' | 'zoomCursore' | 'clicAnimati', ic: string | null, testo: string, info: string, dopo?: () => void) => {
       const led = h('span', { class: 'led' });
       const b = h('button', { class: 'fin-interruttore', title: info, on: { click: () => { if (cambia(k, !this.opz[k])) dopo?.(); } } },
         led, ic ? icona(ic, 14) : null, h('span', { class: 'fin-int-testo' }, testo));
@@ -440,7 +469,7 @@ export class Live {
       return h('div', { class: 'live-chips' }, bb);
     };
     this.selMic = h('select', { class: 'live-sel', title: 'Quale microfono', on: { change: () => { cambia('micId', this.selMic.value); if (this.micProva) { this.fermaProvaMic(); void this.provaMic(); } } } }, h('option', { value: '' }, 'Predefinito')) as HTMLSelectElement;
-    this.selCam = h('select', { class: 'live-sel', title: 'Quale webcam', on: { change: () => { if (cambia('camId', this.selCam.value) && this.opz.cam) { this.chiudiCam(); void this.apriCam(); } } } }, h('option', { value: '' }, 'Predefinita')) as HTMLSelectElement;
+    this.selCam = h('select', { class: 'live-sel live-sel-cam', title: 'Quale webcam', on: { change: () => { if (cambia('camId', this.selCam.value) && this.opz.cam) { this.chiudiCam(); void this.apriCam(); } } } }, h('option', { value: '' }, 'Predefinita')) as HTMLSelectElement;
     const sfondi = h('div', { class: 'live-sfondi' }, SFONDI.map((x) => {
       const b = h('button', { class: 'live-sfondo', title: x.nome, style: `background: linear-gradient(135deg, ${x.a}, ${x.b})`, on: { click: () => cambia('sfondo', x.id) } });
       this.sinc.push(() => b.classList.toggle('acceso', this.opz.sfondo === x.id));
@@ -461,6 +490,21 @@ export class Live {
 
     const vuoto = h('div', { class: 'live-vuoto' }, icona('schermo', 54), h('b', null, 'Premi REGISTRA'), h('span', null, 'scegli lo schermo, una finestra o una scheda: qui vedi quello che registri'));
     const sezione = (t: string) => h('h4', { class: 'live-sez' }, t);
+    const griglia = (...figli: (HTMLElement | null)[]) => h('div', { class: 'live-griglia' }, ...figli);
+    // le sorgenti: interruttore, scelta e misuratore sulla stessa riga (le righe si allineano a colonne, come i canali di un banco)
+    const sorgMic = this.audio.sorgente('voce'), sorgPc = this.audio.sorgente('computer');
+    const misura = (barra: HTMLElement, chi: 'mic' | 'sistema') => {
+      const m = h('span', { class: 'live-sorg-misura' }, barra);
+      this.sinc.push(() => { m.classList.toggle('spenta', !this.opz[chi]); if (chi === 'mic' && !this.opz.mic && this.micProva) this.fermaProvaMic(); });
+      return m;
+    };
+    const bProva = this.audio.provaPiccola;
+    const sorgenti = h('div', { class: 'live-sorgenti' },
+      interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic, misura(sorgMic.barra, 'mic'), bProva,
+      interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'), sorgPc.stato, misura(sorgPc.barra, 'sistema'),
+      interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra. Si accende e si spegne anche mentre registri (tasto C)', () => { if (this.opz.cam) void this.accendiCam(); else this.spegniCam(); }), this.selCam,
+      this.bAggiungi, this.elPrime);
+    this.bReg.title += '. ' + (puoRegistrare() ? 'Registra lo schermo con l\'audio del computer e il microfono; la pausa non lascia buchi' : 'Qui lo schermo non si può registrare');
     this.el = h('section', { class: 'pannello live' },
       h('header', { class: 'fin-testa' }, h('span', { class: 'live-marchio' }, h('i'), 'LIVE'), h('span', null, 'registra lo schermo e mettilo nel montaggio'),
         h('span', { class: 'live-tastiera' }, h('kbd', null, 'R'), ' registra ', h('kbd', null, 'Spazio'), ' pausa ', h('kbd', null, 'M'), ' segno ', h('kbd', null, '1-9'), ' finestra ', h('kbd', null, 'N'), ' nuova ', h('kbd', null, 'C'), ' webcam ', h('kbd', null, 'F'), ' ferma')),
@@ -468,38 +512,40 @@ export class Live {
         h('div', { class: 'live-schermo' }, h('div', { class: 'live-quadro' }, vuoto, this.video), this.camVideo, this.contoEl),
         h('div', { class: 'live-comandi' },
           h('div', { class: 'live-regia' },
-            this.faseCerta, this.tempo, this.stato, this.info,
-            h('div', { class: 'live-tasti' }, this.bReg, this.bPausa, this.bFerma),
-            h('div', { class: 'live-tasti tre' }, this.bSegna, this.bCam, bTele),
-            this.elFonti,
-            this.audio.compatto),
-          h('p', { class: 'nota live-guida' }, puoRegistrare()
-            ? 'REGISTRA parte subito: registra lo schermo con l\'audio del computer e il microfono. La pausa non lascia buchi.'
-            : 'Qui non si può registrare lo schermo: su Android il sistema non lo permette alle app come questa. Usa la versione per Windows o Mac, o Chrome/Edge sul computer.'),
-          h('div', { class: 'live-rapide' },
-            h('div', { class: 'live-riga' }, interruttore('mic', 'mic', 'Microfono', 'La tua voce mentre registri'), this.selMic),
-            interruttore('sistema', 'altoparlante', 'Audio del computer', 'Il suono di quello che registri (dove il sistema lo permette)'),
-            h('div', { class: 'live-riga' }, interruttore('cam', 'webcam', 'Webcam', 'La tua faccia in un angolo: registrata a parte, va sulla traccia sopra. Si accende e si spegne anche mentre registri (tasto C)', () => { if (this.opz.cam) void this.accendiCam(); else this.spegniCam(); }), this.selCam),
-            h('div', { class: 'live-riga' }, this.bAggiungi),
-            this.elPrime),
+            h('div', { class: 'live-display' }, this.faseCerta, this.tempo),
+            this.stato, this.info,
+            h('div', { class: 'live-gruppo' },
+              h('div', { class: 'live-tasti' }, this.bReg, this.bPausa, this.bFerma),
+              h('div', { class: 'live-tasti tre' }, this.bSegna, this.bCam, bTele)),
+            puoRegistrare() ? null : h('p', { class: 'nota live-guida' }, 'Qui non si può registrare lo schermo: su Android il sistema non lo permette alle app come questa. Usa la versione per Windows o Mac, o Chrome/Edge sul computer.'),
+            sorgenti,
+            this.elFonti),
           h('details', { class: 'live-configurazione' }, h('summary', null, 'Altre opzioni'),
+            sezione('Cursore e clic'),
+            griglia(
+              interruttore('zoomCursore', null, 'Zoom che segue il cursore', 'Zoom morbido sulle zone dei clic: dopo lo cambi dalle tappe del movimento della clip'),
+              interruttore('clicAnimati', null, 'Clic animati', 'Un cerchietto sui clic: dopo lo accorci o lo togli come un blocco effetto'),
+              interruttore('cursore', null, 'Cursore visibile', 'Il puntatore del mouse nella registrazione (dove il sistema lo permette)')),
+            this.sceltaSchermo.el,
             sezione('Qualità'),
-            chips('qualita', QUALITA.map(([q, n]): [number, string] => [q, n])),
-            h('div', { class: 'live-riga' }, chips('fps', [[30, '30 fps'], [60, '60 fps', 'Più fluido (giochi, animazioni): file più grandi']]),
-              interruttore('cursore', null, 'Cursore', 'Il puntatore del mouse nella registrazione (dove il sistema lo permette)')),
-            interruttore('separato', null, 'Voce e computer separati', 'Se registri tutti e due, il microfono va in un file suo e su una traccia audio a parte: dopo puoi livellare i volumi di voce e computer uno per uno'),
+            h('div', { class: 'live-riga live-qualita' },
+              chips('qualita', QUALITA.map(([q, n]): [number, string] => [q, n])),
+              chips('fps', [[30, '30 fps'], [60, '60 fps', 'Più fluido (giochi, animazioni): file più grandi']])),
+            sezione('Registrazione'),
+            griglia(
+              interruttore('separato', null, 'Voce e computer separati', 'Se registri tutti e due, il microfono va in un file suo e su una traccia audio a parte: dopo puoi livellare i volumi di voce e computer uno per uno'),
+              interruttore('conto', null, 'Conto alla rovescia 3-2-1', 'Tre secondi per sistemarti prima che parta'),
+              interruttore('timeline', null, 'In fondo alla timeline', 'Quando fermi, la registrazione va anche in coda al montaggio'),
+              interruttore('presentazione', null, 'Stile presentazione', 'Lo schermo un po\' più piccolo, angoli tondi e ombra, sopra uno sfondo sfumato (si cambia dopo nelle proprietà)')),
+            sfondi,
             sezione('Webcam'),
             h('div', { class: 'live-riga cam-scelte' },
               chips('camAngolo', ANGOLI.map(([a, s]): [Angolo, string, string] => [a, s, 'La webcam in questo angolo'])),
               chips('camTonda', [[true, 'Bolla', 'Tonda'], [false, 'Riquadro', 'Un riquadro con gli angoli tondi']])),
             sezione('Più finestre'),
-            chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
-            h('div', { class: 'live-riga' }, this.bProssima),
-            sezione('Partenza e arrivo'),
-            interruttore('conto', null, 'Conto alla rovescia 3-2-1', 'Tre secondi per sistemarti prima che parta'),
-            interruttore('timeline', null, 'Mettila in fondo alla timeline', 'Quando fermi, la registrazione va anche in coda al montaggio'),
-            interruttore('presentazione', null, 'Stile presentazione', 'Lo schermo un po\' più piccolo, angoli tondi e ombra, sopra uno sfondo sfumato (si cambia dopo nelle proprietà)'),
-            sfondi),
+            h('div', { class: 'live-riga' },
+              chips('layout', [['solo', 'Una sola', 'La finestra scelta a tutto quadro'], ['angolo', 'In angolo', 'La scelta grande e la prossima piccola in un angolo'], ['affiancate', 'Affiancate', 'Due finestre una accanto all\'altra']], () => this.applicaLayout()),
+              this.bProssima)),
           h('details', { class: 'live-archivio' }, h('summary', null, 'Registrazioni pronte'), this.lista))));
     this.video.addEventListener('loadedmetadata', () => vuoto.classList.add('via'));
     this.video.addEventListener('emptied', () => vuoto.classList.remove('via'));
@@ -770,6 +816,7 @@ export class Live {
   private nuovoPezzo() {
     const t0 = performance.now();
     const n = nastro(this.flusso!, this.tipo, bitrate(this.opz.qualita, this.opz.fps));
+    this.cursoreLive?.pezzo(t0);
     this.pezzi.push(n.fatto);
     // la webcam parte con lo schermo solo se è accesa; dopo una pausa riprende nel suo segmento
     if (this.cam && this.opz.cam) this.avviaNastroCam(this.fase === 'pausa' ? this.fatto / 1000 : 0);
@@ -780,7 +827,7 @@ export class Live {
         this.pezziMic.push(mc.fatto);
       } catch { /* il microfono a parte no: resta muto, lo schermo va lo stesso */ }
     }
-    this.pezzo = { chiudi: () => { const t = (performance.now() - t0) / 1000; n.ferma(t); this.fermaNastroCam(); mc?.ferma(t); } };
+    this.pezzo = { chiudi: () => { const adesso = performance.now(); const t = (adesso - t0) / 1000; this.cursoreLive?.pausa(adesso); n.ferma(t); this.fermaNastroCam(); mc?.ferma(t); } };
   }
 
   /** la webcam registra da adesso (`da` = a che punto della registrazione, in secondi): un segmento nuovo, o quello aperto */
@@ -856,7 +903,7 @@ export class Live {
         // automatico (sono fatti per la voce e rovinano musica e suoni), in stereo
         audio: o.sistema ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 2, sampleRate: 48000, ...({ suppressLocalAudioPlayback: false } as object) } as MediaTrackConstraints : false,
         // Chrome: niente "questa scheda" in cima, l'audio del sistema (anche registrando una finestra sola)
-        ...({ selfBrowserSurface: 'exclude', systemAudio: 'include', windowAudio: 'system', surfaceSwitching: 'include' } as object),
+        ...({ selfBrowserSurface: 'exclude', systemAudio: 'include', windowAudio: 'system', surfaceSwitching: o.zoomCursore || o.clicAnimati ? 'exclude' : 'include' } as object),
       } as DisplayMediaStreamOptions);
     } catch {
       mix.chiudi();
@@ -958,10 +1005,21 @@ export class Live {
     this.nastroCam = null;
     this.pezziMic = [];
     this.segni = [];
+    this.scelteCursore = { zoom: o.zoomCursore, clic: o.clicAnimati };
+    if (o.zoomCursore || o.clicAnimati) {
+      const monitor = this.sceltaSchermo.scelto;
+      const rapporto = st0.width && st0.height && monitor ? Math.abs(st0.width / st0.height - monitor.width / monitor.height) : Infinity;
+      if (!this.regia && st0.displaySurface === 'monitor' && monitor && rapporto < 0.02) {
+        try { this.cursoreLive = await CursoreLive.avvia(monitor); }
+        catch (e) { avviso('Registro senza dati del cursore: ' + String(e), 'info', 5000); }
+      } else avviso('Registro senza dati del cursore: serve uno schermo intero, scelto anche nelle Altre opzioni di LIVE', 'info', 6000);
+    }
     try {
       this.nuovoPezzo();
     } catch (e) {
       this.fase = 'fermo';
+      void this.cursoreLive?.ferma().catch(() => {});
+      this.cursoreLive = null;
       this.chiudiFlussi();
       this.aggiornaTasti();
       avviso('Non riesco a registrare: ' + String(e), 'errore', 4000);
@@ -1082,6 +1140,12 @@ export class Live {
     if (this.fase === 'registra') this.fatto += performance.now() - this.da;
     this.pezzo?.chiudi();
     this.pezzo = null;
+    const cursore = this.cursoreLive?.ferma().catch((e) => {
+      avviso('La registrazione resta disponibile, ma non i dati del cursore: ' + String(e), 'info', 5000);
+      return null;
+    }) ?? Promise.resolve(null);
+    const scelteCursore = { ...this.scelteCursore };
+    this.cursoreLive = null;
     this.fase = 'fermo';
     clearInterval(this.giro);
     this.aggiornaTempo();
@@ -1118,7 +1182,8 @@ export class Live {
       if (this.fase === 'fermo') this.video.srcObject = null;
       // la webcam resta accesa per l'anteprima solo se si è ancora su LIVE
       if (!this.visibile) this.chiudiCam();
-      await this.consegna(tratti.filter((x) => x.blob.size), segmentiCam.map((g) => ({ da: g.da, tratti: g.tratti.filter((x) => x.blob.size) })).filter((g) => g.tratti.length), trattiMic.filter((x) => x.blob.size), durata, segni, foto);
+      await this.consegna(tratti.filter((x) => x.blob.size), segmentiCam.map((g) => ({ da: g.da, tratti: g.tratti.filter((x) => x.blob.size) })).filter((g) => g.tratti.length), trattiMic.filter((x) => x.blob.size), durata, segni, foto,
+        await cursore, scelteCursore, tratti.flatMap((x, i) => x.blob.size ? [i] : []));
     })().catch((e) => {
       this.stato.textContent = 'Non sono riuscito a mettere via la registrazione';
       avviso('La registrazione non si salva: ' + String(e), 'errore', 4000);
@@ -1135,11 +1200,13 @@ export class Live {
   }
 
   /** la registrazione finita: cucita, sul disco (nell'app), nel contenitore e in fondo alla timeline */
-  private async consegna(tratti: Tratto[], segmentiCam: { da: number; tratti: Tratto[] }[], trattiMic: Tratto[], durata: number, segni: number[], foto: string) {
+  private async consegna(tratti: Tratto[], segmentiCam: { da: number; tratti: Tratto[] }[], trattiMic: Tratto[], durata: number, segni: number[], foto: string,
+    cursore: Awaited<ReturnType<CursoreLive['ferma']>> | null = null, scelteCursore = { zoom: false, clic: false }, indici: number[] = tratti.map((_, i) => i)) {
     if (!tratti.length) { this.stato.textContent = 'La registrazione è vuota'; return; }
     const mp4 = /mp4/.test(tratti[0].blob.type);
     // di solito un file solo; se la cucitura non riesce, i pezzi vanno uno dopo l'altro (sempre senza buchi)
-    const cucito = await cuci(tratti, mp4, this.diagnosi);
+    const tempi: { indice: number; daMs: number; durataMs: number }[] = [];
+    const cucito = await cuci(tratti, mp4, this.diagnosi, tempi);
     const files = cucito ? [cucito] : await Promise.all(tratti.map((x) => rimetteInOrdine(x.blob, mp4)));
     // la webcam: un file per ogni segmento (se l'hai accesa e spenta più volte), ognuno con il punto da cui parte
     const camBlob: { blob: Blob; da: number }[] = [];
@@ -1172,7 +1239,22 @@ export class Live {
     for (const [i, blob] of files.entries()) {
       // il formato del progetto non si cambia per una registrazione (una finestra può avere una misura qualsiasi)
       const m = await importa(`${radice}${files.length > 1 ? ` parte ${i + 1}` : ''}.${mp4 ? 'mp4' : 'webm'}`, blob);
-      if (m) schermi.push(m);
+      if (m) {
+        if (cursore) {
+          const parti = cucito ? tempi.map((t) => ({ ...t, indice: indici[t.indice] }))
+            : [{ indice: indici[i], daMs: 0, durataMs: Math.min(tratti[i].taglio * 1000, m.duration * 1000) }];
+          const dati = cursore.perVideo(parti, (m.duration - (m.t0 || 0)) * 1000);
+          dati.video = { nome: m.name, size: m.size };
+          // Sono metadati della sorgente, come durata e dimensioni: restano anche nei vecchi stati dell'annulla.
+          store.aggiornaMedia(m.id, { cursoreLive: dati });
+          m.cursoreLive = dati;
+          if (m.path) {
+            try { await invoke('progetto_scrivi', { path: m.path + '.cursore.json', text: JSON.stringify(dati) }); }
+            catch (e) { avviso('I dati del cursore restano nel progetto, ma il file accanto al video non si salva: ' + String(e), 'info', 5000); }
+          }
+        }
+        schermi.push(m);
+      }
     }
     if (!schermi.length) { this.stato.textContent = 'Non sono riuscito a leggere la registrazione'; return; }
     const estAudio = (b: Blob) => (/mp4/.test(b.type) ? 'm4a' : 'webm');
@@ -1187,7 +1269,7 @@ export class Live {
       if (m) cams.push({ m, da: g.da });
     }
     const mCam = cams[0]?.m;
-    const ids = this.opz.timeline ? this.inTimeline(schermi, cams, segni, mics) : [];
+    const ids = this.opz.timeline ? this.inTimeline(schermi, cams, segni, mics, scelteCursore) : [];
     if (ids.length) store.select(ids);
     const { id, name: nome } = schermi[0];
     this.stato.textContent = `Fatto: ${nome}`;
@@ -1204,7 +1286,7 @@ export class Live {
    * In fondo alla timeline, dal basso: lo sfondo (stile presentazione), lo schermo, la webcam sopra. Se le tracce
    * video non bastano se ne aggiungono. Tutto legato insieme, così si sposta in un colpo; i segni diventano marcatori.
    */
-  private inTimeline(schermi: MediaItem[], cams: { m: MediaItem; da: number }[], segni: number[], mics: MediaItem[] = []): string[] {
+  private inTimeline(schermi: MediaItem[], cams: { m: MediaItem; da: number }[], segni: number[], mics: MediaItem[] = [], cursore = { zoom: false, clic: false }): string[] {
     const o = this.opz;
     return store.edit('Registrazione in timeline', (p) => {
       const inizio = projectEnd(p);
@@ -1239,6 +1321,11 @@ export class Live {
         if (o.presentazione) v.tf = presentazione();
         link ??= v.link ?? (v.link = uid('l'));
         for (const c of p.clips) if (nuovi.includes(c.id)) { c.link = link; if (tMic && c.track !== tSchermo) c.name = 'Audio del computer'; }
+        if (cursore.zoom) applicaZoomCursore(p, v, m);
+        if (cursore.clic && m.cursoreLive?.clic.length) {
+          const blocco = bloccoClicLive(v);
+          p.clips.push(blocco); ids.push(blocco.id);
+        }
         // la voce di questo pezzo, nello stesso punto e legata al resto
         if (tMic && mics[i]) {
           const voce = M.placeSource(p, { mediaId: mics[i].id, srcIn: mics[i].t0 || 0, srcOut: mics[i].duration }, v.start, null, { video: null, audio: [tMic] }, 'libero');
@@ -1300,7 +1387,7 @@ export class Live {
       this.prime.push(voce);
       s.getVideoTracks()[0]?.addEventListener('ended', () => { this.prime = this.prime.filter((x) => x !== voce); this.disegnaPrime(); });
       this.disegnaPrime();
-    } catch { /* il selettore è stato chiuso */ } finally { this.aggiungendo = false; }
+    } catch (e) { await avvisaErroreSchermo(e); } finally { this.aggiungendo = false; }
   }
 
   private disegnaPrime() {
@@ -1337,7 +1424,7 @@ export class Live {
       this.disegnaFonti();
       this.aggiornaTasti();
       this.stato.textContent = `● In onda: ${f.nome.slice(0, 28)}`;
-    } catch { /* il selettore è stato chiuso */ } finally { this.aggiungendo = false; }
+    } catch (e) { await avvisaErroreSchermo(e); } finally { this.aggiungendo = false; }
   }
 
   /** una finestra si è chiusa (o l'hai tolta): se era l'ultima è come premere FERMA */

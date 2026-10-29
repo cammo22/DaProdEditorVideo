@@ -6,7 +6,8 @@ const src = (p) => readFileSync(new URL('../../src/' + p, import.meta.url), 'utf
 test('Finale prepara misure esplicite, espone navigazione e stato export', () => {
   const s = src('ui/finale.ts');
   assert.ok(s.includes('const path = await salvaMediaSulDisco(nome, blob);\n      if (ctrl.signal.aborted || progetto !== progettoAttuale())'), 'controllo dopo scrittura prima di importare nel progetto');
-  for (const nome of ['await preparaOra(', 'senzaColoreMisurato(', 'fin-vai']) assert.ok(s.includes(nome), nome);
+  for (const nome of ['await preparaOra(', 'senzaColoreMisurato(', 'pannelloEsporta(']) assert.ok(s.includes(nome), nome);
+  assert.ok(src('ui/esportazione.ts').includes('fin-vai'), 'il pannello di esportazione ha il suo pulsante');
 });
 test('Effetti legge i parametri dal catalogo e consente intensità zero', () => {
   const s = src('ui/ispettore.ts');
@@ -32,9 +33,10 @@ test('Montage controlla annullamento e pausa prima del brano', () => {
   assert.match(s, /catch \(e\) \{ if \(!job.valido\) throw e;/);
   assert.match(s, /await job.checkpoint\(\);\s*if \(!job.valido\) throw new Error\('fermato'\);\s*\/\/.*musica/);
 });
-test('Finale ha un solo pulsante Esporta master e lo mantiene nel footer', () => {
-  const s = src('ui/finale.ts');
-  assert.equal((s.match(/click: \(\) => finestraEsporta/g) ?? []).length, 1);
+test('Finale ha un solo pannello Esporta e il pannello un solo pulsante principale', () => {
+  const f = src('ui/finale.ts');
+  assert.equal((f.match(/pannelloEsporta\(/g) ?? []).length, 1);
+  assert.equal((src('ui/esportazione.ts').match(/click: \(\) => lancia\(true\)/g) ?? []).length, 1);
 });
 test('LIVE espone fase autorevole e sezioni sorgenti audio registrazioni', () => {
   const s = src('ui/live.ts');

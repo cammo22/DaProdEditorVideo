@@ -15,15 +15,20 @@ button, select, summary { touch-action: manipulation; }
 .fin-sezione { margin-bottom: 12px; }
 .fin-looks { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 .fin-riepilogo .fin-numeri { flex-wrap: wrap; }
-.live-regia { position: sticky; top: 0; z-index: 2; background: var(--pann); padding-bottom: 10px; }
+.live-regia { position: sticky; top: 0; z-index: 2; background: var(--pann); }
+@media (max-height: 760px) { .live-regia { position: static; } }
 .live-fase-certa { display: block; padding: 8px; border: 1px solid var(--bordo); border-radius: 6px; font-size: 13px; letter-spacing: .04em; }
 .live-fase-certa[data-fase='registra'] { color: var(--rosso); border-color: var(--rosso); }
 .live-fase-certa[data-fase='pausa'] { color: var(--ambra); border-color: var(--ambra); }
 .live-fonti-stato { font-size: 12px; line-height: 1.5; margin: 8px 0; }
-.live-configurazione, .live-archivio { padding: 10px 0; border-top: 1px solid var(--bordo); }
-.live-configurazione summary, .live-archivio summary { cursor: pointer; color: var(--oro); padding: 8px; }
+.live-configurazione, .live-archivio { padding: 2px 0 4px; border-top: 1px solid var(--bordo); }
+.live-configurazione summary, .live-archivio summary { cursor: pointer; color: var(--oro); padding: 6px 2px; font: 800 11.5px var(--ui); letter-spacing: 1px; text-transform: uppercase; list-style: none; user-select: none; }
+.live-configurazione summary::-webkit-details-marker, .live-archivio summary::-webkit-details-marker { display: none; }
+.live-configurazione summary::before, .live-archivio summary::before { content: '▸'; display: inline-block; width: 14px; color: var(--testo3); transition: transform 0.15s; }
+.live-configurazione[open] > summary::before, .live-archivio[open] > summary::before { transform: rotate(90deg); }
+.live-configurazione > :not(summary) { margin-bottom: 5px; }
 .live-tasti { flex-wrap: wrap; }
-.live-tasti .live-btn { min-width: 0; white-space: normal; flex: 1 1 90px; min-height: 36px; }
+.live-tasti .live-btn { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .live-tastiera { white-space: normal; }
 .mt-etapes { display: none; flex-wrap: wrap; gap: 8px; padding: 8px 12px; }
 .mt-etapes button[aria-current='step'] { border-color: var(--oro); color: var(--oro); }
@@ -79,8 +84,7 @@ button, select, summary { touch-action: manipulation; }
 .att-r-comandi:empty { display: none; }
 .att-riga[data-stato='manuale'] .att-pista { display: none; }
 .att-fin { opacity: .85; }
-.live-guida { margin: 8px 2px; }
-.live-rapide { display: flex; flex-direction: column; gap: 6px; padding: 6px 0; }
+.live-guida { margin: 2px; }
 .live-prime { display: flex; flex-direction: column; gap: 4px; }
 .live-prime:empty { display: none; }
 .live-prime .live-fonte { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 6px; background: #1d1c24; }

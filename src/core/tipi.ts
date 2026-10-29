@@ -5,10 +5,36 @@
 
 export type Rate = { num: number; den: number };
 
+/** Colore SDR: nessuna conversione log implicita. Tutti i campi assenti sono neutri. */
+export interface PuntoColore { id: string; x: number; y: number }
+export type CanaleCurva = 'master' | 'red' | 'green' | 'blue' | 'luma';
+export interface ColoreAvanzato {
+  lift?: [number, number, number];
+  gamma?: [number, number, number];
+  gain?: [number, number, number];
+  curve?: Partial<Record<CanaleCurva, PuntoColore[]>>;
+  lut?: { id: string; /** 0..1 */ intensita: number };
+}
+/** Una sola copia nel progetto, anche nei pacchetti .dap/.daprod. Mai texture o typed array nel JSON. */
+export interface RisorsaLut {
+  id: string; hash: string; nome: string; n: number;
+  domainMin: [number, number, number]; domainMax: [number, number, number]; dati: number[];
+}
+export type RuoloAudio = 'nessuno' | 'voce' | 'musica';
+export interface Ducking {
+  attivo: boolean;
+  /** riduzione positiva in dB */ quantita: number;
+  /** tempi in secondi di timeline */ attacco: number; rilascio: number;
+  /** soglia RMS in dBFS, non riconoscimento del parlato */ soglia: number;
+  isteresi: number; minimo: number; hold: number;
+}
+
 /** fx = la vecchia corsia FX a parte (1.0.4): all'apertura i suoi blocchi passano sulle tracce video e lei sparisce */
 export type TrackKind = 'video' | 'audio' | 'fx';
 
 export interface Track {
+  ruoloAudio?: RuoloAudio;
+  ducking?: Ducking;
   id: string;
   kind: TrackKind;
   name: string;
@@ -30,6 +56,40 @@ export type ClipKind = 'media' | 'color' | 'bars' | 'tone' | 'countdown' | 'titl
 
 /** Un punto della linea elastica (rubber band): f = fotogrammi dall'inizio della clip. */
 export interface Key { f: number; v: number }
+
+/** Come si passa da una chiave alla successiva: dritta, morbida (parte e arriva piano) o a gradino (resta fino alla prossima). */
+export type ModoAnim = 'lineare' | 'morbida' | 'gradino';
+/** Un keyframe di un parametro numerico: f = fotogrammi dall'inizio della clip, modo = come si arriva alla chiave dopo. */
+export interface ChiaveAnim { f: number; v: number; modo?: ModoAnim }
+/** Le linee animate di una clip: il percorso del parametro ("opacity", "tf.x", "fx.sat", "fxb.forza", "mask.<id>.sfuma"…)
+ *  con le sue chiavi in ordine di tempo. Chi non c'è usa il valore fermo di sempre (src/core/automazioni.ts). */
+export type Animazioni = Record<string, ChiaveAnim[]>;
+
+/** Un punto della maschera a Bézier: x e y in frazioni della sorgente (0..1 dall'angolo in alto a sinistra); hx e hy = la
+ *  maniglia in uscita (relativa al punto, quella in entrata è opposta). Senza maniglie il punto è uno spigolo. */
+export interface PuntoBez { x: number; y: number; hx?: number; hy?: number }
+/** Una maschera a forma sulla clip (src/core/maschereForma.ts). Tutto in frazioni della sorgente, così segue la clip. */
+export interface MascheraForma {
+  id: string;
+  forma: 'rettangolo' | 'ellisse' | 'bezier';
+  nome?: string;
+  /** rettangolo ed ellisse: centro, larghezza e altezza intere (frazioni), rotazione in gradi */
+  x: number; y: number; w: number; h: number; rot: number;
+  /** Bézier: i punti in ordine (la forma si chiude da sola); morbida = le curve passano dolci da un punto all'altro */
+  punti?: PuntoBez[];
+  morbida?: boolean;
+  /** sfumatura del bordo, frazione del lato corto (0..0.5) */
+  sfuma: number;
+  /** allarga (+) o restringe (−) la forma, frazione del lato corto (−0.5..0.5) */
+  espandi: number;
+  inverti: boolean;
+  /** quanto conta la maschera 0..1 */
+  opacita: number;
+  /** somma = aggiunge a quello che si vede · sottrai = toglie */
+  op: 'somma' | 'sottrai';
+  /** spenta = c'è ma non conta */
+  spenta?: boolean;
+}
 
 /** mix = dissolvenza · wipe = tendina SMPTE · dip = passaggio a colore · dve = effetto digitale */
 export type TransitionType = 'mix' | 'wipe' | 'dip' | 'dve';
@@ -71,6 +131,8 @@ export interface SuonoClip {
 }
 
 export interface BloccoFx {
+  /** LIVE: i clic di questo media, disegnati sulla ripresa prima del suo movimento. */
+  cursoreMedia?: string;
   tipo: 'effetto' | 'transizione';
   /** effetto: il suo nome nel catalogo (src/core/blocchi.ts) · transizione: 'mix', 'dip', 'wipe:119', 'dve:301'… */
   id: string;
@@ -151,6 +213,7 @@ export interface Ritaglio {
 }
 
 export interface VideoFx {
+  colore?: ColoreAvanzato;
   /** livello del nero / luminosità -1..1 */
   bright: number;
   /** guadagno / contrasto 0..2 */
@@ -278,7 +341,15 @@ export interface AnimSpec {
   v: Record<string, string | number | boolean>;
 }
 
+/** un titolo animato HTML (src/core/titoliHtml.ts): quale modello e i valori dei suoi campi (testi, colori, tempi) */
+export interface HtmlSpec {
+  id: string;
+  v: Record<string, string | number | boolean>;
+}
+
 export interface GenSpec {
+  /** un titolo animato fatto di HTML e CSS, disegnato fotogramma per fotogramma (la clip è un titolo) */
+  html?: HtmlSpec;
   /** un'animazione pronta: sottopancia, testo che si muove, grafico, fondo, effetto da cerimonia… (la clip è un titolo) */
   anim?: AnimSpec;
   color?: string;
@@ -304,6 +375,14 @@ export interface GenSpec {
 export interface Curva { k: number; s?: boolean }
 
 export interface Clip {
+  /** Parlato per il montaggio dal testo: secondi della sorgente, così i tagli e la velocità non lo spostano. */
+  parlato?: { id: string; media: string; da: number; a: number; parole: { da: number; a: number; testo: string }[] };
+  /** la scelta della clip prevale su quella della traccia */
+  ruoloAudio?: RuoloAudio;
+  ducking?: Ducking;
+  /** attenuazione in dB, separata dalla linea elastica manuale */
+  duckKeys?: Key[];
+  duckFirma?: string;
   id: string;
   track: string;
   kind: ClipKind;
@@ -337,6 +416,10 @@ export interface Clip {
   segue?: string;
   /** lo sfondo tolto dall'AI (maschere in src/media/maschere.ts) */
   ritaglio?: Ritaglio;
+  /** keyframe su qualunque parametro numerico (src/core/automazioni.ts): chi ha una linea qui la usa al posto del valore fermo */
+  anim?: Animazioni;
+  /** le maschere a forma (rettangolo, ellisse, Bézier), sommate o sottratte in ordine (src/core/maschereForma.ts) */
+  maschere?: MascheraForma[];
   /** la ripresa si tiene ferma sull'oggetto tracciato (stabilizza) */
   stabilizza?: boolean;
   fx: VideoFx;
@@ -364,6 +447,8 @@ export interface Clip {
 export type MediaType = 'video' | 'audio' | 'image';
 
 export interface MediaItem {
+  /** Opzionale: i progetti vecchi restano identici. Incorporato anche nel .daprod, senza file da ricollegare. */
+  cursoreLive?: import('./zoomCursore').DatiCursore;
   id: string;
   name: string;
   type: MediaType;
@@ -435,6 +520,7 @@ export type LookFinale = 'nessuno' | 'cinema' | 'caldo' | 'freddo' | 'vivace' | 
 
 /** i ritocchi finali: valgono per tutto il montaggio, nei monitor e nell'export */
 export interface Master {
+  colore?: ColoreAvanzato;
   /** colore automatico su tutte le riprese (livelli e bilanciamento del bianco) */
   auto: boolean;
   /** forza del colore automatico 0..1 */
@@ -463,6 +549,7 @@ export interface Master {
 }
 
 export interface Project {
+  luts?: RisorsaLut[];
   format: 'daprod-video';
   v: 1;
   name: string;

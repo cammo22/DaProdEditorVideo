@@ -6,6 +6,7 @@
 import { spiegaErroreAI, testoErrore } from './erroriAI';
 import { baseLocaleAI } from './libreriaAI';
 import { segnaModelloPronto } from './modelliPronti';
+import { registraVram, segnaUsoAI } from './vram';
 
 /** il modello della traduzione (e quello di riserva), come li prova il worker */
 export const MODELLI_TRADUZIONE = ['Xenova/nllb-200-distilled-600M', 'onnx-community/nllb-200-distilled-600M-ONNX'];
@@ -37,6 +38,7 @@ let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (t: string[]) => void; no: (e: Error) => void }>();
 let caricamento: { ok: () => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void } | null = null;
+let promessaCaricamento: Promise<void> | null = null;
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
@@ -69,13 +71,30 @@ function lavoratore(): Worker {
   return worker;
 }
 
+// la memoria si libera quando la traduzione non serve (src/media/vram.ts)
+registraVram('traduzione', {
+  libera: () => {
+    if (!worker) return false;
+    worker.terminate();
+    worker = null;
+    return true;
+  },
+  occupato: () => attese.size > 0 || caricamento !== null,
+});
+
 const nllb: Traduttore = {
-  carica: (stato) => new Promise((ok, no) => {
-    scaricati.clear();
-    caricamento = { ok, no, stato };
-    lavoratore().postMessage({ tipo: 'carica', base: baseLocaleAI() });
-  }),
+  carica: (stato) => {
+    segnaUsoAI();
+    if (promessaCaricamento) return promessaCaricamento;
+    promessaCaricamento = new Promise<void>((ok, no) => {
+      scaricati.clear();
+      caricamento = { ok, no, stato };
+      lavoratore().postMessage({ tipo: 'carica', base: baseLocaleAI() });
+    }).finally(() => { promessaCaricamento = null; caricamento = null; });
+    return promessaCaricamento;
+  },
   traduci: (testi, da, a) => new Promise((ok, no) => {
+    segnaUsoAI();
     const id = ++seq;
     attese.set(id, { ok, no });
     lavoratore().postMessage({ tipo: 'traduci', id, testi, da: codiceNllb(da), a: codiceNllb(a) });

@@ -1,0 +1,51 @@
+/* Il guscio di DaProd Video allineato allo stile comune DaProd (cammoWiki: stile-interfacce-daprod).
+   Barra in alto con logo che gira e nome in Orbitron, chip della macchina, tasto novità, vetro sui dialoghi e sugli avvisi.
+   La pagina Montaggio e i popup Attività / Modifica clip non si toccano. */
+
+/* ——— barra in alto: logo che gira, «DaP» in oro sfumato e il nome del programma ——— */
+.barra-titolo .logo-giro { display: grid; place-items: center; width: 24px; height: 24px; filter: drop-shadow(0 0 4px rgba(255, 171, 0, 0.3)); }
+.barra-titolo .logo-giro svg { display: block; }
+.logo-giro .anello { transform-box: fill-box; transform-origin: center; animation: logo-gira 14s linear infinite; }
+@keyframes logo-gira { to { transform: rotate(360deg); } }
+.barra-titolo .marchio { gap: 8px; }
+.barra-titolo .scritta { display: inline-flex; align-items: baseline; gap: 7px; font-family: var(--marchio); }
+.barra-titolo .scritta b {
+  font: 900 17px var(--marchio); letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #f3c21a, #e0a000 50%, #9a5f00); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.barra-titolo .scritta i {
+  font: 700 11px var(--marchio); font-style: normal; letter-spacing: 0.3em; text-transform: uppercase; color: #c41bb9;
+}
+@media (prefers-reduced-motion: reduce) { .logo-giro .anello { animation: none; } }
+
+/* ——— chip della macchina, al centro ——— */
+.bt-chip-hw { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+.barra-titolo .chip-hw {
+  display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 10px; border-radius: 11px;
+  background: #f3f1f6; border: 1px solid #e2dfe8; color: #4a4655; font: 700 11.5px var(--ui); letter-spacing: 0.02em; white-space: nowrap;
+}
+.barra-titolo .chip-gpu { color: #24212c; }
+.barra-titolo .chip-hw .led { width: 7px; height: 7px; background: #b9b5c4; box-shadow: none; }
+.barra-titolo .chip-hw .led.verde { background: #1fbf7a; box-shadow: 0 0 6px rgba(31, 191, 122, 0.55); }
+.barra-titolo .chip-hw .led.ambra { background: #f0a020; box-shadow: 0 0 6px rgba(240, 160, 32, 0.5); }
+@media (max-width: 1500px) { .barra-titolo .chip-cpu { display: none; } }
+@media (max-width: 1280px) { .bt-chip-hw { display: none; } }
+
+/* ——— tasto novità ✦ ——— */
+.bt-novita svg { color: #b0169f; }
+.bt-novita:hover:not(:disabled) svg { color: #8a0f7c; }
+
+/* ——— vetro: dialoghi generici e avvisi (non Attività, non l'editor della clip) ———
+   sfondo che sfuma quello che c'è dietro, bordo chiaro sottile; il velo sfuma di più */
+.velo:not(:has(.editor-clip)) { background: rgba(5, 4, 8, 0.36); backdrop-filter: blur(12px) saturate(1.2); -webkit-backdrop-filter: blur(12px) saturate(1.2); }
+.velo:not(:has(.editor-clip)) ~ .velo:not(:has(.editor-clip)) { background: rgba(5, 4, 8, 0.2); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.dialogo:not(.editor-clip), .avviso {
+  background: rgba(18, 16, 26, 0.52);
+  backdrop-filter: blur(22px) saturate(1.5);
+  -webkit-backdrop-filter: blur(22px) saturate(1.5);
+  border-color: rgba(255, 255, 255, 0.13);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.avviso.errore { background: rgba(42, 18, 25, 0.5); border-color: rgba(255, 77, 109, 0.4); }
+/* gli avvisi si lasciano toccare: col mouse sopra la chiusura da sola si ferma (src/ui/dom.ts) */
+.avvisi .avviso { pointer-events: auto; }

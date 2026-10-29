@@ -8,6 +8,7 @@
 // si ferma con ✕, aspetta se il montaggio sta suonando) e gira in un Worker. Tutto sul computer di chi monta.
 import { AudioBufferSink } from 'mediabunny';
 import type { Clip, ForzaRumore, MediaItem, Project } from '../core/tipi';
+import { togliAnimazione } from '../core/automazioni';
 import { newClip, newTrack, trackOf, uid } from '../core/progetto';
 import { f2s } from '../core/timecode';
 import { store } from '../core/store';
@@ -604,7 +605,7 @@ export async function separaVoceBase(clipId: string, opz: OpzioniSepara = {}): P
             p.tracks.push(tr);
             const c = newClip('media', tr.id, x.start, x.len, {
               media: m.id, name: `${n === 'voce' ? 'Voce' : 'Base'}: ${x.name}`, srcIn: s0.srcIn - t.da, speed: x.speed, nastro: x.nastro, label: x.label,
-              gain: x.gain, gainKeys: structuredClone(x.gainKeys), pan: x.pan, fadeIn: x.fadeIn, fadeOut: x.fadeOut, curvaIn: x.curvaIn, curvaOut: x.curvaOut,
+              gain: x.gain, gainKeys: structuredClone(x.gainKeys), anim: x.anim?.gain ? { gain: structuredClone(x.anim.gain) } : undefined, pan: x.pan, fadeIn: x.fadeIn, fadeOut: x.fadeOut, curvaIn: x.curvaIn, curvaOut: x.curvaOut,
               afx: { separata: { ruolo: n, con: [x.id] } },
             });
             p.clips.push(c);
@@ -616,6 +617,7 @@ export async function separaVoceBase(clipId: string, opz: OpzioniSepara = {}): P
             c.afx = { ...c.afx, separata: { ruolo: 'originale', con: ids, gain: c.gain } };
             c.gain = -60;
             c.gainKeys = [];
+            togliAnimazione(c, 'gain');
           }
           for (const c of nuoveClip) c.afx!.separata!.con = [x.id, ...ids.filter((i) => i !== c.id)];
           return ids;

@@ -1,6 +1,6 @@
 [package]
 name = "daprod-video"
-version = "1.6.6"
+version = "1.7.0"
 description = "DaProd Video: il montaggio vecchio stile, moderno dentro"
 authors = ["DaProd"]
 license = "MIT"
@@ -23,6 +23,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # decodifica audio di riserva per WebKit senza AudioDecoder (Mac con Safari vecchio)
 symphonia = { version = "0.6.1", default-features = false, features = ["aac", "mp3", "flac", "vorbis"] }
+
+# una sola finestra aperta alla volta (solo sul computer): un secondo avvio passa il file a quella già aperta
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# solo Windows: l'apertura dei .dap/.daprod/.dpv col programma si scrive nel registro dell'utente (come un'installazione "per utente")
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell"] }
 
 [profile.release]
 codegen-units = 1

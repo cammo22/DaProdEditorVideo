@@ -9,6 +9,7 @@ import { MASTER0, TITLE0, isVideoClip, newClip, newTrack } from '../core/progett
 import { durataBlocco, nuovoBlocco, posaBlocco } from '../core/blocchi';
 import { applicaPresetTitolo, presetTitolo } from '../core/generatori';
 import { animazione, nuovaAnim } from '../core/animazioni';
+import { modelloHtml, nuovoHtml } from '../core/titoliHtml';
 import { fps } from '../core/timecode';
 import type { Fotogramma } from '../media/fotogrammi';
 import { Lettori } from '../export/esporta';
@@ -225,6 +226,17 @@ export function scenaAnimazione(id: string): Costruttore {
     const L = Math.round(r * Math.min(5, animazione(id)?.durata ?? 5));
     p.clips.push(foto(v1, 0, L));
     p.clips.push(newClip('title', v2, 0, L, { name: 'Animazione', gen: { anim: nuovaAnim(id) } }));
+    return { p, da: 0, a: L };
+  };
+}
+
+/** un titolo animato HTML sopra il fotogramma al cursore (al massimo 5 secondi: il provino è breve) */
+export function scenaHtml(id: string): Costruttore {
+  return (a, b) => {
+    const { p, v1, v2, r } = base(a, b);
+    const L = Math.round(r * Math.min(5, modelloHtml(id)?.durata ?? 5));
+    p.clips.push(foto(v1, 0, L));
+    p.clips.push(newClip('title', v2, 0, L, { name: 'Titolo HTML', gen: { html: nuovoHtml(id) } }));
     return { p, da: 0, a: L };
   };
 }

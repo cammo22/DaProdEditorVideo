@@ -194,7 +194,7 @@ export async function montaggioDimostrativo() {
         pp.clips.push(cv, ca);
         at += L;
       });
-      const titolo = newClip('title', v2.id, Math.round(r * 0.5), Math.round(r * 4), { name: 'Titolo', gen: { title: { ...TITLE0, text: 'DaProd Video', font: 'Orbitron', size: 110, color: '#ffd54a' } } });
+      const titolo = newClip('title', v2.id, Math.round(r * 0.5), Math.round(r * 4), { name: 'Titolo', gen: { title: { ...TITLE0, text: 'DaProd Editor Video', font: 'Orbitron', size: 110, color: '#ffd54a' } } });
       titolo.fadeIn = Math.round(r / 2); titolo.fadeOut = Math.round(r / 2);
       const sotto = newClip('title', v2.id, L + Math.round(r * 1.5), Math.round(r * 3.5), { name: 'Sottopancia', gen: { title: { ...TITLE0, style: 'sottopancia', text: 'Napoli di notte\nripresa dimostrativa', size: 52, align: 'left' } } });
       sotto.fadeIn = 6; sotto.fadeOut = 6;

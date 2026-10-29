@@ -1,11 +1,14 @@
 // Il colore finale: i look della pagina Finale e i ritocchi globali, tradotti in pochi numeri
 // (lift, gamma, gain, saturazione, contrasto, viraggio di ombre e luci, vignetta, grana).
 // Lo stesso calcolo serve i monitor e l'export, come tutto il resto.
-import type { LookFinale, Master } from '../core/tipi';
+import type { ColoreAvanzato, LookFinale, Master } from '../core/tipi';
+import { curveNeutre } from './curve';
 
 export type V3 = [number, number, number];
 
 export interface Grade {
+  curve?: ColoreAvanzato['curve'];
+  lut?: ColoreAvanzato['lut'];
   lift: V3;
   gamma: V3;
   gain: V3;
@@ -65,12 +68,24 @@ export function gradeDi(m: Master): Grade {
   g.gain = [g.gain[0] * (1 + t * 0.12), g.gain[1] * (1 - ti * 0.08), g.gain[2] * (1 - t * 0.14)];
   g.vignette = Math.max(g.vignette, m.vignette);
   g.grain = Math.max(g.grain, m.grain * 0.12);
-  return g;
+  return conColore(g, m.colore);
 }
+
+/** I ritocchi manuali si sommano al look senza cambiarne la formula storica. */
+export function conColore(g: Grade, c?: ColoreAvanzato): Grade {
+  return { ...g,
+    lift: g.lift.map((v, i) => v + (c?.lift?.[i] ?? 0)) as V3,
+    gamma: g.gamma.map((v, i) => Math.max(0.1, v * (c?.gamma?.[i] ?? 1))) as V3,
+    gain: g.gain.map((v, i) => v * (c?.gain?.[i] ?? 1)) as V3,
+    curve: c?.curve, lut: c?.lut,
+  };
+}
+export const gradeClip = (c?: ColoreAvanzato): Grade => conColore(GRADE0, c);
 
 /** il colore finale non cambia niente? (così non si spreca un passaggio) */
 export function gradeNeutro(g: Grade): boolean {
   const eq = (a: V3, b: V3) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 1e-4;
   return eq(g.lift, GRADE0.lift) && eq(g.gamma, GRADE0.gamma) && eq(g.gain, GRADE0.gain) && Math.abs(g.sat - 1) < 1e-4
-    && Math.abs(g.contrast - 1) < 1e-4 && eq(g.shadow, GRADE0.shadow) && eq(g.high, GRADE0.high) && g.vignette < 1e-4 && g.grain < 1e-4;
+    && Math.abs(g.contrast - 1) < 1e-4 && eq(g.shadow, GRADE0.shadow) && eq(g.high, GRADE0.high) && g.vignette < 1e-4 && g.grain < 1e-4
+    && curveNeutre(g.curve) && !(g.lut && g.lut.intensita > 0);
 }
