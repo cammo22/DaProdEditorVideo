@@ -8,6 +8,9 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 // Percorsi relativi ('./'): lo stesso build gira su Pages (/DaProdVideo/), dentro Tauri e in locale.
 export default defineConfig({
   base: './',
+  plugins: [{ name: 'licenze-terze-parti', generateBundle() {
+    this.emitFile({ type: 'asset', fileName: 'TERZE-PARTI.md', source: readFileSync(new URL('./TERZE-PARTI.md', import.meta.url), 'utf8') });
+  } }],
   define: {
     __VERSIONE__: JSON.stringify(pkg.version),
   },
