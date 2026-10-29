@@ -1,0 +1,11 @@
+/* Indicazioni dei modelli, nello stesso pannello del Centro AI. */
+.centro-ai .hub-opzionale {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--oro);
+  font-size: 11px;
+  font-weight: 400;
+}
+.centro-ai .hub-nome .hub-peso { color: var(--testo2); margin-top: 3px; }
+.centro-ai .hub-nome .hub-macchina { line-height: 1.4; }
+.centro-ai .hub-macchina[data-esito='lento'] { color: var(--oro); }

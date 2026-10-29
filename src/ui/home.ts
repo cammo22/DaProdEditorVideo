@@ -222,7 +222,7 @@ export class Home {
         const [m, sp] = await Promise.all([riassuntoModelli(), spazioModelli()]);
         if (!vivo()) return;
         const tutti = m.consigliatiPronti >= m.consigliati;
-        t.modelli.imposta(tutti ? 'ok' : 'forse', display(`${m.pronti}`, `su ${m.totale}`), tutti ? 'quelli consigliati ci sono tutti' : `mancano ${m.consigliati - m.consigliatiPronti} dei ${m.consigliati} consigliati: «Aggiusta tutto» li scarica`);
+        t.modelli.imposta(tutti ? 'ok' : 'forse', display(`${m.pronti}`, `su ${m.totale}`), tutti ? 'quelli consigliati ci sono tutti (restano opzionali)' : 'I modelli sono opzionali: scegli quali scaricare nel Centro AI');
         const [n, u] = pesoParti(sp.byte);
         t.spazio.imposta(sp.n ? 'ok' : '', sp.n ? display(n, u) : ['Vuoto'], sp.n ? `${sp.n} ${sp.n === 1 ? 'modello' : 'modelli'} sul computer` : 'nessun modello scaricato ancora');
       } catch {
