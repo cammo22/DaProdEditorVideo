@@ -81,6 +81,8 @@ export class Finale {
   private clipColore: string | null = null;
   private idPannello: string | null = null;
   private firmaClip = '';
+  private visibile = false;
+  private selVista = '';
 
   constructor() {
     this.riepilogo = h('div', { class: 'fin-riepilogo' });
@@ -96,9 +98,13 @@ export class Finale {
     this.mostra('colore');
     quandoPreparazioni(() => this.aggiornaRiepilogo());
     store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
-    store.on('sel', () => this.sincronizzaClipColore(true));
+    // ogni modifica manda anche 'sel': conta come «scelta nella timeline» solo se la scelta è cambiata davvero
+    store.on('sel', () => { const f = [...store.sel].sort().join('|'); const cambiata = f !== this.selVista; this.selVista = f; this.sincronizzaClipColore(cambiata); });
     store.on('head', () => this.segnaRigaCorrente());
   }
+
+  /** la pagina Finale è in vista (o no): il pannello del colore avanzato esiste solo mentre la si guarda */
+  mostrata(on: boolean) { this.visibile = on; this.sincronizzaClipColore(true); }
 
   private m(): Master { return masterDi(store.doc); }
 
@@ -148,7 +154,7 @@ export class Finale {
   private sincronizzaClipColore(dallaScelta: boolean) {
     const scelta = this.sceltaClip, posto = this.postoClip;
     if (!scelta || !posto) return;
-    if (this.sezione !== 'colore') { this.pannelloClip?.distruggi(); this.pannelloClip = null; this.idPannello = null; return; }
+    if (this.sezione !== 'colore' || !this.visibile) { this.pannelloClip?.distruggi(); this.pannelloClip = null; this.idPannello = null; return; }
     const lista = this.clipPerColore(), p = store.doc;
     const firma = lista.map((c) => c.id + c.name + c.start).join('|');
     if (firma !== this.firmaClip) {

@@ -14,6 +14,8 @@ const clipDi = (p: Project, id: string) => p.clips.find((c) => c.id === id);
 /** L'analisi in corso e l'ultimo messaggio restano qui: il pannello si rifà spesso, il lavoro no. */
 const lavori = new Map<string, AbortController>();
 const messaggi = new Map<string, string>();
+/** «Altre regolazioni» resta aperto anche se il pannello si rifà a ogni modifica */
+let altreAperte = false;
 
 /** Rigenera l'abbassamento di una musica (o di tutte). Controlla che il montaggio non sia cambiato nel frattempo. */
 export async function rigeneraDucking(clipId: string | undefined, quandoCambia: () => void) {
@@ -25,9 +27,9 @@ export async function rigeneraDucking(clipId: string | undefined, quandoCambia: 
   dice('Analizzo le voci…');
   try {
     const risultati = await preparaDucking(progetto, clipId ? [clipId] : undefined, controller.signal, dice);
-    if (controller.signal.aborted) return;
+    if (controller.signal.aborted) { dice('Fermato.'); return; }
     if (store.doc !== progetto || progetto.seqAttiva !== sequenza || risultati.some((r) => { const c = clipDi(progetto, r.id); return !c || firmaDuckingAttuale(progetto, c) !== r.firma; })) throw new Error('Il montaggio è cambiato durante l\'analisi: premi Rigenera');
-    store.edit('Ducking automatico', (p) => { for (const r of risultati) { const c = clipDi(p, r.id)!; c.duckKeys = r.keys; c.duckFirma = r.firma; } });
+    store.edit('Abbassa la musica sotto la voce', (p) => { for (const r of risultati) { const c = clipDi(p, r.id)!; c.duckKeys = r.keys; c.duckFirma = r.firma; } });
     dice('Fatto. Ascolta e regola «Quanto abbassare» se serve.');
   } catch (e) { dice(errore(e)); }
   finally { lavori.delete(chiave); quandoCambia(); }
@@ -84,7 +86,7 @@ export function creaDuckingClip(clipId: string, opzioni: { ascolta?: () => void 
           numero('Quanto abbassare (dB)', d.quantita, 0, 60, .5, (v) => cambia((x) => { x.quantita = v; })),
           numero('Attacco (s)', d.attacco, .005, 10, .005, (v) => cambia((x) => { x.attacco = v; })),
           numero('Rilascio (s)', d.rilascio, .005, 10, .005, (v) => cambia((x) => { x.rilascio = v; })),
-          h('details', { class: 'ck-altre' }, h('summary', null, 'Altre regolazioni'),
+          h('details', { class: 'ck-altre', open: altreAperte, on: { toggle: (e: Event) => { altreAperte = (e.target as HTMLDetailsElement).open; } } }, h('summary', null, 'Altre regolazioni'),
             numero('Soglia della voce (dBFS)', d.soglia, -90, 0, 1, (v) => cambia((x) => { x.soglia = v; })),
             numero('Isteresi (dB)', d.isteresi, 0, 24, 1, (v) => cambia((x) => { x.isteresi = v; })),
             numero('Durata minima (s)', d.minimo, 0, 2, .01, (v) => cambia((x) => { x.minimo = v; })),
@@ -93,7 +95,7 @@ export function creaDuckingClip(clipId: string, opzioni: { ascolta?: () => void 
           h('div', { class: 'isp-pulsanti' },
             bottone('Rigenera', () => void rigeneraDucking(chiave, aggiorna), inCorso),
             bottone('Rigenera tutta la musica', () => void rigeneraDucking(undefined, aggiorna), inCorso),
-            bottone('Usa per tutta la traccia', () => modifica('Ducking della traccia', (pp, cc) => {
+            bottone('Usa per tutta la traccia', () => modifica('Abbassamento per tutta la traccia', (pp, cc) => {
               pp.tracks.find((x) => x.id === cc.track)!.ducking = { ...d };
               pp.tracks.find((x) => x.id === cc.track)!.ruoloAudio = 'musica';
               for (const k of pp.clips) if (k.track === cc.track) k.ducking = undefined;

@@ -28,7 +28,7 @@ function disegnaScena(ctx: CanvasRenderingContext2D, px: number[][]) {
  * Si aggiorna da solo su doc/undo; chiamare distruggi() quando si chiude. Ascolta è affidato al trasporto dell'host.
  */
 export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: () => void } = {}) {
-  const el = h('section', { class: 'colore-avanzato', 'aria-label': 'Colore avanzato e ducking' });
+  const el = h('section', { class: 'colore-avanzato', 'aria-label': 'Colore avanzato' });
   let canale: CanaleCurva = 'master', trascina = false, morto = false;
   let messaggio = '', selezionato = 'inizio';
   const stato = h('p', { class: 'ca-stato', role: 'status', 'aria-live': 'polite' });
@@ -136,7 +136,8 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
   /** Mette la LUT nel progetto (una sola copia per contenuto) e la lega alla clip, se nel frattempo il montaggio non è cambiato. */
   async function mettiLut(lut: RisorsaLut, testo: string) {
     const p0 = store.doc, sequenza = p0.seqAttiva, target = clipDi(p0, clipId);
-    if (morto || store.doc !== p0 || p0.seqAttiva !== sequenza || clipDi(p0, clipId) !== target) return;
+    if (morto) return;
+    if (store.doc !== p0 || p0.seqAttiva !== sequenza || clipDi(p0, clipId) !== target) { dice('Il montaggio è cambiato nel frattempo: riprova a scegliere la LUT'); return; }
     modifica('LUT della clip', (p, c) => {
       p.luts ??= []; if (!p.luts.some((l) => l.hash === lut.hash)) p.luts.push(lut);
       c.fx.colore ??= {}; c.fx.colore.lut = { id: lut.id, intensita: c.fx.colore.lut?.intensita || 1 };
