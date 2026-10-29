@@ -36,7 +36,7 @@ try {
   Passo 0.75 'Installo Qwen3-TTS e le librerie della voce...'
   Esegui $uv @('pip','install','--python',$python,'--index-url','https://pypi.org/simple','torch==2.8.0','torchaudio==2.8.0','qwen-tts==0.1.1','huggingface-hub==0.36.0','soundfile==0.13.1')
   Passo 0.95 'Controllo i pacchetti, senza caricare modelli o usare la GPU...'
-  Esegui $python @('-c','from importlib.metadata import version; assert version("qwen-tts") == "0.1.1"; assert version("torch").startswith("2.8.0"); assert "cu128" in version("torch")')
+  Esegui $python @('-c',"from importlib.metadata import version; assert version('qwen-tts') == '0.1.1'; assert version('torch').startswith('2.8.0'); assert 'cu128' in version('torch')")
   & $uv pip freeze --python $python | Set-Content -LiteralPath (Join-Path $Radice 'pacchetti-installati.txt') -Encoding utf8
   if ($LASTEXITCODE -ne 0) { throw 'Non riesco a salvare le versioni installate' }
   Set-Content -LiteralPath (Join-Path $Radice 'pronto') -Value '1' -Encoding ascii

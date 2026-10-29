@@ -9,9 +9,10 @@ import os
 from pathlib import Path
 import sys
 import threading
+import time
 import urllib.request
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 REPO = 'Qwen/Qwen3-TTS-12Hz-0.6B-Base'
 REVISIONE = '5d83992436eae1d760afd27aff78a71d676296fc'  # Commit upstream verificato.
@@ -249,7 +250,9 @@ def crea_server(radice, token):
                     self.rispondi(404, {'errore': 'Indirizzo non previsto'})
             except (ValueError, KeyError):
                 self.rispondi(400, {'errore': 'Richiesta non valida o motore già occupato. Controlla i dati e riprova.'})
-    return ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    # Il lavoro pesante è già in un thread separato. Creare un nuovo thread HTTP
+    # durante il caricamento delle DLL di NumPy su Windows può bloccare entrambi.
+    return HTTPServer(('127.0.0.1', 0), Handler)
 
 if __name__ == '__main__':
     token = os.environ.pop('DAPROD_TOKEN')
@@ -260,8 +263,20 @@ if __name__ == '__main__':
     server = crea_server(os.environ['DAPROD_RADICE'], token)
     # La pipe appartiene a Rust: chiudendosi l'app sparisce anche Python, persino dopo un crash.
     def sorveglia():
-        while sys.stdin.buffer.read(1):
-            pass
+        if os.name == 'nt':
+            import ctypes
+            import msvcrt
+            kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            peek = kernel.PeekNamedPipe
+            peek.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32,
+                             ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+            peek.restype = ctypes.c_int
+            pipe = msvcrt.get_osfhandle(sys.stdin.fileno())
+            while peek(pipe, None, 0, None, None, None):
+                time.sleep(0.25)
+        else:
+            while sys.stdin.buffer.read(1):
+                pass
         os._exit(0)
     threading.Thread(target=sorveglia, daemon=True).start()
     print(json.dumps({'porta': server.server_port, 'dettaglio': 'Motore acceso, nessun modello caricato'}), flush=True)
