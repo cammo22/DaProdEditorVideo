@@ -101,6 +101,7 @@ export function avvia(radice: HTMLElement) {
     if (radice.dataset.pagina === 'live' && live.registrando) avviso('La registrazione continua: torna su LIVE per fermarla', 'info', 2600);
     radice.dataset.pagina = pg;
     live.mostrata(pg === 'live');
+    finale.mostrata(pg === 'finale');
     montage.mostrata(pg === 'montage');
     // i VU vanno dove si guarda: nelle proprietà durante il montaggio, nel Finale alla fine
     if (pg === 'finale') finale.el.insertBefore(vuCornice, finale.el.children[1] ?? null);

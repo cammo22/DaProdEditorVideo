@@ -1,25 +1,35 @@
 // Pannello autonomo: l'host decide dove mostrarlo. Nessuna modifica alla pagina Montaggio.
 import '../stile/coloreAvanzato.css';
-import type { CanaleCurva, Clip, ColoreAvanzato, Ducking, Project, RuoloAudio } from '../core/tipi';
+import '../stile/coloreUI.css';
+import type { CanaleCurva, Clip, ColoreAvanzato, Project, RisorsaLut } from '../core/tipi';
 import { store } from '../core/store';
-import { DUCKING0, duckingValido, impostazioneDucking, ruoloAudio } from '../core/ducking';
-import { conIncroci } from '../media/audio';
-import { firmaDuckingAttuale, preparaDucking } from '../media/ducking';
+import { DUCKING0 } from '../core/ducking';
 import { leggiLut } from '../render/lut';
+import { LUT_DI_PARTENZA, applicaAScena, caricaLutDiPartenza, scenaDiProva } from '../render/libreriLut';
+import { creaDuckingClip } from './duckingClip';
 import { CANALI_CURVA, identitaCurva, normalizzaCurva, valutaCurva } from '../render/curve';
 import { h } from './dom';
 
 const NOMI_CURVE: Record<CanaleCurva, string> = { master: 'RGB insieme', red: 'Rosso', green: 'Verde', blue: 'Blu', luma: 'Luma · Rec.709' };
 const errore = (e: unknown) => e instanceof Error ? e.message : String(e);
 const clipDi = (p: Project, id: string) => p.clips.find((c) => c.id === id);
+const ANTEPRIMA_W = 96, ANTEPRIMA_H = 54;
+const SCENA = scenaDiProva(ANTEPRIMA_W, ANTEPRIMA_H);
+/** le anteprime già calcolate (il pannello si rifà a ogni modifica, le LUT non cambiano) */
+const anteprime = new Map<string, number[][]>();
+function disegnaScena(ctx: CanvasRenderingContext2D, px: number[][]) {
+  const img = ctx.createImageData(ANTEPRIMA_W, ANTEPRIMA_H);
+  px.forEach((c, i) => { for (let k = 0; k < 3; k++) img.data[i * 4 + k] = Math.round(Math.max(0, Math.min(1, c[k])) * 255); img.data[i * 4 + 3] = 255; });
+  ctx.putImageData(img, 0, 0);
+}
 
 /**
  * Uso: const pannello = creaPannelloColoreAvanzato(id, { ascolta: () => … }); contenitore.append(pannello.el).
  * Si aggiorna da solo su doc/undo; chiamare distruggi() quando si chiude. Ascolta è affidato al trasporto dell'host.
  */
 export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: () => void } = {}) {
-  const el = h('section', { class: 'colore-avanzato', 'aria-label': 'Colore avanzato e ducking' });
-  let canale: CanaleCurva = 'master', trascina = false, morto = false, lavoro: AbortController | null = null;
+  const el = h('section', { class: 'colore-avanzato', 'aria-label': 'Colore avanzato' });
+  let canale: CanaleCurva = 'master', trascina = false, morto = false;
   let messaggio = '', selezionato = 'inizio';
   const stato = h('p', { class: 'ca-stato', role: 'status', 'aria-live': 'polite' });
   const dice = (s: string) => { messaggio = s; stato.textContent = s; };
@@ -45,7 +55,7 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
     punto.style.top = `${50 + Math.max(-1, Math.min(1, (valori[1] - valori[2]) / (Math.sqrt(3) * scala))) * 45}%`;
     disco.append(punto);
     disco.onpointerdown = (e) => {
-      if (e.button !== 0 || lavoro) return;
+      if (e.button !== 0) return;
       trascina = true; store.begin(nome); disco.setPointerCapture(e.pointerId);
       const muovi = (e: PointerEvent) => {
         const r = disco.getBoundingClientRect();
@@ -93,7 +103,7 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
       cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = normalizzaCurva([...punti, { id: selezionato, ...q }]); });
     };
     tela.onpointerdown = (e) => {
-      if (e.button !== 0 || lavoro) return;
+      if (e.button !== 0) return;
       const q = coordinate(e), p = punti.reduce((a, b) => Math.hypot(a.x - q.x, a.y - q.y) < Math.hypot(b.x - q.x, b.y - q.y) ? a : b);
       if (Math.hypot(p.x - q.x, p.y - q.y) > .08) return;
       selezionato = p.id; trascina = true; store.begin('Curva colore'); tela.setPointerCapture(e.pointerId);
@@ -123,57 +133,38 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
     disegna(); return box;
   }
 
-  async function rigenera(ids?: string[]) {
-    if (lavoro) return;
-    const controller = new AbortController(), progetto = store.doc, sequenza = progetto.seqAttiva;
-    lavoro = controller; dice('Analizzo le voci…'); aggiorna();
-    try {
-      const risultati = await preparaDucking(progetto, ids, controller.signal, dice);
-      if (morto || controller.signal.aborted) return;
-      if (store.doc !== progetto || progetto.seqAttiva !== sequenza || risultati.some((r) => { const c = clipDi(progetto, r.id); return !c || firmaDuckingAttuale(progetto, c) !== r.firma; })) throw new Error('Il montaggio è cambiato durante l’analisi: premi Rigenera');
-      store.edit('Ducking automatico', (p) => { for (const r of risultati) { const c = clipDi(p, r.id)!; c.duckKeys = r.keys; c.duckFirma = r.firma; } });
-      dice('Ducking pronto. Ascolta e regola la quantità se serve.');
-    } catch (e) { if (!morto) dice(errore(e)); }
-    finally { lavoro = null; if (!morto) aggiorna(); }
+  /** Mette la LUT nel progetto (una sola copia per contenuto) e la lega alla clip, se nel frattempo il montaggio non è cambiato. */
+  async function mettiLut(lut: RisorsaLut, testo: string) {
+    const p0 = store.doc, sequenza = p0.seqAttiva, target = clipDi(p0, clipId);
+    if (morto) return;
+    if (store.doc !== p0 || p0.seqAttiva !== sequenza || clipDi(p0, clipId) !== target) { dice('Il montaggio è cambiato nel frattempo: riprova a scegliere la LUT'); return; }
+    modifica('LUT della clip', (p, c) => {
+      p.luts ??= []; if (!p.luts.some((l) => l.hash === lut.hash)) p.luts.push(lut);
+      c.fx.colore ??= {}; c.fx.colore.lut = { id: lut.id, intensita: c.fx.colore.lut?.intensita || 1 };
+    });
+    dice(testo); aggiorna();
   }
 
-  function audio(c: Clip) {
-    const p = store.doc, t = p.tracks.find((t) => t.id === c.track);
-    if (t?.kind !== 'audio') return null;
-    const box = h('fieldset', null, h('legend', null, 'Voce e musica · ducking'));
-    const ruoli: [RuoloAudio, string][] = [['nessuno', 'Nessun ruolo'], ['voce', 'Voce'], ['musica', 'Musica']];
-    const select = (nome: string, attuale: RuoloAudio | undefined, fn: (r: RuoloAudio | undefined) => void, eredita = false) => {
-      const s = h('select', { 'aria-label': nome }, eredita ? h('option', { value: '', selected: !attuale }, 'Come la traccia') : null,
-        ruoli.map(([r, n]) => h('option', { value: r, selected: r === (attuale ?? (eredita ? '' : 'nessuno')) }, n)));
-      s.onchange = () => fn((s.value || undefined) as RuoloAudio | undefined);
-      return h('label', null, nome, s);
+  /** Le LUT di partenza: ognuna con un'anteprima su una scena di prova. Un clic la mette sulla clip, e la si vede sul monitor. */
+  function libreria(attuale: string | undefined) {
+    const griglia = h('div', { class: 'ca-libreria', role: 'group', 'aria-label': 'LUT di partenza' });
+    const tessera = (nome: string, info: string, disegna: (ctx: CanvasRenderingContext2D) => void | Promise<void>, fn: () => void, scelta: boolean) => {
+      const tela = h('canvas', { width: ANTEPRIMA_W, height: ANTEPRIMA_H });
+      const b = h('button', { type: 'button', class: 'ca-lut' + (scelta ? ' scelta' : ''), title: info, 'aria-pressed': String(scelta), on: { click: fn } }, tela, h('b', null, nome));
+      void Promise.resolve(disegna(tela.getContext('2d')!)).catch(() => {});
+      return b;
     };
-    box.append(select('Questa clip', c.ruoloAudio, (r) => modifica('Ruolo audio della clip', (_, c) => { c.ruoloAudio = r; }), true),
-      select('Tutta la traccia', t.ruoloAudio, (r) => modifica('Ruolo audio della traccia', (p, c) => { p.tracks.find((t) => t.id === c.track)!.ruoloAudio = r; })));
-    if (ruoloAudio(p, c) !== 'musica') { box.append(h('p', { class: 'nota' }, 'Segna le voci sulle loro clip o tracce. Poi scegli la musica per abbassarla sotto la voce.')); return box; }
-    const d = impostazioneDucking(p, c);
-    const cambia = (fn: (d: Ducking) => void) => modifica('Regola ducking', (_, c) => { c.ducking = { ...d }; fn(c.ducking); });
-    const on = h('input', { type: 'checkbox', checked: d.attivo }); on.onchange = () => cambia((d) => { d.attivo = on.checked; });
-    box.append(h('label', null, on, ' Abbassa sotto la voce'),
-      numero('Quanto abbassare (dB)', d.quantita, 0, 60, .5, (v) => cambia((d) => { d.quantita = v; })),
-      numero('Attacco (s)', d.attacco, .005, 10, .005, (v) => cambia((d) => { d.attacco = v; })),
-      numero('Rilascio (s)', d.rilascio, .005, 10, .005, (v) => cambia((d) => { d.rilascio = v; })),
-      numero('Soglia della voce (dBFS)', d.soglia, -90, 0, 1, (v) => cambia((d) => { d.soglia = v; })),
-      numero('Isteresi (dB)', d.isteresi, 0, 24, 1, (v) => cambia((d) => { d.isteresi = v; })),
-      numero('Durata minima (s)', d.minimo, 0, 2, .01, (v) => cambia((d) => { d.minimo = v; })),
-      numero('Tenuta (s)', d.hold, 0, 5, .01, (v) => cambia((d) => { d.hold = v; })),
-      h('p', { class: 'nota' }, 'Rileva il volume delle sorgenti segnate come voce, anche rumori forti. Dopo tagli, spostamenti o regolazioni premi Rigenera.'),
-      h('p', null, duckingValido(conIncroci(p), c) ? 'Analisi aggiornata' : 'Ducking spento o da rigenerare: la musica usa il volume manuale.'),
-      bottone('Rigenera questa musica', () => void rigenera([c.id]), !!lavoro || !d.attivo),
-      bottone('Rigenera tutta la musica', () => void rigenera(), !!lavoro),
-      bottone('Usa le impostazioni su tutta la traccia', () => modifica('Ducking della traccia', (p, c) => {
-        p.tracks.find((t) => t.id === c.track)!.ducking = { ...d };
-        for (const cc of p.clips) if (cc.track === c.track) cc.ducking = undefined;
-      })),
-      bottone('Disattiva', () => cambia((d) => { d.attivo = false; })));
-    if (opzioni.ascolta) box.append(bottone('Ascolta', opzioni.ascolta));
-    if (lavoro) box.append(bottone('Ferma analisi', () => lavoro?.abort()));
-    return box;
+    griglia.append(tessera('Nessuna', 'Senza LUT', (ctx) => disegnaScena(ctx, SCENA), () => cambiaColore((c) => { delete c.lut; }), !attuale));
+    for (const v of LUT_DI_PARTENZA) {
+      const b = tessera(v.nome, v.info, async (ctx) => {
+        const lut = await caricaLutDiPartenza(v.id);
+        let px = anteprime.get(v.id); if (!px) anteprime.set(v.id, px = applicaAScena(lut, SCENA));
+        disegnaScena(ctx, px);
+        if (lut.id === attuale) { b.classList.add('scelta'); b.setAttribute('aria-pressed', 'true'); }
+      }, () => { dice('Carico la LUT…'); caricaLutDiPartenza(v.id).then((l) => mettiLut(l, `LUT «${v.nome}» messa sulla clip`)).catch((e) => dice(errore(e))); }, false);
+      griglia.append(b);
+    }
+    return griglia;
   }
 
   function aggiorna() {
@@ -185,29 +176,25 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
       const col = c.fx.colore ?? {};
       el.append(h('h3', null, 'Colore della clip'), h('p', { class: 'nota' }, 'SDR · usa LUT pensate per lo spazio colore della ripresa. Nessuna conversione log automatica.'),
         h('div', { class: 'ca-ruote' }, ruota(col, 'lift', 'Lift · ombre'), ruota(col, 'gamma', 'Gamma · mezzi toni'), ruota(col, 'gain', 'Gain · luci')), editorCurve(col));
-      const file = h('input', { type: 'file', accept: '.cube', 'aria-label': 'Carica LUT .cube' });
+      const lut = store.doc.luts?.find((l) => l.id === col.lut?.id);
+      const file = h('input', { type: 'file', accept: '.cube', 'aria-label': 'Carica il tuo file .cube' });
       file.onchange = async () => {
         const f = file.files?.[0]; if (!f) return;
-        const p0 = store.doc, sequenza = p0.seqAttiva, target = clipDi(p0, clipId);
-        try {
-          const lut = await leggiLut(f);
-          if (morto || store.doc !== p0 || p0.seqAttiva !== sequenza || clipDi(p0, clipId) !== target) return;
-          modifica('LUT della clip', (p, c) => { p.luts ??= []; if (!p.luts.some((l) => l.hash === lut.hash)) p.luts.push(lut); c.fx.colore ??= {}; c.fx.colore.lut = { id: lut.id, intensita: 1 }; });
-          dice('LUT caricata e incorporata nel progetto'); aggiorna();
-        } catch (e) { dice(errore(e)); }
+        try { await mettiLut(await leggiLut(f), 'LUT caricata e incorporata nel progetto'); } catch (e) { dice(errore(e)); }
       };
-      const lut = store.doc.luts?.find((l) => l.id === col.lut?.id);
-      el.append(h('fieldset', null, h('legend', null, 'LUT 3D .cube'), file, h('p', null, lut?.nome ?? (col.lut ? 'LUT mancante: ricarica il file .cube' : 'Nessuna LUT')),
+      el.append(h('fieldset', { class: 'ca-luts' }, h('legend', null, 'LUT 3D · look di partenza'), libreria(col.lut?.id),
+        h('label', { class: 'ca-carica' }, h('span', null, 'Carica il tuo .cube'), file), h('p', null, lut?.nome ?? (col.lut ? 'LUT mancante: ricarica il file .cube' : 'Nessuna LUT')),
         numero('Intensità LUT (%)', (col.lut?.intensita ?? 0) * 100, 0, 100, 1, (v) => cambiaColore((c) => { if (c.lut) c.lut.intensita = v / 100; })),
         bottone('Togli LUT', () => cambiaColore((c) => { delete c.lut; }))),
         bottone('Azzera il colore avanzato', () => modifica('Azzera colore avanzato', (_, c) => { delete c.fx.colore; })));
     }
-    const a = audio(c); if (a) el.append(a);
+    const voce = creaDuckingClip(clipId, { ascolta: opzioni.ascolta });
+    if (voce.el.childElementCount) el.append(h('fieldset', null, h('legend', null, 'Voce e musica'), voce.el));
     stato.textContent = messaggio; el.append(stato);
   }
   const off = store.on('doc', aggiorna);
   aggiorna();
-  return { el, aggiorna, distruggi() { morto = true; lavoro?.abort(); off(); if (trascina) { trascina = false; store.cancelLive(); } el.remove(); } };
+  return { el, aggiorna, distruggi() { morto = true; off(); if (trascina) { trascina = false; store.cancelLive(); } el.remove(); } };
 }
 
 /** Configurazione neutra per chi costruisce il pannello senza usare lo Store. */

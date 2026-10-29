@@ -1,0 +1,43 @@
+/* Colore avanzato e voce/musica collegati all'interfaccia: LUT di partenza, finestra mobile, interruttori. */
+.ck-ducking { display: grid; gap: 8px; min-width: 0; }
+.ck-interruttore { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 6px 8px; border-radius: 6px; background: #1b1a22; border: 1px solid #000; box-shadow: inset 0 0 0 1px #ffffff12; color: #ebe7f4; }
+.ck-interruttore.acceso { box-shadow: inset 0 0 0 1px #ffd54a66; }
+.ck-interruttore input { position: absolute; opacity: 0; pointer-events: none; }
+.ck-interruttore input:focus-visible + .led { outline: 2px solid #35e8ff; outline-offset: 2px; }
+.ck-interruttore .led { width: 9px; height: 9px; border-radius: 50%; background: #3a3844; box-shadow: inset 0 0 0 1px #000; flex: none; }
+.ck-interruttore .led.acceso { background: #5dffb4; box-shadow: 0 0 6px #5dffb4; }
+.ck-numero { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; }
+.ck-numero input { width: 85px; min-width: 0; }
+.ck-altre summary { cursor: pointer; color: #a19db0; font-size: 12px; margin-bottom: 6px; }
+.ck-altre[open] { display: grid; gap: 6px; }
+.ck-ok { color: #5dffb4; }
+.ck-da-fare { color: #ffb23d; }
+.ck-stato { min-height: 1.2em; overflow-wrap: anywhere; }
+
+/* LUT di partenza con anteprima */
+.ca-libreria { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.ca-lut { display: grid; gap: 4px; padding: 4px; border-radius: 6px; background: #1b1a22; border: 1px solid #000; box-shadow: inset 0 0 0 1px #ffffff12; color: #ebe7f4; cursor: pointer; font: inherit; text-align: center; min-width: 0; }
+.ca-lut canvas { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 3px; display: block; background: #000; }
+.ca-lut b { font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
+.ca-lut:hover { box-shadow: inset 0 0 0 1px #ffd54a99; }
+.ca-lut.scelta { box-shadow: inset 0 0 0 2px #ffd54a; }
+.ca-lut:focus-visible { outline: 2px solid #35e8ff; outline-offset: 2px; }
+.ca-carica { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; }
+.ca-carica input { min-width: 0; max-width: 60%; }
+
+/* Colore avanzato nella pagina Finale */
+.ca-fin { display: grid; gap: 8px; min-width: 0; }
+.ca-fin-scelta { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.ca-fin-scelta select { min-width: 0; max-width: 70%; }
+.ca-fin-host { min-width: 0; }
+.ca-fin-host .colore-avanzato { padding: 0; }
+
+/* Finestra mobile del colore avanzato: niente velo, il monitor resta in vista per vedere cosa succede */
+.ca-finestra { position: fixed; z-index: 800; top: calc(var(--bt-alto, 34px) + 56px); right: 16px; width: min(400px, calc(100vw - 32px)); max-height: calc(100vh - var(--bt-alto, 34px) - 72px);
+  display: flex; flex-direction: column; background: rgba(22, 17, 36, .82); backdrop-filter: blur(10px); border: 1px solid #ffffff2e; border-radius: 12px; box-shadow: 0 10px 40px #000a; color: #ebe7f4; }
+.ca-finestra:focus { outline: none; }
+.ca-finestra header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; cursor: grab; border-bottom: 1px solid #ffffff1c; touch-action: none; user-select: none; }
+.ca-finestra header b { flex: 1; font-family: Orbitron, sans-serif; font-size: 12px; letter-spacing: .06em; color: #ffd54a; }
+.ca-finestra .ca-corpo { overflow: auto; min-height: 0; }
+@media (max-width: 520px) { .ca-finestra { right: 16px; left: 16px; width: auto; } }
+.striscia-btn { flex-wrap: wrap; justify-content: center; }

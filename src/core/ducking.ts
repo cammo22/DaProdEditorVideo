@@ -39,7 +39,7 @@ export class AnalizzatoreRms {
   private origine = 0;
   private totale = 0;
   push(canali: Float32Array[], sr: number, t: number): FinestraRms[] {
-    if (!canali.length || sr <= 0 || canali.some((c) => c.length !== canali[0].length)) throw new Error('Audio non valido per il ducking');
+    if (!canali.length || sr <= 0 || canali.some((c) => c.length !== canali[0].length)) throw new Error('Audio non valido per abbassare la musica');
     const out: FinestraRms[] = [];
     if (!this.sr || sr !== this.sr || Math.abs(t - this.prossimo) > 1.5 / sr) {
       const f = this.fine(); if (f) out.push(f);

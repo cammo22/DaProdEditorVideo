@@ -11,13 +11,13 @@ async function analizza(p: Project, c: Clip, segnale?: AbortSignal): Promise<Fin
   if (!rt?.a || !rt.aDecodable) throw new Error(`L'audio di «${c.name}» non è disponibile`);
   const w = new Worker(new URL('./ducking.worker.ts', import.meta.url), { type: 'module' });
   let rifiuta: ((e: Error) => void) | undefined;
-  const annullato = () => { rifiuta?.(new Error('Analisi ducking fermata')); w.terminate(); };
+  const annullato = () => { rifiuta?.(new Error('Analisi fermata')); w.terminate(); };
   segnale?.addEventListener('abort', annullato);
   const invia = (d: { canali?: Float32Array[]; sr: number; t: number; fine?: boolean }) => new Promise<FinestraRms[]>((resolve, reject) => {
-    if (segnale?.aborted) { reject(new Error('Analisi ducking fermata')); return; }
+    if (segnale?.aborted) { reject(new Error('Analisi fermata')); return; }
     rifiuta = reject;
     w.onmessage = (e) => { rifiuta = undefined; if (e.data.errore) reject(new Error(e.data.errore)); else resolve(e.data.finestre); };
-    w.onerror = () => reject(new Error('Il worker del ducking non è partito'));
+    w.onerror = () => reject(new Error('Il lavoro in secondo piano per abbassare la musica non è partito'));
     w.postMessage(d, d.canali?.map((c) => c.buffer as ArrayBuffer) ?? []);
   });
   const da = c.srcIn, a = da + f2s(c.len + codaVoce(p, c), p.rate) * c.speed;
@@ -25,7 +25,7 @@ async function analizza(p: Project, c: Clip, segnale?: AbortSignal): Promise<Fin
   const out: FinestraRms[] = [];
   try {
     for await (const { buffer, timestamp } of iter) {
-      if (segnale?.aborted) throw new Error('Analisi ducking fermata');
+      if (segnale?.aborted) throw new Error('Analisi fermata');
       const sr = buffer.sampleRate;
       const inizio = Math.max(0, Math.ceil((da - timestamp) * sr)), fine = Math.min(buffer.length, Math.ceil((a - timestamp) * sr));
       if (fine <= inizio) continue;
@@ -43,7 +43,7 @@ export interface RisultatoDucking { id: string; firma: string; keys: Key[] }
 export async function preparaDucking(p0: Project, ids?: string[], segnale?: AbortSignal, progresso?: (testo: string) => void): Promise<RisultatoDucking[]> {
   const p = conIncroci(structuredClone(p0));
   const musiche = p.clips.filter((c) => ruoloAudio(p, c) === 'musica' && impostazioneDucking(p, c).attivo && (!ids || ids.includes(c.id)));
-  if (!musiche.length) throw new Error('Segna la musica e accendi il ducking');
+  if (!musiche.length) throw new Error('Segna la musica e accendi «Abbassa sotto la voce»');
   const voci = vociDucking(p), letture = new Map<string, FinestraRms[]>();
   if (!voci.length) throw new Error('Segna almeno una clip o una traccia audio come voce e lasciala in ascolto');
   for (const [i, c] of voci.entries()) { progresso?.(`Analizzo la voce ${i + 1}/${voci.length}: ${c.name}`); letture.set(c.id, await analizza(p, c, segnale)); }
