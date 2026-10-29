@@ -1,4 +1,9 @@
 /* Indicazioni dei modelli, nello stesso pannello del Centro AI. */
+.voce-locale { display: grid; gap: 8px; margin: 10px 0; }
+.voce-locale[hidden] { display: none; }
+.voce-locale textarea { width: 100%; min-height: 70px; resize: vertical; box-sizing: border-box; }
+.voce-locale input[type='file'] { max-width: 100%; }
+.fin-scelte[hidden] { display: none; }
 .centro-ai .hub-opzionale {
   display: inline-block;
   margin-left: 8px;

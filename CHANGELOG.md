@@ -4,6 +4,12 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.7.1] — 2026-10-29 · Motore AI locale facoltativo e voce realistica
+
+- **Motore AI locale — Opzionale** nel Centro AI: Python privato con uv, ambiente separato, torch CUDA installato solo su richiesta, accensione, spegnimento, rimozione e download separato dei pesi. Attività mostra avanzamento, annullamento e Riprova.
+- **Voce realistica** nel Finale: Qwen3-TTS 0.6B Base (Apache-2.0), campione WAV da 3 a 30 secondi, italiano e altre cinque lingue, testo libero o sottotitoli, GPU NVIDIA o processore. Magpie resta disponibile. Server locale autenticato, un lavoro alla volta, pesi verificati e inferenza offline.
+- Prove del client e delle transizioni; script manuale `scripts/prova-qwen3tts.py` per tempo e VRAM. Installazione completa, qualità della voce e prestazioni sulla RTX 4060 restano da provare: in questo giro nessun torch o peso scaricato e nessun uso della GPU.
+
 ## [1.7.0] — 2026-10-29 · Si chiama DaProd Editor Video: banco nuovo, colore da professionisti, keyframe, maschere, titoli animati, montaggio dal testo
 
 - **Nome nuovo**: DaProd Editor Video. Progetti, cartelle e aggiornamenti restano gli stessi di prima.

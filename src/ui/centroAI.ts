@@ -25,6 +25,7 @@ import { modelliHub, statoModelli, type ModelloHub } from '../media/modelliAI';
 import { liberaVram } from '../media/vram';
 import { registra as reg } from '../azioni';
 import '../stile/copieAI.css';
+import { schedaMotoreLocale } from './motoreAI';
 
 export interface FunzioneAI {
   id: string;
@@ -301,6 +302,7 @@ export function finestraCentroAI(subito = false) {
     } } }, 'Togli motore e modelli')) : null;
 
   d.corpo.append(
+    schedaMotoreLocale(),
     h('section', { class: 'ai-sezione' },
       h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
       h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),

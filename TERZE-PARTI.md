@@ -1,5 +1,18 @@
 # Componenti di terze parti
 
+## Motore AI locale facoltativo · Qwen3-TTS
+
+Il programma non distribuisce Python, torch o pesi Qwen nell’installer. Li scarica soltanto dopo la scelta nel Centro AI, in `%LOCALAPPDATA%\DaProdVideo\motori\qwen3-tts-v1`. I pesi si scaricano con un secondo pulsante. Nessuna API a pagamento, nessuna chiave esterna richiesta.
+
+- **Qwen3-TTS**, codice Alibaba Qwen Team, pacchetto `qwen-tts==0.1.1`: Apache-2.0. Sorgente e licenza: https://github.com/QwenLM/Qwen3-TTS e https://github.com/QwenLM/Qwen3-TTS/blob/main/LICENSE.
+- **Qwen/Qwen3-TTS-12Hz-0.6B-Base**, pesi e tokenizer incluso nella sottocartella `speech_tokenizer`: Apache-2.0 secondo la scheda https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base. Revisione fissata a `5d83992436eae1d760afd27aff78a71d676296fc`; metadati ufficiali consultati senza scaricare i pesi: circa 2,52 GB per il repository. Il server verifica licenza, dimensioni e SHA-256 LFS (oppure hash Git dei file piccoli), conserva README/LICENSE/NOTICE presenti e registra l’inventario in `scaricato.json`. Nessun altro checkpoint è ammesso dal server.
+- **uv 0.9.7**, Astral: MIT oppure Apache-2.0, https://github.com/astral-sh/uv. Archivio ufficiale Windows x64 e checksum SHA-256 della stessa release; gestisce CPython standalone 3.12.8 privato e il venv, senza usare Python di sistema.
+- **CPython**, Python Software Foundation License: https://docs.python.org/3/license.html; runtime standalone gestito da uv, con gli avvisi inclusi nella distribuzione.
+- **PyTorch/torchaudio 2.8.0**, licenze BSD e componenti CUDA NVIDIA con termini propri: https://github.com/pytorch/pytorch/blob/v2.8.0/LICENSE e https://github.com/pytorch/audio/blob/v2.8.0/LICENSE. Wheel CUDA 12.8 dall’indice ufficiale https://download.pytorch.org/whl/cu128. Il vincolo sulle licenze permissive qui riguarda i pesi del catalogo; i binari CUDA conservano i termini NVIDIA.
+- **Hugging Face Hub 0.36.0** Apache-2.0, **Transformers 4.57.3** Apache-2.0, **Accelerate 1.12.0** Apache-2.0 e dipendenze del pacchetto Qwen; **SoundFile 0.13.1** BSD-3-Clause e libsndfile LGPL. Gli avvisi dei pacchetti installati restano nei rispettivi `dist-info`; le versioni effettive, comprese quelle transitive, vengono salvate in `pacchetti-installati.txt` nella cartella del motore. Non viene installato FlashAttention e non vengono aggiunti pesi di denoiser o riconoscitori.
+
+`server.py`, `installa.ps1`, il client e il gestore Rust sono scritti per DaProd Video. DaProdImage è stato consultato come riferimento di architettura (Python privato, venv e processo locale), senza copiarne il motore ComfyUI. Italiano, qualità della clonazione, compatibilità delle wheel e VRAM sulla RTX 4060 restano da validare con l’ambiente vero.
+
 ## OpenReel Video · MIT
 
 Origine: https://github.com/Augani/openreel-video
