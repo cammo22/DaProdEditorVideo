@@ -9,6 +9,7 @@ mod aggiorna;
 mod audio_riserva;
 mod associazioni;
 mod conversioni;
+mod cursore;
 mod motori;
 
 use std::collections::HashMap;
@@ -523,6 +524,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Stato::default())
+        .manage(cursore::Cursore::default())
         .manage(Avvio(Mutex::new(dall_avvio)))
         .manage(audio_riserva::Decoder::default())
         .invoke_handler(tauri::generate_handler![
@@ -548,6 +550,9 @@ pub fn run() {
             registrazione_percorso,
             cartelle_lavoro,
             associazioni::associa_file,
+            cursore::cursore_schermi,
+            cursore::cursore_avvia,
+            cursore::cursore_ferma,
             audio_apri,
             audio_decodifica,
             audio_chiudi,
@@ -572,6 +577,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("errore all'avvio di DaProd Video")
         .run(|_app, _ev| {
+            if matches!(_ev, tauri::RunEvent::Exit) {
+                _app.state::<cursore::Cursore>().chiudi();
+            }
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             if let tauri::RunEvent::Opened { urls } = _ev {

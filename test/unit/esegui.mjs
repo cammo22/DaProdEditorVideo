@@ -20,9 +20,10 @@ await build({
   logLevel: 'warn',
   // Esponiamo solo nel bundle di prova un confine asincrono privato; nessun hook nell'app.
   plugins: [{ name: 'confini-progetti-test', enforce: 'pre', transform(code, id) {
-    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia, valida as _testValida };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/media/proxy.ts')) return { code: code + '\nexport { scriviProxy as _testScriviProxy };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/ui/live.ts')) return { code: code + '\nexport { avvisaErroreSchermo as _testAvvisaErroreSchermo };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/pacchetto.ts')) return { code: code + '\nexport { progettoDentro as _testProgettoDentro };', map: null };
   } }],
   define: { __VERSIONE__: JSON.stringify('prova') },
   build: {
@@ -61,6 +62,10 @@ await build({
         audio: path.join(radice, 'src/media/audio.ts'),
         montaggio: path.join(radice, 'src/core/montaggio.ts'),
         coloreAudioProgetto: path.join(radice, 'src/core/coloreAudioProgetto.ts'),
+        zoomCursore: path.join(radice, 'src/core/zoomCursore.ts'),
+        cursoreLive: path.join(radice, 'src/media/cursoreLive.ts'),
+        anelliClic: path.join(radice, 'src/render/cursore.ts'),
+        pacchetto: path.join(radice, 'src/pacchetto.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },
