@@ -12,6 +12,8 @@ Adattamenti in DaProd Video:
 - `src/render/curve.ts`, `src/render/coloreGpu.ts`: generatore e applicazione curve da `color-grading-engine.ts` (`buildCurveLUT`, `applyCurvesToData`, `CURVES_SHADER`), riscritti in float con Hermite a pendenze limitate, texture GPU e vera curva luma Rec.709.
 - `src/core/ducking.ts`: rilevamento RMS, unione intervalli e generazione inviluppo da `packages/core/src/audio/volume-automation.ts` (`AudioDucker.detectAudioPresence`, `generateDuckingKeyframes`, `mergePresenceRanges`). Estesi a tutti i canali, flusso a pezzi, isteresi, tempo timeline e attenuazione separata in dB.
 
+- `src/core/automazioni.ts`, `src/core/maschereForma.ts`: keyframe e maschere a forma. Dall'architettura di `packages/core/src/animation/evaluate-keyframes.ts`, `keyframe-properties.ts` e `video/keyframe-engine.ts` (linee di chiavi per proprietà, ricerca della coppia di chiavi, descrittori dei parametri per percorso) e da `packages/core/src/video/mask-engine.ts` (forme parametriche come tracciati di Bézier, l'ellisse con la costante 0,5522847498, sfumatura, inversione, maschere multiple). Il calcolo è riscritto da zero: interpolazione lineare / morbida / a gradino, copertura in distanza con segno su griglia a un canale, compositore WebGL2 e interfaccia sono propri di DaProd.
+
 Nessun asset LUT, font, framework React o dipendenza del donatore è stato importato.
 
 ```text

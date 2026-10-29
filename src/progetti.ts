@@ -7,6 +7,7 @@ import type { MediaItem, Project } from './core/tipi';
 import { FORMATI } from './core/tipi';
 import { ALTEZZA, MASTER0, newProject } from './core/progetto';
 import { migraBlocchi } from './core/blocchi';
+import { pulisciAnim } from './core/automazioni';
 import { apri as apriMedia, chiudi as chiudiMedia, importa, impostaCercaMedia, impostaControlloVelocita, mediaRT, usoDiMedia, type MediaRT, type OpzioniPreparazione } from './media/libreria';
 import { cambiaProgetto, inSovraccarico, nuova, proponi, type Lavoro, type Proposto } from './media/attivita';
 import { dimenticaMedia } from './media/fotogrammi';
@@ -423,12 +424,14 @@ function valida(o: unknown): Project | null {
   const p = o as Project;
   if (!p || p.format !== 'daprod-video' || !Array.isArray(p.tracks) || !Array.isArray(p.clips)) return null;
   for (const m of p.media) { m.t0 ??= 0; m.markIn ??= null; m.markOut ??= null; }
-  for (const c of p.clips) { c.opKeys ??= []; c.gainKeys ??= []; c.speed ??= 1; }
+  for (const c of p.clips) { c.opKeys ??= []; c.gainKeys ??= []; c.speed ??= 1; pulisciAnim(c); }
   // le versioni di prima: tracce audio basse e niente ritocchi finali
   for (const t of p.tracks) {
     if (t.kind === 'audio' && t.height === 46) t.height = ALTEZZA.audio;
     if (t.kind === 'video' && t.height === 58) t.height = ALTEZZA.video;
   }
+  // le clip delle altre timeline: i keyframe (se ci sono) si rimettono in ordine come nella principale
+  for (const s of p.sequenze ?? []) for (const c of s.clips ?? []) pulisciAnim(c);
   p.master = { ...MASTER0, ...(p.master ?? {}) };
   // dalla 1.0.5: gli FX stanno sulle tracce video (la corsia a parte della 1.0.4 sparisce), e le transizioni delle
   // clip video diventano blocchetti

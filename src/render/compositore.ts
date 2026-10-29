@@ -1,6 +1,6 @@
 // Il mixer video in WebGL2. Ogni strato si disegna nel suo buffer (trasformazioni, proc amp, chiave, look),
 // poi si combina sull'uscita con la transizione e la trasparenza. Stesso codice per i monitor e per l'export.
-import type { Project, Transition } from '../core/tipi';
+import type { Clip, Project, Transition } from '../core/tipi';
 import type { Strato, Sorgente } from './piano';
 import type { VideoSample } from 'mediabunny';
 import { fotogramma, type Fotogramma } from '../media/fotogrammi';
@@ -15,6 +15,7 @@ import { gradeClip, gradeDi, gradeNeutro } from './colore';
 import { ColoreGpu, GLSL_COLORE, UNIFORM_COLORE } from './coloreGpu';
 import { CAMPI_FX, MAX_CENSURE, statoEffetti, type StatoFx } from '../core/blocchi';
 import { fxEffettivo } from '../core/effettiClip';
+import { firmaMaschere, rasterizzaMaschere } from '../core/maschereForma';
 import { coloriChiave, SPILL0 } from '../core/sfondo';
 import { maschereAl } from '../media/maschere';
 import { disegnaSovr, firmaSovr } from './sovrimpressione';
@@ -66,6 +67,8 @@ uniform float u_keySfuma;   // sfuma il bordo
 uniform float u_keyPulisci; // toglie puntini e buchi
 uniform sampler2D u_matte, u_matte2;  // le maschere dell'AI (prima e dopo l'istante) e quanto verso la seconda
 uniform float u_matteK;
+uniform sampler2D u_forma;  // le maschere a forma della clip (rettangolo, ellisse, Bézier): copertura 0..1 in un canale solo
+uniform bool u_formaOn;
 uniform int u_vista;        // 0 normale, 1 si vede la maschera, 2 il soggetto sugli scacchi, 3 il contorno di quello che resta
 uniform bool u_mirror;
 uniform float u_temp, u_vignette;
@@ -235,6 +238,8 @@ void main() {
   }
   ${DISEGNA_CLIC}
   a *= aChiave;
+  // la passata con le maschere a forma: si moltiplica per la copertura (nessuna maschera = niente passata)
+  if (u_formaOn) a *= texture(u_forma, uv0).r;
   // angoli tondi (e l'ombra, che è lo stesso rettangolo sfumato): distanza dal rettangolo arrotondato, in pixel
   if (u_round > 0.0 || u_feather > 0.0) {
     vec2 lo = u_box.xy * u_boxPx, hi = (vec2(1.0) - u_box.zw) * u_boxPx;
@@ -1581,7 +1586,7 @@ export class Compositore {
     this.pFx = this.prog(VS_FULL, FS_FX);
     for (const n of ['u_src', 'u_res', 'u_off', 'u_zoom', 'u_rot', 'u_blur', 'u_pixel', 'u_rgb', 'u_glitch', 'u_seme', 'u_desat', 'u_invert', 'u_flash', 'u_fade', 'u_luce', 'u_lucePh', 'u_bande', 'u_vhs', 'u_time', 'u_flashCol', 'u_fadeCol', 'u_bagliore', 'u_flare', 'u_flarePh', 'u_arco', 'u_arcoPh', 'u_espo', 'u_neon', 'u_onda', 'u_bolla', 'u_vortice', 'u_caleido', 'u_calore', 'u_zblur', 'u_centro', 'u_sole', 'u_tinta', 'u_semeGrana', 'u_numCensure', 'u_censure', 'u_morbidoCensure', ...CAMPI_FX.map((k) => 'u_' + k)])
       this.uF[n] = gl.getUniformLocation(this.pFx, n);
-    for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_vista',
+    for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_forma', 'u_formaOn', 'u_vista',
       ...UNIFORM_COLORE, 'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma',
       'u_numClic', 'u_clic', 'u_clicColore', 'u_clicRapporto'])
       this.uL[n] = gl.getUniformLocation(this.pLayer, n);
@@ -1983,6 +1988,7 @@ export class Compositore {
     gl.useProgram(this.pLayer);
     const u = this.uL;
     gl.uniform1i(u.u_numClic, 0); // anche la passata dell'ombra parte senza anelli
+    gl.uniform1i(u.u_formaOn, 0); // e senza maschere a forma (si accendono solo per la clip vera)
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(u.u_tex, 0);
@@ -2033,6 +2039,7 @@ export class Compositore {
     // il bordo arrotondato si sfuma di un pixel dello schermo (niente scalini)
     gl.uniform1f(u.u_feather, raggio > 0 ? Math.max(0.6, W / Math.max(1, this.fbW)) : 0);
     gl.uniform1i(u.u_src, srcKind);
+    this.passataForma(c, sw / sh, u);
     const clic = anelliClic(p, c, s.t, s.lf);
     gl.uniform1i(u.u_numClic, clic.n);
     if (clic.n) {
@@ -2108,6 +2115,27 @@ export class Compositore {
     gl.disable(gl.BLEND);
     return true;
   }
+
+  /** le maschere a forma della clip come texture a un canale (unità 6): si rifà solo se la forma, il tempo o le misure cambiano */
+  private passataForma(c: Clip, aspetto: number, u: Record<string, WebGLUniformLocation | null>) {
+    const gl = this.gl;
+    const firma = firmaMaschere(c.maschere, aspetto);
+    gl.uniform1i(u.u_forma, 6);
+    gl.activeTexture(gl.TEXTURE6);
+    if (!firma) { gl.bindTexture(gl.TEXTURE_2D, this.blank); gl.uniform1i(u.u_formaOn, 0); gl.activeTexture(gl.TEXTURE0); return; }
+    let r = this.forme.get(firma);
+    if (!r) {
+      const x = rasterizzaMaschere(c.maschere, aspetto);
+      if (!x) { gl.bindTexture(gl.TEXTURE_2D, this.blank); gl.uniform1i(u.u_formaOn, 0); gl.activeTexture(gl.TEXTURE0); return; }
+      r = x;
+      this.forme.set(firma, r);
+      if (this.forme.size > 24) this.forme.delete(this.forme.keys().next().value!);
+    } else { this.forme.delete(firma); this.forme.set(firma, r); }
+    gl.bindTexture(gl.TEXTURE_2D, this.matte('fm:' + firma, r.w, r.h, r.dati));
+    gl.uniform1i(u.u_formaOn, 1);
+    gl.activeTexture(gl.TEXTURE0);
+  }
+  private forme = new Map<string, { w: number; h: number; dati: Uint8Array }>();
 
   /** una transizione fra A (buffer 0) e B (buffer "dentro"), scritta nel buffer "fuori": nel mix (2) si appoggia su
    *  quello che c'è già; in un buffer della catena (5, 6) lo riempie da capo */

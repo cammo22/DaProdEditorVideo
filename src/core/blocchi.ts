@@ -8,6 +8,7 @@
 import type { BloccoFx, Clip, Project, Transition } from './tipi';
 import { end, newClip, newTransition, passaPer } from './progetto';
 import { oggettoSulQuadro } from './traccia';
+import { valutaClip } from './automazioni';
 import { suonoTransizione } from './suoni';
 import { fps } from './timecode';
 import { nomeModello, tipoDi } from '../render/transizioni';
@@ -546,7 +547,8 @@ export function statoEffetti(p: Project, f: number, track?: string): StatoFx | n
     if (c.fxb?.id === 'clicLive') continue;
     if (f < c.start || f >= end(c)) continue;
     st ??= neutro();
-    applica(st, p, c, f);
+    // forza e parametri con i keyframe: si valutano per ogni blocco PRIMA dell'inviluppo e della somma
+    applica(st, p, valutaClip(c, f - c.start), f);
     const e = effettoTempo(c.fxb!.id);
     if (e && e.motore !== 'censura' && CENTRATI.has(e.motore) && (c.fxb!.pos || c.fxb!.segue)) {
       const [x, y] = centroBlocco(c, f, p);

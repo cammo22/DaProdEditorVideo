@@ -2,6 +2,7 @@
 import { store } from '../core/store';
 import { CADENZE, RISOLUZIONI, formatoDa, sceltaDa } from '../core/tipi';
 import { projectEnd } from '../core/progetto';
+import { scalaAnim } from '../core/automazioni';
 import { frameToTc } from '../core/timecode';
 import { azioni } from '../azioni';
 import { fotogrammaPng } from '../export/esporta';
@@ -87,7 +88,7 @@ export function finestraProgetto() {
             // le posizioni restano nello stesso istante: si convertono i fotogrammi
             const k = (f2.rate.num / f2.rate.den) / (pp.rate.num / pp.rate.den);
             if (Math.abs(k - 1) > 1e-6) {
-              for (const c of pp.clips) { const e = Math.round((c.start + c.len) * k); c.start = Math.round(c.start * k); c.len = Math.max(1, e - c.start); c.fadeIn = Math.round(c.fadeIn * k); c.fadeOut = Math.round(c.fadeOut * k); if (c.trIn) c.trIn.len = Math.max(1, Math.round(c.trIn.len * k)); c.opKeys.forEach((x) => { x.f = Math.round(x.f * k); }); c.gainKeys.forEach((x) => { x.f = Math.round(x.f * k); }); }
+              for (const c of pp.clips) { const e = Math.round((c.start + c.len) * k); c.start = Math.round(c.start * k); c.len = Math.max(1, e - c.start); c.fadeIn = Math.round(c.fadeIn * k); c.fadeOut = Math.round(c.fadeOut * k); if (c.trIn) c.trIn.len = Math.max(1, Math.round(c.trIn.len * k)); c.opKeys.forEach((x) => { x.f = Math.round(x.f * k); }); c.gainKeys.forEach((x) => { x.f = Math.round(x.f * k); }); scalaAnim(c, k); }
               for (const m of pp.markers) m.f = Math.round(m.f * k);
               for (const r of pp.sottotitoli?.righe ?? []) { r.da = Math.round(r.da * k); r.a = Math.max(r.da + 1, Math.round(r.a * k)); }
               if (pp.inF !== null) pp.inF = Math.round(pp.inF * k);

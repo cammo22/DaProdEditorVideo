@@ -16,6 +16,10 @@ import { motoTitolo, specAlTempo, telaTitolo } from '../render/grafica';
 import { f2s, fps } from '../core/timecode';
 import { motore } from '../motore';
 import { avviso, h } from './dom';
+import { haLinea, mettiChiave, valoreAl } from '../core/automazioni';
+import { EditorMaschere } from './maschereMonitor';
+
+const CAMPI_ANIM_TF = ['x', 'y', 'scale', 'rot', 'cropL', 'cropR', 'cropT', 'cropB', 'angoli', 'ombra', 'sx'] as const;
 
 /** un rettangolo sul quadro, in pixel del progetto: centro, misure, rotazione in radianti */
 export interface Riquadro { cx: number; cy: number; w: number; h: number; rot: number }
@@ -178,6 +182,8 @@ export class Posiziona {
   private tintaScelta: { dati: Uint8Array; tela: HTMLCanvasElement } | null = null;
   private ferma = false;
   private firmaTappe = '';
+  /** la modalità «maschera a forma»: contorno, maniglie e punti della Bézier (src/ui/maschereMonitor.ts) */
+  private maschere: EditorMaschere;
 
   constructor(private schermo: HTMLElement, private sopra: HTMLCanvasElement, private ridisegna: () => void) {
     const btn = (testo: string, title: string, fn: () => void, extra = '') => h('button', { class: 'pos-btn ' + extra, title, on: { click: fn } }, testo) as HTMLButtonElement;
@@ -206,6 +212,7 @@ export class Posiziona {
       btn('✕', 'Lascia stare (Esc)', () => this.esciScelta()));
     this.barra = h('div', { class: 'pos-barra' }, this.nome, this.bMoto, this.bInizio, this.tappeEl, this.bFine, this.bPiu, this.bMeno, this.bRitaglia, this.bSegui, this.bAdatta, this.bMira, this.bScelta);
     schermo.append(this.barra);
+    this.maschere = new EditorMaschere(schermo, sopra, ridisegna, riquadroClip);
     schermo.addEventListener('pointerdown', (e) => this.giu(e));
     // la ricerca finisce (o cambia un modo): la barra e la selezione si aggiornano
     document.addEventListener('dpv:scegli-aggiorna', () => { if (this.scelta) { this.aggiornaScelta(); this.ridisegna(); } });
@@ -328,6 +335,7 @@ export class Posiziona {
     this.aggiornaBarra(b);
     if (this.scelta) { this.disegnaScelta(ctx, W, H); return; }
     if (this.mira) { this.disegnaMira(ctx, W, H); return; }
+    if (this.maschere.disegna(ctx, W)) return;
     if (!b) return;
     if (motore.playing) return;
     const p = store.doc, k = W / p.w, f = Math.floor(store.head + 1e-6);
@@ -531,7 +539,8 @@ export class Posiziona {
       const q = riquadroClip(p, s.clip, tfAl(s.clip, s.lf), f);
       if (!q) continue;
       const l = locale(q, x, y);
-      if (Math.abs(l.x) <= q.w / 2 && Math.abs(l.y) <= q.h / 2) trovate.push(s.clip);
+      // la clip vera del progetto, non la copia con i keyframe già calcolati
+      if (Math.abs(l.x) <= q.w / 2 && Math.abs(l.y) <= q.h / 2) trovate.push(store.doc.clips.find((z) => z.id === s.clip.id) ?? s.clip);
     }
     if (!trovate.length) return null;
     if (sotto) {
@@ -545,6 +554,7 @@ export class Posiziona {
   private cursore(e: PointerEvent) {
     if (motore.attivo !== 'recorder') { this.schermo.style.cursor = ''; return; }
     if (this.mira || this.scelta) { this.schermo.style.cursor = 'crosshair'; return; }
+    if (this.maschere.attiva()) { this.schermo.style.cursor = this.maschere.cursoreSu(e); return; }
     const b = this.bersaglio();
     const { x, y } = this.punto(e);
     const presa = b ? this.presaSotto(b, x, y) : null;
@@ -561,6 +571,7 @@ export class Posiziona {
     const { x, y } = this.punto(e);
     if (this.scelta) { this.giuScelta(e, x, y); return; }
     if (this.mira) { this.giuMira(e, x, y); return; }
+    if (this.maschere.giu(e)) return;
     let b = this.bersaglio();
     let presa = b ? this.presaSotto(b, x, y) : null;
     if (!presa || (presa.tipo === 'sposta' && (e.ctrlKey || e.metaKey))) {
@@ -593,6 +604,8 @@ export class Posiziona {
     const doc = store.doc;
     const c = doc.clips.find((z) => z.id === b.c.id) ?? b.c;
     const bl = c.fxb;
+    // con i keyframe sulla posizione si parte dal valore di adesso (se no la prima mossa salterebbe)
+    if (!b.fx && c.anim) { const dest = tappeTf(c)[chiave]?.tf ?? c.tf; for (const k of CAMPI_ANIM_TF) if (haLinea(c, 'tf.' + k)) (dest as unknown as Record<string, number>)[k] = valoreAl(c, 'tf.' + k, f - c.start); }
     if (b.fx && bl) bl.pos ??= [0.5, 0.5];
     const tf0 = structuredClone(b.fx ? c.tf : tappeTf(c)[chiave]?.tf ?? c.tf);
     const pos0 = (bl ? [...(tappePos(bl)[chiave]?.pos ?? bl.pos ?? [0.5, 0.5])] : [0.5, 0.5]) as [number, number];
@@ -671,6 +684,11 @@ export class Posiziona {
         if (!e.altKey) for (const s of [-180, -90, 0, 90, 180]) if (Math.abs(g - s) < 4) g = s;
         tf.rot = Math.round(g * 10) / 10;
       }
+    }
+    // i campi della posizione che hanno i keyframe scrivono la chiave sotto il cursore
+    if (!(t.presa.tipo === 'centro' && c.fxb) && c.anim) {
+      const tf2 = (tappeTf(c)[t.chiave]?.tf ?? c.tf) as unknown as Record<string, number | undefined>;
+      for (const k of CAMPI_ANIM_TF) if (haLinea(c, 'tf.' + k)) mettiChiave(c, 'tf.' + k, t.f - c.start, tf2[k] ?? (k === 'sx' || k === 'scale' ? 1 : 0));
     }
     t.mosso = true;
     store.liveChange();

@@ -2,6 +2,7 @@
 // incroci; il tono di riferimento. Lo stesso grafo serve la riproduzione e l'export (OfflineAudioContext).
 import { AudioBufferSink } from 'mediabunny';
 import type { Clip, Project } from '../core/tipi';
+import { gainDbAl, puntiLinea, valoreAnim } from '../core/automazioni';
 import { dbToGain, end, fadeAl, keyValue, masterDi, mediaOf, newTransition } from '../core/progetto';
 import { transizioniAttive } from '../core/blocchi';
 import { f2s } from '../core/timecode';
@@ -46,7 +47,7 @@ function codaIncrocio(p: Project, c: Clip): number {
  * rampa lineare verso quel punto abbassava piano piano tutta la clip: il "fade out automatico" che non si voleva.
  */
 export function guadagnoClip(c: Clip, lf: number, coda: number): number {
-  const db = c.gainKeys.length ? keyValue(c.gainKeys, lf, c.gain) : c.gain;
+  const db = gainDbAl(c, lf, keyValue);
   let g = dbToGain(db + keyValue(c.duckKeys ?? [], lf, 0));
   // le dissolvenze con la loro forma (dritta, morbida, analogica, veloce, a S): la stessa del disegno
   g *= fadeAl(c, lf);
@@ -68,6 +69,8 @@ export function puntiInviluppo(c: Clip, coda: number): number[] {
   if (c.trIn) add(0, c.trIn.len);
   if (c.trOut) add(c.len - c.trOut.len, c.len);
   if (coda) add(c.len, c.len + coda);
+  // i keyframe del volume: le chiavi e i punti in mezzo (curve morbide, gradini)
+  for (const f of puntiLinea(c.anim?.gain)) s.add(f);
   for (let i = 0; i < c.gainKeys.length; i++) {
     s.add(c.gainKeys[i].f);
     if (i) add(c.gainKeys[i - 1].f, c.gainKeys[i].f);
@@ -118,6 +121,22 @@ export function applicaInviluppo(g: GainNode, p: Project, c: Clip, coda: number,
     const when = toCtx(lf);
     if (when <= now) continue;
     g.gain.linearRampToValueAtTime(guadagnoClip(c, lf, coda), when);
+  }
+}
+
+/** il panorama con i keyframe: rampe fra le chiavi (senza animazione resta il valore fermo, programmato dal chiamante) */
+export function applicaPanorama(pn: StereoPannerNode, p: Project, c: Clip, t0: number, startSec: number, now: number) {
+  const k = c.anim?.pan;
+  if (!k?.length) return;
+  const toCtx = (lf: number) => t0 + f2s(c.start + lf, p.rate) - startSec;
+  const lfNow = ((now - t0 + startSec) * p.rate.num) / p.rate.den - c.start;
+  const lim = (v: number) => Math.max(-1, Math.min(1, v));
+  pn.pan.cancelScheduledValues(0);
+  pn.pan.setValueAtTime(lim(valoreAnim(k, Math.max(0, lfNow), c.pan)), Math.max(now, toCtx(0)));
+  for (const lf of puntiLinea(k)) {
+    const when = toCtx(lf);
+    if (when <= now) continue;
+    pn.pan.linearRampToValueAtTime(lim(valoreAnim(k, lf, c.pan)), when);
   }
 }
 
@@ -426,6 +445,7 @@ class Banco {
       gain.connect(pan);
       pan.connect(this.bus(c.track).gain);
       applicaInviluppo(gain, p, c, coda, this.t0, this.startSec, now);
+      applicaPanorama(pan, p, c, this.t0, this.startSec, now);
       const v: Voce = { clip: c, gain, pan, nodes: [], until: now, finita: false, pumping: false, ingresso: catenaEffetti(ctx, c, gain) };
       this.voci.set(c.id, v);
       if (c.kind === 'tone' || c.kind === 'beep') {
@@ -700,6 +720,7 @@ export async function* mixaggio(p0: Project, fromSec: number, toSec: number): As
       pn.pan.value = c.pan;
       g.connect(pn).connect(tb);
       applicaInviluppo(g, p, c, coda, 0, a0, 0);
+      applicaPanorama(pn, p, c, 0, a0, 0);
       const ingresso = catenaEffetti(ctx, c, g);
       if (c.kind === 'tone' || c.kind === 'beep') {
         suonaTono(ctx, c, ingresso, cs - a0, Math.max(0, cs - a0), Math.max(0.001, Math.min(b, ce) - a0));

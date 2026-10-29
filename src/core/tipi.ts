@@ -57,6 +57,40 @@ export type ClipKind = 'media' | 'color' | 'bars' | 'tone' | 'countdown' | 'titl
 /** Un punto della linea elastica (rubber band): f = fotogrammi dall'inizio della clip. */
 export interface Key { f: number; v: number }
 
+/** Come si passa da una chiave alla successiva: dritta, morbida (parte e arriva piano) o a gradino (resta fino alla prossima). */
+export type ModoAnim = 'lineare' | 'morbida' | 'gradino';
+/** Un keyframe di un parametro numerico: f = fotogrammi dall'inizio della clip, modo = come si arriva alla chiave dopo. */
+export interface ChiaveAnim { f: number; v: number; modo?: ModoAnim }
+/** Le linee animate di una clip: il percorso del parametro ("opacity", "tf.x", "fx.sat", "fxb.forza", "mask.<id>.sfuma"…)
+ *  con le sue chiavi in ordine di tempo. Chi non c'è usa il valore fermo di sempre (src/core/automazioni.ts). */
+export type Animazioni = Record<string, ChiaveAnim[]>;
+
+/** Un punto della maschera a Bézier: x e y in frazioni della sorgente (0..1 dall'angolo in alto a sinistra); hx e hy = la
+ *  maniglia in uscita (relativa al punto, quella in entrata è opposta). Senza maniglie il punto è uno spigolo. */
+export interface PuntoBez { x: number; y: number; hx?: number; hy?: number }
+/** Una maschera a forma sulla clip (src/core/maschereForma.ts). Tutto in frazioni della sorgente, così segue la clip. */
+export interface MascheraForma {
+  id: string;
+  forma: 'rettangolo' | 'ellisse' | 'bezier';
+  nome?: string;
+  /** rettangolo ed ellisse: centro, larghezza e altezza intere (frazioni), rotazione in gradi */
+  x: number; y: number; w: number; h: number; rot: number;
+  /** Bézier: i punti in ordine (la forma si chiude da sola); morbida = le curve passano dolci da un punto all'altro */
+  punti?: PuntoBez[];
+  morbida?: boolean;
+  /** sfumatura del bordo, frazione del lato corto (0..0.5) */
+  sfuma: number;
+  /** allarga (+) o restringe (−) la forma, frazione del lato corto (−0.5..0.5) */
+  espandi: number;
+  inverti: boolean;
+  /** quanto conta la maschera 0..1 */
+  opacita: number;
+  /** somma = aggiunge a quello che si vede · sottrai = toglie */
+  op: 'somma' | 'sottrai';
+  /** spenta = c'è ma non conta */
+  spenta?: boolean;
+}
+
 /** mix = dissolvenza · wipe = tendina SMPTE · dip = passaggio a colore · dve = effetto digitale */
 export type TransitionType = 'mix' | 'wipe' | 'dip' | 'dve';
 
@@ -372,6 +406,10 @@ export interface Clip {
   segue?: string;
   /** lo sfondo tolto dall'AI (maschere in src/media/maschere.ts) */
   ritaglio?: Ritaglio;
+  /** keyframe su qualunque parametro numerico (src/core/automazioni.ts): chi ha una linea qui la usa al posto del valore fermo */
+  anim?: Animazioni;
+  /** le maschere a forma (rettangolo, ellisse, Bézier), sommate o sottratte in ordine (src/core/maschereForma.ts) */
+  maschere?: MascheraForma[];
   /** la ripresa si tiene ferma sull'oggetto tracciato (stabilizza) */
   stabilizza?: boolean;
   fx: VideoFx;

@@ -2,6 +2,7 @@
 // È un rilevatore di energia, non riconosce parole o parlato.
 import type { Clip, Ducking, Key, Project, RuoloAudio } from './tipi';
 import { dbToGain, fadeAl, keyValue } from './progetto';
+import { gainDbAl } from './automazioni';
 import { f2s } from './timecode';
 
 export const DUCKING0: Ducking = { attivo: false, quantita: 12, attacco: .15, rilascio: .6, soglia: -32, isteresi: 4, minimo: .08, hold: .2 };
@@ -22,7 +23,7 @@ export function vociDucking(p: Project): Clip[] {
   return p.clips.filter((c) => {
     const t = p.tracks.find((t) => t.id === c.track);
     return c.kind === 'media' && !!c.media && c.speed > 0 && ruoloAudio(p, c) === 'voce' && t?.kind === 'audio'
-      && !t.mute && (!solo || t.solo) && dbToGain(t.volume) > 0 && (c.gainKeys.length > 0 || dbToGain(c.gain) > 0);
+      && !t.mute && (!solo || t.solo) && dbToGain(t.volume) > 0 && (c.gainKeys.length > 0 || !!c.anim?.gain?.length || dbToGain(c.gain) > 0);
   });
 }
 
@@ -75,7 +76,7 @@ export function presenzaVoce(p: Project, c: Clip, finestre: FinestraRms[], d: Du
     const da = Math.max(0, (w.da - c.srcIn) / c.speed), a = Math.min(durata, (w.a - c.srcIn) / c.speed);
     if (a <= da) continue;
     const lf = (da + a) / 2 * p.rate.num / p.rate.den;
-    const gain = keyValue(c.gainKeys, lf, c.gain) + t.volume;
+    const gain = gainDbAl(c, lf, keyValue) + t.volume;
     let fade = fadeAl(c, lf);
     if (c.trIn && lf < c.trIn.len) fade *= lf / c.trIn.len;
     if (c.trOut && lf > c.len - c.trOut.len) fade *= (c.len - lf) / c.trOut.len;
@@ -118,7 +119,7 @@ export function firmaDucking(p: Project, c: Clip): string {
   const voci = vociDucking(p).map((v) => {
     const m = p.media.find((m) => m.id === v.media), t = p.tracks.find((t) => t.id === v.track);
     return [v.id, v.media, m?.size, m?.lastModified, m?.path, v.start, v.len, v.srcIn, v.speed, v.nastro,
-      v.gain, v.gainKeys, v.fadeIn, v.fadeOut, v.curvaIn, v.curvaOut, v.trIn, v.trOut, codaVoce(p, v), v.afx, t?.volume, t?.pan];
+      v.gain, v.gainKeys, ...(v.anim?.gain ? [v.anim.gain] : []), v.fadeIn, v.fadeOut, v.curvaIn, v.curvaOut, v.trIn, v.trOut, codaVoce(p, v), v.afx, t?.volume, t?.pan];
   }).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   const testo = JSON.stringify([p.rate, p.seqAttiva, c.start, c.len, c.srcIn, c.speed, ruoloAudio(p, c), impostazioneDucking(p, c), voci]);
   let a = 2166136261, b = 5381;

@@ -66,6 +66,8 @@ await build({
         cursoreLive: path.join(radice, 'src/media/cursoreLive.ts'),
         anelliClic: path.join(radice, 'src/render/cursore.ts'),
         pacchetto: path.join(radice, 'src/pacchetto.ts'),
+        automazioni: path.join(radice, 'src/core/automazioni.ts'),
+        maschereForma: path.join(radice, 'src/core/maschereForma.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

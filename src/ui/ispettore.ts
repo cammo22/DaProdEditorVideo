@@ -3,6 +3,9 @@
 // chiuso in "Avanzate". Il colore di tutto il montaggio sta nella pagina Finale.
 import { store } from '../core/store';
 import type { Clip, TitleSpec } from '../core/tipi';
+import { copiaLeggera, descrittore, haLinea, mettiChiave, percorsiAnimati, togliLinea, valutaClip } from '../core/automazioni';
+import { nuovaMaschera, nomeForma } from '../core/maschereForma';
+import { creaRombo, frameLocale, nomeParametro, parametriAnimabili, valoreVivo } from './keyframe';
 import { clipById, end, isVideoClip, mediaOf, newClip, newTrack, nextTrackName, trackOf, FX0 } from '../core/progetto';
 import { frameToTc, fps } from '../core/timecode';
 import { avviso, h, evidenzia } from './dom';
@@ -29,7 +32,7 @@ import { possibilita as audioAIPossibile } from '../media/audioAI';
 import { anteprimaScena } from './anteprimaScena';
 import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, cliccaCosaTenere, dettaglioModello, controllaScena, seguiConAI, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore, altroOggetto, oggettiDi, riprovaOggetti, togliSfondoAI, SECONDI_ANTEPRIMA } from './sfondo';
 
-type Campo = { el: HTMLElement; aggiorna: () => void };
+type Campo = { el: HTMLElement; aggiorna: () => void; /** si rinfresca anche quando il cursore si sposta (ha i keyframe) */ anim?: boolean };
 
 /** tutti gli stili della titolatrice (l'elenco delle proprietà) */
 const STILI_TITOLO: [string, string][] = [
@@ -60,7 +63,9 @@ export class Ispettore {
   constructor(private completo = false) {
     this.corpo = h('div', { class: 'isp-corpo' });
     this.el = h('div', { class: 'ispettore' + (completo ? ' completo' : '') }, this.corpo);
-    this.disiscrivi.push(store.on('sel', () => this.costruisci()), store.on('doc', () => this.costruisci()));
+    this.disiscrivi.push(store.on('sel', () => this.costruisci()), store.on('doc', () => this.costruisci()),
+      // il cursore si sposta: i parametri con i keyframe mostrano il valore di lì
+      store.on('head', () => { for (const c of this.campi) if (c.anim) c.aggiorna(); }));
     // le maschere dell'AI sono pronte (o è cambiato il lavoro): il gruppo "Togli lo sfondo" si rifà
     const rifai = () => { this.firma = ''; this.costruisci(); };
     document.addEventListener('dpv:maschere', rifai);
@@ -80,7 +85,7 @@ export class Ispettore {
   private costruisci() {
     const cs = this.sel();
     // si ricostruisce se cambia la scelta o se cambiano i blocchi FX (le transizioni della clip scelta)
-    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.afx?.pulito ? 'p' + c.afx.pulito.forza : '') + (c.afx?.separata?.ruolo ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : ''))
+    const firma = cs.map((c) => c.id + c.kind + (c.fxb ? c.fxb.id : '') + ':' + c.fx.key + (c.fx.keyColori?.length ?? 0) + (c.gen?.anim?.id ?? '') + (c.afx?.pulito ? 'p' + c.afx.pulito.forza : '') + (c.afx?.separata?.ruolo ?? '') + (c.ritaglio ? c.ritaglio.modo + (c.ritaglio.punti?.length ?? 0) + (maschereAggiornate(c) ? 'ok' : 'no') : '') + (c.anim ? ':' + percorsiAnimati(c).join('+') : '') + (c.maschere?.length ? ':m' + c.maschere.map((m) => m.id + m.forma + (m.punti?.length ?? '') + (m.spenta ? 'x' : '')).join(',') : ''))
       .join(',') + '|' + store.doc.clips.filter((c) => c.kind === 'fx').map((c) => c.id + c.start + ':' + c.len + (c.fxb?.id ?? '')).join(',');
     if (firma === this.firma && this.campi.length) { for (const c of this.campi) c.aggiorna(); return; }
     this.firma = firma;
@@ -154,7 +159,7 @@ export class Ispettore {
       }, disegnino(x.box), h('span', null, x.nome))));
       out.push(this.gruppo('immagine', 'Posizione e movimento', [
         h('label', { class: 'etichetta' }, 'Posizioni pronte'), pronte,
-        this.cursore('Opacità', 0, 100, 1, (c) => Math.round(c.opacity * 100), (c, v) => { c.opacity = v / 100; c.opKeys = []; }, '%', video),
+        this.cursore('Opacità', 0, 100, 1, (c) => Math.round(c.opacity * 100), (c, v) => { c.opacity = v / 100; c.opKeys = []; }, '%', video, 'opacity'),
         h('div', { class: 'isp-riga col' }, h('label', null, 'Movimento', h('small', null, 'la clip si sposta o si ingrandisce da sola durante la ripresa')),
           h('div', { class: 'pp-griglia' }, MOVIMENTI.map((m) => h('button', {
             class: 'pp-tessera' + ((m.id === 'fermo') === !video[0].tfFine && m.id === 'fermo' ? ' acceso' : ''),
@@ -163,13 +168,13 @@ export class Ispettore {
           }, h('span', { class: 'mv-prev' }, h('i', { class: 'mv-box mv-' + m.id })), h('span', null, m.nome))))),
         video[0].tfFine ? h('p', { class: 'nota' }, `Si muove: parte da dove l'hai messa all'inizio, passa da ${(video[0].via ?? []).length ? (video[0].via ?? []).length + ' tappe di mezzo e ' : 'nessuna tappa di mezzo, '}arriva dove l'hai messa alla fine. Sul monitor grande: ◀ Inizio / Fine ▶, ＋ Tappa; o ferma il cursore fra due tappe e muovi: ne nasce una.`) : null,
         h('details', { class: 'pp-piu' }, h('summary', null, 'Numeri precisi'),
-          this.cursore('Zoom', 20, 300, 1, (c) => Math.round(c.tf.scale * 100), (c, v) => { c.tf.scale = v / 100; }, '%', video),
-          this.cursore('Larghezza (stira)', 20, 300, 1, (c) => Math.round((c.tf.sx ?? 1) * 100), (c, v) => { c.tf.sx = v / 100; }, '%', video),
-          this.cursore('Orizzontale', -p.w, p.w, 1, (c) => Math.round(c.tf.x), (c, v) => { c.tf.x = v; }, 'px', video),
-          this.cursore('Verticale', -p.h, p.h, 1, (c) => Math.round(c.tf.y), (c, v) => { c.tf.y = v; }, 'px', video),
-          this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video),
-          this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video),
-          this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video)),
+          this.cursore('Zoom', 20, 300, 1, (c) => Math.round(c.tf.scale * 100), (c, v) => { c.tf.scale = v / 100; }, '%', video, 'tf.scale'),
+          this.cursore('Larghezza (stira)', 20, 300, 1, (c) => Math.round((c.tf.sx ?? 1) * 100), (c, v) => { c.tf.sx = v / 100; }, '%', video, 'tf.sx'),
+          this.cursore('Orizzontale', -p.w, p.w, 1, (c) => Math.round(c.tf.x), (c, v) => { c.tf.x = v; }, 'px', video, 'tf.x'),
+          this.cursore('Verticale', -p.h, p.h, 1, (c) => Math.round(c.tf.y), (c, v) => { c.tf.y = v; }, 'px', video, 'tf.y'),
+          this.cursore('Rotazione', -180, 180, 0.5, (c) => c.tf.rot, (c, v) => { c.tf.rot = v; }, '°', video, 'tf.rot'),
+          this.cursore('Angoli tondi', 0, 100, 1, (c) => Math.round((c.tf.angoli ?? 0) * 100), (c, v) => { c.tf.angoli = v / 100; }, '%', video, 'tf.angoli'),
+          this.cursore('Ombra', 0, 100, 1, (c) => Math.round((c.tf.ombra ?? 0) * 100), (c, v) => { c.tf.ombra = v / 100; }, '%', video), 'tf.ombra'),
         video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l\'opacità la toglie.') : null,
       ], primo.kind === 'media'));
 
@@ -203,25 +208,28 @@ export class Ispettore {
       const sg = this.seguiGruppo(video);
       if (sg) out.push(sg);
       out.push(this.gruppo('colore', 'Colore: regola a mano', [
-        this.cursore('Luce', -50, 50, 1, (c) => Math.round(c.fx.bright * 100), (c, v) => { c.fx.bright = v / 100; }, '', video),
-        this.cursore('Contrasto', 50, 150, 1, (c) => Math.round(c.fx.contrast * 100), (c, v) => { c.fx.contrast = v / 100; }, '%', video),
-        this.cursore('Saturazione', 0, 200, 1, (c) => Math.round(c.fx.sat * 100), (c, v) => { c.fx.sat = v / 100; }, '%', video),
-        this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, ' (freddo ↔ caldo)', video),
-        this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video),
+        this.cursore('Luce', -50, 50, 1, (c) => Math.round(c.fx.bright * 100), (c, v) => { c.fx.bright = v / 100; }, '', video, 'fx.bright'),
+        this.cursore('Contrasto', 50, 150, 1, (c) => Math.round(c.fx.contrast * 100), (c, v) => { c.fx.contrast = v / 100; }, '%', video, 'fx.contrast'),
+        this.cursore('Saturazione', 0, 200, 1, (c) => Math.round(c.fx.sat * 100), (c, v) => { c.fx.sat = v / 100; }, '%', video, 'fx.sat'),
+        this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, ' (freddo ↔ caldo)', video, 'fx.temp'),
+        this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video, 'fx.hue'),
         this.pulsanti([['💧 Bilancia il bianco (clic sul monitor)', () => bilanciaBianco(video[0].id)], ['Azzera il colore', () => store.edit('Azzera colore', () => { for (const c of vive()) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
         h('p', { class: 'nota' }, 'Per dare lo stesso colore a tutto il montaggio c\'è la pagina Finale. Doppio clic su un cursore = valore di partenza.'),
       ]));
     }
+    // le maschere a forma (una clip sola, con un'immagine) e i keyframe di tutti gli altri parametri
+    if (cs.length === 1 && video.length === 1 && ['media', 'color', 'bars', 'countdown'].includes(video[0].kind)) out.push(this.maschereGruppo(video[0]));
     if (audio.length) {
       out.push(this.gruppo('audio', 'Volume', [
-        this.cursore('Volume', -40, 12, 0.5, (c) => c.gain, (c, v) => { c.gain = v; c.gainKeys = []; }, 'dB', audio),
+        this.cursore('Volume', -40, 12, 0.5, (c) => c.gain, (c, v) => { c.gain = v; c.gainKeys = []; }, 'dB', audio, 'gain'),
         this.pulsanti([['−6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -6; c.gainKeys = []; } })], ['0 dB', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 0; c.gainKeys = []; } })], ['+6', () => store.edit('Volume', () => { for (const c of audio) { c.gain = 6; c.gainKeys = []; } })], ['Muto', () => store.edit('Volume', () => { for (const c of audio) { c.gain = -60; c.gainKeys = []; } })]]),
-        this.cursore('Panorama', -100, 100, 1, (c) => Math.round(c.pan * 100), (c, v) => { c.pan = v / 100; }, '', audio),
+        this.cursore('Panorama', -100, 100, 1, (c) => Math.round(c.pan * 100), (c, v) => { c.pan = v / 100; }, '', audio, 'pan'),
         h('p', { class: 'nota' }, 'Nella timeline la linea gialla è il volume: un clic ci mette un punto da portare su e giù (per alzare o abbassare solo in quel momento); Maiusc+trascina alza o abbassa tutto il tratto.'),
       ], true));
       out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti rapidi', [this.tessereAudio(audio, chips)]));
     }
     // l'audio con l'AI: togliere i rumori e separare voce e base. Per l'audio sta aperto (è quello che si cerca); per una ripresa con audio sta chiuso
+    if (cs.length === 1 && primo.kind !== 'fx') out.push(this.animazioniGruppo(primo));
     const conAudio = audio.find((c) => c.kind === 'media') ?? video.find((c) => c.kind === 'media' && audioAIPossibile(c).rumore);
     if (conAudio) out.push(this.gruppo('audioai', 'Audio: pulisci e separa (AI)', righeAudioAI(conAudio), audio.length > 0));
     if (this.completo) out.push(this.gruppo('durata', 'Durata e velocità', [this.durata(cs.filter((c) => c.kind !== 'fx'))]));
@@ -276,10 +284,10 @@ export class Ispettore {
       })];
       out.push(this.gruppo('ritaglio', 'Ritaglio (taglia i bordi)', [
         this.pulsanti([taglia('Nessuno', 0, 0, 0, 0), centro(1), centro(9 / 16), taglia('Bande cinema', 0, 0, 0.12, 0.12)]),
-        this.cursore('A sinistra', 0, 50, 0.5, (c) => c.tf.cropL * 100, (c, v) => { c.tf.cropL = v / 100; }, '%', video),
-        this.cursore('A destra', 0, 50, 0.5, (c) => c.tf.cropR * 100, (c, v) => { c.tf.cropR = v / 100; }, '%', video),
-        this.cursore('In alto', 0, 50, 0.5, (c) => c.tf.cropT * 100, (c, v) => { c.tf.cropT = v / 100; }, '%', video),
-        this.cursore('In basso', 0, 50, 0.5, (c) => c.tf.cropB * 100, (c, v) => { c.tf.cropB = v / 100; }, '%', video),
+        this.cursore('A sinistra', 0, 50, 0.5, (c) => c.tf.cropL * 100, (c, v) => { c.tf.cropL = v / 100; }, '%', video, 'tf.cropL'),
+        this.cursore('A destra', 0, 50, 0.5, (c) => c.tf.cropR * 100, (c, v) => { c.tf.cropR = v / 100; }, '%', video, 'tf.cropR'),
+        this.cursore('In alto', 0, 50, 0.5, (c) => c.tf.cropT * 100, (c, v) => { c.tf.cropT = v / 100; }, '%', video, 'tf.cropT'),
+        this.cursore('In basso', 0, 50, 0.5, (c) => c.tf.cropB * 100, (c, v) => { c.tf.cropB = v / 100; }, '%', video, 'tf.cropB'),
         h('p', { class: 'nota' }, 'Toglie una parte dell\'immagine ai quattro lati (la parte tolta non si vede). Sul monitor grande c\'è anche ✂ Ritaglia, per farlo col mouse dai lati.'),
       ]));
     }
@@ -604,9 +612,9 @@ export class Ispettore {
       const segue = !!fb.segue;
       out.push(this.gruppo('btipo', 'Effetto', [
         this.scelta('Effetto', EFFETTI_TEMPO.map((e) => [e.id, `${e.nome} · ${e.info}`] as [string, string]), (c) => c.fxb?.id ?? 'flash', (c, v) => { c.fxb = cambiaModello(c.fxb!, v); c.name = effettoTempo(v)!.nome; }, bs),
-        this.cursore('Forza', 0, 150, 1, (c) => Math.round((c.fxb?.forza ?? 1) * 100), (c, v) => { c.fxb!.forza = v / 100; }, '%', bs),
+        this.cursore('Forza', 0, 150, 1, (c) => Math.round((c.fxb?.forza ?? 1) * 100), (c, v) => { c.fxb!.forza = v / 100; }, '%', bs, 'fxb.forza'),
         ...(effettoTempo(fb.id)?.parametri ?? []).map((p) => this.cursore(p.nome, p.min, p.max, p.passo,
-          (c) => parametroFx(c.fxb!, p.chiave), (c, v) => { (c.fxb!.parametri ??= {})[p.chiave] = v; }, '', bs)),
+          (c) => parametroFx(c.fxb!, p.chiave), (c, v) => { (c.fxb!.parametri ??= {})[p.chiave] = v; }, '', bs, 'fxb.parametri.' + p.chiave)),
         fb.id === 'censura' ? h('p', { class: 'nota avviso-rosso' }, 'Controlla tutta la clip: mosaico e inseguimento non garantiscono anonimizzazione. Nella versione 1.5.7 la censura NON viene applicata.') : null,
         this.cursore('Si ripete', 1, 12, 1, (c) => c.fxb?.ripeti ?? 1, (c, v) => { c.fxb!.ripeti = v > 1 ? v : undefined; }, 'volte', bs),
         colori ? this.colore('Colore', (c) => c.fxb?.colore ?? '#ffffff', (c, v) => { c.fxb!.colore = v; }, bs) : null,
@@ -627,6 +635,7 @@ export class Ispettore {
       this.cursore('Volume', -24, 6, 1, (c) => c.fxb?.volume ?? 0, (c, v) => { c.fxb!.volume = v; }, ' dB', bs),
       h('div', { class: 'isp-chips' }, h('button', { class: 'chip', disabled: !fb.suono, on: { click: () => { if (fb.suono) ascoltaSuono(fb.suono, fb.volume ?? 0); } } }, '▶ Ascolta')),
     ]));
+    if (bs.length === 1) out.push(this.animazioniGruppo(b0));
     out.push(this.pulsanti([
       ['Centra sul taglio', () => {
         const tg2 = taglioVicino(store.doc, b0.start + b0.len / 2, Math.round(r * 5), b0.track);
@@ -766,6 +775,119 @@ export class Ispettore {
 
   // ——— mattoncini ———
   /** una sezione del pannello; `principale` = quella che serve per questo tipo di elemento: parte aperta (se non l'hai chiusa tu) */
+  /** i keyframe: i parametri che si muovono nel tempo, e un menu per farne muovere altri (colore, ruote, maschere, effetti…) */
+  private animazioniGruppo(c0: Clip): HTMLElement {
+    const id = c0.id;
+    const viva = () => clipById(store.doc, id) ?? c0;
+    const righe: (HTMLElement | null)[] = [];
+    const animati = percorsiAnimati(c0);
+    righe.push(h('p', { class: 'nota' }, 'Il rombo ◆ accanto a un parametro mette una chiave dove sta il cursore: da lì il valore cambia nel tempo. ◀ ▶ saltano alla chiave prima e dopo; tasto destro sul rombo = come si va alla chiave dopo (dritta, morbida, a gradino). Se il parametro ha già chiavi, muovere il cursore del valore cambia la chiave qui.'));
+    for (const path of animati) {
+      const meta = parametriAnimabili(c0).find((x) => x.path === path);
+      const d = descrittore(path);
+      if (!d) continue;
+      righe.push(this.cursore(meta?.nome ?? nomeParametro(c0, path), meta?.min ?? -1000, meta?.max ?? 1000, meta?.passo ?? 0.01, (c) => d.get(c), (c, v) => d.set(c, v), meta?.unita ?? '', [c0], path));
+    }
+    if (!animati.length) righe.push(h('p', { class: 'nota' }, 'Nessun parametro si muove, per ora.'));
+    // aggiungere un altro parametro: si mette una chiave col valore di adesso
+    const altri = parametriAnimabili(c0).filter((x) => !animati.includes(x.path));
+    if (altri.length) {
+      const gruppi = [...new Set(altri.map((x) => x.gruppo))];
+      const sel = h('select', { class: 'mini-select' }, h('option', { value: '' }, 'Fai muovere un altro parametro…'),
+        ...gruppi.map((g) => h('optgroup', { label: g }, ...altri.filter((x) => x.gruppo === g).map((x) => h('option', { value: x.path }, x.nome))))) as HTMLSelectElement;
+      sel.addEventListener('change', () => {
+        const path = sel.value;
+        if (!path) return;
+        store.edit('Keyframe', () => {
+          const c = viva();
+          const lf = frameLocale(c) ?? 0;
+          mettiChiave(c, path, lf, valoreVivo(c, path, lf));
+        });
+        this.aperti.add('anim');
+      });
+      righe.push(h('div', { class: 'isp-riga' }, sel));
+    }
+    if (animati.length) {
+      righe.push(this.pulsanti([['Ferma tutto (resta il valore di qui)', () => store.edit('Togli le animazioni', () => {
+        const c = viva();
+        const lf = frameLocale(c) ?? 0;
+        for (const p of percorsiAnimati(c)) togliLinea(c, p, lf);
+      })]]));
+    }
+    return this.gruppo('anim', 'Keyframe (animazioni)', righe, false);
+  }
+
+  /** il rapporto larghezza/altezza della sorgente di una clip (serve a fare un cerchio che sia un cerchio) */
+  private aspettoClip(c: Clip): number {
+    const p = store.doc, m = mediaOf(p, c);
+    if (m?.width && m.height) return m.rotation % 180 ? m.height / m.width : m.width / m.height;
+    return p.w / p.h;
+  }
+
+  /** le maschere a forma: rettangolo, ellisse e Bézier (punti cliccati sul monitor), sommate o sottratte, con sfumatura, espansione e inversione */
+  private maschereGruppo(c0: Clip): HTMLElement {
+    const id = c0.id;
+    const mask = (c: Clip, mid: string) => c.maschere?.find((m) => m.id === mid);
+    const sul = (cid: string, mid: string, disegna: boolean) => document.dispatchEvent(new CustomEvent('dpv:maschera', { detail: { clip: cid, mask: mid, disegna } }));
+    const aggiungi = (forma: 'rettangolo' | 'ellisse' | 'bezier') => {
+      const asp = this.aspettoClip(c0);
+      const mid = 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+      store.edit('Maschera: ' + forma, (pp) => {
+        const c = clipById(pp, id);
+        if (!c) return;
+        const tondo = asp >= 1 ? { w: 0.6 / asp, h: 0.6 } : { w: 0.6, h: 0.6 * asp };
+        const m = nuovaMaschera(forma, mid, forma === 'rettangolo' ? { w: 0.6, h: 0.6 } : forma === 'ellisse' ? tondo : {});
+        (c.maschere ??= []).push(m);
+      });
+      this.aperti.add('maschere');
+      this.firma = '';
+      this.costruisci();
+      motore.setMonitor('recorder');
+      sul(id, mid, forma === 'bezier');
+    };
+    const righe: (HTMLElement | null)[] = [
+      h('p', { class: 'nota' }, 'Mostra solo una parte dell\'immagine, con la forma che scegli. Le maschere si sommano o si tolgono in ordine; ogni numero ha il suo rombo ◆ per muoversi nel tempo. Sul monitor: trascina la forma, i suoi punti o la maniglia che gira.'),
+      h('div', { class: 'isp-pulsanti' },
+        h('button', { class: 'btn-mini', title: 'Un rettangolo', on: { click: () => aggiungi('rettangolo') } }, '▭ Rettangolo'),
+        h('button', { class: 'btn-mini', title: 'Un\'ellisse (un cerchio, se la sorgente è quadrata)', on: { click: () => aggiungi('ellisse') } }, '◯ Ellisse'),
+        h('button', { class: 'btn-mini', title: 'Una forma libera: poi clicchi i punti sul monitor', on: { click: () => aggiungi('bezier') } }, '✎ Bézier')),
+    ];
+    for (const m0 of c0.maschere ?? []) {
+      const mid = m0.id;
+      const M = (c: Clip) => mask(c, mid)!;
+      const pc = (nome: string, campo: 'x' | 'y' | 'w' | 'h' | 'sfuma' | 'espandi' | 'opacita', min: number, max: number) =>
+        this.cursore(nome, min, max, 0.5, (c) => Math.round((M(c)?.[campo] ?? 0) * 1000) / 10, (c, v) => { const m = M(c); if (m) m[campo] = v / 100; }, '%', [c0], `mask.${mid}.${campo}`);
+      const bez = m0.forma === 'bezier';
+      const togli = () => {
+        store.edit('Toglie la maschera', (pp) => {
+          const c = clipById(pp, id);
+          if (!c) return;
+          c.maschere = (c.maschere ?? []).filter((m) => m.id !== mid);
+          if (!c.maschere.length) delete c.maschere;
+          for (const k of Object.keys(c.anim ?? {})) if (k.startsWith(`mask.${mid}.`)) delete c.anim![k];
+          if (c.anim && !Object.keys(c.anim).length) delete c.anim;
+        });
+        sul('', '', false);
+      };
+      righe.push(h('div', { class: 'mk-testa' }, h('b', null, nomeForma(m0)),
+        h('span', { class: 'mk-azioni' },
+          h('button', { class: 'btn-mini', title: bez ? 'Disegna o sposta i punti sul monitor' : 'Mostra la forma sul monitor', on: { click: () => { motore.setMonitor('recorder'); sul(id, mid, bez && (m0.punti?.length ?? 0) < 3); } } }, bez ? '✎ Sul monitor' : '⌖ Sul monitor'),
+          h('button', { class: 'btn-mini', title: 'Toglie la maschera', on: { click: togli } }, '🗑'))));
+      righe.push(this.spunta('Accesa', (c) => !M(c)?.spenta, (c, v) => { const m = M(c); if (m) { if (v) delete m.spenta; else m.spenta = true; } }, [c0]));
+      righe.push(this.scelta('Con le altre', [['somma', 'Aggiunge'], ['sottrai', 'Toglie']], (c) => M(c)?.op ?? 'somma', (c, v) => { const m = M(c); if (m) m.op = v as 'somma'; }, [c0]));
+      righe.push(this.spunta('Inverti (si vede fuori)', (c) => !!M(c)?.inverti, (c, v) => { const m = M(c); if (m) m.inverti = v; }, [c0]));
+      if (bez) {
+        righe.push(this.spunta('Curve morbide', (c) => !!M(c)?.morbida, (c, v) => { const m = M(c); if (m) m.morbida = v; }, [c0]));
+        righe.push(h('p', { class: 'nota' }, `${m0.punti?.length ?? 0} punti. Con ✎ Sul monitor: clic = nuovo punto, trascina = sposta, tasto destro = toglie, Invio o Esc = finito.`));
+      } else {
+        righe.push(pc('Centro X', 'x', 0, 100), pc('Centro Y', 'y', 0, 100), pc('Larghezza', 'w', 1, 200), pc('Altezza', 'h', 1, 200));
+        righe.push(this.cursore('Rotazione', -180, 180, 0.5, (c) => M(c)?.rot ?? 0, (c, v) => { const m = M(c); if (m) m.rot = v; }, '°', [c0], `mask.${mid}.rot`));
+      }
+      righe.push(pc('Sfumatura', 'sfuma', 0, 50), pc('Allarga / stringi', 'espandi', -50, 50), pc('Quanto conta', 'opacita', 0, 100));
+    }
+    return this.gruppo('maschere', 'Maschere (forme)', righe, !!c0.maschere?.length);
+  }
+
   private gruppo(id: string, titolo: string, righe: (HTMLElement | null)[], principale = false): HTMLElement {
     const grip = h('span', { class: 'isp-grip', title: 'Trascina per spostare la sezione (l\'ordine si ricorda)' }, '⠿');
     const aperta = this.aperti.has(id) || (principale && !this.chiusi.has(id));
@@ -843,17 +965,32 @@ export class Ispettore {
     this.firma = ''; this.costruisci();
   }
 
-  private cursore(nome: string, min: number, max: number, step: number, get: (c: Clip) => number, put: (c: Clip, v: number) => void, unita: string, quali: Clip[]): HTMLElement {
+  /** anim = il percorso del parametro per i keyframe (src/core/automazioni.ts): accanto al cursore compare il rombo ◆ */
+  private cursore(nome: string, min: number, max: number, step: number, get: (c: Clip) => number, put: (c: Clip, v: number) => void, unita: string, quali: Clip[], anim?: string): HTMLElement {
     const ids = quali.map((c) => c.id);
     const trova = () => store.doc.clips.filter((c) => ids.includes(c.id));
+    const rombo = anim ? creaRombo(anim, ids) : null;
     const r = h('input', { type: 'range', min, max, step }) as HTMLInputElement;
     const n = h('input', { type: 'number', class: 'num', min, max, step }) as HTMLInputElement;
-    const agg = () => { const c = trova()[0]; if (!c) return; const v = get(c); if (document.activeElement !== n) n.value = String(Math.round(v * 100) / 100); r.value = String(v); };
+    const agg = () => {
+      const c0 = trova()[0]; if (!c0) return;
+      // con la linea dei keyframe si mostra il valore di adesso (sotto il cursore), non quello fermo
+      const lf = anim ? frameLocale(c0) : null;
+      const c = anim && lf !== null && haLinea(c0, anim) ? valutaClip(c0, lf) : c0;
+      const v = get(c); if (document.activeElement !== n) n.value = String(Math.round(v * 100) / 100); r.value = String(v);
+      rombo?.aggiorna();
+    };
     agg();
     let vivo = false;
     const applica = (v: number) => {
       if (!vivo) { store.begin(nome); vivo = true; }
-      for (const c of trova()) put(c, v);
+      for (const c of trova()) {
+        const lf = anim ? frameLocale(c) : null;
+        if (anim && lf !== null && haLinea(c, anim)) {
+          // parametro animato: il valore nuovo diventa la chiave sotto il cursore (passa dalla stessa put, su una copia)
+          const sc = copiaLeggera(c); put(sc, v); mettiChiave(c, anim, lf, descrittore(anim)!.get(sc));
+        } else put(c, v);
+      }
       store.liveChange();
     };
     r.addEventListener('input', () => { applica(Number(r.value)); n.value = r.value; });
@@ -864,8 +1001,8 @@ export class Ispettore {
       const def: Record<string, number> = { Opacità: 100, Zoom: 100, Orizzontale: 0, Verticale: 0, Rotazione: 0, Luce: 0, Contrasto: 100, Saturazione: 100, Temperatura: 0, Tinta: 0, Volume: 0, Panorama: 0 };
       if (nome in def) { applica(def[nome]); store.commit(true); vivo = false; agg(); }
     });
-    const el = h('div', { class: 'isp-riga' }, h('label', null, nome), r, h('span', { class: 'isp-num' }, n, h('small', null, unita)));
-    this.campi.push({ el, aggiorna: agg });
+    const el = h('div', { class: 'isp-riga' + (rombo ? ' kf-riga' : '') }, h('label', null, nome), r, h('span', { class: 'isp-num' }, n, h('small', null, unita)), rombo?.el ?? null);
+    this.campi.push({ el, aggiorna: agg, anim: !!anim });
     return el;
   }
 
