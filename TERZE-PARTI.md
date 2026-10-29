@@ -72,3 +72,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## HyperFrames · Apache-2.0
+
+Origine: https://github.com/heygen-com/hyperframes (HeyGen). Licenza controllata sul repository: Apache License 2.0, nessun file NOTICE.
+
+Cosa ne abbiamo preso: **l'idea**, non il codice. Titoli e grafiche scritti in HTML/CSS e guidati dal tempo fotogramma per fotogramma, così anteprima ed esportazione sono identiche; e le idee di movimento dei suoi blocchi (entrata, tenuta, uscita) per i sottopancia e i testi animati.
+
+- `src/core/titoliHtml.ts` e `src/render/titoliHtml.ts` (titoli animati HTML): motore, modelli e disegno **scritti per DaProd Video**. Niente codice, template, CSS o immagini di HyperFrames è stato copiato; non c'è nessuna sua dipendenza. Il disegno passa da un SVG con `foreignObject` e dalla tela del browser (nessun Node, Puppeteer o FFmpeg).
+- `src/core/animazioni.ts` e `src/render/anim/*.ts` (animazioni su tela 2D, 1.1.4): stessa ispirazione, ridisegnate da zero.
+
+Caratteri dei titoli HTML: solo quelli già nel programma, tutti con licenza SIL OFL 1.1 (@fontsource: Orbitron, Rajdhani, Montserrat, Oswald, Bebas Neue, Archivo Black, Space Mono, Playfair Display; DSEG7 di Keshikan, `src/stile/font/DSEG-LICENSE.txt`).

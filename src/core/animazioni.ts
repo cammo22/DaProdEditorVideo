@@ -2,7 +2,7 @@
 // e quelle per le cerimonie. Qui ci sono solo i dati (nome, campi da compilare, durata); come si disegnano sta in
 // src/render/animazioni.ts. Il disegno è un'altra cosa: ogni animazione è una funzione del tempo, senza stato.
 // Molte nascono dal catalogo di HyperFrames (HeyGen, Apache-2.0, https://github.com/heygen-com/hyperframes): le
-// stesse idee di movimento (entrata, tenuta, uscita), ridisegnate per questo programma. Vedi THIRD-PARTY.md.
+// stesse idee di movimento (entrata, tenuta, uscita), ridisegnate per questo programma. Vedi TERZE-PARTI.md.
 import type { AnimSpec } from './tipi';
 
 export type TipoCampo = 'testo' | 'lungo' | 'numero' | 'colore' | 'scelta' | 'spunta';

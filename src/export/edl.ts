@@ -50,6 +50,7 @@ export function creaEdl(p: Project): string {
     }
     if (c.kind === 'media' && m) righe.push(`* FROM CLIP NAME: ${m.name}`);
     else if (c.kind === 'title' && c.gen?.anim) righe.push(`* ANIMAZIONE: ${c.name.slice(0, 60)}`);
+    else if (c.kind === 'title' && c.gen?.html) righe.push(`* TITOLO HTML: ${c.name.slice(0, 60)}`);
     else if (c.kind === 'title') righe.push(`* TITOLO: ${(c.gen?.title?.text ?? '').replace(/\n/g, ' / ').slice(0, 60)}`);
     if (c.opacity < 1 && canale.startsWith('V')) righe.push(`* OPACITY: ${Math.round(c.opacity * 100)}%`);
     righe.push('');

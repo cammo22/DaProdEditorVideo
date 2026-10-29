@@ -56,12 +56,13 @@ export function applicaPresetTitolo(c: Clip, id: string) {
 
 /**
  * Cosa c'è scritto nel dato del trascinamento di un generatore:
- * 'g:title:cinema', 'g:countdown:neon:3', 'g:anim:lt-barra', 'g:bars', 'g:nero', 'g:color' (e i vecchi 'g:title', 'g:countdown').
+ * 'g:title:cinema', 'g:countdown:neon:3', 'g:anim:lt-barra', 'g:html:neon', 'g:bars', 'g:nero', 'g:color' (e i vecchi 'g:title', 'g:countdown').
  */
-export function leggiGeneratore(dato: string): { kind: 'bars' | 'color' | 'countdown' | 'title' | 'nero' | 'anim'; titolo?: string; anim?: string; conto?: { stile: 'pellicola' | 'moderno' | 'neon' | 'minimal'; secondi: number } } {
+export function leggiGeneratore(dato: string): { kind: 'bars' | 'color' | 'countdown' | 'title' | 'nero' | 'anim' | 'html'; titolo?: string; anim?: string; html?: string; conto?: { stile: 'pellicola' | 'moderno' | 'neon' | 'minimal'; secondi: number } } {
   const [, kind, a, b] = dato.split(':');
   if (kind === 'title') return { kind, titolo: a };
   if (kind === 'anim') return { kind, anim: a };
+  if (kind === 'html') return { kind, html: a };
   if (kind === 'countdown') return { kind, conto: { stile: (a as 'pellicola') || 'pellicola', secondi: Number(b) || 5 } };
   return { kind: kind as 'bars' | 'color' | 'nero' };
 }
