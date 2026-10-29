@@ -24,6 +24,10 @@ serde_json = "1"
 # decodifica audio di riserva per WebKit senza AudioDecoder (Mac con Safari vecchio)
 symphonia = { version = "0.6.1", default-features = false, features = ["aac", "mp3", "flac", "vorbis"] }
 
+# una sola finestra aperta alla volta (solo sul computer): un secondo avvio passa il file a quella già aperta
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [profile.release]
 codegen-units = 1
 lto = true

@@ -443,10 +443,51 @@ fn apri_link(app: AppHandle, url: String) -> Esito<()> {
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
+/// Porta la finestra davanti a tutto: la rimette se era ridotta a icona, la mostra, le dà il fuoco e la tiene
+/// "sempre in primo piano" per un attimo (Windows altrimenti la lascia dietro le altre, lampeggiando sulla barra).
+fn finestra_davanti(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_always_on_top(true);
+        let _ = w.set_focus();
+        let _ = w.set_always_on_top(false);
+    }
+}
+
+/// Un progetto da aprire arrivato da fuori (doppio clic sul file con l'app già aperta, o secondo avvio): si ricorda
+/// e si dice alla finestra, che lo apre (riusa l'evento `apri-file`).
+fn passa_file(app: &AppHandle, s: String) {
+    use tauri::Emitter;
+    if let Some(a) = app.try_state::<Avvio>() {
+        if let Ok(mut x) = a.0.lock() {
+            *x = Some(s.clone());
+        }
+    }
+    let _ = app.emit("apri-file", s);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let dall_avvio = std::env::args().skip(1).find(|a| file_progetto(a));
-    tauri::Builder::default()
+    let mut costruttore = tauri::Builder::default();
+    // Una sola finestra alla volta (sul computer): un secondo avvio non apre un'altra copia, passa il file
+    // (se c'è) a quella già aperta e la porta davanti. Il plugin dev'essere il primo.
+    #[cfg(desktop)]
+    {
+        costruttore = costruttore.plugin(tauri_plugin_single_instance::init(|app, argomenti, _cartella| {
+            if let Some(f) = argomenti.iter().skip(1).find(|a| file_progetto(a)) {
+                passa_file(app, f.clone());
+            }
+            finestra_davanti(app);
+        }));
+    }
+    costruttore
+        .setup(|app| {
+            // anche al primo avvio la finestra sta davanti
+            finestra_davanti(app.handle());
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
@@ -500,19 +541,13 @@ pub fn run() {
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             if let tauri::RunEvent::Opened { urls } = _ev {
-                use tauri::Emitter;
                 for u in urls {
                     let Ok(p) = u.to_file_path() else { continue };
                     let s = p.to_string_lossy().into_owned();
                     if !file_progetto(&s) {
                         continue;
                     }
-                    if let Some(a) = _app.try_state::<Avvio>() {
-                        if let Ok(mut x) = a.0.lock() {
-                            *x = Some(s.clone());
-                        }
-                    }
-                    let _ = _app.emit("apri-file", s);
+                    passa_file(_app, s);
                 }
             }
         });
