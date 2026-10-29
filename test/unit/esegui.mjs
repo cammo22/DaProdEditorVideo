@@ -61,6 +61,7 @@ await build({
         ducking: path.join(radice, 'src/core/ducking.ts'),
         audio: path.join(radice, 'src/media/audio.ts'),
         montaggio: path.join(radice, 'src/core/montaggio.ts'),
+        montaggioTesto: path.join(radice, 'src/core/montaggioTesto.ts'),
         coloreAudioProgetto: path.join(radice, 'src/core/coloreAudioProgetto.ts'),
         zoomCursore: path.join(radice, 'src/core/zoomCursore.ts'),
         cursoreLive: path.join(radice, 'src/media/cursoreLive.ts'),

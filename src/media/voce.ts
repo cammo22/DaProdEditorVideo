@@ -4,7 +4,8 @@
 //  · Nemotron 3.5 di NVIDIA (src/media/nemo.ts, nell'app): multilingua, va su scheda NVIDIA, Mac e anche su CPU;
 //  · Whisper (src/media/voce.worker.ts, anche nel browser), e dall'italiano anche la traduzione in inglese.
 // Tutto sul computer di chi monta: l'audio non va da nessuna parte.
-import type { Project, Sottotitolo } from '../core/tipi';
+import type { Clip, Project, Sottotitolo } from '../core/tipi';
+import { paroleDaPezzi, progettoPerTesto, type Parola } from '../core/montaggioTesto';
 import { end, projectEnd, uid } from '../core/progetto';
 import { f2s, fps } from '../core/timecode';
 import { sistemaRighe } from '../core/sottotitoli';
@@ -40,7 +41,7 @@ export interface Pezzo { da: number; a: number | null; testo: string }
 /** chi trascrive un pezzo d'audio (16 kHz mono): di solito il worker con Whisper; le prove ne mettono uno finto */
 export type Trascrittore = {
   carica: (modello: string, stato: (fase: string, prog: number) => void) => Promise<string>;
-  trascrivi: (audio: Float32Array, lingua: string, traduci: boolean) => Promise<Pezzo[]>;
+  trascrivi: (audio: Float32Array, lingua: string, traduci: boolean, parole?: boolean) => Promise<Pezzo[]>;
 };
 
 const SR = 16000;
@@ -123,7 +124,7 @@ function caricaNelWorker(modello: string, stato: (fase: string, prog: number) =>
 /** un pezzo di un minuto non deve mai metterci più di così: se il worker non risponde (scheda video appesa) si rifà */
 export const ATTESA_PEZZO_MS = { valore: 10 * 60 * 1000 };
 
-function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: boolean): Promise<Pezzo[]> {
+function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: boolean, parole = false): Promise<Pezzo[]> {
   segnaUsoAI();
   return new Promise((ok, no) => {
     const id = ++seq;
@@ -135,17 +136,17 @@ function trascriviNelWorker(audio: Float32Array, lingua?: string, traduci?: bool
       no(err);
     }, ATTESA_PEZZO_MS.valore);
     attese.set(id, { ok: (p) => { clearTimeout(orologio); ok(p); }, no: (e) => { clearTimeout(orologio); no(e); } });
-    lavoratore().postMessage({ tipo: 'trascrivi', id, audio, lingua, traduci }, [audio.buffer]);
+    lavoratore().postMessage({ tipo: 'trascrivi', id, audio, lingua, traduci, parole }, [audio.buffer]);
   });
 }
 
 const whisper: Trascrittore = {
   carica: (modello, stato) => { ultimoModello = { modello, stato }; return caricaNelWorker(modello, stato).then((d) => { segnaModelloPronto('whisper-' + modello.split('-').pop(), modello); return d; }); },
-  trascrivi: async (audio, lingua, traduci) => {
+  trascrivi: async (audio, lingua, traduci, parole) => {
     // l'audio passa al worker (e da lì sparisce): se serve rifare il pezzo se ne tiene una copia
     const copia = audio.slice();
     try {
-      return await trascriviNelWorker(audio, lingua, traduci);
+      return await trascriviNelWorker(audio, lingua, traduci, parole);
     } catch (e) {
       if (!(e as { schedaGuasta?: boolean }).schedaGuasta || !ultimoModello) throw e;
       // la scheda video ha sbagliato: il worker si butta e si riparte da uno nuovo sul processore, con lo stesso pezzo
@@ -155,7 +156,7 @@ const whisper: Trascrittore = {
       caricamento = null;
       attese.clear();
       await caricaNelWorker(ultimoModello.modello, ultimoModello.stato, true);
-      return trascriviNelWorker(copia, lingua, traduci);
+      return trascriviNelWorker(copia, lingua, traduci, parole);
     }
   },
 };
@@ -165,6 +166,37 @@ let trascrittore: Trascrittore = whisper;
 export const caricaModelloVoce = (modello: string, stato: (fase: string, prog: number) => void) => trascrittore.carica(modello, stato);
 /** per le prove: un trascrittore finto (null = torna Whisper) */
 export const impostaTrascrittore = (t: Trascrittore | null) => { trascrittore = t ?? whisper; };
+
+/** Lo stesso Whisper dei sottotitoli, con i tempi veri per parola e senza traduzione o filtro delle ripetizioni. */
+export async function paroleWhisper(audio: Float32Array, o: OpzioniVoce, stato: (fase: string, prog: number) => void, segnale?: AbortSignal): Promise<Parola[]> {
+  const fermo = () => { if (segnale?.aborted) throw new Error('fermato'); };
+  fermo();
+  await trascrittore.carica(o.modello || MODELLI[1].id, (fase, k) => stato(fase, k * 0.3));
+  fermo();
+  const tagli = puntiDiTaglio(audio), out: Parola[] = [];
+  for (let k = 0; k < tagli.length - 1; k++) {
+    fermo();
+    const da = tagli[k], a = tagli[k + 1];
+    stato(`Ascolto le parole: ${Math.round(da)} di ${Math.round(audio.length / SR)} secondi`, 0.3 + 0.7 * k / (tagli.length - 1));
+    const pezzi = await trascrittore.trascrivi(audio.slice(Math.floor(da * SR), Math.floor(a * SR)), o.lingua, false, true);
+    fermo();
+    for (const w of paroleDaPezzi(pezzi, a - da)) out.push({ ...w, da: w.da + da, a: w.a + da });
+  }
+  stato('Fatto', 1);
+  return out;
+}
+
+/** I secondi restituiti da Whisper tornano nella sorgente della clip, anche se è tagliata o accelerata. */
+export async function testoDellaClip(p: Project, id: string, o: OpzioniVoce, stato: (fase: string, prog: number) => void, segnale?: AbortSignal): Promise<NonNullable<Clip['parlato']>> {
+  const c = p.clips.find((x) => x.id === id);
+  if (!c?.media) throw new Error('Scegli una clip video o audio');
+  stato('Preparo l\'audio della clip…', 0);
+  const audio = await audioPerVoce(progettoPerTesto(p, id), (k) => stato('Preparo l\'audio della clip…', k * 0.1));
+  const parole = await paroleWhisper(audio, o, (fase, k) => stato(fase, 0.1 + 0.9 * k), segnale);
+  if (!parole.length) throw new Error('Non ho trovato parole con tempi precisi. Prova un altro modello Whisper');
+  return { id: uid('parlato'), media: c.media, da: c.srcIn, a: c.srcIn + f2s(c.len, p.rate) * c.speed,
+    parole: parole.map((w) => ({ ...w, da: c.srcIn + w.da * c.speed, a: c.srcIn + w.a * c.speed })) };
+}
 
 /** ferma tutto (il pulsante "Ferma"): il worker si chiude e il modello si ricarica la prossima volta */
 export function fermaVoce() {
