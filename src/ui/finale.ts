@@ -26,6 +26,7 @@ import { volumeLivellato } from '../effetti';
 import { esportaEdl, esportaFotogramma } from './dialoghi';
 import { pannelloEsporta } from './esportazione';
 import { avviso, clamp, conferma, h, icona } from './dom';
+import { creaPannelloColoreAvanzato } from './coloreAvanzato';
 
 type Campo = { aggiorna: () => void };
 
@@ -73,6 +74,13 @@ export class Finale {
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
+  // colore avanzato di una clip: la scelta, il posto del pannello e il pannello (c'è solo mentre si guarda la pagina Colore)
+  private sceltaClip: HTMLSelectElement | null = null;
+  private postoClip: HTMLElement | null = null;
+  private pannelloClip: ReturnType<typeof creaPannelloColoreAvanzato> | null = null;
+  private clipColore: string | null = null;
+  private idPannello: string | null = null;
+  private firmaClip = '';
 
   constructor() {
     this.riepilogo = h('div', { class: 'fin-riepilogo' });
@@ -87,7 +95,8 @@ export class Finale {
       h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
     this.mostra('colore');
     quandoPreparazioni(() => this.aggiornaRiepilogo());
-    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); });
+    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
+    store.on('sel', () => this.sincronizzaClipColore(true));
     store.on('head', () => this.segnaRigaCorrente());
   }
 
@@ -115,7 +124,50 @@ export class Finale {
     this.aggiornaRiepilogo();
     for (const c of this.campi) c.aggiorna();
     if (z === 'sottotitoli') { this.firmaSott = ''; this.aggiornaSott(); }
+    this.sincronizzaClipColore(true);
   }
+
+  /** la sezione «Colore avanzato»: si sceglie la clip, sotto c'è il pannello (LUT, ruote, curve) e il monitor mostra il risultato */
+  private coloreAvanzatoClip(): HTMLElement {
+    const scelta = h('select', { 'aria-label': 'Clip da ritoccare' });
+    scelta.onchange = () => { this.clipColore = scelta.value || null; this.sincronizzaClipColore(false); const c = this.clipColore ? store.doc.clips.find((x) => x.id === this.clipColore) : null; if (c) motore.vaiA(c.start); };
+    this.sceltaClip = scelta; this.postoClip = h('div', { class: 'ca-fin-host' }); this.firmaClip = '';
+    return h('div', { class: 'ca-fin' },
+      h('label', { class: 'ca-fin-scelta' }, h('span', null, 'Clip'), scelta),
+      h('p', { class: 'nota' }, 'LUT .cube con intensità, ruote lift/gamma/gain e curve, solo sulla clip scelta. Il monitor mostra il risultato; Ctrl+Z torna indietro. Sceglierla nella timeline cambia anche qui.'),
+      this.postoClip);
+  }
+
+  /** le riprese su cui si può lavorare di colore (video e immagini), nell'ordine della timeline */
+  private clipPerColore() {
+    const p = store.doc;
+    return p.clips.filter((c) => c.kind === 'media' && p.tracks.find((t) => t.id === c.track)?.kind === 'video').sort((a, b) => a.start - b.start);
+  }
+
+  /** tiene d'accordo la tendina, la clip scelta e il pannello del colore avanzato; col pannello solo se la pagina Colore è aperta */
+  private sincronizzaClipColore(dallaScelta: boolean) {
+    const scelta = this.sceltaClip, posto = this.postoClip;
+    if (!scelta || !posto) return;
+    if (this.sezione !== 'colore') { this.pannelloClip?.distruggi(); this.pannelloClip = null; this.idPannello = null; return; }
+    const lista = this.clipPerColore(), p = store.doc;
+    const firma = lista.map((c) => c.id + c.name + c.start).join('|');
+    if (firma !== this.firmaClip) {
+      this.firmaClip = firma;
+      scelta.replaceChildren(...lista.map((c) => h('option', { value: c.id }, `${c.name} · ${frameToTc(c.start, p.rate, p.drop)}`)));
+    }
+    // la clip scelta nella timeline passa avanti; se no resta quella di prima, se c'è ancora; se no la prima
+    const dallaTimeline = dallaScelta ? lista.find((c) => store.sel.has(c.id)) : undefined;
+    const id = dallaTimeline?.id ?? (lista.some((c) => c.id === this.clipColore) ? this.clipColore : lista[0]?.id ?? null);
+    scelta.value = id ?? ''; scelta.disabled = !id;
+    this.clipColore = id;
+    if (this.pannelloClip && this.idPannello === id) return;
+    this.idPannello = id;
+    this.pannelloClip?.distruggi(); this.pannelloClip = null;
+    if (!id) { posto.replaceChildren(h('p', { class: 'nota' }, 'Nel montaggio non ci sono riprese o immagini: mettine una in timeline e poi scegli qui quale ritoccare.')); return; }
+    this.pannelloClip = creaPannelloColoreAvanzato(id);
+    posto.replaceChildren(this.pannelloClip.el);
+  }
+
 
   private costruisci(z: Sezione): HTMLElement {
     const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
@@ -148,7 +200,8 @@ export class Finale {
           this.cursore('Grana', 0, 100, (m) => Math.round(m.grain * 100), (m, v) => { m.grain = v / 100; }, ''),
           h('div', { class: 'isp-pulsanti' },
             h('button', { class: 'btn-mini', on: { click: () => this.cambia('Azzera ritocchi', (m) => { Object.assign(m, { look: 'nessuno', intensita: 1, bright: 0, contrast: 1, sat: 1, temp: 0, tint: 0, vignette: 0, grain: 0 }); }) } }, 'Azzera look e ritocchi'),
-            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo'))));
+            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo'))),
+        sez('Colore avanzato di una clip', 'immagine', this.coloreAvanzatoClip()));
     }
     if (z === 'audio') {
       return pagina(sez('Audio finale', 'altoparlante',

@@ -47,13 +47,18 @@ export function parseCube(testo: string, nome = 'LUT'): Omit<RisorsaLut, 'id' | 
   return l;
 }
 
-export async function leggiLut(file: File): Promise<RisorsaLut> {
-  if (!/\.cube$/i.test(file.name)) throw new Error('Scegli un file .cube');
-  if (file.size > MAX_CUBE_BYTE) throw new Error('La LUT supera 32 MB');
-  const l = parseCube(await file.text(), file.name);
+/** Dal testo di un .cube alla risorsa del progetto (id e hash sul contenuto): serve a chi legge un file e alla libreria di partenza. */
+export async function lutDaTesto(testo: string, nome: string): Promise<RisorsaLut> {
+  const l = parseCube(testo, nome);
   const bytes = new TextEncoder().encode(JSON.stringify([l.n, l.domainMin, l.domainMax, l.dati]));
   const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (x) => x.toString(16).padStart(2, '0')).join('');
   return { ...l, id: 'lut-' + hash, hash };
+}
+
+export async function leggiLut(file: File): Promise<RisorsaLut> {
+  if (!/\.cube$/i.test(file.name)) throw new Error('Scegli un file .cube');
+  if (file.size > MAX_CUBE_BYTE) throw new Error('La LUT supera 32 MB');
+  return lutDaTesto(await file.text(), file.name);
 }
 
 /** Riferimento CPU per le prove; nell'app i pixel passano dalla texture 3D. */

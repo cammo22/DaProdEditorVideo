@@ -27,6 +27,8 @@ import { cosaCiMetto } from './seguiMenu';
 import { righeAudioAI, faiTogliRumore } from './audioAI';
 import { possibilita as audioAIPossibile } from '../media/audioAI';
 import { anteprimaScena } from './anteprimaScena';
+import { apriColoreAvanzato } from './coloreAvanzatoFinestra';
+import { creaDuckingClip } from './duckingClip';
 import { bilanciaBianco, azzeraPunti, elaboraClip, fermaClip, impostaModo, lavoroDi, modiPossibili, modoSfondo, cliccaCosaTenere, dettaglioModello, controllaScena, seguiConAI, provaOggetto, scegliColore, statoMaschere, togliColoreExtra, togliPunto, trovaColore, altroOggetto, oggettiDi, riprovaOggetti, togliSfondoAI, SECONDI_ANTEPRIMA } from './sfondo';
 
 type Campo = { el: HTMLElement; aggiorna: () => void };
@@ -209,6 +211,7 @@ export class Ispettore {
         this.cursore('Temperatura', -100, 100, 1, (c) => Math.round((c.fx.temp ?? 0) * 100), (c, v) => { c.fx.temp = v / 100; }, ' (freddo ↔ caldo)', video),
         this.cursore('Tinta', -180, 180, 1, (c) => c.fx.hue, (c, v) => { c.fx.hue = v; }, '°', video),
         this.pulsanti([['💧 Bilancia il bianco (clic sul monitor)', () => bilanciaBianco(video[0].id)], ['Azzera il colore', () => store.edit('Azzera colore', () => { for (const c of vive()) { c.fx.bright = 0; c.fx.contrast = 1; c.fx.sat = 1; c.fx.hue = 0; c.fx.temp = 0; c.fx.look = 'none'; c.fx.effetti = undefined; } })]]),
+        this.pulsanti([['Colore avanzato…', () => apriColoreAvanzato(video[0].id)]]),
         h('p', { class: 'nota' }, 'Per dare lo stesso colore a tutto il montaggio c\'è la pagina Finale. Doppio clic su un cursore = valore di partenza.'),
       ]));
     }
@@ -219,6 +222,12 @@ export class Ispettore {
         this.cursore('Panorama', -100, 100, 1, (c) => Math.round(c.pan * 100), (c, v) => { c.pan = v / 100; }, '', audio),
         h('p', { class: 'nota' }, 'Nella timeline la linea gialla è il volume: un clic ci mette un punto da portare su e giù (per alzare o abbassare solo in quel momento); Maiusc+trascina alza o abbassa tutto il tratto.'),
       ], true));
+      // «Questa è la voce» e «Abbassa sotto la voce»: una clip alla volta
+      if (audio.length === 1 && !video.length) {
+        const duck = creaDuckingClip(audio[0].id);
+        this.campi.push({ el: duck.el, aggiorna: duck.aggiorna });
+        if (duck.el.childElementCount) out.push(this.gruppo('ducking', 'Voce e musica', [duck.el]));
+      }
       out.push(this.gruppo('fxa', video.length ? 'Effetti audio' : 'Effetti rapidi', [this.tessereAudio(audio, chips)]));
     }
     // l'audio con l'AI: togliere i rumori e separare voce e base. Per l'audio sta aperto (è quello che si cerca); per una ripresa con audio sta chiuso
