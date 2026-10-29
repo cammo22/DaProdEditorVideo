@@ -79,6 +79,8 @@ let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (d: Uint8Array) => void; no: (e: Error) => void }>();
 let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void; dacache: boolean; chiave: string; slot: Slot } | null = null;
+let promessaCaricamento: Promise<string> | null = null;
+let chiaveCaricamento = '';
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
@@ -157,18 +159,23 @@ registraVram('sfondo', {
 function caricaNelWorker(m: ModelloRitaglio, stato: (fase: string, prog: number) => void, senzaScheda = false, slot: Slot = 'p'): Promise<string> {
   segnaUsoAI();
   const chiave = m.id + '|' + m.repo.join(',');
+  const richiesta = chiave + '|' + slot + '|' + senzaScheda;
+  // Un solo caricamento alla volta: richieste uguali aspettano insieme, modelli diversi si caricano dopo.
+  if (promessaCaricamento) return chiaveCaricamento === richiesta ? promessaCaricamento : promessaCaricamento.then(() => caricaNelWorker(m, stato, senzaScheda, slot));
   // lo stesso modello è già dentro il worker: non si rimanda niente (a ogni clic si ricaricava e si rileggeva tutto il modello)
   if (!senzaScheda && worker) {
     if (slot === 'p' && inUso?.chiave === chiave) return Promise.resolve(inUso.testo);
     if (slot === 'traccia' && inUsoTraccia?.chiave === chiave) return Promise.resolve(inUsoTraccia.testo);
   }
-  return new Promise((ok, no) => {
+  chiaveCaricamento = richiesta;
+  promessaCaricamento = new Promise<string>((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato, dacache: !!modelliPronti()[m.id], chiave, slot };
     const hw = messaggioScheda();
     const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
     lavoratore().postMessage({ tipo: 'carica', famiglia: m.famiglia, repo: m.repo, base: baseLocaleAI(), scheda: usa.scheda, hw: usa, chiaveHF: chiaveHFSalvata(), slot });
-  });
+  }).finally(() => { promessaCaricamento = null; caricamento = null; });
+  return promessaCaricamento;
 }
 
 /** un fotogramma al worker */

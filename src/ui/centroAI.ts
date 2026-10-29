@@ -227,7 +227,12 @@ export function finestraCentroAI(subito = false) {
   scheda.addEventListener('change', () => impostaSchedaAI(scheda.checked));
   // la chiave di Hugging Face: serve ai modelli «gated» come SAM 3 (si crea gratis su huggingface.co → Settings → Access Tokens)
   const chiaveHF = h('input', { type: 'password', class: 'campo-testo', placeholder: 'hf_…', value: chiaveHFSalvata(), 'aria-label': 'Chiave Hugging Face', autocomplete: 'off' }) as HTMLInputElement;
-  const salvaChiave = h('button', { class: 'btn-mini', on: { click: () => { try { if (chiaveHF.value.trim()) localStorage.setItem(LS_CHIAVE_HF, chiaveHF.value.trim()); else localStorage.removeItem(LS_CHIAVE_HF); } catch { /* niente */ } avviso(chiaveHF.value.trim() ? 'Chiave salvata: vale dal prossimo scaricamento' : 'Chiave tolta', 'ok', 2400); } } }, 'Salva');
+  const salvaChiave = h('button', { class: 'btn-mini', on: { click: () => {
+    try {
+      if (chiaveHF.value.trim()) localStorage.setItem(LS_CHIAVE_HF, chiaveHF.value.trim()); else localStorage.removeItem(LS_CHIAVE_HF);
+      avviso(chiaveHF.value.trim() ? 'Chiave salvata: vale dal prossimo scaricamento' : 'Chiave tolta', 'ok', 2400);
+    } catch { avviso('Non riesco a cambiare la chiave: il browser non permette di salvare le impostazioni. Controlla lo spazio e i permessi, poi riprova.', 'errore', 6000); }
+  } } }, 'Salva');
   const spazio = h('span', { class: 'nota' }, '…');
   const aggSpazio = async () => { const m = await modelliScaricati(); const tot = [...m.values()].reduce((s, x) => s + x, 0); spazio.textContent = m.size ? `${m.size} modelli sul computer · ${mb(tot)}` : 'Nessun modello scaricato'; };
   void aggSpazio();
@@ -237,7 +242,7 @@ export function finestraCentroAI(subito = false) {
     try { localStorage.removeItem('dpv-modelli-pronti'); } catch { /* niente */ }
     await disegna(); await aggSpazio();
   } } }, 'Libera lo spazio');
-  const liberaMemoria = h('button', { class: 'btn-mini', title: 'Chiude i modelli caricati nella scheda video (SAM 3, Whisper, traduzione). Non toglie nulla dal computer: al prossimo uso tornano dalla cache in pochi secondi. Succede da solo dopo un minuto e mezzo senza AI.', on: { click: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'} dalla memoria` : 'Nella scheda video non c\'è niente da liberare (o un lavoro AI sta girando)', n ? 'ok' : 'info', 2600); } } }, 'Libera la memoria della scheda video');
+  const liberaMemoria = h('button', { class: 'btn-mini', title: 'Chiude i modelli caricati nella scheda video (SAM 3, Whisper, traduzione). Non toglie nulla dal computer: i modelli già sul computer si ricaricano in pochi secondi al prossimo uso. Succede da solo dopo un minuto e mezzo senza AI.', on: { click: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'} dalla memoria` : 'Nella scheda video non c\'è niente da liberare (o un lavoro AI sta girando)', n ? 'ok' : 'info', 2600); } } }, 'Libera la memoria della scheda video');
   const nvidia = motoreNemo() ? h('div', { class: 'ai-imp' },
     h('span', null, 'Motore NVIDIA (sottotitoli e voce nell\'app)'),
     h('button', { class: 'btn-mini', on: { click: async () => {
@@ -252,7 +257,7 @@ export function finestraCentroAI(subito = false) {
       progresso, tabella),
     h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
-      h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video (WebGPU) c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video (WebGPU) quando c\'è'),
+      h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video quando c\'è'),
       h('div', { class: 'ai-imp' }, spazio, svuota),
       h('div', { class: 'ai-imp' }, h('span', null, 'Dopo un minuto e mezzo senza AI i modelli escono da soli dalla scheda video'), liberaMemoria),
       h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (come SAM 3). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face (SAM 3)'), chiaveHF, salvaChiave),
@@ -285,6 +290,6 @@ fonteCerca(() => FUNZIONI_AI.map((f) => ({ id: 'ai:' + f.id, titolo: f.nome, sot
 
 reg({
   id: 'liberaVram', nome: 'Libera la memoria della scheda video (AI)', gruppo: 'AI',
-  info: 'Scarica dalla scheda video i modelli AI che non stanno lavorando (SAM 3, Whisper, traduzione): torna la memoria a giochi e altri programmi. Al prossimo uso i modelli ripartono dalla cache in pochi secondi.',
+  info: 'Scarica dalla scheda video i modelli AI che non stanno lavorando (SAM 3, Whisper, traduzione): torna la memoria a giochi e altri programmi. I modelli già sul computer si ricaricano in pochi secondi al prossimo uso.',
   fn: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'}` : 'Nella scheda video non c\'è niente da liberare', n ? 'ok' : 'info', 2400); },
 });

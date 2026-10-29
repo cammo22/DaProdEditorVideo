@@ -33,17 +33,19 @@ function db(): Promise<IDBDatabase> {
     r.onerror = () => ko(r.error);
   });
 }
-async function idb<T>(store: 'kv' | 'maniglie' | 'file', op: 'get' | 'put' | 'delete', key: string, val?: unknown): Promise<T | undefined> {
+async function idb<T>(store: 'kv' | 'maniglie' | 'file', op: 'get' | 'put' | 'delete', key: string, val?: unknown, propagaErrore = false): Promise<T | undefined> {
   try {
     const d = await db();
     return await new Promise((ok, ko) => {
       const tx = d.transaction(store, op === 'get' ? 'readonly' : 'readwrite');
       const s = tx.objectStore(store);
       const r = op === 'get' ? s.get(key) : op === 'put' ? s.put(val, key) : s.delete(key);
-      r.onsuccess = () => ok(r.result as T);
-      r.onerror = () => ko(r.error);
+      // La richiesta può riuscire e la transazione fallire dopo (per esempio se manca spazio).
+      tx.oncomplete = () => ok(r.result as T);
+      tx.onabort = () => ko(tx.error ?? r.error);
+      tx.onerror = () => ko(tx.error ?? r.error);
     });
-  } catch { return undefined; }
+  } catch (e) { if (propagaErrore) throw e; return undefined; }
 }
 
 /** tutte le chiavi di un deposito (per fare pulizia) */
@@ -395,6 +397,7 @@ export async function salva(come = false) {
 
 /** la revisione del documento già scritta dall'autosalvataggio (-1 = niente ancora) */
 let autosalvata = -1;
+let avvisatoAutosalvataggio = false;
 
 export async function autosalva() {
   if (!store.dirty && store.doc.saved) return;
@@ -404,9 +407,15 @@ export async function autosalva() {
   const testo = serializza();
   try {
     if (isTauri) await invoke('autosalva', { text: testo });
-    else await idb('kv', 'put', 'autosalvataggio', testo);
+    else await idb('kv', 'put', 'autosalvataggio', testo, true);
     autosalvata = rev;
-  } catch { /* spazio pieno o permessi: si riprova al prossimo giro */ }
+  } catch {
+    // La revisione resta da salvare: si riprova al prossimo giro, senza avvisi a raffica.
+    if (!avvisatoAutosalvataggio) {
+      avvisatoAutosalvataggio = true;
+      avviso('Non riesco a salvare la copia automatica: controlla lo spazio e i permessi. Per tenere il lavoro usa Salva come…', 'errore', 7000);
+    }
+  }
 }
 
 function valida(o: unknown): Project | null {

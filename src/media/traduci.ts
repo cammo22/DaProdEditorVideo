@@ -38,6 +38,7 @@ let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (t: string[]) => void; no: (e: Error) => void }>();
 let caricamento: { ok: () => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void } | null = null;
+let promessaCaricamento: Promise<void> | null = null;
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
@@ -82,12 +83,16 @@ registraVram('traduzione', {
 });
 
 const nllb: Traduttore = {
-  carica: (stato) => new Promise((ok, no) => {
+  carica: (stato) => {
     segnaUsoAI();
-    scaricati.clear();
-    caricamento = { ok, no, stato };
-    lavoratore().postMessage({ tipo: 'carica', base: baseLocaleAI() });
-  }),
+    if (promessaCaricamento) return promessaCaricamento;
+    promessaCaricamento = new Promise<void>((ok, no) => {
+      scaricati.clear();
+      caricamento = { ok, no, stato };
+      lavoratore().postMessage({ tipo: 'carica', base: baseLocaleAI() });
+    }).finally(() => { promessaCaricamento = null; caricamento = null; });
+    return promessaCaricamento;
+  },
   traduci: (testi, da, a) => new Promise((ok, no) => {
     segnaUsoAI();
     const id = ++seq;

@@ -50,6 +50,8 @@ let worker: Worker | null = null;
 let seq = 0;
 const attese = new Map<number, { ok: (p: Pezzo[]) => void; no: (e: Error) => void }>();
 let caricamento: { ok: (d: string) => void; no: (e: Error) => void; stato: (fase: string, prog: number) => void } | null = null;
+let promessaCaricamento: Promise<string> | null = null;
+let chiaveCaricamento = '';
 const scaricati = new Map<string, [number, number]>();
 
 function lavoratore(): Worker {
@@ -105,13 +107,17 @@ registraVram('voce', {
 
 function caricaNelWorker(modello: string, stato: (fase: string, prog: number) => void, senzaScheda = false): Promise<string> {
   segnaUsoAI();
-  return new Promise((ok, no) => {
+  const chiave = modello + '|' + senzaScheda;
+  if (promessaCaricamento) return chiaveCaricamento === chiave ? promessaCaricamento : promessaCaricamento.then(() => caricaNelWorker(modello, stato, senzaScheda));
+  chiaveCaricamento = chiave;
+  promessaCaricamento = new Promise<string>((ok, no) => {
     scaricati.clear();
     caricamento = { ok, no, stato };
     const hw = messaggioScheda();
     const usa = senzaScheda ? { ...hw, scheda: false, finta: false } : hw;
     lavoratore().postMessage({ tipo: 'carica', modello, base: baseLocaleAI(), scheda: usa.scheda, hw: usa });
-  });
+  }).finally(() => { promessaCaricamento = null; caricamento = null; });
+  return promessaCaricamento;
 }
 
 /** un pezzo di un minuto non deve mai metterci più di così: se il worker non risponde (scheda video appesa) si rifà */

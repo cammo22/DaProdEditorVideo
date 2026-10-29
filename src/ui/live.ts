@@ -50,6 +50,25 @@ export const impostaSorgenteLive = (s: Sorgente | null, mic: (() => Promise<Medi
 
 const puoRegistrare = () => !!sorgenteProva || (!!navigator.mediaDevices?.getDisplayMedia && typeof MediaRecorder !== 'undefined' && !isAndroid);
 
+async function avvisaErroreSchermo(e: unknown) {
+  if (!sorgenteProva && !navigator.mediaDevices?.getDisplayMedia) {
+    avviso('Qui non si può condividere lo schermo: usa l’app oppure Chrome o Edge su una pagina sicura (HTTPS).', 'errore', 6500);
+    return;
+  }
+  const { name = '', message = '' } = (e ?? {}) as { name?: string; message?: string };
+  let negato = /permission.*denied|permesso.*negato|denied by system|not allowed by|permissions? policy/i.test(message);
+  if (name === 'NotAllowedError' || name === 'AbortError') {
+    try {
+      const permesso = await navigator.permissions.query({ name: 'display-capture' as PermissionName });
+      negato ||= permesso.state === 'denied';
+    } catch { /* alcuni browser non espongono questo permesso */ }
+    if (!negato) return; // Il selettore è stato chiuso: non è un errore da mostrare.
+  }
+  avviso(negato
+    ? 'La condivisione dello schermo è bloccata: controlla i permessi del browser e del sistema, poi riprova.'
+    : 'Non riesco ad aggiungere la finestra: ' + (message || String(e)), 'errore', 6500);
+}
+
 function formato(soloVideo = false): string {
   const lista = soloVideo
     ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4;codecs=avc1', 'video/mp4']
@@ -1300,7 +1319,7 @@ export class Live {
       this.prime.push(voce);
       s.getVideoTracks()[0]?.addEventListener('ended', () => { this.prime = this.prime.filter((x) => x !== voce); this.disegnaPrime(); });
       this.disegnaPrime();
-    } catch { /* il selettore è stato chiuso */ } finally { this.aggiungendo = false; }
+    } catch (e) { await avvisaErroreSchermo(e); } finally { this.aggiungendo = false; }
   }
 
   private disegnaPrime() {
@@ -1337,7 +1356,7 @@ export class Live {
       this.disegnaFonti();
       this.aggiornaTasti();
       this.stato.textContent = `● In onda: ${f.nome.slice(0, 28)}`;
-    } catch { /* il selettore è stato chiuso */ } finally { this.aggiungendo = false; }
+    } catch (e) { await avvisaErroreSchermo(e); } finally { this.aggiungendo = false; }
   }
 
   /** una finestra si è chiusa (o l'hai tolta): se era l'ultima è come premere FERMA */

@@ -62,7 +62,7 @@ if (problema) {
   setTimeout(() => { avvio.classList.add('via'); setTimeout(() => avvio.remove(), 500); }, isTauri ? 500 : 900);
 }
 
-// agganci per le prove automatiche (test/prove.mjs) e per chi curiosa dalla console
+// Agganci per lo sviluppo e le prove automatiche (test/prove.mjs).
 import * as M from './core/montaggio';
 import * as TC from './core/timecode';
 import * as P from './core/progetto';
@@ -131,6 +131,7 @@ import * as PX from './media/proxy';
 import * as CU from './ui/clipUnica';
 import * as SR from './ui/sottotitoliRapidi';
 import * as CL from './media/clear';
-(window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco };
-// l'audio con l'AI (togliere il rumore, separare voce e base): per le prove
-Object.assign((window as unknown as { __dpvTest: object }).__dpvTest, { AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL, LB, MH });
+// Playwright usa il build di produzione e naviga senza parametri: webdriver tiene compatibili anche foto e banchi di prova.
+if (import.meta.env.DEV || navigator.webdriver) {
+  (window as unknown as Record<string, unknown>).__dpvTest = { M, TC, P, esporta, creaEdl, motore, guadagnoClip, pianoVideo, Z, statoDecoder, ripresaDiProva, ripresaVfrDiProva, branoVbrDiProva, NZ, TD, PR, importaFile, apriFile, PK, proxyStato: (id: string) => mediaRT(id)?.proxyStato, mediaRT, B, S, SU, V, AG, LV, SQ, SOT, FE, G, mixaggio, PV, TR, TK, ST, Compositore, NM, DP, WV, LAV, SF, MK, RT, CP, USF, AN, RA, fontAnim, MT, MP, EX, QL, RI, AT, CH, SM, DG, EA, HW, FT, FL, ui: () => banco, AA, AAM, AAS, AAR, AAC, PX, CU, SR, CL, LB, MH };
+}

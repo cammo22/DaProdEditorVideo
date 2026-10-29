@@ -22,6 +22,7 @@ await build({
   plugins: [{ name: 'confini-progetti-test', enforce: 'pre', transform(code, id) {
     if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/media/proxy.ts')) return { code: code + '\nexport { scriviProxy as _testScriviProxy };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/ui/live.ts')) return { code: code + '\nexport { avvisaErroreSchermo as _testAvvisaErroreSchermo };', map: null };
   } }],
   define: { __VERSIONE__: JSON.stringify('prova') },
   build: {
@@ -43,6 +44,11 @@ await build({
         compositore: path.join(radice, 'src/render/compositore.ts'),
         progetto: path.join(radice, 'src/core/progetto.ts'),
         progetti: path.join(radice, 'src/progetti.ts'),
+        traduci: path.join(radice, 'src/media/traduci.ts'),
+        voce: path.join(radice, 'src/media/voce.ts'),
+        ritaglio: path.join(radice, 'src/media/ritaglio.ts'),
+        vram: path.join(radice, 'src/media/vram.ts'),
+        live: path.join(radice, 'src/ui/live.ts'),
         store: path.join(radice, 'src/core/store.ts'),
         mossformer: path.join(radice, 'src/core/mossformer.ts'),
       },

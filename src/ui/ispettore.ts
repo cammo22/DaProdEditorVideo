@@ -506,13 +506,13 @@ export class Ispettore {
     const righe: HTMLElement[] = [];
     if (c0.kind === 'media' && isVideoClip(c0, p) && mediaOf(p, c0)?.type === 'video') {
       const tr = c0.traccia;
-      righe.push(this.pulsanti([['✨ Segui con l’AI (clicchi l’oggetto)', () => seguiConAI(c0.id)], [tr ? '🎯 Rifai il tracking' : '🎯 Segna un oggetto sul monitor', () => document.dispatchEvent(new CustomEvent('dpv:mira'))]]));
+      righe.push(this.pulsanti([['✨ Segui con l’AI (clicchi l’oggetto)', () => seguiConAI(c0.id)], [tr ? '🎯 Rifai l’inseguimento' : '🎯 Segna un oggetto sul monitor', () => document.dispatchEvent(new CustomEvent('dpv:mira'))]]));
       if (tr) {
         righe.push(h('p', { class: 'nota' }, `Oggetto seguito: ${tr.punti.length} punti, sicurezza ${Math.round(tr.fiducia * 100)}%. Il percorso azzurro si vede sul monitor.`));
         righe.push(this.spunta('Tieni ferma la ripresa sull\'oggetto (stabilizza)', (c) => !!c.stabilizza, (c, v) => { c.stabilizza = v || undefined; }, [c0]));
         // e una volta tracciato? Si mette qualcosa che lo segue: testo, immagine, segnali, effetti (src/ui/seguiMenu.ts)
         righe.push(...cosaCiMetto(c0));
-        righe.push(this.pulsanti([['Togli il tracking', () => store.edit('Toglie il tracking', (pp) => { for (const z of pp.clips) { if (z.id === c0.id) { delete z.traccia; delete z.stabilizza; } if (z.segue === c0.id) delete z.segue; if (z.fxb?.segue === c0.id) delete z.fxb.segue; } })]]));
+        righe.push(this.pulsanti([['Togli l’inseguimento', () => store.edit('Toglie l’inseguimento', (pp) => { for (const z of pp.clips) { if (z.id === c0.id) { delete z.traccia; delete z.stabilizza; } if (z.segue === c0.id) delete z.segue; if (z.fxb?.segue === c0.id) delete z.fxb.segue; } })]]));
       } else righe.push(h('p', { class: 'nota' }, 'Metti il cursore dove l\'oggetto si vede bene, premi il tasto e trascina il mirino sopra: il programma lo segue per tutta la ripresa.'));
     }
     const seguibili = tracciate(p).filter((x) => x.id !== c0.id);
