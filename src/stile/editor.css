@@ -1018,6 +1018,8 @@ button svg { pointer-events: none; }
 .live-display { position: relative; background: #0a0709; border-radius: 8px; padding: 15px 0 3px; box-shadow: inset 0 2px 8px #000; }
 .live-display .live-fase-certa { position: absolute; top: 4px; left: 10px; right: 10px; margin: 0; padding: 0; border: 0; font: 800 9.5px var(--ui); letter-spacing: 1.4px; color: var(--testo3); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .live-tempo { font: 400 42px/1.1 var(--tc); color: #3a1820; text-align: center; letter-spacing: 2px; }
+.live-display .live-fase-certa[data-fase='registra'] { color: var(--rosso); }
+.live-display .live-fase-certa[data-fase='pausa'] { color: var(--oro); }
 .live.in-onda .live-tempo { color: var(--rosso); text-shadow: 0 0 12px rgba(255, 77, 109, 0.6); }
 .live.in-pausa .live-tempo { color: var(--oro); text-shadow: 0 0 10px rgba(255, 213, 74, 0.5); }
 .live-stato { text-align: center; font: 700 12.5px var(--ui); color: var(--testo2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1042,14 +1044,16 @@ button svg { pointer-events: none; }
 .live-sez { margin: 8px 2px 3px; font: 800 10.5px var(--ui); letter-spacing: 1.2px; text-transform: uppercase; color: var(--testo3); }
 .live-comandi .fin-interruttore { padding: 9px 12px; gap: 9px; font-size: 13px; }
 /* le sorgenti: interruttore, scelta e misuratore sulla stessa riga; le colonne si allineano fra le righe come i canali di un banco */
-.live-sorgenti { display: grid; grid-template-columns: max-content minmax(0, 1fr) 88px 22px; gap: 4px 6px; align-items: center; min-width: 0; }
+.live-sorgenti { display: grid; grid-template-columns: max-content minmax(0, 1fr) 76px 22px; gap: 4px 6px; align-items: center; min-width: 0; }
 .live-sorgenti > .fin-interruttore { grid-column: 1; }
+/* finestra stretta (colonna di 340 px): il nome dell'interruttore si accorcia coi puntini, cosi' la scelta del dispositivo resta leggibile */
+@media (max-width: 1150px) { .live-sorgenti { grid-template-columns: 112px minmax(0, 1fr) 76px 22px; } .live-sorgenti > .fin-interruttore { min-width: 0; } }
 .live-sorgenti .fin-interruttore { height: 28px; padding: 0 9px; gap: 6px; font-size: 12px; white-space: nowrap; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 1px 0 #0a090d; }
 .live-sorgenti .fin-interruttore.acceso, .live-configurazione .fin-interruttore.acceso { box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.45), 0 1px 0 #0a090d; }
 .live-sorgenti .fin-int-testo, .live-configurazione .fin-int-testo { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .live-sorgenti .live-sel { max-width: none; width: 100%; height: 28px; font-size: 11.5px; }
 .live-sorgenti > .live-sel-cam { grid-column: 2 / -1; }
-.live-sorgenti > .la-stato { font: 600 10.5px var(--ui); color: var(--testo3); text-align: left; }
+.live-sorgenti > .la-stato { font: 600 10.5px var(--ui); color: var(--testo3); text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-sorg-misura { display: flex; align-items: center; height: 28px; padding: 0 5px; border-radius: 6px; background: #0c0b10; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8), 0 1px 0 rgba(255, 255, 255, 0.04); transition: opacity 0.2s; min-width: 0; }
 .live-sorg-misura.spenta { opacity: 0.35; }
 .live-sorgenti > .live-btn { grid-column: 1 / -1; height: 26px; font-size: 11.5px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 2px 0 #0b0a0e; }
