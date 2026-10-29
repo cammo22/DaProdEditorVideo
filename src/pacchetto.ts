@@ -1,7 +1,7 @@
 // Il pacchetto .daprod: il progetto e tutti i suoi file in un file solo, da portare su un altro computer e
 // riaprire identico. È uno zip vero (si apre anche con 7-Zip o con Esplora risorse): dentro ci sono
 // progetto.json, i media in media/ e un LEGGIMI. I file sono messi dentro così come sono ("stored", senza
-// comprimere: i video lo sono già), così DaProd Video li legge direttamente da dentro lo zip, senza scompattare.
+// comprimere: i video lo sono già), così DaProd Editor Video li legge direttamente da dentro lo zip, senza scompattare.
 // Zip64 quando serve (file o pacchetti oltre i 4 GB).
 import type { MediaItem, Project } from './core/tipi';
 import { store } from './core/store';
@@ -162,10 +162,10 @@ export async function pianoPacchetto(soloUsati: boolean): Promise<Piano> {
   return { voci, mancano, byte: voci.reduce((s, x) => s + x.f.len, 0) };
 }
 
-const LEGGIMI = `DaProd Video · pacchetto del progetto
+const LEGGIMI = `DaProd Editor Video · pacchetto del progetto
 
-Questo file è un progetto di DaProd Video con dentro tutti i suoi file: aprilo con
-DaProd Video (File → Apri, o doppio clic) e ritrovi il montaggio identico, anche su
+Questo file è un progetto di DaProd Editor Video con dentro tutti i suoi file: aprilo con
+DaProd Editor Video (File → Apri, o doppio clic) e ritrovi il montaggio identico, anche su
 un altro computer. Non serve scompattarlo.
 
 Dentro: progetto.json (il montaggio) e la cartella media/ (i video, le musiche, le immagini).
@@ -286,7 +286,7 @@ export async function scriviPacchetto(nomeFile: string, piano: Piano, soloUsati:
   const w = window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> };
   if (w.showSaveFilePicker) {
     try {
-      const hh = await w.showSaveFilePicker({ suggestedName: nomeFile, types: [{ description: 'Progetto DaProd Video', accept: { 'application/zip': ['.daprod'] } }] });
+      const hh = await w.showSaveFilePicker({ suggestedName: nomeFile, types: [{ description: 'Progetto DaProd Editor Video', accept: { 'application/zip': ['.daprod'] } }] });
       const ws = await (hh as unknown as { createWritable: () => Promise<WritableStream> }).createWritable();
       await tutto.stream().pipeTo(ws);
       return nomeFile;
@@ -405,7 +405,7 @@ export async function leggiPacchetto(s: Sorgente): Promise<{ testo: string; voci
   const voci = await indicePacchetto(s);
   const pj = voci.get('progetto.json');
   if (!pj) throw new Error('nel pacchetto manca progetto.json');
-  if (!pj.stored) throw new Error('progetto.json compresso: questo pacchetto non l\'ha fatto DaProd Video');
+  if (!pj.stored) throw new Error('progetto.json compresso: questo pacchetto non l\'ha fatto DaProd Editor Video');
   const testo = new TextDecoder().decode(await leggi(s, pj.off, pj.off + pj.len));
   return { testo, voci };
 }
@@ -481,11 +481,11 @@ export async function pianoDap(vecchie: Map<string, VoceLetta> | null, proxy: Ma
   return { cose, tenute, mancano, nomi, byte: cose.reduce((s, x) => s + x.len, 0) };
 }
 
-const LEGGIMI_DAP = `DaProd Video · progetto completo (.dap)
+const LEGGIMI_DAP = `DaProd Editor Video · progetto completo (.dap)
 
-Questo file è un progetto di DaProd Video con dentro TUTTO: il montaggio (progetto.json),
+Questo file è un progetto di DaProd Editor Video con dentro TUTTO: il montaggio (progetto.json),
 tutti i file (media/: video, musiche, immagini, registrazioni, audio lavorato) e le copie
-leggere per il monitor (proxy/). Aprilo con DaProd Video (File → Apri, o doppio clic),
+leggere per il monitor (proxy/). Aprilo con DaProd Editor Video (File → Apri, o doppio clic),
 anche su un altro computer: ritrovi tutto identico. Non serve scompattarlo.
 https://github.com/cammo22/DaProdVideo
 `;
@@ -614,7 +614,7 @@ export async function scriviDapBrowser(nomeFile: string, piano: PianoDap, avanza
   const w = window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> };
   if (w.showSaveFilePicker) {
     try {
-      const hh = await w.showSaveFilePicker({ suggestedName: nomeFile, types: [{ description: 'Progetto DaProd Video', accept: { 'application/zip': ['.dap'] } }] });
+      const hh = await w.showSaveFilePicker({ suggestedName: nomeFile, types: [{ description: 'Progetto DaProd Editor Video', accept: { 'application/zip': ['.dap'] } }] });
       const ws = await (hh as unknown as { createWritable: () => Promise<WritableStream> }).createWritable();
       await tutto.stream().pipeTo(ws);
       return nomeFile;

@@ -138,7 +138,7 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: `Novità della ${VERSIONE}`, fn: () => finestraNovita() },
       ...(isTauri ? [{ nome: 'Aggiornamenti…', fn: () => void finestraAggiornamenti() }] : []),
       { nome: 'Scarica le app (Windows, Mac, Android)', fn: () => apriLink('https://github.com/cammo22/DaProdVideo/releases/latest') },
-      { nome: 'Informazioni su DaProd Video', fn: () => finestraInfo() },
+      { nome: 'Informazioni su DaProd Editor Video', fn: () => finestraInfo() },
     ]],
   ];
 }

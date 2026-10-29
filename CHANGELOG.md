@@ -4,6 +4,24 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [1.7.0] — 2026-10-29 · Si chiama DaProd Editor Video: banco nuovo, colore da professionisti, keyframe, maschere, titoli animati, montaggio dal testo
+
+- **Nome nuovo**: DaProd Editor Video. Progetti, cartelle e aggiornamenti restano gli stessi di prima.
+- **Barra in stile DaProd**: logo che gira, tasto ✦ per le novità, la scheda video e il processore sempre in vista. **Una finestra sola**: se apri un progetto col programma già aperto, torna davanti quella.
+- **Pagina iniziale nuova**: da dove comincio, gli ultimi progetti, come sta il PC e **Aggiusta tutto** (apertura dei file .dap/.daprod/.dpv, cartelle di lavoro, modelli AI, aggiornamenti) con l'esito di ogni passo.
+- **Finale**: preset pronti (YouTube 1080p e 4K, Reel/TikTok/Shorts, Instagram quadrato, master, WhatsApp, solo audio), codec mostrati solo se il computer li sa fare, peso stimato e **coda di esportazione**.
+- **Colore da professionisti**: LUT .cube (cinque nostre più le tue) con intensità, ruote lift/gamma/gain e curve RGB e luce, dalla pagina Finale o da «Colore avanzato…» nelle Proprietà.
+- **La musica si abbassa sotto la voce**: segni la voce, e la musica scende e risale da sola, nel monitor e nell'esportazione.
+- **Keyframe ◆** su posizione, zoom, opacità, colore, volume ed effetti, con ◀ ▶ per saltare da uno all'altro. **Maschere** a rettangolo, ellisse e Bézier, sfumate, invertite, animabili.
+- **24 titoli animati** in categorie: neon, sette segmenti, terzo inferiore, notizie, ticker, karaoke, macchina da scrivere, titoli di coda, intervista, schermo finale e altri. Monitor ed esportazione identici.
+- **Montaggio dal testo**: il parlato diventa testo, selezioni le parole e premi Canc; «togli i silenzi» e «togli gli ehm» con l'anteprima del tempo risparmiato.
+- **LIVE**: zoom che segue il cursore e clic animati (si accendono in Altre opzioni), pannello più compatto con i misuratori sempre in vista.
+- **Copie leggere automatiche** per i video pesanti (4K, HEVC, 10 bit): il monitor va liscio, l'esportazione usa l'originale. Si spengono dalle impostazioni.
+- **Centro AI**: ogni modello dice che è opzionale, quanto pesa, dove gira e se va bene sul tuo computer. Niente si scarica senza che lo scegli.
+- La pulsantiera ora è attaccata alla timeline, senza la fascia vuota in mezzo.
+- Corretti: l'autosalvataggio che diceva «salvato» anche quando non riusciva, i modelli AI caricati due volte, errori nascosti in LIVE, la chiave Hugging Face «salvata» anche se non lo era.
+- Non ancora provati a fondo su macchine diverse: Mac, monitor con DPI diversi in LIVE, modelli AI veri dentro l'app.
+
 ## [1.6.6] — 2026-10-28 · I modelli sulla scheda video: togli i rumori ~10 volte più veloce, sfondo che segue 3 volte più veloce, Whisper più preciso
 
 Misurato sulla scheda video (RTX 4060, WebGPU) con i modelli veri, non a occhio:

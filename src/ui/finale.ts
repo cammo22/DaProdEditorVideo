@@ -652,7 +652,7 @@ export class Finale {
     const f = projectEnd(p);
     store.edit('Titoli di coda', (pp) => {
       const v = M.tracciaLibera(pp, 'video', pp.tracks.filter((t) => t.kind === 'video').slice(-1)[0]?.id ?? null, f, f + len);
-      pp.clips.push(newClip('title', v, f, len, { name: 'Titoli di coda', gen: { title: { ...TITLE0, style: 'rullo', size: 64, text: `${pp.name}\n\nMontaggio\nDaProd Video\n\nMusica\n…\n\nGrazie per la visione` } } }));
+      pp.clips.push(newClip('title', v, f, len, { name: 'Titoli di coda', gen: { title: { ...TITLE0, style: 'rullo', size: 64, text: `${pp.name}\n\nMontaggio\nDaProd Editor Video\n\nMusica\n…\n\nGrazie per la visione` } } }));
     });
     avviso('Titoli di coda alla fine: il testo si cambia dalle proprietà', 'ok');
   }

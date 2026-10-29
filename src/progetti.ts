@@ -446,7 +446,7 @@ function valida(o: unknown): Project | null {
 export async function apri() {
   if (store.dirty && store.doc.clips.length && !(await conferma('Apri progetto', 'Il montaggio attuale ha modifiche. Aprire un altro progetto?', 'Apri', 'Annulla'))) return;
   if (isTauri) {
-    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Video', estensioni: ['dap', 'daprod', 'dpv', 'json'], mime: [] });
+    const [path] = await dialogoApri({ multiple: false, title: 'Progetto DaProd Editor Video', estensioni: ['dap', 'daprod', 'dpv', 'json'], mime: [] });
     if (path) await apriFile({ path });
     return;
   }
@@ -465,7 +465,7 @@ export async function apriFile(s: Sorgente) {
     const testo = s.file ? await s.file.text() : await invoke<string>('progetto_leggi', { path: s.path });
     p = valida(JSON.parse(testo));
   } catch { p = null; }
-  if (!p) { avviso('Questo file non è un progetto DaProd Video', 'errore'); return; }
+  if (!p) { avviso('Questo file non è un progetto DaProd Editor Video', 'errore'); return; }
   percorsoProgetto = s.path ?? null;
   await carica(p);
   registraRecente(p, s.path, s.path ? undefined : JSON.stringify(p));
@@ -483,7 +483,7 @@ async function apriPacchetto(s: Sorgente, dap = false) {
   try {
     const { testo, voci } = await leggiPacchetto(s);
     const p = valida(JSON.parse(testo));
-    if (!p) throw new Error('dentro non c\'è un progetto DaProd Video');
+    if (!p) throw new Error('dentro non c\'è un progetto DaProd Editor Video');
     for (const m of p.media) {
       const v = m.pacchetto ? voci.get(m.pacchetto) : undefined;
       if (!v) continue;
@@ -545,7 +545,7 @@ export async function salvaPacchetto() {
   };
   solo.addEventListener('change', () => void misura());
   d.corpo.append(
-    h('p', null, 'Il progetto e tutti i suoi file (video, musiche, immagini) in un file solo. Portalo su un altro computer e aprilo con DaProd Video: ritrovi il montaggio identico. È uno zip: i file dentro restano uguali (niente perdita di qualità) e si aprono direttamente da lì.'),
+    h('p', null, 'Il progetto e tutti i suoi file (video, musiche, immagini) in un file solo. Portalo su un altro computer e aprilo con DaProd Editor Video: ritrovi il montaggio identico. È uno zip: i file dentro restano uguali (niente perdita di qualità) e si aprono direttamente da lì.'),
     h('p', null, quanti, ' · ', peso),
     h('label', { class: 'riga-spunta' }, solo, ' Solo i file usati nel montaggio (il contenitore si alleggerisce)'),
     mancano);

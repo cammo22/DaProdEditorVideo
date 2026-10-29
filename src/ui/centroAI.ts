@@ -177,7 +177,7 @@ export async function riparaAI(o: OpzioniRiparaAI = {}): Promise<{ ok: boolean; 
       g = await diagnosi();
     }
     o.dopoDiagnosi?.(g);
-    if (!g.libreria.ok) return { ok: false, testo: 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Video o guarda le righe qui sotto.' };
+    if (!g.libreria.ok) return { ok: false, testo: 'Il motore AI non parte nemmeno sul processore: aggiorna DaProd Editor Video o guarda le righe qui sotto.' };
     const st = await statoModelli(lista);
     const pronti = lista.filter((m) => st.get(m.id)?.stato === 'pronto').length;
     return { ok: true, testo: `Il motore funziona. ${pronti} modelli sul computer; gli altri sono opzionali: scegli «Scarica» nel Centro AI se ti servono. Nessun modello scaricato dal controllo.` };
@@ -331,7 +331,7 @@ function disegnaDiagnosi(el: HTMLElement, g: Diagnosi) {
     riga(g.internet, 'Hugging Face', g.internet ? 'si raggiunge: i modelli si possono scaricare' : 'non si raggiunge: i modelli già scaricati vanno, per gli altri serve internet (o una rete che non blocchi huggingface.co)'),
     riga(g.modelli.size > 0 ? true : null, 'Modelli sul computer', g.modelli.size ? `${[...g.modelli.keys()].map((k) => k.split('/')[1]).join(', ')} · ${mb(tot)}` : 'nessuno ancora: ognuno si scarica la prima volta che serve'),
     g.nvidia ? riga(g.nvidia.installato ? true : null, 'Motore NVIDIA', g.nvidia.installato ? `installato (${g.nvidia.backend}${g.nvidia.nvidia ? ', scheda NVIDIA trovata' : ''})` : `non ancora: si scarica la prima volta (versione ${g.nvidia.consigliato === 'cuda' ? 'per la scheda NVIDIA' : g.nvidia.consigliato === 'metal' ? 'per il Mac' : 'per il processore'})`) : riga(null, 'Motore NVIDIA', 'solo nell\'app per Windows e Mac: qui si usano Whisper e gli altri modelli'),
-    g.libreria.ok ? h('p', { class: 'nota' }, 'Tutto quello che serve c\'è. Se una funzione dà ancora errore, il messaggio ora spiega cosa fare; scrivilo a chi ti aiuta insieme a queste righe.') : h('p', { class: 'nota' }, 'Il motore AI non parte: aggiorna DaProd Video all\'ultima versione o prova un altro browser (Chrome, Edge).'),
+    g.libreria.ok ? h('p', { class: 'nota' }, 'Tutto quello che serve c\'è. Se una funzione dà ancora errore, il messaggio ora spiega cosa fare; scrivilo a chi ti aiuta insieme a queste righe.') : h('p', { class: 'nota' }, 'Il motore AI non parte: aggiorna DaProd Editor Video all\'ultima versione o prova un altro browser (Chrome, Edge).'),
   );
 }
 

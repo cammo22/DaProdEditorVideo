@@ -256,7 +256,7 @@ ${tacche}<text x="300" y="165" text-anchor="middle" font-family="'Rajdhani'" fon
   },
   {
     id: 'notizie', nome: 'Sottopancia notizie', gruppo: 'tv', info: 'la targhetta rossa «ultim\'ora», la fascia col titolo e la sigla del canale', durata: 6,
-    campi: [T('etichetta', 'Targhetta', 'ULTIM\'ORA'), L('titolo', 'Titolo', 'DaProd Video: il montaggio vecchio stile, moderno dentro'), T('sigla', 'Sigla del canale', 'DAPROD NEWS'), C('colore', 'Colore della targhetta', '#d2202a'), ...TEMPI(0.7, 0.5), DIM],
+    campi: [T('etichetta', 'Targhetta', 'ULTIM\'ORA'), L('titolo', 'Titolo', 'DaProd Editor Video: il montaggio vecchio stile, moderno dentro'), T('sigla', 'Sigla del canale', 'DAPROD NEWS'), C('colore', 'Colore della targhetta', '#d2202a'), ...TEMPI(0.7, 0.5), DIM],
     font: () => ['oswald-500', 'oswald-700', 'rajdhani-700'],
     stato: (t, _d, _v, s) => ({ fascia: fra(t, 0, s.ent, E.p4out), testo: fra(t, 0.3, 0.3 + s.ent), targa: fra(t, 0.1, 0.1 + s.ent * 0.8, E.back(1.6)) }),
     html: (v, s) => `<div class="nt" style="--f:${num(s.fascia)};--x:${num(s.testo)};--g:${num(s.targa)}"><div class="nt-targa"><b>${esc(testo(v, 'etichetta', ''))}</b></div><div class="nt-fascia"><div class="nt-titolo"><span>${righeHtml(testo(v, 'titolo', ''))}</span></div><div class="nt-sigla">${esc(testo(v, 'sigla', ''))}</div></div></div>`,
@@ -347,7 +347,7 @@ ${tacche}<text x="300" y="165" text-anchor="middle" font-family="'Rajdhani'" fon
   },
   {
     id: 'logo', nome: 'Logo che entra', gruppo: 'social', info: 'il marchio gira ed entra con un rimbalzo, un riflesso lo attraversa e il nome si apre sotto', durata: 5,
-    campi: [T('sigla', 'Sigla nel marchio', 'DaP'), T('nome', 'Nome sotto', 'DaProd Video'), C('colore', 'Colore', '#ffd54a'), C('colore2', 'Secondo colore', '#ff3df2'), ...TEMPI(0.9, 0.5), DIM],
+    campi: [T('sigla', 'Sigla nel marchio', 'DaP'), T('nome', 'Nome sotto', 'DaProd Editor Video'), C('colore', 'Colore', '#ffd54a'), C('colore2', 'Secondo colore', '#ff3df2'), ...TEMPI(0.9, 0.5), DIM],
     font: () => ['orbitron-900', 'rajdhani-700'],
     stato: (t, _d, _v, s) => ({ gira: fra(t, 0, s.ent + 0.3, E.back(1.8)), brilla: fra(t, s.ent * 0.8, s.ent * 0.8 + 0.9, E.p2io), nome: fra(t, s.ent * 0.6, s.ent * 0.6 + 0.8) }),
     html: (v, s) => `<div class="lg" style="--g:${num(s.gira)};--sh:${num(s.brilla)};--nm:${num(s.nome)}"><div class="lg-marchio"><span>${esc(testo(v, 'sigla', ''))}</span><i></i></div><div class="lg-nome">${esc(testo(v, 'nome', ''))}</div></div>`,

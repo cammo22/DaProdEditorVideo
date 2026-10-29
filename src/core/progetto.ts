@@ -60,7 +60,7 @@ export const masterDi = (p: Project): Master => p.master ?? MASTER0;
 export const autoColore = (p: Project, c: Clip) => c.kind === 'media' && (c.fx.auto ?? masterDi(p).auto);
 
 export const TITLE0: TitleSpec = {
-  text: 'DaProd Video', style: 'fisso', font: 'Rajdhani', size: 90, color: '#ffffff', outline: '#000000',
+  text: 'DaProd Editor Video', style: 'fisso', font: 'Rajdhani', size: 90, color: '#ffffff', outline: '#000000',
   shadow: true, box: false, boxColor: '#000000aa', align: 'center', y: 0.5,
 };
 

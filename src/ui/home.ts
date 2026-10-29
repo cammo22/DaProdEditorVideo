@@ -80,7 +80,7 @@ export class Home {
       h('div', { class: 'home-dentro hm-dentro' },
         h('header', { class: 'home-testa hm-testa' },
           h('span', { class: 'moneta' }, 'D'),
-          h('div', null, h('b', null, 'DaProd Video'), h('small', null, 'da dove vuoi cominciare?')),
+          h('div', null, h('b', null, 'DaProd Editor Video'), h('small', null, 'da dove vuoi cominciare?')),
           h('span', { class: 'hm-targa', title: 'La versione del programma' }, h('i', { class: 'hm-led ok' }), h('span', { class: 'hm-seg' }, VERSIONE)),
           h('button', { class: 'btn-icona home-chiudi', title: 'Torna al montaggio (Esc)', on: { click: () => this.nascondi() } }, icona('x', 18))),
         this.corpo));
@@ -302,7 +302,7 @@ export class Home {
     if (!isTauri) return { stato: 'salta', testo: 'Non serve qui: nel browser i progetti si aprono dal tasto «Apri».' };
     const r = await invoke<{ windows: boolean; a_posto: boolean; scritte: string[]; altro_programma: string[] }>('associa_file', { applica: true });
     if (!r.windows) return { stato: 'salta', testo: 'Non serve qui: il sistema apre i progetti col programma da solo.' };
-    if (r.altro_programma.length) return { stato: 'no', testo: `Windows apre ${r.altro_programma.join(', ')} con un altro programma perché l'hai scelto tu: tasto destro sul file, «Apri con», DaProd Video, «Usa sempre».` };
+    if (r.altro_programma.length) return { stato: 'no', testo: `Windows apre ${r.altro_programma.join(', ')} con un altro programma perché l'hai scelto tu: tasto destro sul file, «Apri con», DaProd Editor Video, «Usa sempre».` };
     if (r.scritte.length) return { stato: 'ok', testo: `Fatto: ora ${r.scritte.join(', ')} si aprono con il doppio clic.` };
     return { stato: 'ok', testo: 'Era già tutto a posto: .dap, .daprod e .dpv si aprono con il doppio clic.' };
   }

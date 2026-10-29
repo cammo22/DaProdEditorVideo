@@ -259,7 +259,7 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
     asrc = new AudioBufferSource({ codec: ac, bitrate: o.formato === 'wav' ? undefined : o.audioBps || QUALITA[o.qualita] } as ConstructorParameters<typeof AudioBufferSource>[0]);
     out.addAudioTrack(asrc);
   }
-  out.setMetadataTags({ title: p.name, comment: 'Montato con DaProd Video' });
+  out.setMetadataTags({ title: p.name, comment: 'Montato con DaProd Editor Video' });
   const lettori = new Lettori();
   const t0 = performance.now();
   try {

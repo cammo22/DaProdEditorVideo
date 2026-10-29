@@ -38,7 +38,7 @@ const radice = document.getElementById('app')!;
 let banco: ReturnType<typeof avvia> | null = null;
 
 function nonSupportato(): string | null {
-  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') return 'Questo browser non ha WebCodecs, il motore video di DaProd Video.';
+  if (typeof VideoDecoder === 'undefined' || typeof VideoEncoder === 'undefined') return 'Questo browser non ha WebCodecs, il motore video di DaProd Editor Video.';
   const c = document.createElement('canvas');
   if (!c.getContext('webgl2')) return 'Questo browser non ha WebGL2 (serve per mixare i livelli video).';
   return null;

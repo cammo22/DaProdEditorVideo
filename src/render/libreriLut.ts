@@ -1,4 +1,4 @@
-// Le LUT di partenza di DaProd Video: file .cube nostri, generati da scripts/genera-lut.mjs (src/assets/lut/).
+// Le LUT di partenza di DaProd Editor Video: file .cube nostri, generati da scripts/genera-lut.mjs (src/assets/lut/).
 // Si leggono solo quando servono (un pezzetto di codice per ognuna), non pesano all'avvio.
 import type { RisorsaLut } from '../core/tipi';
 import { campionaLut, lutDaTesto } from './lut';

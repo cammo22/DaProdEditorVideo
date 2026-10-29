@@ -117,7 +117,7 @@ export function finestraTasti() {
 }
 
 export function finestraInfo() {
-  const d = dialogo('DaProd Video');
+  const d = dialogo('DaProd Editor Video');
   d.corpo.append(
     h('div', { class: 'info-logo' }, h('span', { class: 'marchio-grande' }, 'Da', h('b', null, 'Prod'), ' Video')),
     h('p', null, `Versione ${VERSIONE} · ${edizione}`),

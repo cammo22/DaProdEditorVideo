@@ -143,7 +143,7 @@ export function avvia(radice: HTMLElement) {
   const msg = h('span', { class: 'stato-msg' }, 'Pronto. 1 taglia · 2 elimina · S separa/unisci · rotella = un fotogramma · Q/W scarto a sinistra/destra · F9 Finale · F1 tutti i tasti');
   const dec = h('span', { class: 'stato-dec' });
   const centro = new CentroAttivita(bin.el);
-  const statoBar = h('footer', { class: 'stato' }, msg, dec, centro.el, h('span', { class: 'stato-ver' }, `DaProd Video ${VERSIONE}`));
+  const statoBar = h('footer', { class: 'stato' }, msg, dec, centro.el, h('span', { class: 'stato-ver' }, `DaProd Editor Video ${VERSIONE}`));
   motore.ogniGiro(() => {
     if (Math.random() > 0.05) return;
     const s = statoDecoder();
