@@ -238,3 +238,17 @@ Editor video "vecchio stile, moderno dentro" (ispirato a EDIUS e alle centraline
   con filtri e limitatore) sia la riproduzione sia il mixaggio.
 - Il lato Rust (`src-tauri/src/lib.rs`) fa solo I/O: media a pezzi, export in streaming, progetti, autosalvataggio.
   Su Android i percorsi sono `content://` e passano da `tauri-plugin-fs`.
+
+
+## Novità del giro definitivo (ottobre 2026)
+
+- Il nome del programma sta in `src/nome.ts` (`NOME_PROGRAMMA`).
+- La barra in `src/ui/barraTitolo.ts` ha logo, tasto Novità e chip hardware (`src/ui/chipHardware.ts`).
+- Una sola istanza desktop: `src-tauri/src/lib.rs` passa alla finestra aperta gli argomenti del secondo avvio.
+- Nella home, **Aggiusta tutto** sistema cartelle e associazioni dei progetti; le associazioni Windows sono in `src-tauri/src/associazioni.rs`.
+- Finale: preset di esportazione in `src/core/esportazione.ts`, coda in `src/core/codaExport.ts`.
+- Colore avanzato: LUT, curve e GPU in `src/render/lut.ts`, `src/render/curve.ts`, `src/render/coloreGpu.ts`; pannello in `src/ui/coloreAvanzato.ts`.
+- Ducking in `src/core/ducking.ts`: rileva l'energia audio e abbassa le altre tracce.
+- Keyframe in `src/core/automazioni.ts`; maschere in `src/core/maschereForma.ts` e `src/ui/maschereMonitor.ts`.
+- Titoli HTML in `src/core/titoliHtml.ts`.
+- Cursore LIVE: `src/ui/liveCursore.ts`, `src/core/zoomCursore.ts` e `src-tauri/src/cursore.rs`.
