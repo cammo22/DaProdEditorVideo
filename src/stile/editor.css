@@ -618,17 +618,23 @@ button svg { pointer-events: none; }
 .isp-gruppo summary { padding: 6px 9px; font: 800 11px var(--ui); letter-spacing: 1px; text-transform: uppercase; color: var(--oro); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
 .isp-gruppo summary::before { content: '▸'; color: var(--testo3); transition: transform 0.15s; }
 .isp-gruppo[open] summary::before { transform: rotate(90deg); }
-.isp-gruppo > :not(summary) { margin: 0 9px 7px; }
+.isp-gruppo { min-width: 0; }
+.isp-gruppo > :not(summary) { margin: 0 9px 7px; min-width: 0; }
+/* i campi larghi quanto la sezione hanno il margine di 9px per lato: senza questo uscirebbero dal bordo destro */
+.isp-gruppo > .campo-testo, .isp-gruppo > select, .isp-gruppo > .mini-select.largo { width: calc(100% - 18px); text-overflow: ellipsis; }
 .isp-grip { margin-left: auto; padding: 0 4px; color: var(--testo3); font-size: 15px; line-height: 1; cursor: grab; touch-action: none; border-radius: 4px; }
 .isp-grip:hover { color: var(--oro); background: #23212b; }
 .isp-gruppo.trascinato { outline: 2px solid var(--oro); opacity: 0.88; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
 .isp-gruppo.trascinato .isp-grip { cursor: grabbing; }
 .isp-ripristina { display: block; margin: 4px auto 10px; padding: 3px 10px; border-radius: 14px; border: 1px solid #000; background: #23212b; color: var(--testo3); font: 700 10.5px var(--ui); }
 .isp-ripristina:hover { color: var(--testo); }
-.isp-riga { display: grid; grid-template-columns: 96px 1fr auto; gap: 6px; align-items: center; font-size: 12px; color: var(--testo2); }
+.isp-riga { display: grid; grid-template-columns: minmax(64px, 96px) minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 12px; color: var(--testo2); min-width: 0; }
+.isp-riga > * { min-width: 0; }
 .isp-riga label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .isp-riga input[type='range'] { width: 100%; accent-color: var(--oro); }
-.isp-riga select { grid-column: 2 / 4; }
+.isp-riga select { grid-column: 2 / 4; width: 100%; text-overflow: ellipsis; }
+/* una tendina sola nella riga (senza etichetta) prende tutta la larghezza */
+.isp-riga > select:only-child { grid-column: 1 / -1; }
 .isp-riga input[type='color'] { grid-column: 2 / 4; width: 100%; height: 22px; background: none; border: 1px solid #000; border-radius: 4px; padding: 0; }
 .isp-riga.spunta { grid-template-columns: auto 1fr; cursor: pointer; }
 .isp-num { display: flex; align-items: center; gap: 2px; }
@@ -1369,7 +1375,8 @@ html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo
 /* ——— le Proprietà rifatte (1.4.0): quadro in miniatura, posizioni pronte, tessere con anteprima, durata chiara ——— */
 .isp-gruppo.principale { box-shadow: inset 0 0 0 1px rgba(255, 213, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04); }
 .isp-gruppo.principale > summary { font-size: 12px; }
-.isp-riga.col { grid-template-columns: 1fr; gap: 3px; }
+.isp-riga.col { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+.isp-riga.col .campo-testo { min-width: 0; }
 .isp-riga.col label small { display: block; color: var(--testo3); font: 600 10.5px var(--ui); }
 .mq { display: flex; flex-direction: column; gap: 4px; }
 .mq-tela { width: 100%; display: block; border-radius: 6px; background: #0b0a10; box-shadow: 0 0 0 1px #000, 0 4px 14px rgba(0, 0, 0, 0.45); touch-action: none; }

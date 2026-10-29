@@ -9,8 +9,8 @@ const H = await carica('titoliHtml');
 const TEMPI = [0, 0.04, 0.3, 0.9, 1.7, 2.5, 3.33, 4.2, 4.8, 4.96];
 const costruisci = (m, t, d = m.durata) => H.costruisciHtml(H.nuovoHtml(m.id), 1920, 1080, t, d);
 
-test('catalogo: 10-12 modelli, campi completi, caratteri solo del programma', () => {
-  assert.ok(H.MODELLI_HTML.length >= 10 && H.MODELLI_HTML.length <= 12, `modelli: ${H.MODELLI_HTML.length}`);
+test('catalogo: 24 modelli, campi completi, caratteri solo del programma', () => {
+  assert.equal(H.MODELLI_HTML.length, 24, `modelli: ${H.MODELLI_HTML.length}`);
   assert.equal(new Set(H.MODELLI_HTML.map((m) => m.id)).size, H.MODELLI_HTML.length);
   for (const m of H.MODELLI_HTML) {
     const ids = m.campi.map((c) => c.id);
@@ -176,4 +176,147 @@ test('un progetto con titoli HTML salvato e riletto dà gli stessi fotogrammi', 
   const spec = H.nuovoHtml('notizie', { titolo: 'Prova\nsu due righe' });
   const riletto = JSON.parse(JSON.stringify({ gen: { html: spec } })).gen.html;
   for (const t of TEMPI) assert.equal(H.costruisciHtml(spec, 1280, 720, t, 6).chiave, H.costruisciHtml(riletto, 1280, 720, t, 6).chiave);
+});
+
+// ——— i dodici modelli nuovi (parole, social, indicare, documentario) ———
+const NUOVI = ['citazione', 'karaoke', 'macchina', 'didascalia', 'finale', 'freccia', 'primadopo', 'prezzo', 'luogo', 'intervista', 'coda', 'capitoli'];
+
+test('nuovi: ci sono tutti e stanno in categorie che esistono, ogni categoria ha dei modelli', () => {
+  for (const id of NUOVI) assert.ok(H.modelloHtml(id), id);
+  const gruppi = H.GRUPPI_HTML.map((g) => g.id);
+  assert.equal(new Set(gruppi).size, gruppi.length);
+  for (const m of H.MODELLI_HTML) assert.ok(gruppi.includes(m.gruppo), `${m.id}: categoria ${m.gruppo} sconosciuta`);
+  for (const g of gruppi) assert.ok(H.modelliDi(g).length >= 1, `categoria vuota: ${g}`);
+  for (const g of ['parole', 'indicare', 'docu']) assert.ok(gruppi.includes(g), g);
+});
+
+test('nuovi: ogni modello mette il suo testo e tiene l\'HTML pulito a tutti i tempi', () => {
+  const marca = { citazione: 'Il montaggio', karaoke: 'Il', macchina: 'Un', didascalia: '@daprod', finale: 'GUARDA ANCHE', freccia: 'GUARDA QUI', primadopo: 'PRIMA', prezzo: '69,00', luogo: 'ROMA', intervista: 'Anna Verdi', coda: 'Mario Rossi', capitoli: 'Introduzione' };
+  for (const id of NUOVI) {
+    const m = H.modelloHtml(id);
+    for (const t of [0, 0.3, 1, 2.5, m.durata * 0.9, m.durata]) {
+      const f = H.costruisciHtml(H.nuovoHtml(id), 1920, 1080, t, m.durata);
+      assert.ok(!/NaN|undefined|Infinity/.test(f.corpo), `${id} t=${t}: numeri storti`);
+    }
+    // a metà clip il testo di partenza si vede (la macchina da scrivere e il karaoke lo hanno già in parte)
+    const meta = H.costruisciHtml(H.nuovoHtml(id), 1920, 1080, m.durata * 0.6, m.durata).corpo;
+    assert.ok(meta.includes(marca[id]), `${id}: manca ${marca[id]}`);
+    // verticale e quadrato reggono
+    for (const [w, h] of [[1080, 1920], [1080, 1080]]) assert.ok(H.costruisciHtml(H.nuovoHtml(id), w, h, 2, m.durata).corpo.length > 50);
+  }
+});
+
+test('nuovi: i testi storti non rompono nessuno (script, &, virgolette, caratteri di controllo)', () => {
+  const brutto = '<script>alert(1)</script> & "x" \u0001 |';
+  for (const id of NUOVI) {
+    const m = H.modelloHtml(id);
+    const v = {};
+    for (const c of m.campi) if (c.tipo === 'testo' || c.tipo === 'lungo') v[c.id] = brutto;
+    const f = H.costruisciHtml(H.nuovoHtml(id, v), 1920, 1080, m.durata * 0.6, m.durata);
+    assert.ok(!/<script/i.test(f.corpo), `${id}: script sfuggito`);
+    assert.ok(!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(f.corpo), `${id}: caratteri di controllo`);
+    assert.ok(!/&(?!amp;|lt;|gt;|quot;|#\d+;)/.test(f.corpo), `${id}: entità non XML`);
+  }
+});
+
+test('karaoke: le parole si accendono una dopo l\'altra, mai all\'indietro', () => {
+  const spec = H.nuovoHtml('karaoke', { testo: 'uno due tre quattro', velocita: 2, ent: 0.4 });
+  const accese = (t) => [...H.costruisciHtml(spec, 1920, 1080, t, 6).corpo.matchAll(/--k:([\d.]+)/g)].map((x) => Number(x[1]));
+  assert.deepEqual(accese(0), [0, 0, 0, 0]);
+  let prima = 0;
+  for (let t = 0; t <= 6; t += 0.25) { const k = accese(t).reduce((a, b) => a + b, 0); assert.ok(k >= prima - 1e-9, `t=${t}`); prima = k; }
+  assert.deepEqual(accese(6), [1, 1, 1, 1]);
+  // la seconda parola non parte prima che la prima sia finita
+  const a = accese(1.0);
+  assert.ok(a[0] === 1 && a[1] < 1 && a[2] === 0, JSON.stringify(a));
+  // finite le parole il fotogramma non cambia più (la cache lo disegna una volta sola)
+  assert.equal(H.costruisciHtml(spec, 1920, 1080, 4, 6).chiave, H.costruisciHtml(spec, 1920, 1080, 4.5, 6).chiave);
+});
+
+test('macchina da scrivere: le lettere crescono col tempo e il cursore lampeggia a scrittura finita', () => {
+  const spec = H.nuovoHtml('macchina', { testo: 'ciao a tutti', velocita: 10, ent: 0.4 });
+  const vis = (t) => H.statoHtml(spec, t, 7).car;
+  assert.equal(vis(0), 0);
+  for (let t = 0.2; t <= 7; t += 0.2) assert.ok(vis(t) >= vis(t - 0.2));
+  assert.equal(vis(7), 'ciao a tutti'.length);
+  assert.equal(H.statoHtml(spec, 1, 7).luce, 1); // sta scrivendo: acceso
+  const luci = new Set([3, 3.2, 3.4, 3.6, 4, 4.2].map((t) => H.statoHtml(spec, t, 7).luce));
+  assert.ok(luci.has(0) && luci.has(1), 'a fine scrittura il cursore lampeggia');
+  // il testo c'è già tutto (il resto invisibile), la fascia non cambia misura
+  assert.ok(H.costruisciHtml(spec, 1920, 1080, 1, 7).corpo.includes('mc-resto'));
+  assert.match(H.costruisciHtml(spec, 1920, 1080, 7, 7).corpo, />ciao a tutti</);
+  // le emoji (due unità) non si spezzano a metà
+  const e = H.nuovoHtml('macchina', { testo: 'a😀b', velocita: 4, ent: 0.1 });
+  for (let t = 0; t <= 2; t += 0.1) assert.ok(!/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(H.costruisciHtml(e, 1920, 1080, t, 7).corpo), `t=${t}`);
+});
+
+test('titoli di coda: scorrono dal basso all\'alto per tutta la clip, ruolo e nome sulla stessa riga', () => {
+  const spec = H.nuovoHtml('coda', { testo: 'Regia | Mario\nMusiche | Anna\n\nGrazie' });
+  const k = (t) => Number(/--k:([\d.]+)/.exec(H.costruisciHtml(spec, 1920, 1080, t, 12).corpo)[1]);
+  assert.equal(k(0), 0); assert.equal(k(12), 1);
+  for (let t = 0.5; t <= 12; t += 0.5) assert.ok(k(t) > k(t - 0.5));
+  const c = H.costruisciHtml(spec, 1920, 1080, 6, 12).corpo;
+  assert.match(c, /cd-ruolo">Regia<\/div><div class="cd-nome">Mario</);
+  assert.match(c, /cd-tit">Grazie</);
+  assert.match(c, /cd-vuota/);
+});
+
+test('capitoli: la barra si riempie un capitolo per volta e quello acceso cambia', () => {
+  const spec = H.nuovoHtml('capitoli', { capitoli: 'A\nB\nC' });
+  const corpo = (t) => H.costruisciHtml(spec, 1920, 1080, t, 10).corpo;
+  assert.equal((corpo(5).match(/class="ch-c/g) ?? []).length, 3);
+  const acceso = (t) => /ch-c att"><div class="ch-barra"><i style="--f:[\d.]+"><\/i><\/div><div class="ch-nome" style="--o:1"><b>0(\d)</.exec(corpo(t))[1];
+  assert.equal(acceso(1), '1'); assert.equal(acceso(5), '2'); assert.equal(acceso(9.9), '3');
+  assert.ok(H.statoHtml(spec, 0, 10).avanza === 0 && H.statoHtml(spec, 10, 10).avanza === 1);
+  // niente righe = un capitolo vuoto, non un errore; più di otto si fermano a otto
+  assert.ok(H.costruisciHtml(H.nuovoHtml('capitoli', { capitoli: '' }), 1920, 1080, 3, 10).corpo.includes('ch-c'));
+  const molti = Array.from({ length: 20 }, (_, i) => 'C' + i).join('\n');
+  assert.equal((H.costruisciHtml(H.nuovoHtml('capitoli', { capitoli: molti }), 1920, 1080, 3, 10).corpo.match(/class="ch-c/g) ?? []).length, 8);
+});
+
+test('freccia: si disegna piano piano, la punta compare alla fine, la scritta sta dove dici', () => {
+  const spec = H.nuovoHtml('freccia', { x: 40, y: 60, lato: 'basso-destra' });
+  const dash = (t) => { const m = /stroke-width="9"[^>]*stroke-dasharray="([\d.]+)" stroke-dashoffset="([\d.]+)"/.exec(H.costruisciHtml(spec, 1920, 1080, t, 5).corpo); return 1 - Number(m[2]) / Number(m[1]); };
+  assert.ok(dash(0) < 0.01 && dash(5) > 0.99);
+  for (let t = 0.2; t <= 2; t += 0.2) assert.ok(dash(t) >= dash(t - 0.2) - 1e-9);
+  assert.match(H.costruisciHtml(spec, 1920, 1080, 2.5, 5).corpo, /left:40%;top:60%/);
+  // in basso la scritta non si sposta in su; in alto sì
+  assert.match(H.costruisciHtml(spec, 1920, 1080, 2.5, 5).corpo, /translate\(-50%,0\)/);
+  assert.match(H.costruisciHtml(H.nuovoHtml('freccia'), 1920, 1080, 2.5, 5).corpo, /translate\(-50%,-100%\)/);
+  // tutte le forme si disegnano
+  for (const forma of ['cerchio', 'rettangolo', 'evidenziatore', 'nessuna']) for (const lato of ['alto-sinistra', 'alto-destra', 'basso-sinistra', 'basso-destra']) assert.ok(H.costruisciHtml(H.nuovoHtml('freccia', { forma, lato }), 1920, 1080, 2, 5).corpo.includes('<path'), forma + lato);
+});
+
+test('prima e dopo: il divisore va dal punto di partenza a quello di arrivo', () => {
+  const spec = H.nuovoHtml('primadopo', { da: 10, a: 90 });
+  const x = (t) => H.statoHtml(spec, t, 6).pos;
+  assert.equal(x(0), 10); assert.ok(x(6) >= 89.9);
+  for (let t = 0.3; t <= 6; t += 0.3) assert.ok(x(t) >= x(t - 0.3) - 1e-9);
+  assert.match(H.costruisciHtml(spec, 1920, 1080, 6, 6).corpo, />PRIMA<[^]*>DOPO</);
+});
+
+test('didascalia: i numeri salgono fino al valore scelto, con i punti delle migliaia', () => {
+  const spec = H.nuovoHtml('didascalia', { mipiace: 1234, commenti: 56, condivisioni: 7 });
+  const c = (t) => H.costruisciHtml(spec, 1920, 1080, t, 6).corpo;
+  assert.match(c(0), /<span>0<\/span><\/div><div>/);
+  assert.match(c(5), /<span>1\.234<\/span>/);
+  assert.match(c(5), /<span>56<\/span>/);
+  assert.match(H.costruisciHtml(H.nuovoHtml('didascalia', { mipiace: 12400 }), 1920, 1080, 5, 6).corpo, /12,4 K/);
+});
+
+test('prezzo: la barra sul prezzo vecchio parte dopo che il prezzo è comparso', () => {
+  const spec = H.nuovoHtml('prezzo');
+  const v = (t, n) => Number(new RegExp('--' + n + ':([\\d.-]+)').exec(H.costruisciHtml(spec, 1920, 1080, t, 6).corpo)[1]);
+  assert.equal(v(0, 'br'), 0); assert.equal(v(5, 'br'), 1);
+  assert.ok(v(0.9, 'vc') > 0 && v(0.5, 'br') === 0);
+  assert.match(H.costruisciHtml(spec, 1920, 1080, 5, 6).corpo, /-30%/);
+  assert.ok(!H.costruisciHtml(H.nuovoHtml('prezzo', { sconto: '' }), 1920, 1080, 5, 6).corpo.includes('pz-sticker'));
+});
+
+test('cambiare modello tenendo i testi: i campi con lo stesso nome si portano dietro (come fa il pannello)', () => {
+  // quello che fa titoloHtml in ispettore.ts: stessi id e stesso tipo → il valore passa
+  const vecchi = H.valoriHtmlDi(H.nuovoHtml('terzo', { nome: 'Anna', ent: 1.5 }));
+  const nuovo = H.nuovoHtml('intervista');
+  for (const k of H.modelloHtml('intervista').campi) if ((k.tipo === 'testo' || k.tipo === 'lungo' || k.id === 'ent' || k.id === 'usc' || k.id === 'dim') && k.id in vecchi && typeof vecchi[k.id] === typeof k.def) nuovo.v[k.id] = vecchi[k.id];
+  assert.equal(nuovo.v.nome, 'Anna'); assert.equal(nuovo.v.ent, 1.5);
 });

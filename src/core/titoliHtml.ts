@@ -54,12 +54,15 @@ const FONT = (def: string, ammessi: string[] = Object.keys(SCELTE_FONT)): CampoA
 const TEMPI = (ent = 0.7, usc = 0.5): CampoAnim[] => [N('ent', 'Entrata (secondi)', ent, 0.1, 4, 0.1), N('usc', 'Uscita (secondi)', usc, 0.1, 4, 0.1)];
 const DIM: CampoAnim = N('dim', 'Grandezza', 100, 50, 200, 5);
 
-export type GruppoHtml = 'vecchio' | 'tv' | 'social' | 'cinema';
+export type GruppoHtml = 'vecchio' | 'tv' | 'social' | 'cinema' | 'parole' | 'indicare' | 'docu';
 export const GRUPPI_HTML: { id: GruppoHtml; nome: string }[] = [
   { id: 'vecchio', nome: 'Vecchio stile' },
   { id: 'tv', nome: 'TV e notizie' },
   { id: 'social', nome: 'Social e logo' },
   { id: 'cinema', nome: 'Cinema e capitoli' },
+  { id: 'parole', nome: 'Parole e citazioni' },
+  { id: 'indicare', nome: 'Indicare e confrontare' },
+  { id: 'docu', nome: 'Documentario e interviste' },
 ];
 
 /** lo stato dell'animazione a un istante: numeri, tutti calcolati dal solo tempo */
@@ -102,6 +105,30 @@ const nomeFont = (v: ValoriHtml, def = 'orbitron') => `'${fam(v, def).famiglia}'
 const s2 = (x: number) => String(Math.floor(x)).padStart(2, '0');
 /** 0 → 1 fra i secondi a e b (con la curva e) */
 const fra = (t: number, a: number, b: number, e: (x: number) => number = E.p3out) => e(clamp01((t - a) / Math.max(1e-6, b - a)));
+
+// ——— la freccia che indica un punto: geometria (in pixel del palco, con il punto indicato come origine) ———
+const LATI_FRECCIA: Record<string, [number, number]> = { 'alto-sinistra': [-1, -1], 'alto-destra': [1, -1], 'basso-sinistra': [-1, 1], 'basso-destra': [1, 1] };
+interface Punto2 { x: number; y: number }
+/** la freccia parte da sotto (o sopra) la scritta, scende dritta e poi entra di lato nel segno; la punta guarda il centro */
+function geometriaFreccia(lato: string, R: number, forma: string): { S: Punto2; C: Punto2; F: Punto2; E: Punto2; angolo: number; dy: number } {
+  const [dx, dy] = LATI_FRECCIA[lato] ?? LATI_FRECCIA['alto-sinistra'];
+  const S = { x: dx * (0.9 * R + 300), y: dy * (0.6 * R + 170) };
+  const dist = forma === 'rettangolo' ? 1.3 * R + 12 : forma === 'evidenziatore' ? 1.5 * R + 12 : forma === 'nessuna' ? 30 : R + 12;
+  const E = { x: dx * dist, y: 0 };
+  const angolo = dx < 0 ? 0 : Math.PI;
+  // la riga si ferma un po' prima della punta, se no la punta sembrerebbe tozza
+  return { S, C: { x: S.x, y: 0 }, F: { x: E.x - Math.cos(angolo) * 30, y: 0 }, E, angolo, dy };
+}
+/** lunghezza di una curva quadratica (somma di 16 pezzetti dritti): serve per disegnarla piano piano */
+function lunghezzaCurva(a: Punto2, c: Punto2, b: Punto2): number {
+  let L = 0, p = a;
+  for (let i = 1; i <= 16; i++) {
+    const t = i / 16, u = 1 - t;
+    const q = { x: u * u * a.x + 2 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2 * u * t * c.y + t * t * b.y };
+    L += Math.hypot(q.x - p.x, q.y - p.y); p = q;
+  }
+  return L;
+}
 
 // ——— il catalogo ———
 export const MODELLI_HTML: ModelloHtml[] = [
@@ -358,6 +385,287 @@ ${tacche}<text x="300" y="165" text-anchor="middle" font-family="'Rajdhani'" fon
 .cp-tit{overflow:hidden;font-weight:${'${P}'};font-size:100px;line-height:1.15;color:#fff;white-space:nowrap}
 .cp-tit span{display:block;transform:translateX(calc((1 - var(--ti))*-120px));opacity:var(--ti)}`,
     righe: (v) => [testo(v, 'parola') + ' ' + testo(v, 'numero'), testo(v, 'titolo')],
+  },
+
+  // ————————————————————————— parole e citazioni —————————————————————————
+  {
+    id: 'citazione', nome: 'Citazione con virgolette', gruppo: 'parole', info: 'le virgolette grandi entrano con un rimbalzo, la frase si apre e sotto compare chi l\'ha detta', durata: 7,
+    campi: [L('testo', 'Frase', 'Il montaggio vecchio stile, moderno dentro.'), T('autore', 'Chi l\'ha detta', 'Cammo'), C('colore', 'Colore delle virgolette', '#ffd54a'), FONT('playfair', ['playfair', 'montserrat', 'oswald', 'rajdhani', 'bebas']), ...TEMPI(1, 0.6), DIM],
+    font: (v) => [...fam(v, 'playfair').pezzi, 'rajdhani-700'],
+    stato: (t, _d, _v, s) => ({ virgolette: fra(t, 0, s.ent * 0.8, E.back(1.8)), frase: fra(t, s.ent * 0.3, s.ent * 1.3), filetto: fra(t, s.ent * 0.7, s.ent * 0.7 + 0.7, E.p4out), autore: fra(t, s.ent * 0.9, s.ent * 0.9 + 0.7) }),
+    html: (v, s) => {
+      const a = testo(v, 'autore', '').trim();
+      return `<div class="qt" style="--vq:${num(s.virgolette)};--tx:${num(s.frase)};--fl:${num(s.filetto)};--au:${num(s.autore)}"><div class="qt-v">“</div><div class="qt-testo">${righeHtml(testo(v, 'testo', ''))}</div>${a ? `<i class="qt-f"></i><div class="qt-autore">${esc(a)}</div>` : ''}</div>`;
+    },
+    css: `.qt{position:absolute;left:50%;top:50%;width:1300px;transform:translate(-50%,-50%) scale(var(--dim));text-align:center;opacity:var(--out)}
+.qt-v{height:150px;font-weight:${'${P}'};font-size:300px;line-height:1;color:var(--c);opacity:var(--vq);transform:scale(calc(0.5 + 0.5*var(--vq)));text-shadow:0 0 50px rgba(0,0,0,.5)}
+.qt-testo{font-weight:${'${P}'};font-size:84px;line-height:1.25;color:#fff;opacity:var(--tx);transform:translateY(calc((1 - var(--tx))*40px));text-shadow:0 4px 30px rgba(0,0,0,.6)}
+.qt-f{display:block;margin:44px auto 22px;height:4px;width:calc(var(--fl)*220px);background:var(--c)}
+.qt-autore{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:44px;letter-spacing:8px;color:var(--c);text-transform:uppercase;opacity:var(--au)}`,
+    righe: (v) => [testo(v, 'testo'), testo(v, 'autore')],
+  },
+  {
+    id: 'karaoke', nome: 'Sottotitolo karaoke', gruppo: 'parole', info: 'la frase in basso, parola per parola: ogni parola si colora mentre arriva il suo momento', durata: 6,
+    campi: [L('testo', 'Frase', 'Il montaggio vecchio stile, moderno dentro'), N('velocita', 'Parole al secondo', 2.5, 0.5, 8, 0.5), C('colore', 'Colore della parola', '#ffd54a'), S('fascia', 'Fascia dietro', 'scura', [['scura', 'Scura'], ['nessuna', 'Nessuna']]), FONT('montserrat', ['montserrat', 'rajdhani', 'oswald', 'orbitron', 'bebas', 'archivo']), ...TEMPI(0.4, 0.4), DIM],
+    font: (v) => fam(v, 'montserrat').pezzi,
+    stato: (t, _d, v, s) => ({ pos: Math.max(0, t - s.ent * 0.5) * numero(v, 'velocita', 2.5) }),
+    html: (v, s) => {
+      const parole = testo(v, 'testo', '').split(/\s+/).filter(Boolean).slice(0, 60);
+      const fascia = scelto(v, 'fascia', ['scura', 'nessuna'], 'scura') === 'scura';
+      const w = parole.map((p, i) => { const k = clamp01(s.pos - i), e = esc(p); return `<span class="kw" style="--k:${num(k)};--a:${num(Math.sin(Math.PI * k))}"><u>${e}</u><b>${e}</b></span>`; }).join(' ');
+      return `<div class="ka ${fascia ? 'f' : ''}"><div class="ka-riga">${w}</div></div>`;
+    },
+    css: `.ka{position:absolute;left:50%;bottom:140px;width:1500px;transform:translateX(-50%) scale(var(--dim));transform-origin:50% 100%;text-align:center;opacity:calc(var(--in)*var(--out))}
+.ka-riga{display:inline-block;max-width:1400px;padding:20px 48px 26px;border-radius:28px;font-weight:${'${P}'};font-size:78px;line-height:1.3;letter-spacing:1px}
+.ka.f .ka-riga{background:rgba(9,8,13,.8);box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.kw{position:relative;display:inline-block;transform:scale(calc(1 + 0.12*var(--a)))}
+.kw u{text-decoration:none;color:#fff;opacity:calc(0.6*(1 - var(--k)) + 0.01);text-shadow:0 3px 14px rgba(0,0,0,.7)}
+.kw b{position:absolute;left:0;top:0;font-weight:inherit;color:var(--c);white-space:nowrap;clip-path:inset(-20% calc((1 - var(--k))*100%) -20% 0);text-shadow:0 0 18px var(--c)}`,
+    righe: (v) => [testo(v, 'testo')],
+  },
+  {
+    id: 'macchina', nome: 'Macchina da scrivere', gruppo: 'parole', info: 'le lettere arrivano una per volta, col cursore che lampeggia in fondo', durata: 7,
+    campi: [L('testo', 'Testo', 'Un vecchio banco.\nUna tecnologia nuova.\nTutto sul tuo computer.'), N('velocita', 'Lettere al secondo', 16, 4, 60, 1), C('colore', 'Colore del cursore', '#ffd54a'), S('fascia', 'Fondo', 'scuro', [['scuro', 'Fascia scura'], ['nessuno', 'Solo il testo']]), FONT('mono', ['mono', 'rajdhani', 'orbitron', 'montserrat']), ...TEMPI(0.4, 0.5), DIM],
+    font: (v) => fam(v, 'mono').pezzi,
+    stato: (t, _d, v, s) => {
+      const tot = Array.from(testo(v, 'testo', '')).length;
+      const car = Math.min(tot, Math.floor(Math.max(0, t - s.ent * 0.5) * numero(v, 'velocita', 16)));
+      // mentre scrive il cursore resta acceso; prima e dopo lampeggia
+      return { car, luce: car > 0 && car < tot ? 1 : Math.floor(t * 2.2) % 2 === 0 ? 1 : 0 };
+    },
+    html: (v, s) => {
+      const lett = Array.from(testo(v, 'testo', '')), car = Math.round(s.car);
+      const fascia = scelto(v, 'fascia', ['scuro', 'nessuno'], 'scuro') === 'scuro';
+      // il resto del testo c'è già ma è invisibile: così la fascia non cambia misura mentre si scrive
+      return `<div class="mc ${fascia ? '' : 'nu'}"><div class="mc-testo"><span>${righeHtml(lett.slice(0, car).join(''))}</span><i class="mc-cur"><u style="opacity:${num(s.luce)}"></u></i><span class="mc-resto">${righeHtml(lett.slice(car).join(''))}</span></div></div>`;
+    },
+    css: `.mc{position:absolute;left:50%;top:50%;width:1300px;transform:translate(-50%,-50%) scale(var(--dim));opacity:calc(var(--in)*var(--out))}
+.mc-testo{padding:50px 60px;border-radius:22px;background:rgba(9,8,13,.84);border:2px solid rgba(255,255,255,.16);box-shadow:0 26px 70px rgba(0,0,0,.55);font-weight:${'${P}'};font-size:64px;line-height:1.4;color:#ebe7f4;letter-spacing:1px}
+.mc.nu .mc-testo{background:none;border-color:transparent;box-shadow:none;text-shadow:0 4px 22px rgba(0,0,0,.8)}
+.mc-cur{position:relative;display:inline-block;width:0;height:1em;vertical-align:text-bottom}
+.mc-cur u{position:absolute;left:4px;top:0.08em;width:0.52em;height:1em;background:var(--c);box-shadow:0 0 16px var(--c)}
+.mc-resto{opacity:0}`,
+    righe: (v) => testo(v, 'testo').split(/\r?\n/),
+  },
+
+  // ————————————————————————— social e logo (altri) —————————————————————————
+  {
+    id: 'didascalia', nome: 'Didascalia social con @ e icone', gruppo: 'social', info: 'il post come sui social: nome, @utente, testo e sotto il cuore, i commenti e le condivisioni che salgono', durata: 6,
+    campi: [T('nome', 'Nome', 'DaProd'), T('handle', 'Nome utente', '@daprod'), L('testo', 'Didascalia', 'Montaggio vecchio stile, moderno dentro. Provalo oggi! #daprod #video'), N('mipiace', 'Mi piace', 12400, 0, 99999999, 100), N('commenti', 'Commenti', 386, 0, 99999999, 1), N('condivisioni', 'Condivisioni', 1250, 0, 99999999, 10), C('colore', 'Colore del cuore', '#ff2d4a'), ...TEMPI(0.7, 0.5), DIM],
+    font: () => ['rajdhani-500', 'rajdhani-700'],
+    stato: (t, _d, _v, s) => ({ carta: fra(t, 0, s.ent), frase: fra(t, s.ent * 0.4, s.ent * 0.4 + 0.8), conta: fra(t, s.ent * 0.6, s.ent * 0.6 + 1.6), cuore: fra(t, s.ent + 0.9, s.ent + 1.4, E.back(3)) }),
+    html: (v, s) => {
+      const nome = testo(v, 'nome', '');
+      const premuto = s.cuore > 0, grigio = '#a19db0';
+      const miglia = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      const compatto = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1).replace('.', ',')} M` : n >= 1e4 ? `${(n / 1e3).toFixed(1).replace('.', ',')} K` : miglia(n));
+      const cifra = (k: string, def: number) => compatto(Math.round(Math.max(0, numero(v, k, def)) * s.conta));
+      const ico = (d: string, colore: string, extra = '') => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="54" height="54" ${extra}><path d="${d}" fill="${colore}"/></svg>`;
+      return `<div class="sc" style="--cd:${num(s.carta)};--tx:${num(s.frase)}"><div class="sc-testa"><div class="sc-av">${esc(nome.trim().charAt(0).toUpperCase() || 'D')}</div><div class="sc-id"><div class="sc-nome">${esc(nome)}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="38" height="38"><circle cx="16" cy="16" r="15" fill="#35e8ff"/><path d="M9 16.5l5 5 9-10" fill="none" stroke="#14131a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="sc-h">${esc(testo(v, 'handle', ''))}</div></div></div>
+<div class="sc-testo">${righeHtml(testo(v, 'testo', ''))}</div>
+<div class="sc-giu"><div>${ico('M32 56C10 40 4 26 12 16 19 8 29 12 32 20 35 12 45 8 52 16 60 26 54 40 32 56z', premuto ? col(v, 'colore', '#ff2d4a') : grigio, `style="transform:scale(${num(premuto ? Math.max(0.2, s.cuore) : 1)})"`)}<span>${cifra('mipiace', 12400)}</span></div><div>${ico('M8 10h48v32H30L18 54V42H8z', grigio)}<span>${cifra('commenti', 386)}</span></div><div>${ico('M36 8l22 20-22 20V36C18 36 10 44 6 56c0-18 8-32 30-34z', grigio)}<span>${cifra('condivisioni', 1250)}</span></div></div></div>`;
+    },
+    css: `.sc{position:absolute;left:110px;bottom:110px;width:960px;transform:scale(calc(var(--dim)*(0.92 + 0.08*var(--cd))));transform-origin:0 100%;opacity:calc(var(--cd)*var(--out));padding:34px 40px 30px;border-radius:30px;background:rgba(22,17,36,.88);border:2px solid rgba(255,255,255,.2);box-shadow:0 26px 70px rgba(0,0,0,.55);font-family:'Rajdhani',sans-serif}
+.sc-testa{display:flex;align-items:center;gap:22px}
+.sc-av{flex:none;width:92px;height:92px;border-radius:50%;background:linear-gradient(135deg,#ffd54a,#ff3df2);color:#14131a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:56px}
+.sc-id{flex:1}
+.sc-nome{display:flex;align-items:center;gap:12px;font-weight:700;font-size:48px;line-height:1.1;color:#fff}
+.sc-h{font-weight:500;font-size:36px;letter-spacing:1px;color:#a19db0}
+.sc-testo{margin-top:24px;font-weight:600;font-size:46px;line-height:1.25;color:#ebe7f4;opacity:var(--tx);transform:translateY(calc((1 - var(--tx))*24px))}
+.sc-giu{margin-top:28px;display:flex;align-items:center;gap:56px;font-weight:700;font-size:42px;color:#dcd8e6}
+.sc-giu div{display:flex;align-items:center;gap:14px}`,
+    righe: (v) => [testo(v, 'nome') + ' ' + testo(v, 'handle'), testo(v, 'testo')],
+  },
+  {
+    id: 'finale', nome: 'Schermo di fine · iscriviti e due video', gruppo: 'social', info: 'il fondo si scurisce, due riquadri scivolano ai lati per i prossimi video e sotto il canale con il pulsante per iscriversi', durata: 10,
+    campi: [T('titolo', 'Titolo', 'GUARDA ANCHE'), T('canale', 'Nome del canale', 'DaProd'), T('pulsante', 'Pulsante', 'ISCRIVITI'), T('video1', 'Primo video', 'Ultimo video'), T('video2', 'Secondo video', 'Il più visto'), C('colore', 'Colore del pulsante', '#ff2d4a'), N('fondo', 'Quanto scurisce il fondo (%)', 55, 0, 90, 5), ...TEMPI(0.8, 0.6), DIM],
+    font: () => ['rajdhani-700'],
+    stato: (t, _d, _v, s) => ({ titolo: fra(t, s.ent * 0.2, s.ent * 0.2 + 0.6), uno: fra(t, s.ent * 0.3, s.ent * 0.3 + 0.8, E.p4out), due: fra(t, s.ent * 0.5, s.ent * 0.5 + 0.8, E.p4out), canale: fra(t, s.ent * 0.9, s.ent * 0.9 + 0.7, E.back(1.8)) }),
+    html: (v, s) => {
+      const gioca = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="130" height="130"><circle cx="60" cy="60" r="56" fill="rgba(0,0,0,.5)" stroke="#fff" stroke-width="4"/><path d="M48 36l38 24-38 24z" fill="#fff"/></svg>';
+      const nome = testo(v, 'canale', '');
+      return `<div class="fn" style="--vl:${num(numero(v, 'fondo', 55) / 100)};--t1:${num(s.titolo)};--cn:${num(s.canale)}"><div class="fn-velo"></div><div class="fn-corpo"><div class="fn-tit">${esc(testo(v, 'titolo', ''))}</div>
+<div class="fn-video"><div class="fn-v" style="--vv:${num(s.uno)};--lx:-1"><div class="fn-sch">${gioca}</div><b>${esc(testo(v, 'video1', ''))}</b></div><div class="fn-v" style="--vv:${num(s.due)};--lx:1"><div class="fn-sch">${gioca}</div><b>${esc(testo(v, 'video2', ''))}</b></div></div>
+<div class="fn-canale"><div class="fn-av">${esc(nome.trim().charAt(0).toUpperCase() || 'D')}</div><div class="fn-nome">${esc(nome)}</div><div class="fn-btn">${esc(testo(v, 'pulsante', ''))}</div></div></div></div>`;
+    },
+    css: `.fn{position:absolute;left:0;top:0;width:100%;height:100%;opacity:var(--out);font-family:'Rajdhani',sans-serif}
+.fn-velo{position:absolute;left:0;top:0;width:100%;height:100%;background:rgba(9,8,13,var(--vl));opacity:var(--in)}
+.fn-corpo{position:absolute;left:50%;top:50%;width:1360px;transform:translate(-50%,-50%) scale(var(--dim));display:flex;flex-direction:column;align-items:center;gap:46px}
+.fn-tit{font-weight:700;font-size:64px;letter-spacing:16px;color:#fff;opacity:var(--t1);transform:translateY(calc((1 - var(--t1))*-30px));text-shadow:0 4px 24px rgba(0,0,0,.7)}
+.fn-video{display:flex;gap:80px}
+.fn-v{width:600px;opacity:var(--vv);transform:translateX(calc(var(--lx)*(1 - var(--vv))*160px))}
+.fn-sch{height:338px;border-radius:22px;background:linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.04));border:3px solid rgba(255,255,255,.4);box-shadow:0 24px 60px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center}
+.fn-v b{display:block;margin-top:18px;font-weight:700;font-size:44px;letter-spacing:3px;color:#ebe7f4;text-align:center}
+.fn-canale{display:flex;align-items:center;gap:30px;padding:22px 34px;border-radius:90px;background:rgba(22,17,36,.88);border:2px solid rgba(255,255,255,.22);opacity:var(--cn);transform:scale(calc(0.8 + 0.2*var(--cn)))}
+.fn-av{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#ffd54a,#ff3df2);color:#14131a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:60px}
+.fn-nome{font-weight:700;font-size:60px;letter-spacing:2px;color:#fff}
+.fn-btn{padding:14px 44px;border-radius:14px;background:var(--c);color:#fff;font-weight:700;font-size:48px;letter-spacing:4px;box-shadow:0 6px 0 rgba(0,0,0,.35)}`,
+    righe: (v) => [testo(v, 'titolo'), testo(v, 'canale') + ' · ' + testo(v, 'pulsante')],
+  },
+
+  // ————————————————————————— indicare e confrontare —————————————————————————
+  {
+    id: 'freccia', nome: 'Freccia e evidenziatore', gruppo: 'indicare', info: 'una freccia disegnata a mano indica un punto del quadro, con un segno attorno (cerchio, rettangolo o pennarello) e la scritta', durata: 5,
+    campi: [T('etichetta', 'Scritta', 'GUARDA QUI'), N('x', 'Punta a: da sinistra (%)', 62, 5, 95, 1), N('y', 'Punta a: dall\'alto (%)', 45, 5, 95, 1), S('lato', 'La scritta sta', 'alto-sinistra', [['alto-sinistra', 'In alto a sinistra'], ['alto-destra', 'In alto a destra'], ['basso-sinistra', 'In basso a sinistra'], ['basso-destra', 'In basso a destra']]), S('forma', 'Attorno al punto', 'cerchio', [['cerchio', 'Cerchio'], ['rettangolo', 'Rettangolo'], ['evidenziatore', 'Evidenziatore'], ['nessuna', 'Niente']]), N('raggio', 'Grandezza del segno', 110, 40, 300, 5), C('colore', 'Colore', '#ffd54a'), FONT('rajdhani', ['rajdhani', 'oswald', 'montserrat', 'orbitron', 'bebas']), ...TEMPI(0.7, 0.4)],
+    font: (v) => fam(v, 'rajdhani').pezzi,
+    stato: (t, _d, _v, s) => ({ segno: fra(t, 0, s.ent * 0.7), freccia: fra(t, s.ent * 0.3, s.ent * 0.3 + 0.8, E.p3io), scritta: fra(t, s.ent * 0.6, s.ent * 0.6 + 0.6, E.back(1.8)) }),
+    html: (v, s) => {
+      const R = Math.max(40, Math.min(300, numero(v, 'raggio', 110)));
+      const forma = scelto(v, 'forma', ['cerchio', 'rettangolo', 'evidenziatore', 'nessuna'], 'cerchio');
+      const g = geometriaFreccia(scelto(v, 'lato', Object.keys(LATI_FRECCIA), 'alto-sinistra'), R, forma);
+      const c = col(v, 'colore', '#ffd54a');
+      let segno = '';
+      if (forma === 'cerchio') {
+        const L = 2 * Math.PI * R;
+        segno = `<circle cx="0" cy="0" r="${num(R)}" fill="none" stroke="${c}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${num(L)}" stroke-dashoffset="${num(L * (1 - s.segno))}" transform="rotate(-90)"/>`;
+      } else if (forma === 'rettangolo') {
+        const w = 2.6 * R, h = 1.6 * R, rx = 14, L = 2 * (w + h) - (8 - 2 * Math.PI) * rx;
+        segno = `<rect x="${num(-w / 2)}" y="${num(-h / 2)}" width="${num(w)}" height="${num(h)}" rx="${rx}" fill="none" stroke="${c}" stroke-width="8" stroke-linejoin="round" stroke-dasharray="${num(L)}" stroke-dashoffset="${num(L * (1 - s.segno))}"/>`;
+      } else if (forma === 'evidenziatore') segno = `<rect x="${num(-1.5 * R)}" y="${num(-0.3 * R)}" width="${num(3 * R * s.segno)}" height="${num(0.6 * R)}" rx="12" fill="${c}" opacity="0.4" transform="rotate(-2)"/>`;
+      const L = lunghezzaCurva(g.S, g.C, g.F) * 1.01;
+      const testa = clamp01((s.freccia - 0.85) / 0.15);
+      const et = esc(testo(v, 'etichetta', ''));
+      const targhetta = et ? `<div class="fr-et" style="left:${num(g.S.x)}px;top:${num(g.S.y)}px;transform:translate(-50%,${g.dy < 0 ? '-100%' : '0'}) scale(${num(0.6 + 0.4 * s.scritta)});opacity:${num(clamp01(s.scritta))}">${et}</div>` : '';
+      return `<div class="fr"><div class="fr-p" style="left:${num(numero(v, 'x', 62))}%;top:${num(numero(v, 'y', 45))}%"><svg xmlns="http://www.w3.org/2000/svg" width="2" height="2" style="position:absolute;left:0;top:0;overflow:visible">${segno}<path d="M ${num(g.S.x)} ${num(g.S.y)} Q ${num(g.C.x)} ${num(g.C.y)} ${num(g.F.x)} ${num(g.F.y)}" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${num(L)}" stroke-dashoffset="${num(L * (1 - s.freccia))}"/><g transform="translate(${num(g.E.x)} ${num(g.E.y)}) rotate(${num((g.angolo * 180) / Math.PI)})" opacity="${num(testa)}"><polygon points="0,0 -44,-22 -44,22" fill="${c}"/></g></svg>${targhetta}</div></div>`;
+    },
+    css: `.fr{position:absolute;left:0;top:0;width:100%;height:100%;opacity:var(--out);filter:drop-shadow(0 6px 14px rgba(0,0,0,.55))}
+.fr-p{position:absolute;width:0;height:0}
+.fr-et{position:absolute;white-space:nowrap;padding:10px 32px;border-radius:14px;background:rgba(9,8,13,.9);border:3px solid var(--c);color:var(--c);font-weight:${'${P}'};font-size:60px;letter-spacing:4px;text-transform:uppercase}`,
+    righe: (v) => [testo(v, 'etichetta')],
+  },
+  {
+    id: 'primadopo', nome: 'Prima e dopo diviso', gruppo: 'indicare', info: 'un divisore scorre sul quadro: il «prima» si scurisce a sinistra, il «dopo» resta chiaro a destra', durata: 6,
+    campi: [T('prima', 'Scritta a sinistra', 'PRIMA'), T('dopo', 'Scritta a destra', 'DOPO'), N('da', 'Il divisore parte da (%)', 20, 0, 100, 1), N('a', 'Arriva a (%)', 80, 0, 100, 1), N('velo', 'Quanto scurisce il «prima» (%)', 45, 0, 90, 5), C('colore', 'Colore del divisore', '#ffd54a'), FONT('rajdhani', ['rajdhani', 'oswald', 'montserrat', 'orbitron', 'bebas']), ...TEMPI(0.6, 0.5)],
+    font: (v) => fam(v, 'rajdhani').pezzi,
+    stato: (t, d, v, s) => ({ pos: lerp(numero(v, 'da', 20), numero(v, 'a', 80), fra(t, s.ent * 0.5, Math.max(s.ent * 0.5 + 0.2, d - s.usc - 0.1), E.p2io)), etichette: fra(t, s.ent * 0.3, s.ent * 0.3 + 0.6) }),
+    html: (v, s) => {
+      const x = Math.max(0, Math.min(100, s.pos));
+      return `<div class="pd" style="--x:${num(x)}%;--vl:${num(numero(v, 'velo', 45) / 100)};--et:${num(s.etichette)}"><i class="pd-velo"></i><i class="pd-linea"></i><div class="pd-man"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 40" width="52" height="40"><polygon points="20,6 4,20 20,34" fill="#14131a"/><polygon points="32,6 48,20 32,34" fill="#14131a"/></svg></div><b class="pd-et sx">${esc(testo(v, 'prima', ''))}</b><b class="pd-et dx">${esc(testo(v, 'dopo', ''))}</b></div>`;
+    },
+    css: `.pd{position:absolute;left:0;top:0;width:100%;height:100%;opacity:var(--out)}
+.pd-velo{position:absolute;left:0;top:0;height:100%;width:var(--x);background:rgba(9,8,13,var(--vl));opacity:var(--in)}
+.pd-linea{position:absolute;top:0;height:100%;left:var(--x);width:6px;margin-left:-3px;background:var(--c);box-shadow:0 0 22px var(--c);transform:scaleY(var(--in));transform-origin:50% 50%}
+.pd-man{position:absolute;left:var(--x);top:50%;width:104px;height:104px;margin:-52px 0 0 -52px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 30px rgba(0,0,0,.6);transform:scale(var(--in))}
+.pd-et{position:absolute;top:70px;padding:8px 34px;border-radius:40px;font-weight:${'${P}'};font-size:54px;letter-spacing:8px;text-transform:uppercase;opacity:var(--et);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.pd-et.sx{left:70px;background:rgba(9,8,13,.9);color:#fff}
+.pd-et.dx{right:70px;background:var(--c);color:#14131a}`,
+    righe: (v) => [testo(v, 'prima') + ' / ' + testo(v, 'dopo')],
+  },
+  {
+    id: 'prezzo', nome: 'Prezzo e offerta', gruppo: 'indicare', info: 'il cartellino cade, il prezzo vecchio si barra, quello nuovo salta fuori e il bollino dello sconto gira', durata: 6,
+    campi: [T('etichetta', 'Scritta sopra', 'OFFERTA'), T('vecchio', 'Prezzo di prima', '99,00'), T('prezzo', 'Prezzo adesso', '69,00'), T('valuta', 'Valuta', '€'), T('sconto', 'Sconto', '-30%'), C('colore', 'Colore', '#ff2d4a'), FONT('montserrat', ['montserrat', 'archivo', 'oswald', 'bebas', 'orbitron']), ...TEMPI(0.8, 0.5), DIM],
+    font: (v) => fam(v, 'montserrat').pezzi,
+    stato: (t, _d, _v, s) => ({ cartello: fra(t, 0, s.ent, E.back(1.5)), vecchio: fra(t, s.ent * 0.5, s.ent * 0.5 + 0.5), barra: fra(t, s.ent * 0.5 + 0.5, s.ent * 0.5 + 0.9), nuovo: fra(t, s.ent * 0.5 + 0.7, s.ent * 0.5 + 1.3, E.back(2.4)), bollino: fra(t, s.ent * 0.5 + 1, s.ent * 0.5 + 1.7, E.back(2.6)) }),
+    html: (v, s) => {
+      let punte = '';
+      for (let i = 0; i < 24; i++) { const a = (i / 24) * 2 * Math.PI, r = i % 2 === 0 ? 104 : 88; punte += `${num(110 + Math.sin(a) * r)},${num(110 - Math.cos(a) * r)} `; }
+      const valuta = esc(testo(v, 'valuta', ''));
+      const sconto = esc(testo(v, 'sconto', ''));
+      return `<div class="pz" style="--cd:${num(s.cartello)};--vc:${num(s.vecchio)};--br:${num(s.barra)};--pr:${num(s.nuovo)};--st:${num(s.bollino)}"><div class="pz-card"><div class="pz-et">${esc(testo(v, 'etichetta', ''))}</div><div class="pz-vecchio">${valuta} ${esc(testo(v, 'vecchio', ''))}<i></i></div><div class="pz-prezzo"><small>${valuta}</small>${esc(testo(v, 'prezzo', ''))}</div></div>${sconto ? `<div class="pz-sticker"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220" width="230" height="230"><polygon points="${punte.trim()}" fill="#ffd54a" stroke="#14131a" stroke-width="5"/></svg><b>${sconto}</b></div>` : ''}</div>`;
+    },
+    css: `.pz{position:absolute;left:50%;top:50%;width:900px;height:760px;margin:-380px 0 0 -450px;transform:scale(var(--dim));opacity:var(--out)}
+.pz-card{position:absolute;left:0;right:90px;top:70px;padding-bottom:46px;text-align:center;border-radius:36px;background:linear-gradient(160deg,#2a2433,#14131a);border:3px solid rgba(255,255,255,.25);box-shadow:0 40px 90px rgba(0,0,0,.65);transform:translateY(calc((1 - var(--cd))*-420px)) rotate(calc((1 - var(--cd))*-8deg));opacity:calc(var(--cd)*3)}
+.pz-et{padding:18px 0;border-radius:33px 33px 0 0;background:var(--c);color:#fff;font-weight:${'${P}'};font-size:64px;letter-spacing:12px;text-transform:uppercase}
+.pz-vecchio{position:relative;display:inline-block;margin-top:34px;font-weight:${'${P}'};font-size:84px;color:#a19db0;opacity:var(--vc)}
+.pz-vecchio i{position:absolute;left:-8%;right:-8%;top:52%;height:9px;border-radius:5px;background:var(--c);transform:rotate(-6deg) scaleX(var(--br));transform-origin:0 50%}
+.pz-prezzo{margin-top:8px;font-weight:${'${P}'};font-size:260px;line-height:1;color:#fff;opacity:var(--pr);transform:scale(calc(0.5 + 0.5*var(--pr)));text-shadow:0 0 50px var(--c)}
+.pz-prezzo small{font-size:110px;vertical-align:top;margin-right:10px;color:var(--c)}
+.pz-sticker{position:absolute;right:0;top:0;width:230px;height:230px;display:flex;align-items:center;justify-content:center;transform:rotate(calc(14deg + (1 - var(--st))*-200deg)) scale(var(--st));opacity:calc(var(--st)*3)}
+.pz-sticker svg{position:absolute;left:0;top:0}
+.pz-sticker b{position:relative;font-weight:${'${P}'};font-size:62px;color:#14131a}`,
+    righe: (v) => [testo(v, 'etichetta'), testo(v, 'valuta') + ' ' + testo(v, 'prezzo')],
+  },
+
+  // ————————————————————————— documentario e interviste —————————————————————————
+  {
+    id: 'luogo', nome: 'Cartello luogo e data', gruppo: 'docu', info: 'lo stile dei documentari: il segnaposto, il luogo a lettere grandi, la data e le coordinate che si scrivono', durata: 5,
+    campi: [T('luogo', 'Luogo', 'ROMA, ITALIA'), T('data', 'Data', '12 GIUGNO 2026'), T('coordinate', 'Riga piccola (coordinate o altro)', '41.9028° N · 12.4964° E'), C('colore', 'Colore', '#ffd54a'), S('lato', 'Dove sta', 'sinistra', [['sinistra', 'In basso a sinistra'], ['destra', 'In basso a destra']]), FONT('rajdhani', ['rajdhani', 'oswald', 'montserrat', 'orbitron', 'bebas']), ...TEMPI(0.9, 0.6), DIM],
+    font: (v) => [...fam(v, 'rajdhani').pezzi, 'rajdhani-700', 'mono-700'],
+    stato: (t, _d, _v, s) => ({ linea: fra(t, 0, s.ent * 0.6, E.p4out), luogo: fra(t, s.ent * 0.3, s.ent * 1.1), data: fra(t, s.ent * 0.6, s.ent * 1.4), coord: fra(t, s.ent * 0.9, s.ent * 0.9 + 0.7), pin: fra(t, 0.1, 0.8, E.rimbalzo) }),
+    html: (v, s) => {
+      const destra = scelto(v, 'lato', ['sinistra', 'destra'], 'sinistra') === 'destra';
+      const coord = testo(v, 'coordinate', '').trim();
+      return `<div class="lu ${destra ? 'dx' : ''}" style="--li:${num(s.linea)};--lg:${num(s.luogo)};--da:${num(s.data)};--co:${num(s.coord)}"><i class="lu-linea"></i><div class="lu-testi"><div class="lu-luogo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="62" height="62" style="transform:translateY(${num((1 - s.pin) * -40)}px)"><path fill-rule="evenodd" d="M24 4C14 4 8 11 8 19c0 12 16 28 16 28s16-16 16-28C40 11 34 4 24 4zm0 20a6 6 0 1 1 0-12 6 6 0 0 1 0 12z" fill="${col(v, 'colore', '#ffd54a')}"/></svg><span>${esc(testo(v, 'luogo', ''))}</span></div><div class="lu-data">${esc(testo(v, 'data', ''))}</div>${coord ? `<div class="lu-coord">${esc(coord)}</div>` : ''}</div></div>`;
+    },
+    css: `.lu{position:absolute;left:110px;bottom:130px;display:flex;align-items:stretch;gap:28px;transform:scale(var(--dim));transform-origin:0 100%;opacity:var(--out)}
+.lu.dx{left:auto;right:110px;flex-direction:row-reverse;transform-origin:100% 100%;text-align:right}
+.lu-linea{width:8px;background:var(--c);box-shadow:0 0 18px var(--c);transform:scaleY(var(--li));transform-origin:50% 100%}
+.lu-testi{display:flex;flex-direction:column;gap:8px}
+.lu.dx .lu-testi{align-items:flex-end}
+.lu-luogo{display:flex;align-items:center;gap:16px;font-weight:${'${P}'};font-size:78px;line-height:1.05;letter-spacing:6px;color:#fff;text-transform:uppercase;text-shadow:0 4px 24px rgba(0,0,0,.7);clip-path:inset(0 calc((1 - var(--lg))*100%) 0 0)}
+.lu.dx .lu-luogo{flex-direction:row-reverse;clip-path:inset(0 0 0 calc((1 - var(--lg))*100%))}
+.lu-data{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:44px;letter-spacing:8px;color:var(--c);text-transform:uppercase;text-shadow:0 3px 16px rgba(0,0,0,.7);clip-path:inset(0 calc((1 - var(--da))*100%) 0 0)}
+.lu.dx .lu-data{clip-path:inset(0 0 0 calc((1 - var(--da))*100%))}
+.lu-coord{font-family:'Space Mono',monospace;font-weight:700;font-size:30px;letter-spacing:2px;color:#dcd8e6;text-shadow:0 3px 14px rgba(0,0,0,.8);opacity:var(--co)}`,
+    righe: (v) => [testo(v, 'luogo'), testo(v, 'data')],
+  },
+  {
+    id: 'intervista', nome: 'Intervista · nome e domanda', gruppo: 'docu', info: 'la targhetta col nome e il ruolo di chi parla e, sotto, la domanda su una fascia chiara', durata: 7,
+    campi: [T('nome', 'Nome', 'Anna Verdi'), T('ruolo', 'Ruolo', 'Direttrice del museo'), L('domanda', 'Domanda', 'Come è cominciata tutta la storia?'), T('sigla', 'Targhetta sopra', 'INTERVISTA'), C('colore', 'Colore', '#35e8ff'), FONT('oswald', ['oswald', 'rajdhani', 'montserrat', 'orbitron', 'bebas']), ...TEMPI(0.8, 0.5), DIM],
+    font: (v) => [...fam(v, 'oswald').pezzi, 'rajdhani-500', 'rajdhani-700'],
+    stato: (t, _d, _v, s) => ({ sigla: fra(t, 0, s.ent * 0.7, E.back(1.6)), nome: fra(t, s.ent * 0.2, s.ent, E.p4out), domanda: fra(t, s.ent * 0.6, s.ent * 1.5, E.p4out) }),
+    html: (v, s) => {
+      const sigla = testo(v, 'sigla', '').trim(), ruolo = testo(v, 'ruolo', '').trim(), dom = testo(v, 'domanda', '').trim();
+      return `<div class="iv" style="--sg:${num(s.sigla)};--cr:${num(s.nome)};--dm:${num(s.domanda)}">${sigla ? `<div class="iv-sigla">${esc(sigla)}</div>` : ''}<div class="iv-nome"><b>${esc(testo(v, 'nome', ''))}</b>${ruolo ? `<em>${esc(ruolo)}</em>` : ''}</div>${dom ? `<div class="iv-dom">“${righeHtml(dom)}”</div>` : ''}</div>`;
+    },
+    css: `.iv{position:absolute;left:110px;bottom:120px;width:1100px;transform:scale(var(--dim));transform-origin:0 100%;opacity:var(--out)}
+.iv-sigla{display:inline-block;padding:6px 26px;background:var(--c);color:#14131a;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:34px;letter-spacing:8px;opacity:var(--sg);transform:translateY(calc((1 - var(--sg))*40px))}
+.iv-nome{display:flex;align-items:baseline;gap:26px;padding:16px 36px;background:rgba(9,8,13,.9);border-left:10px solid var(--c);clip-path:inset(0 calc((1 - var(--cr))*100%) 0 0)}
+.iv-nome b{font-weight:${'${P}'};font-size:64px;letter-spacing:2px;color:#fff;text-transform:uppercase}
+.iv-nome em{font-style:normal;font-family:'Rajdhani',sans-serif;font-weight:500;font-size:40px;letter-spacing:3px;color:var(--c)}
+.iv-dom{padding:22px 36px 26px;background:rgba(245,243,250,.94);color:#14131a;font-family:'Rajdhani',sans-serif;font-weight:700;font-size:52px;line-height:1.2;clip-path:inset(0 calc((1 - var(--dm))*100%) 0 0)}`,
+    righe: (v) => [testo(v, 'nome') + ' · ' + testo(v, 'ruolo'), testo(v, 'domanda')],
+  },
+  {
+    id: 'coda', nome: 'Titoli di coda che scorrono', gruppo: 'docu', info: 'i nomi salgono dal basso e escono in alto per tutta la durata: ruolo a sinistra, nome a destra (scrivi «Ruolo | Nome», una riga per volta)', durata: 12,
+    campi: [L('testo', 'Righe (Ruolo | Nome; senza | è un titolo)', 'Un film di DaProd\n\nRegia | Mario Rossi\nMontaggio | Anna Verdi\nMusiche | Luca Bianchi\nFotografia | Sara Neri\n\nGrazie a tutti'), C('colore', 'Colore dei ruoli', '#ffd54a'), N('fondo', 'Quanto scurisce il fondo (%)', 70, 0, 100, 5), FONT('oswald', ['oswald', 'rajdhani', 'montserrat', 'orbitron', 'playfair']), ...TEMPI(0.8, 0.8), DIM],
+    font: (v) => [...fam(v, 'oswald').pezzi, 'rajdhani-500'],
+    html: (v, s) => {
+      const righe = testo(v, 'testo', '').split(/\r?\n/).slice(0, 60).map((r) => {
+        const i = r.indexOf('|');
+        if (i >= 0) return `<div class="cd-riga"><div class="cd-ruolo">${esc(r.slice(0, i).trim())}</div><div class="cd-nome">${esc(r.slice(i + 1).trim())}</div></div>`;
+        return r.trim() ? `<div class="cd-tit">${esc(r.trim())}</div>` : '<div class="cd-vuota"></div>';
+      }).join('');
+      return `<div class="cd" style="--bg:rgba(9,8,13,${num(numero(v, 'fondo', 70) / 100)});--k:${num(s.p)}"><div class="cd-bg"></div><div class="cd-vetro"><div class="cd-rotolo">${righe}</div></div></div>`;
+    },
+    css: `.cd{position:absolute;left:0;top:0;width:100%;height:100%;opacity:var(--out)}
+.cd-bg{position:absolute;left:0;top:0;width:100%;height:100%;background:var(--bg);opacity:var(--in)}
+.cd-vetro{position:absolute;left:0;top:0;width:100%;height:100%;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 88%,transparent 100%)}
+.cd-rotolo{position:absolute;left:0;right:0;top:calc(100% - var(--k)*100%);transform:translateY(calc(-1*var(--k)*100%)) scale(var(--dim));transform-origin:50% 0;padding:0 160px;text-align:center}
+.cd-riga{display:flex;justify-content:center;align-items:baseline;gap:44px;min-height:88px;font-size:50px;line-height:1.5}
+.cd-ruolo{flex:1;text-align:right;font-family:'Rajdhani',sans-serif;font-weight:500;font-size:42px;letter-spacing:4px;color:var(--c);text-transform:uppercase}
+.cd-nome{flex:1;text-align:left;font-weight:${'${P}'};letter-spacing:2px;color:#fff}
+.cd-tit{padding:10px 0;font-weight:${'${P}'};font-size:76px;letter-spacing:8px;color:#fff;text-transform:uppercase}
+.cd-vuota{height:70px}`,
+    righe: (v) => testo(v, 'testo').split(/\r?\n/).map((r) => r.replace('|', ' ')),
+  },
+  {
+    id: 'capitoli', nome: 'Barra di avanzamento capitoli', gruppo: 'docu', info: 'una barra divisa in capitoli che si riempie col tempo, con il nome di quello che stai guardando acceso', durata: 10,
+    campi: [L('capitoli', 'Capitoli (uno per riga)', 'Introduzione\nIl viaggio\nIl risultato\nConclusione'), C('colore', 'Colore', '#ffd54a'), S('posto', 'Dove sta', 'basso', [['basso', 'In basso'], ['alto', 'In alto']]), FONT('rajdhani', ['rajdhani', 'oswald', 'montserrat', 'orbitron', 'bebas']), ...TEMPI(0.6, 0.5), DIM],
+    font: (v) => fam(v, 'rajdhani').pezzi,
+    stato: (t, d, _v, s) => ({ avanza: clamp01((t - s.ent * 0.5) / Math.max(0.2, d - s.ent * 0.5 - s.usc * 0.5)) }),
+    html: (v, s) => {
+      const nomi = testo(v, 'capitoli', '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean).slice(0, 8);
+      if (!nomi.length) nomi.push('');
+      const n = nomi.length, attivo = Math.min(n - 1, Math.floor(s.avanza * n));
+      const alto = scelto(v, 'posto', ['basso', 'alto'], 'basso') === 'alto';
+      const seg = nomi.map((nome, i) => {
+        const f = clamp01(s.avanza * n - i);
+        const o = i === attivo ? 1 : i < attivo ? 0.8 : 0.5;
+        return `<div class="ch-c ${i === attivo ? 'att' : ''}"><div class="ch-barra"><i style="--f:${num(f)}"></i></div><div class="ch-nome" style="--o:${o}"><b>${s2(i + 1)}</b> ${esc(nome)}</div></div>`;
+      }).join('');
+      return `<div class="ch ${alto ? 'su' : ''}"><div class="ch-seg">${seg}</div></div>`;
+    },
+    css: `.ch{position:absolute;left:110px;right:110px;bottom:90px;padding:26px 34px 22px;border-radius:24px;background:rgba(9,8,13,.74);transform:scale(var(--dim));transform-origin:50% 100%;opacity:calc(var(--in)*var(--out))}
+.ch.su{bottom:auto;top:90px;transform-origin:50% 0}
+.ch-seg{display:flex;gap:16px}
+.ch-c{flex:1;min-width:0}
+.ch-barra{height:14px;border-radius:7px;background:rgba(255,255,255,.22);overflow:hidden}
+.ch-barra i{display:block;width:100%;height:100%;background:var(--c);box-shadow:0 0 14px var(--c);transform:scaleX(var(--f));transform-origin:0 50%}
+.ch-nome{margin-top:14px;font-weight:${'${P}'};font-size:38px;letter-spacing:2px;color:#fff;opacity:var(--o);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-nome b{color:var(--c)}
+.ch-c.att .ch-nome{color:var(--c)}`,
+    righe: (v) => testo(v, 'capitoli').split(/\r?\n/),
   },
 ];
 

@@ -24,7 +24,7 @@ import { STILI_CONTO, disegnaCountdown, specAlTempo, telaTitolo } from '../rende
 import { ANIMAZIONI, GRUPPI_LIBRERIA, animazioniDi, nuovaAnim } from '../core/animazioni';
 import { disegnaAnimazione } from '../render/animazioni';
 import { caricaFontAnimazioni } from '../render/font';
-import { MODELLI_HTML, nuovoHtml } from '../core/titoliHtml';
+import { GRUPPI_HTML, MODELLI_HTML, modelliDi, nuovoHtml } from '../core/titoliHtml';
 import { anteprimaHtml } from '../render/titoliHtml';
 import { scenaHtml, scenaAnimazione, scenaConto, scenaEffetto, scenaRitocco, scenaSala, scenaTitolo, scenaTransizione, suonaProvino, type Costruttore } from '../render/provino';
 
@@ -40,7 +40,7 @@ const TIPI: Ramo[] = [
 
 const LIBRERIA: Ramo[] = [
   { id: 'transizioni', nome: 'Transizioni', icona: 'transizione', figli: [['tr:dissolvenze', 'Dissolvenze'], ['tr:movimento', 'Movimento'], ['tr:3d', '3D e forme'], ['tr:luce', 'Luce'], ['tr:stile', 'Stile'], ['tr:tendine', 'Tendine SMPTE']] },
-  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ['tit:html', 'Titoli animati HTML'], ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
+  { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ...GRUPPI_HTML.map((g): [string, string] => ['tit:html-' + g.id, 'Animati · ' + g.nome]), ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
   { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
   { id: 'effetti', nome: 'Effetti', icona: 'effetti', figli: [['fx:rapidi', 'Rapidi'], ['fx:lunghi', 'Lunghi'], ['fx:luci', 'Luci'], ['fx:distorsioni', 'Distorsioni'], ['fx:colore', 'Colore'], ['fx:particelle', 'Particelle'], ['fx:clip', 'Stile della clip'], ['fx:audio', 'Audio']] },
 ];
@@ -783,7 +783,7 @@ Clic: al cursore (su una traccia libera) · trascina: dove vuoi`,
     ].filter((c) => !this.filtro || (c.textContent ?? '').toLowerCase().includes(this.filtro.toLowerCase()));
     this.corpo.replaceChildren(h('div', { class: 'gen-lista' }, ...this.sezioni('titoli', [
       ['tit:titoli', 'Titoli', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'titoli')).map((x) => titolo(x.id, x.nome))],
-      ['tit:html', 'Titoli animati HTML', this.filtra(MODELLI_HTML).map(html)],
+      ...GRUPPI_HTML.map((g): [string, string, HTMLElement[]] => ['tit:html-' + g.id, 'Animati · ' + g.nome, this.filtra(modelliDi(g.id)).map(html)]),
       ['tit:sott', 'Sottotitoli', voceSott],
       ['tit:tv', 'TV e social', this.filtra(PRESET_TITOLI.filter((x) => x.gruppo === 'tv')).map((x) => titolo(x.id, x.nome))],
       ['tit:conto', 'Countdown', this.filtra(STILI_CONTO).map(conto)],

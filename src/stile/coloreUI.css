@@ -7,7 +7,8 @@
 .ck-interruttore .led { width: 9px; height: 9px; border-radius: 50%; background: #3a3844; box-shadow: inset 0 0 0 1px #000; flex: none; }
 .ck-interruttore .led.acceso { background: #5dffb4; box-shadow: 0 0 6px #5dffb4; }
 .ck-numero { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 12px; }
-.ck-numero input { width: 85px; min-width: 0; }
+.ck-numero input { width: 85px; min-width: 0; flex: none; }
+.ck-numero span, .ck-interruttore span:last-child { min-width: 0; overflow-wrap: anywhere; }
 .ck-altre summary { cursor: pointer; color: #a19db0; font-size: 12px; margin-bottom: 6px; }
 .ck-altre[open] { display: grid; gap: 6px; }
 .ck-ok { color: #5dffb4; }

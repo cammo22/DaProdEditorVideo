@@ -366,7 +366,7 @@ export class Ispettore {
         let timer = 0;
         campo.addEventListener('input', () => { clearTimeout(timer); timer = window.setTimeout(() => metti(k.id, campo.value), 250); });
         this.campi.push({ el: campo, aggiorna: () => { if (document.activeElement !== campo) campo.value = String(v0()[k.id] ?? ''); } });
-        righe.push(h('label', { class: 'etichetta' }, k.nome), campo);
+        righe.push(h('div', { class: 'isp-riga col' }, h('label', { title: k.nome }, k.nome), campo));
       } else if (k.tipo === 'numero') {
         const min = k.min ?? 0, max = k.max ?? 100, step = k.step ?? 1;
         if (max - min > 1000) {
@@ -389,7 +389,7 @@ export class Ispettore {
     const h0 = an[0].gen!.html!;
     const def = modelloHtml(h0.id);
     const righe: (HTMLElement | null)[] = [];
-    righe.push(this.scelta('Titolo animato', GRUPPI_HTML.flatMap((g) => modelliDi(g.id).map((m) => [m.id, `${g.nome} · ${m.nome}`] as [string, string])),
+    righe.push(this.scelta('Titolo animato', GRUPPI_HTML.flatMap((g) => modelliDi(g.id).map((m) => [m.id, m.nome] as [string, string])),
       (c) => c.gen?.html?.id ?? '', (c, v) => {
         if (!c.gen?.html || c.gen.html.id === v) return;
         // si cambia modello tenendo i testi e i tempi uguali per nome e per tipo (nome, titolo, entrata, uscita, grandezza…)
@@ -400,7 +400,7 @@ export class Ispettore {
         }
         c.gen.html = nuovo;
         c.name = modelloHtml(v)?.nome ?? c.name;
-      }, an));
+      }, an, Object.fromEntries(GRUPPI_HTML.flatMap((g) => modelliDi(g.id).map((m) => [m.id, g.nome])))));
     if (def) righe.push(h('p', { class: 'html-nota' }, def.info + '.'));
     const v0 = () => valoriHtmlDi(store.doc.clips.find((c) => c.id === an[0].id)?.gen?.html ?? h0);
     const metti = (id: string, valore: string | number | boolean) => store.edit('Titolo animato: ' + id, (pp) => { for (const x of an) { const z = pp.clips.find((c) => c.id === x.id); if (z?.gen?.html) z.gen.html.v[id] = valore; } });
@@ -1080,9 +1080,12 @@ export class Ispettore {
     return el;
   }
 
-  private scelta(nome: string, opzioni: [string, string][], get: (c: Clip) => string, put: (c: Clip, v: string) => void, quali: Clip[]): HTMLElement {
+  /** `categorie` (valore → nome della categoria) mette le voci in gruppi dentro la tendina, nell'ordine in cui compaiono */
+  private scelta(nome: string, opzioni: [string, string][], get: (c: Clip) => string, put: (c: Clip, v: string) => void, quali: Clip[], categorie?: Record<string, string>): HTMLElement {
     const ids = quali.map((c) => c.id);
-    const s = h('select', { class: 'mini-select' }, opzioni.map(([v, t]) => h('option', { value: v }, t))) as HTMLSelectElement;
+    const voce = ([v, t]: [string, string]) => h('option', { value: v }, t);
+    const nomi = categorie ? [...new Set(opzioni.map(([v]) => categorie[v] ?? ''))] : [];
+    const s = h('select', { class: 'mini-select' }, categorie ? nomi.map((g) => h('optgroup', { label: g }, ...opzioni.filter(([v]) => (categorie[v] ?? '') === g).map(voce))) : opzioni.map(voce)) as HTMLSelectElement;
     const agg = () => { const c = store.doc.clips.find((x) => ids.includes(x.id)); if (c) s.value = get(c); };
     agg();
     s.addEventListener('change', () => store.edit(nome, () => { for (const c of store.doc.clips) if (ids.includes(c.id)) put(c, s.value); }));
