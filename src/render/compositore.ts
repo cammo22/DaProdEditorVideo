@@ -21,6 +21,7 @@ import { nuovaTela } from './grafica';
 import { disegnaCountdown, motoTitolo, specAlTempo, telaTitolo } from './grafica';
 import { disegnaAnimazione, firmaAnim } from './animazioni';
 import { TITLE0 } from '../core/progetto';
+import { anelliClic, DISEGNA_CLIC, UNIFORM_CLIC } from './cursore';
 
 const VS_LAYER = `#version 300 es
 in vec2 a_pos;
@@ -42,6 +43,7 @@ void main() {
 
 const FS_LAYER = `#version 300 es
 precision highp float;
+${UNIFORM_CLIC}
 in vec2 v_uv;
 uniform sampler2D u_tex;
 uniform int u_src;          // 0 texture, 1 barre SMPTE, 2 barre EBU, 3 colore pieno
@@ -228,6 +230,7 @@ void main() {
     float k = smoothstep(soglia - mor, soglia + mor, m);
     aChiave = u_keyInv ? 1.0 - k : k;
   }
+  ${DISEGNA_CLIC}
   a *= aChiave;
   // angoli tondi (e l'ombra, che è lo stesso rettangolo sfumato): distanza dal rettangolo arrotondato, in pixel
   if (u_round > 0.0 || u_feather > 0.0) {
@@ -1572,7 +1575,8 @@ export class Compositore {
     for (const n of ['u_src', 'u_res', 'u_off', 'u_zoom', 'u_rot', 'u_blur', 'u_pixel', 'u_rgb', 'u_glitch', 'u_seme', 'u_desat', 'u_invert', 'u_flash', 'u_fade', 'u_luce', 'u_lucePh', 'u_bande', 'u_vhs', 'u_time', 'u_flashCol', 'u_fadeCol', 'u_bagliore', 'u_flare', 'u_flarePh', 'u_arco', 'u_arcoPh', 'u_espo', 'u_neon', 'u_onda', 'u_bolla', 'u_vortice', 'u_caleido', 'u_calore', 'u_zblur', 'u_centro', 'u_sole', 'u_tinta', 'u_semeGrana', 'u_numCensure', 'u_censure', 'u_morbidoCensure', ...CAMPI_FX.map((k) => 'u_' + k)])
       this.uF[n] = gl.getUniformLocation(this.pFx, n);
     for (const n of ['u_res', 'u_size', 'u_crop', 'u_off', 'u_scale', 'u_rot', 'u_tex', 'u_src', 'u_orient', 'u_color', 'u_bright', 'u_contrast', 'u_sat', 'u_hue', 'u_look', 'u_time', 'u_texel', 'u_key', 'u_keyColor', 'u_keyExtra', 'u_keyN', 'u_keyLevel', 'u_keySoft', 'u_keyInv', 'u_keySpill', 'u_keyBordo', 'u_keySfuma', 'u_keyPulisci', 'u_matte', 'u_matte2', 'u_matteK', 'u_vista',
-      'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma'])
+      'u_mirror', 'u_temp', 'u_vignette', 'u_alpha', 'u_color2', 'u_grad', 'u_box', 'u_boxPx', 'u_round', 'u_feather', 'u_auto', 'u_autoLo', 'u_autoHi', 'u_autoWb', 'u_autoK', 'u_autoGamma',
+      'u_numClic', 'u_clic', 'u_clicColore', 'u_clicRapporto'])
       this.uL[n] = gl.getUniformLocation(this.pLayer, n);
     for (const n of ['u_src', 'u_lift', 'u_gamma', 'u_gain', 'u_shadow', 'u_high', 'u_sat', 'u_contrast', 'u_vignette', 'u_grain', 'u_time', 'u_split'])
       this.uM[n] = gl.getUniformLocation(this.pMaster, n);
@@ -1784,6 +1788,7 @@ export class Compositore {
     const u = this.uL;
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, t.tex);
+    gl.uniform1i(u.u_numClic, 0);
     gl.uniform1i(u.u_tex, 0);
     gl.uniform2f(u.u_res, cw, ch);
     gl.uniform2f(u.u_size, cw, ch);
@@ -1967,6 +1972,7 @@ export class Compositore {
     gl.disable(gl.BLEND);
     gl.useProgram(this.pLayer);
     const u = this.uL;
+    gl.uniform1i(u.u_numClic, 0); // anche la passata dell'ombra parte senza anelli
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.uniform1i(u.u_tex, 0);
@@ -2016,6 +2022,13 @@ export class Compositore {
     // il bordo arrotondato si sfuma di un pixel dello schermo (niente scalini)
     gl.uniform1f(u.u_feather, raggio > 0 ? Math.max(0.6, W / Math.max(1, this.fbW)) : 0);
     gl.uniform1i(u.u_src, srcKind);
+    const clic = anelliClic(p, c, s.t, s.lf);
+    gl.uniform1i(u.u_numClic, clic.n);
+    if (clic.n) {
+      gl.uniform4fv(u.u_clic, clic.punti);
+      gl.uniform3fv(u.u_clicColore, clic.colore);
+      gl.uniform1f(u.u_clicRapporto, sw / sh);
+    }
     const col = hex(c.gen?.color ?? '#000000');
     gl.uniform3f(u.u_color, col[0], col[1], col[2]);
     if (srcKind === 3 && c.gen?.color2) {

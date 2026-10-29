@@ -71,6 +71,8 @@ export interface SuonoClip {
 }
 
 export interface BloccoFx {
+  /** LIVE: i clic di questo media, disegnati sulla ripresa prima del suo movimento. */
+  cursoreMedia?: string;
   tipo: 'effetto' | 'transizione';
   /** effetto: il suo nome nel catalogo (src/core/blocchi.ts) · transizione: 'mix', 'dip', 'wipe:119', 'dve:301'… */
   id: string;
@@ -364,6 +366,8 @@ export interface Clip {
 export type MediaType = 'video' | 'audio' | 'image';
 
 export interface MediaItem {
+  /** Opzionale: i progetti vecchi restano identici. Incorporato anche nel .daprod, senza file da ricollegare. */
+  cursoreLive?: import('./zoomCursore').DatiCursore;
   id: string;
   name: string;
   type: MediaType;
