@@ -110,7 +110,7 @@ export function avvia(radice: HTMLElement) {
     if (pg === 'finale' && radice.classList.contains('stretto')) radice.dataset.foglio = 'finale';
     setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 80);
   };
-  const home = new Home(() => pagina('montage'));
+  const home = new Home(() => pagina('montage'), () => pagina('live'));
   document.addEventListener('dpv:home', () => home.mostra());
   const tastoPagina = (pg: Pagina, nome: string, ic: string, title: string) => h('button', { class: 'pagina-btn' + (pg === 'montaggio' ? ' attiva' : ''), 'data-p': pg, title, on: { click: () => pagina(pg) } }, icona(ic, 16), h('span', null, nome));
 

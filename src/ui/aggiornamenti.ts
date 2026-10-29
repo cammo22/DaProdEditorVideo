@@ -130,6 +130,14 @@ function fileGiusto(r: Release, v: Variante): Asset | undefined {
 }
 
 let tasto: HTMLElement | null = null;
+let ultimoControllo: { quando: number; r: Release } | null = null;
+
+/** com'è messa la versione: l'ultima release, ricordata 10 minuti (la pagina iniziale non rifà la rete a ogni apertura) */
+export async function controllaAggiornamento(forza = false): Promise<{ versione: string; nuova: boolean; release: Release }> {
+  if (forza || !ultimoControllo || Date.now() - ultimoControllo.quando > 600_000) ultimoControllo = { quando: Date.now(), r: await ultimaRelease() };
+  const r = ultimoControllo.r;
+  return { versione: r.versione, nuova: piuNuova(r.versione, VERSIONE), release: r };
+}
 
 /** il tasto in alto (solo nell'app): controlla, e si accende se c'è una versione nuova */
 export function tastoAggiornamenti(icona: (n: string, s?: number) => SVGElement): HTMLElement | null {
