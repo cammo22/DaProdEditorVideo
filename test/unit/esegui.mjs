@@ -34,6 +34,7 @@ await build({
     minify: false,
     rollupOptions: {
       input: {
+        motoreAI: path.join(radice, 'src/media/motoreAI.ts'),
         flussiUI: path.join(radice, 'src/core/flussiUI.ts'),
         attivita: path.join(radice, 'src/media/attivita.ts'),
         libreria: path.join(radice, 'src/media/libreria.ts'),

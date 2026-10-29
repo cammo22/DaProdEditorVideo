@@ -11,6 +11,7 @@ mod associazioni;
 mod conversioni;
 mod cursore;
 mod motori;
+mod motore_ai;
 
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -561,6 +562,12 @@ pub fn run() {
             aggiorna::aggiornamento_scarica,
             aggiorna::aggiornamento_progresso,
             aggiorna::aggiornamento_apri,
+            motore_ai::ai_locale_stato,
+            motore_ai::ai_locale_installa,
+            motore_ai::ai_locale_accendi,
+            motore_ai::ai_locale_spegni,
+            motore_ai::ai_locale_disinstalla,
+            motore_ai::ai_locale_richiesta,
             motori::motore_stato,
             motori::motore_scarico,
             motori::motore_installa,
@@ -579,6 +586,7 @@ pub fn run() {
         .run(|_app, _ev| {
             if matches!(_ev, tauri::RunEvent::Exit) {
                 _app.state::<cursore::Cursore>().chiudi();
+                motore_ai::chiudi();
             }
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)
             #[cfg(any(target_os = "macos", target_os = "ios"))]

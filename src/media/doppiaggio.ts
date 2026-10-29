@@ -12,8 +12,12 @@ import { assicuraMotore, LINGUE_VOCE, motoreNemo, type Parlato } from './nemo';
 import { stiraTutto } from './stira';
 import { codiceNllb, sappiamoTradurre, traduciTesti } from './traduci';
 import { ricampiona } from './wav';
+import { motoreAI, type OpzioniVoceLocale } from './motoreAI';
+import { liberaVram } from './vram';
 
 export interface OpzioniDoppiaggio {
+  motore?: 'magpie' | 'qwen';
+  locale?: OpzioniVoceLocale;
   /** quale voce di Magpie (0-4) */
   voce: number;
   /** la lingua in cui si parla: it, en, es, fr, de, zh */
@@ -122,7 +126,7 @@ export function linguaVoce(p: Project, scelta?: string): string | null {
 export async function doppia(p: Project, o: OpzioniDoppiaggio, stato: (testo: string, k: number) => void, segnale?: AbortSignal): Promise<{ audio: Float32Array; sr: number; frasi: number; posti: PostoVoce[]; tradotto: boolean }> {
   const fermo = () => { if (segnale?.aborted) throw new Error('fermato'); };
   const nem = motoreNemo();
-  if (!nem) throw new Error('la voce AI serve l\'app per Windows o Mac');
+  if (!nem && o.motore !== 'qwen') throw new Error('la voce AI serve l\'app per Windows o Mac');
   const enunc = enunciatiDaRighe(sottotitoliDi(p).righe, p);
   if (!enunc.length) throw new Error('senza-righe');
   if (!LINGUE_VOCE.includes(o.lingua)) throw new Error('lingua');
@@ -136,10 +140,24 @@ export async function doppia(p: Project, o: OpzioniDoppiaggio, stato: (testo: st
     testi = await traduciTesti(testi, lingS, o.lingua, (t, k) => stato(t, k * 0.3), segnale);
     fermo();
   }
-  await assicuraMotore(nem, ['tts'], (k, t) => stato(t, (serve ? 0.3 : 0) + k * 0.2), segnale);
+  if (o.motore === 'qwen') {
+    if (!o.locale?.campione) throw new Error('Scegli prima un campione vocale WAV da 3 a 30 secondi');
+    liberaVram();
+    await motoreAI.azione('accendi', (k, t) => stato(t, (k ?? 0) * 0.2), segnale);
+  } else await assicuraMotore(nem!, ['tts'], (k, t) => stato(t, (serve ? 0.3 : 0) + k * 0.2), segnale);
   fermo();
   const base = serve ? 0.5 : 0.2;
-  const parlati = await nem.sintetizza(enunc.map((e, i) => ({ id: e.id, testo: testi[i] })), { lingua: o.lingua, voce: o.voce }, (k, t) => stato(t, base + k * (0.92 - base)), segnale);
+  let parlati: Map<string, Parlato>;
+  if (o.motore === 'qwen') {
+    parlati = new Map();
+    try {
+      for (let i = 0; i < enunc.length; i++) {
+        fermo();
+        const voce = await motoreAI.genera(testi[i], { ...o.locale!, lingua: o.lingua }, (k, t) => stato(t, base + (i + (k ?? 0)) / enunc.length * (0.92 - base)), segnale);
+        parlati.set(enunc[i].id, voce);
+      }
+    } finally { await motoreAI.richiesta('POST', '/libera').catch(() => {}); }
+  } else parlati = await nem!.sintetizza(enunc.map((e, i) => ({ id: e.id, testo: testi[i] })), { lingua: o.lingua, voce: o.voce }, (k, t) => stato(t, base + k * (0.92 - base)), segnale);
   fermo();
   stato('Metto le frasi al loro posto…', 0.94);
   const { audio, posti } = componiVoceConPosti(enunc, parlati);

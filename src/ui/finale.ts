@@ -28,6 +28,8 @@ import { esportaEdl, esportaFotogramma } from './dialoghi';
 import { pannelloEsporta } from './esportazione';
 import { avviso, clamp, conferma, h, icona } from './dom';
 import { creaPannelloColoreAvanzato } from './coloreAvanzato';
+import { faiParlareLocale, pannelloVoceLocale } from './motoreAI';
+import { motoreLocaleDisponibile } from '../media/motoreAI';
 
 type Campo = { aggiorna: () => void };
 
@@ -437,7 +439,7 @@ export class Finale {
 
   // ——— la voce AI: i sottotitoli letti da una voce di NVIDIA (Magpie) ———
   private voce = (() => {
-    const base = { voce: 0, lingua: '', silenzia: true };
+    const base = { voce: 0, lingua: '', silenzia: true, motore: 'magpie' };
     try { return { ...base, ...(JSON.parse(localStorage.getItem('dpv-voce') ?? '{}') as Partial<typeof base>) }; } catch { return base; }
   })();
   private lavoroVoce: AbortController | null = null;
@@ -459,6 +461,8 @@ export class Finale {
     const linguaSott = () => sottotitoliDi(store.doc).lingua;
     const scelte = scelta('La voce parla', [['', 'Come i sottotitoli', 'Nella lingua in cui sono scritti i sottotitoli'], ...LINGUE_PARLATE.map(([v, , t]) => [v, t, 'Se i sottotitoli sono in un\'altra lingua, prima si traducono (solo per la voce)'] as [string, string, string])], () => this.voce.lingua, (v) => { this.voce.lingua = v; });
     const nota = h('p', { class: 'nota' });
+    const locale = pannelloVoceLocale();
+    sinc.push(() => { locale.hidden = this.voce.motore !== 'qwen'; });
     const nomeLingua = (l: string) => LINGUE.find(([v]) => v === l)?.[1] ?? l;
     sinc.push(() => {
       const lS = linguaSott(), lV = this.voce.lingua || lS;
@@ -470,11 +474,16 @@ export class Finale {
           : diversa
             ? `I sottotitoli sono in ${nomeLingua(lS)} e la voce parla ${nomeLingua(lV)}: prima li traduco (solo per la voce, i sottotitoli restano come sono), poi li leggo. Ogni frase va al suo posto, e diventa una clip che puoi spostare o abbassare.`
             : `La voce legge i sottotitoli (${nomeLingua(lS)}) con una voce sintetica di NVIDIA (Magpie TTS). Ogni frase va al suo posto, e diventa una clip che puoi spostare o abbassare.`;
-      vai.disabled = !motoreNemo() || !!this.lavoroVoce;
+      if (this.voce.motore === 'qwen') nota.textContent = 'Voce realistica con Qwen3-TTS 0.6B Base. Scegli il campione qui sotto; installazione e download sono nel Centro AI.';
+      vai.disabled = (this.voce.motore === 'qwen' ? !motoreLocaleDisponibile() : !motoreNemo()) || !!this.lavoroVoce;
     });
     this.aggiornaAI.push(() => sinc.forEach((f) => f()));
+    const vociMagpie = scelta('Voce', VOCI_MAGPIE.map((n, i) => [String(i), n] as [string, string]), () => String(this.voce.voce), (v) => { this.voce.voce = Number(v); });
+    sinc.push(() => { vociMagpie.hidden = this.voce.motore === 'qwen'; });
     const out = [
-      scelta('Voce', VOCI_MAGPIE.map((n, i) => [String(i), n] as [string, string]), () => String(this.voce.voce), (v) => { this.voce.voce = Number(v); }),
+      scelta('Come leggo', [['magpie', 'Voce attuale (Magpie)'], ['qwen', 'Voce realistica (motore AI)']], () => this.voce.motore, (v) => { this.voce.motore = v; }),
+      locale,
+      vociMagpie,
       scelte,
       h('label', { class: 'spunta-riga', title: 'Le voci originali vanno a zero: si sente solo la voce AI' }, silenzia, ' silenzia le voci originali'),
       h('div', { class: 'isp-pulsanti' }, vai, ferma),
@@ -491,6 +500,7 @@ export class Finale {
     if (!sottotitoliDi(p).righe.some((x) => x.testo.trim())) { avviso('Prima servono i sottotitoli: scrivili qui, o fatti aiutare dall\'AI', 'info', 3000); return; }
     const lingua = linguaVoce(p, this.voce.lingua || undefined);
     if (!lingua) { avviso('La voce parla italiano, inglese, spagnolo, francese, tedesco e cinese: scegli in che lingua', 'info', 3200); return; }
+    if (this.voce.motore === 'qwen') { await faiParlareLocale(lingua, this.voce.silenzia); return; }
     if (!(await confermaAvvioAI({ compito: 'Fai parlare i sottotitoli', ambito: 'Tutte le righe dei sottotitoli · nuova traccia Voce AI', modello: 'Magpie · ' + this.voce.voce, dettagli: 'Il motore nativo può scaricare anche i modelli di traduzione se necessari.' }))) return;
     if (this.lavoroVoce) return;
     const progetto = progettoAttuale();
