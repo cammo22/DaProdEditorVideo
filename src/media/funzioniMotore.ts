@@ -444,3 +444,27 @@ export async function rallentaClip(clipId: string, fattore: 2 | 4 = 2, m: Motore
     } finally { await m.pulisciScambio(); }
   });
 }
+
+/** Letture per Montage: nessuna modifica al progetto, stessa preparazione e stesso client del banco. */
+export async function scenePerMontage(file: string, durata: number, segnale?: AbortSignal, avanza: (k: number | null, t: string) => void = () => {}) {
+  liberaVram();
+  await preparaMotore(motoreAI, 'scene', avanza, segnale);
+  return (await lavoroMotore<{ tagli: TaglioScena[] }>(motoreAI, '/scene', { file, da: 0, a: durata, soglia: .5 }, avanza, segnale)).tagli;
+}
+export async function parolePerMontage(p: Project, segnale?: AbortSignal, avanza: (k: number | null, t: string) => void = () => {}): Promise<ParolaTempo[]> {
+  liberaVram();
+  await preparaMotore(motoreAI, 'trascrivi', avanza, segnale);
+  if (Math.max(0, ...p.clips.map((c) => c.start + c.len)) / (p.rate.num / p.rate.den) > SECONDI_MASSIMI_AUDIO) throw new Error('Per le parole a tempo usa riprese sotto i 30 minuti, oppure spegni questa opzione');
+  const audio = await audioPerVoce(p);
+  const parole: ParolaTempo[] = [];
+  for (const [da, a] of trattiDaPunti(puntiDiTaglio(audio, TRATTO_ASR, 15))) {
+    const nome = nomeScambio('montage');
+    try {
+      await motoreAI.inviaFile(nome, codificaWav(audio.slice(Math.floor(da * 16000), Math.floor(a * 16000)), 16000), () => {}, segnale);
+      const r = await lavoroMotore<{ parole: ParolaTempo[]; senza_tempi: boolean }>(motoreAI, '/trascrivi', { file: nome, lingua: 'auto', dispositivo: 'cuda' }, avanza, segnale);
+      if (r.senza_tempi) throw new Error('Questa lingua non ha i tempi delle parole: spegni i sottotitoli in Montage');
+      parole.push(...r.parole.map((w) => ({ ...w, da: w.da + da, a: w.a + da })));
+    } finally { await motoreAI.pulisciScambio(); }
+  }
+  return parole;
+}

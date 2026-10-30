@@ -3,6 +3,13 @@
 // troppe, ripartisce il tempo (a battere di musica, se c'è), muove le foto (Ken Burns), mette le transizioni, i titoli di
 // apertura e chiusura, quello che cade sopra (cuori, petali, coriandoli…) e gli effetti a tempo. Funziona anche con sole foto.
 // Tutto quello che sta qui è puro (niente browser): si prova da solo. Il lavoro sulla timeline lo fa `costruisciSequenza`.
+import { mettiChiave } from './automazioni';
+import { nuovoHtml } from './titoliHtml';
+import { DUCKING0 } from './ducking';
+import { battitoDopo, candidatiMontage, fineSulBattito, riquadraSoggetto } from './montageAuto';
+export { candidatiMontage, fineSulBattito, lookPerStile, riquadraSoggetto } from './montageAuto';
+import type { RisorsaLut } from './tipi';
+import type { ParolaTempo } from './materialeAI';
 import type { AnimSpec, MediaItem, Project, Track, Transform } from './tipi';
 import { FX0, TF0, newClip, newTrack, uid } from './progetto';
 import { fps } from './timecode';
@@ -31,9 +38,24 @@ export interface EntrataMontage {
   firma?: string;
   /** video: il punto (secondi) dove sta il pezzo più bello */
   inizioMigliore?: number;
+  momenti?: { da: number; a: number; punteggio: number }[];
+  parole?: ParolaTempo[];
+  soggetto?: { x: number; y: number };
+  pezzo?: { da: number; a: number; frase?: boolean };
 }
 
 export interface OpzMontage {
+  migliori?: boolean;
+  frasi?: boolean;
+  sottotitoli?: boolean;
+  ducking?: boolean;
+  battiti?: boolean;
+  look?: boolean;
+  titoliHtml?: boolean;
+  movimento?: boolean;
+  verticale?: boolean;
+  lut?: RisorsaLut;
+  musicaGain?: number;
   preset: string;
   /** secondi di tutto il video */
   durata: number;
@@ -142,7 +164,8 @@ export function limiti(e: EntrataMontage, pr: PresetMontage, lentezza = 0): Lim 
     const min = pr.foto[0] * f, tip = Math.max(min, pr.foto[1] * f);
     return { min, tip, max: lentezza > 0 ? Math.max(pr.foto[2], tip * 1.2) : pr.foto[2] };
   }
-  const max = Math.min(pr.video[1], Math.max(1, e.durata));
+  if (e.pezzo?.frase) { const d = e.pezzo.a - e.pezzo.da; return { min: d, tip: d, max: d }; }
+  const max = Math.min(pr.video[1], Math.max(.04, e.pezzo ? e.pezzo.a - e.pezzo.da : e.durata));
   const tip = Math.min(pr.video[0] * f, max);
   return { min: Math.min(2.5 * f, tip), tip, max };
 }
@@ -194,10 +217,10 @@ export function sulBattito(durate: number[], battiti: number[], minimo: number):
 /** il piano: che cosa, quando, quanto, come */
 export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontage {
   const pr = presetMontage(o.preset) ?? presetMontage('classico')!;
-  const A = Math.max(5, o.durata);
+  let A = Math.max(5, o.battiti !== true ? o.durata : fineSulBattito(o.durata, o.musica?.battiti ?? [], o.musica?.durata));
   const note: string[] = [];
   const nIniziali = entrate.length;
-  let lista = ordina(entrate, o.ordine, o.seme);
+  let lista = ordina((o.migliori || o.frasi) ? candidatiMontage(entrate, pr.video[1], o.frasi) : entrate, o.ordine, o.seme);
   const protette = new Set(o.tieni ?? []);
   let tolte = 0;
   if (o.scarta) {
@@ -211,13 +234,13 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
   // il caso di questa generazione: stesse scelte, esito diverso (lo stesso seme dà sempre lo stesso montaggio)
   const rnd = casoSeme(Math.imul(o.seme | 0, 2654435761) ^ 0x5bd1e995);
   const rumore = new Map<EntrataMontage, number>(lista.map((e) => [e, (rnd() - 0.5) * 0.14]));
-  while (lista.length > 2 && lista.reduce((a, e) => a + min(e), 0) > A) {
+  while (lista.length > (o.migliori ? 1 : 2) && lista.reduce((a, e) => a + min(e), 0) > A) {
     let idx = -1, peggio = Infinity;
-    for (let i = 1; i < lista.length - 1; i++) { if (protette.has(lista[i].media)) continue; const v = lista[i].punteggio + (rumore.get(lista[i]) ?? 0); if (v <= peggio) { peggio = v; idx = i; } }
+    for (let i = o.migliori ? 0 : 1; i < lista.length - (o.migliori ? 0 : 1); i++) { if (protette.has(lista[i].media)) continue; const v = lista[i].punteggio + (rumore.get(lista[i]) ?? 0); if (v <= peggio) { peggio = v; idx = i; } }
     if (idx < 0) break;
     lista.splice(idx, 1); sfoltite++;
   }
-  if (sfoltite) { tolte += sfoltite; note.push(`${sfoltite} file lasciati fuori: per ${fmtDur(A)} non c'era posto per tutti (via i meno belli)`); }
+  if (sfoltite) { tolte += sfoltite; note.push(`${sfoltite} pezzi lasciati fuori: per ${fmtDur(A)} non c'era posto per tutti (via i meno belli)`); }
   if (!lista.length) return { preset: pr.id, durata: A, voci: [], transizioni: [], apertura: null, chiusura: null, sovrapposizioni: [], effetti: [], note: ['Nessun file da montare'], usate: 0, scartate: nIniziali, ripetute: 0, perFoto: 0 };
 
   // pochi per il tempo: si ripetono i più belli (in fondo, in ordine di data) finché non basta
@@ -237,7 +260,7 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
         tutte.push({ e, ripetuta: true }); lim.push(variata(e)); ripetute++;
       }
     }
-    if (ripetute) note.push(`${ripetute} foto compaiono due volte: con quelle che hai non si arriva a ${fmtDur(A)}`);
+    if (ripetute) note.push(`${ripetute} pezzi compaiono due volte: con i file che hai non si arriva a ${fmtDur(A)}`);
   }
   // ancora corto: si allungano oltre il massimo (fino a 3 volte)
   let sec = ripartisci(lim, A);
@@ -248,7 +271,12 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
   }
   if (!sec) sec = lim.map(() => A / lim.length);
   // a battere di musica
-  if (o.musica?.battiti?.length) sec = sulBattito(sec, o.musica.battiti, Math.min(...lim.map((l) => l.min)) * 0.8);
+  if (o.battiti !== false && o.musica?.battiti?.length) {
+    const ciclo = o.musica.durata;
+    const battiti = ciclo > 0 ? Array.from({ length: Math.min(10000, Math.ceil(A / ciclo)) }, (_, i) =>
+      o.musica!.battiti!.filter((b) => b >= 0 && b <= ciclo).map((b) => b + i * ciclo)).flat() : o.musica.battiti;
+    sec = sulBattito(sec, battiti, Math.min(...lim.map((l) => l.min)) * 0.8);
+  }
 
   // le voci
   const voci: Voce[] = [];
@@ -267,19 +295,39 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
   const usati = new Map<string, number>();
   tutte.forEach((x, i) => {
     const e = x.e;
-    const len = sec![i];
+    let len = sec![i];
     let srcIn = 0;
     if (e.tipo === 'video') {
       // il pezzo più bello se lo sappiamo, se no dopo il primo decimo (via il tremolio dell'avvio); la seconda volta più avanti
       const vol = (usati.get(e.media) ?? 0);
       usati.set(e.media, vol + 1);
       const base = e.inizioMigliore ?? Math.min(e.durata * 0.12, Math.max(0, e.durata - len));
-      srcIn = Math.max(0, Math.min(e.durata - len, base + vol * len));
+      if (e.pezzo) {
+        srcIn = e.pezzo.da;
+        len = e.pezzo.frase ? e.pezzo.a - e.pezzo.da : Math.min(len, e.pezzo.a - e.pezzo.da);
+      } else srcIn = Math.max(0, Math.min(e.durata - len, base + vol * len));
+      len = Math.min(len, e.durata - srcIn);
     }
     voci.push({ entrata: e, start: t, len, srcIn, moto: scegliMoto(), ripetuta: x.ripetuta, forza: 0.8 + rnd() * 0.45, verso: rnd() < 0.5 ? 0 : 1 });
     t += len;
   });
 
+  if ((o.migliori || o.frasi) && voci.length) {
+    // Le frasi durano davvero quanto il parlato: si lascia fuori l'ultima se non ci sta.
+    while (o.frasi && t > A + .05 && voci.length > 1 && voci.at(-1)!.entrata.pezzo?.frase) {
+      t -= voci.pop()!.len;
+    }
+    A = t;
+    const ultima = voci.at(-1)!;
+    if (ultima.entrata.pezzo?.frase && o.battiti === true) {
+      A = battitoDopo(t, o.musica?.battiti ?? [], o.musica?.durata) ?? t;
+      if (A > t + .01) note.push('Un respiro musicale chiude sul battito dopo l’ultima frase');
+    }
+    if (!ultima.entrata.pezzo?.frase && o.battiti === true) {
+      const fine = fineSulBattito(A, o.musica?.battiti ?? [], o.musica?.durata);
+      if (fine <= A && fine > ultima.start + .5) { ultima.len -= A - fine; A = fine; }
+    }
+  }
   // transizioni sui tagli: mai più lunghe del 45% della più corta delle due vicine
   const transizioni: PianoMontage['transizioni'] = [];
   const idsTr = pr.transizioni.length ? pr.transizioni : ['mix'];
@@ -333,7 +381,7 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
     }
   }
   const nFoto = voci.length;
-  return { preset: pr.id, durata: A, voci, transizioni, apertura, chiusura, sovrapposizioni: sovr, effetti: eff, note, usate: lista.length, scartate: tolte, ripetute, perFoto: nFoto ? A / nFoto : 0 };
+  return { preset: pr.id, durata: A, voci, transizioni, apertura, chiusura, sovrapposizioni: sovr, effetti: eff, note, usate: new Set(lista.map((e) => e.media)).size, scartate: Math.max(0, nIniziali - new Set(lista.map((e) => e.media)).size), ripetute, perFoto: nFoto ? A / nFoto : 0 };
 }
 
 export const fmtDur = (s: number) => { const m = Math.floor(s / 60), r = Math.round(s % 60); return m ? `${m}:${String(r).padStart(2, '0')}` : `${r} s`; };
@@ -403,6 +451,9 @@ export function costruisciSequenza(p: Project, piano: PianoMontage, o: OpzMontag
   const tCorsie = corsie.map((_, k) => newTrack('video', 'V' + (3 + k)));
   const tTitoli = newTrack('video', 'V' + (3 + corsie.length));
   const tMusica = newTrack('audio', 'A1'), tAudio = newTrack('audio', 'A2');
+  tMusica.ruoloAudio = 'musica'; tAudio.ruoloAudio = 'voce';
+  if (o.ducking) tMusica.ducking = { ...DUCKING0, attivo: true };
+  if (o.lut) { p.luts ??= []; if (!p.luts.some((l) => l.id === o.lut!.id)) p.luts.push(o.lut); }
   tTitoli.height = 40;
   const tracce: Track[] = [tTitoli, ...[...tCorsie].reverse(), tFoto, tSfondo, tMusica, tAudio];
   p.tracks = tracce; p.clips = []; p.markers = []; p.inF = null; p.outF = null;
@@ -412,18 +463,35 @@ export function costruisciSequenza(p: Project, piano: PianoMontage, o: OpzMontag
   p.clips.push(newClip('color', tSfondo.id, 0, totF, { name: 'Sfondo', gen: { color: pr.sfondo[0], color2: pr.sfondo[1] } }));
 
   // la linea principale
-  const durF = inFotogrammi(piano.voci.map((v) => v.len), r, totF);
+  const durF = inFotogrammi(piano.voci.map((v) => v.len), r, F(piano.voci.reduce((s, v) => s + v.len, 0)));
   let a = 0;
   piano.voci.forEach((v, i) => {
     const m = mediaDi(v.entrata.media);
     const len = durF[i];
-    const mt = m ? moto(p, m, v.moto, pr.forzaMoto * v.forza, v.verso, o.adatta === 'riempi') : { tf: { ...TF0 } };
+    const mt = m ? moto(p, m, v.moto, pr.forzaMoto * v.forza, v.verso, o.adatta === 'riempi' || o.verticale) : { tf: { ...TF0 } };
     const link = v.entrata.tipo === 'video' && v.entrata.audio && o.audioVideo > -50 ? uid('l') : undefined;
-    const c = newClip('media', tFoto.id, a, len, { media: v.entrata.media, name: v.entrata.nome, srcIn: v.srcIn, tf: mt.tf, tfFine: mt.tfFine, link, fx: { ...FX0, effetti: pr.look.length ? [...pr.look] : undefined } });
+    const c = newClip('media', tFoto.id, a, len, { media: v.entrata.media, name: v.entrata.nome, srcIn: v.srcIn + (m?.t0 || 0), tf: mt.tf, tfFine: mt.tfFine, link, fx: { ...FX0, effetti: pr.look.length ? [...pr.look] : undefined } });
+    if (v.entrata.parole?.length) c.parlato = { id: uid('par'), media: v.entrata.media,
+      da: c.srcIn, a: c.srcIn + v.len, parole: v.entrata.parole.filter((w) => w.da >= v.srcIn && w.a <= v.srcIn + v.len)
+        .map((w) => ({ da: w.da + (m?.t0 || 0), a: w.a + (m?.t0 || 0), testo: w.t })) };
+    if (o.look !== false && o.lut) c.fx.colore = { lut: { id: o.lut.id, intensita: .7 } };
+    if (o.look === false) c.fx.effetti = undefined;
+    if (o.verticale && m) {
+      Object.assign(c.tf, riquadraSoggetto(p, m, v.entrata.soggetto));
+      c.tfFine = o.movimento && v.entrata.tipo === 'image' ? { ...c.tf, scale: c.tf.scale * 1.05 } : undefined;
+    }
+    if (o.movimento === false) c.tfFine = undefined;
+    if (o.movimento && c.tfFine) {
+      for (const k of ['x', 'y', 'scale', 'rot'] as const) {
+        mettiChiave(c, 'tf.' + k, 0, c.tf[k], 'morbida');
+        mettiChiave(c, 'tf.' + k, Math.max(1, len - 1), c.tfFine[k], 'morbida');
+      }
+      c.tfFine = undefined;
+    }
     if (i === 0) c.fadeIn = Math.min(Math.round(r * 0.8), Math.floor(len / 2));
     if (i === piano.voci.length - 1) c.fadeOut = Math.min(Math.round(r * 1.4), Math.floor(len / 2));
     p.clips.push(c);
-    if (link) p.clips.push(newClip('media', tAudio.id, a, len, { media: v.entrata.media, name: v.entrata.nome, srcIn: v.srcIn, link, gain: o.audioVideo, fadeIn: 3, fadeOut: 3 }));
+    if (link) p.clips.push(newClip('media', tAudio.id, a, len, { media: v.entrata.media, name: v.entrata.nome, srcIn: v.srcIn + (m?.t0 || 0), link, gain: o.audioVideo, fadeIn: 3, fadeOut: 3 }));
     a += len;
   });
 
@@ -441,7 +509,7 @@ export function costruisciSequenza(p: Project, piano: PianoMontage, o: OpzMontag
   // i titoli, in cima
   for (const [t, nomeT] of [[piano.apertura, 'Apertura'], [piano.chiusura, 'Chiusura']] as const) {
     if (!t?.anim) continue;
-    p.clips.push(newClip('title', tTitoli.id, F(t.start), Math.max(2, F(t.len)), { name: `${nomeT} · ${animazione(t.anim.id)?.nome ?? ''}`, gen: { anim: t.anim } }));
+    p.clips.push(newClip('title', tTitoli.id, F(t.start), Math.max(2, F(t.len)), { name: `${nomeT} · ${animazione(t.anim.id)?.nome ?? ''}`, gen: o.titoliHtml ? { html: nuovoHtml('cinema', { titolo: nomeT === 'Apertura' ? (o.testi.titolo || o.testi.nomi || pr.nome) : 'Un ricordo da tenere', sotto: o.testi.sottotitolo || o.testi.data, dim: p.h > p.w ? 50 : 80 }) } : { anim: t.anim } }));
   }
   // gli effetti a tempo (sulla prima corsia sopra le foto: valgono per le foto e lo sfondo, non per i titoli)
   const trEff = (tCorsie[0] ?? tFoto).id;
@@ -455,7 +523,7 @@ export function costruisciSequenza(p: Project, piano: PianoMontage, o: OpzMontag
     const mus = mediaDi(o.musica.media);
     const dMus = Math.max(1, o.musica.durata || mus?.duration || 1);
     const haAudioVideo = piano.voci.some((v) => v.entrata.tipo === 'video' && v.entrata.audio) && o.audioVideo > -50;
-    const gain = haAudioVideo ? -10 : -2;
+    const gain = o.musicaGain ?? (o.ducking ? -2 : haAudioVideo ? -10 : -2);
     let t = 0;
     while (t < piano.durata - 0.01) {
       const len = Math.min(dMus, piano.durata - t);
