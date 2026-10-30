@@ -76,6 +76,13 @@ export function avvia(radice: HTMLElement) {
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');
   });
+  // «Apri il mixer» dalla scheda AUDIO delle Proprietà
+  document.addEventListener('dpv:lato', (e) => {
+    const s = (e as CustomEvent).detail as Lato;
+    if (!(s in lato)) return;
+    if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
+    mostraLato(s);
+  });
   document.addEventListener('dpv:ispettore', () => {
     pagina('montaggio');
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
@@ -85,8 +92,8 @@ export function avvia(radice: HTMLElement) {
   // "porta dove si fa" (guida, ricerca, Centro AI): una sezione delle proprietà della clip scelta
   document.addEventListener('dpv:sezione', (e) => {
     const id = (e as CustomEvent).detail as string;
-    // le sezioni che nel pannello a destra non ci sono più stanno nell'editor della clip (doppio clic)
-    if (['fxv', 'durata', 'trclip', 'ritaglio'].includes(id) && store.sel.size) { apriEditorClip([...store.sel][0], id); return; }
+    // gli effetti con le anteprime stanno nell'editor della clip (doppio clic); tutto il resto è nel pannello a destra
+    if (id === 'fxv' && store.sel.size) { apriEditorClip([...store.sel][0], id); return; }
     pagina('montaggio');
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');

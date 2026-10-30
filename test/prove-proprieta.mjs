@@ -71,23 +71,25 @@ export async function proveProprieta({ page: paginaDi, prova }) {
     });
     const aperte = async (nome) => {
       await page.evaluate((n) => { const d = window.__dpv.doc; const c = d.clips.find((x) => x.name === n); window.__dpv.select([c.id]); document.dispatchEvent(new CustomEvent('dpv:proprieta')); }, nome);
-      await page.waitForSelector('.isp-corpo > .isp-gruppo', { timeout: 10000 });
+      await page.waitForSelector('.pp-pannello:not([hidden]) > .isp-gruppo', { timeout: 10000 });
       // il pannello si rifà un fotogramma dopo la scelta: si aspetta che mostri la clip giusta (su un computer carico ci mette di più)
       await page.waitForFunction((n) => { const i = document.querySelector('.ispettore:not(.completo) .isp-nome'); return !i || i.value === n; }, nome, { timeout: 8000 }).catch(() => {});
       await page.waitForTimeout(600);
-      return page.evaluate(() => [...document.querySelectorAll('.isp-corpo > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
+      return page.evaluate(() => [...document.querySelectorAll('.pp-pannello:not([hidden]) > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
     };
     const ap = await aperte('Animazione');
     prova('un\'animazione: si apre da sola "Animazione" e sta in cima alle sezioni', ap[0].g === 'animazione' && ap[0].o && ap.filter((x) => x.o).length === 1, JSON.stringify(ap));
     const ti = await aperte('Titolo');
     prova('un titolo: si apre da solo "Titolatrice" in cima', ti[0].g === 'titolo' && ti[0].o && ti.filter((x) => x.o).length === 1, JSON.stringify(ti));
     const mu = await aperte('MUSICA');
-    prova('la musica: si apre il volume (un tono è anche un generatore: si apre pure quello)', mu.find((x) => x.g === 'audio')?.o && mu.find((x) => x.g === 'fxa')?.o === false && mu.find((x) => x.g === 'durata')?.o !== true, JSON.stringify(mu));
+    // (dalla scheda AUDIO del pannello «Banco» il volume non è più una sezione che si apre: sta piatto sul vetrino)
+    prova('la musica: si apre il generatore del tono, gli effetti rapidi e la durata restano chiusi', mu.find((x) => x.g === 'generatore')?.o && mu.find((x) => x.g === 'fxa')?.o === false && mu.find((x) => x.g === 'durata')?.o !== true, JSON.stringify(mu));
+    prova('la scheda AUDIO ha il volume in dB con la stima dei LUFS', (await page.locator('.pp-pannello:not([hidden]) .pp-vetrino-largo .pp-grande-mono').count()) === 1);
     const fo = await aperte('FONDO');
     prova('un colore pieno: si apre "Generatore" in cima', fo[0].g === 'generatore' && fo[0].o, JSON.stringify(fo));
     await page.evaluate(() => { const d = window.__dpv.doc; window.__dpv.select([d.clips.find((c) => c.kind === 'fx').id]); });
     await page.waitForTimeout(500);
-    const bl = await page.evaluate(() => [...document.querySelectorAll('.isp-corpo > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
+    const bl = await page.evaluate(() => [...document.querySelectorAll('.pp-pannello:not([hidden]) > .isp-gruppo')].map((g) => ({ g: g.dataset.g, o: g.open })));
     prova('un effetto a tempo: si aprono "Quanto dura" e "Effetto"', bl.find((x) => x.g === 'bdurata')?.o && bl.find((x) => x.g === 'btipo')?.o, JSON.stringify(bl));
     // il doppio clic su una clip che non è un video porta alle sue impostazioni anche col pannello chiuso (già dalla 1.3.3)
 
