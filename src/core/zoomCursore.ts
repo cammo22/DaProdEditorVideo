@@ -80,7 +80,9 @@ const PASSO_MS = 100;
 /** fermo = il cursore resta in un cerchio di questo raggio (frazione dello schermo) */
 const RAGGIO_FERMO = 0.025;
 const FERMO_MS = 700;
-const ZOOM_CLIC = 1.9, ZOOM_FERMO = 1.6, ZOOM_SEGUI = 1.18, ZOOM_MAX = 2.6;
+const ZOOM_CLIC = 1.9, ZOOM_FERMO = 1.6, ZOOM_LENTO = 1.35, ZOOM_MAX = 2.6;
+/** dopo un movimento forte, quanto deve restare calmo il cursore prima che lo zoom torni */
+const CALMA_MS = 700;
 
 /** la finestra più recente letta vicino a tMs (il campionatore la legge ogni ~100 ms) */
 function finestraAl(campioni: CampioneCursore[], tMs: number): [number, number, number, number] | null {
@@ -105,6 +107,8 @@ export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[
   let cx1 = 0.5, cy1 = 0.5, z1 = 1, cx = 0.5, cy = 0.5, z = 1;
   let tx = 0.5, ty = 0.5;
   let ancora: [number, number] | null = null, fermoDa = 0;
+  // l'ultimo istante di movimento forte: lo zoom torna solo dopo un po' di calma
+  let agitatoA = -Infinity;
   let ic = 0;
   const storia: [number, number, number][] = [];
   for (let t = 0; t <= durataMs; t += PASSO_MS) {
@@ -113,36 +117,49 @@ export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[
     while (ic < dati.clic.length && dati.clic[ic].tMs < t - 1900) ic++;
     const clic = dati.clic.slice(ic).find((c) => c.tMs <= t + 350);
     if (q) {
-      // velocità del cursore negli ultimi 300 ms, in schermi al secondo
+      // quanta strada ha fatto il cursore nell'ultimo secondo e mezzo, e quanto va veloce adesso
       storia.push([t, q[0], q[1]]);
-      while (storia.length && t - storia[0][0] > 300) storia.shift();
-      const v = storia.length > 1 ? Math.hypot(q[0] - storia[0][1], q[1] - storia[0][2]) / Math.max(0.1, (t - storia[0][0]) / 1000) : 0;
+      while (storia.length && t - storia[0][0] > 1500) storia.shift();
+      let strada = 0;
+      for (let i = 1; i < storia.length; i++) strada += Math.hypot(storia[i][1] - storia[i - 1][1], storia[i][2] - storia[i - 1][2]);
+      const recenti = storia.filter((x) => t - x[0] <= 300);
+      const v = recenti.length > 1 ? Math.hypot(q[0] - recenti[0][1], q[1] - recenti[0][2]) / Math.max(0.1, (t - recenti[0][0]) / 1000) : 0;
+      if (v > 0.45 || strada > 0.6) agitatoA = t;
+      const calmo = t - agitatoA >= CALMA_MS;
       if (!ancora || Math.hypot(q[0] - ancora[0], q[1] - ancora[1]) > RAGGIO_FERMO) { ancora = q; fermoDa = t; }
       const fermo = t - fermoDa >= FERMO_MS;
       const w = fermo ? finestraAl(dati.campioni, t) : null;
       const ww = w ? w[2] - w[0] : 1, wh = w ? w[3] - w[1] : 1;
-      if (clic) { tx = clic.cx; ty = clic.cy; tz = ZOOM_CLIC; }
+      if (!calmo) { tx = 0.5; ty = 0.5; tz = 1; } // si muove tanto: tutto lo schermo
+      else if (clic) { tx = clic.cx; ty = clic.cy; tz = ZOOM_CLIC; }
       else if (w && ww * wh < 0.8 && ww * wh > 0.01) {
         tx = (w[0] + w[2]) / 2; ty = (w[1] + w[3]) / 2;
         tz = clamp(0.94 / Math.max(ww, wh), 1, ZOOM_MAX);
       } else if (fermo) { tx = q[0]; ty = q[1]; tz = ZOOM_FERMO; }
       else {
-        // in movimento: più è veloce, più si allarga (oltre 1,2 schermi al secondo torna al quadro intero)
-        tz = 1 + (ZOOM_SEGUI - 1) * clamp(1 - v / 1.2, 0, 1);
-        // zona morta: la camera si sposta solo se il cursore esce dal 60% centrale dell'inquadratura
-        const meta = 0.3 / Math.max(1, z);
+        // movimenti lenti: si resta vicini e si segue con una zona morta piccola
+        tz = ZOOM_LENTO;
+        const meta = 0.2 / Math.max(1, z);
         if (q[0] < cx - meta) tx = q[0] + meta; else if (q[0] > cx + meta) tx = q[0] - meta; else tx = cx;
         if (q[1] < cy - meta) ty = q[1] + meta; else if (q[1] > cy + meta) ty = q[1] - meta; else ty = cy;
       }
-    } else { ancora = null; storia.length = 0; }
-    const kz = 1 - Math.exp(-PASSO_MS / (tz > z1 ? 320 : 650));
-    const kc = 1 - Math.exp(-PASSO_MS / 300);
+    } else { ancora = null; storia.length = 0; tx = 0.5; ty = 0.5; }
+    // allontanarsi è svelto (si vede subito tutto), avvicinarsi è morbido
+    const kz = 1 - Math.exp(-PASSO_MS / (tz > z1 ? 550 : 260));
+    const kc = 1 - Math.exp(-PASSO_MS / 160);
     z1 += (tz - z1) * kz; z += (z1 - z) * kz;
     cx1 += (tx - cx1) * kc; cy1 += (ty - cy1) * kc;
-    // la camera non corre: al massimo mezzo quadro inquadrato al secondo
-    const passo = 0.05 / Math.max(1, z), dx = cx1 - cx, dy = cy1 - cy, d = Math.hypot(dx, dy);
+    // la camera non scatta: al massimo un quadro inquadrato e mezzo al secondo...
+    const passo = 0.15 / Math.max(1, z), dx = cx1 - cx, dy = cy1 - cy, d = Math.hypot(dx, dy);
     const k = d > passo ? passo / d : 1;
     cx += dx * k; cy += dy * k;
+    // ...ma il cursore non esce mai dall'inquadratura: se è vicino al bordo la camera lo raggiunge subito
+    if (q && z > 1.01) {
+      const bordo = 0.5 / z - 0.06 / z;
+      if (q[0] < cx - bordo) cx = q[0] + bordo; else if (q[0] > cx + bordo) cx = q[0] - bordo;
+      if (q[1] < cy - bordo) cy = q[1] + bordo; else if (q[1] > cy + bordo) cy = q[1] - bordo;
+      cx1 = cx; cy1 = cy;
+    }
     out.push({ tMs: t, cx, cy, z });
   }
   return out;

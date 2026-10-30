@@ -290,5 +290,21 @@ test('mouse veloce: la camera non va nel panico (resta larga e si sposta piano)'
   const d = Z.rimappaCursore(raw, schermo, [{ da: 0, fine: 10000, videoMs: 0, durataMs: 10000 }], 10000);
   const cam = Z.camminoCamera(d, 10000);
   assert.ok(cam.every(k => k.z < 1.12), 'resta quasi a quadro intero');
-  for (let i = 1; i < cam.length; i++) assert.ok(Math.hypot(cam[i].cx - cam[i - 1].cx, cam[i].cy - cam[i - 1].cy) <= .0501, 'si sposta piano');
+  // il cursore resta sempre dentro l'inquadratura
+  for (const k of cam) {
+    const q = Z.puntoCursoreAl(d.campioni, k.tMs);
+    if (q) assert.ok(Math.abs(q[0] - k.cx) <= .5 / k.z + 1e-9 && Math.abs(q[1] - k.cy) <= .5 / k.z + 1e-9, 'cursore fuori quadro a ' + k.tMs);
+  }
+});
+
+test('cursore che si muove con lo zoom attivo: mai tagliato fuori, la camera lo segue subito', () => {
+  const raw = [];
+  // fermo 2 s al centro (zoom), poi va deciso verso l'angolo in basso a destra
+  for (let i = 0; i < 120; i++) raw.push({ tMs: i * 1000 / 60, cx: .5, cy: .5, clicks: 0, visible: true });
+  for (let i = 120; i < 300; i++) raw.push({ tMs: i * 1000 / 60, cx: .5 + (i - 120) / 400, cy: .5 + (i - 120) / 500, clicks: 0, visible: true });
+  const d = Z.rimappaCursore(raw, schermo, [{ da: 0, fine: 5000, videoMs: 0, durataMs: 5000 }], 5000);
+  for (const k of Z.camminoCamera(d, 5000)) {
+    const q = Z.puntoCursoreAl(d.campioni, k.tMs);
+    if (q) assert.ok(Math.abs(q[0] - k.cx) <= .5 / k.z && Math.abs(q[1] - k.cy) <= .5 / k.z, 'tagliato a ' + k.tMs);
+  }
 });

@@ -12,6 +12,11 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.7] — 2026-10-30 · Zoom sul cursore come si deve, README nuovo
+
+- **Zoom che segue il cursore**: quando muovi tanto il mouse si vede **tutto lo schermo**; si avvicina solo quando ti fermi o ti muovi piano, e dopo un movimento forte aspetta un attimo di calma prima di zoomare di nuovo. Quando è vicino segue più svelto e **il cursore non esce mai dall'inquadratura**.
+- **README nuovo**, sul modello del DaP Convertitore: copertina, pulsanti di download, funzioni e foto vere del programma (`scripts/readme-immagini.mjs` le rifà).
+
 ## [1.8.6] — 2026-10-30 · Stabile: niente più RAM e VRAM piene, zoom sul cursore rifatto
 
 - **RAM e VRAM non si riempiono più** dopo una registrazione LIVE: il monitor e la striscia di miniature della timeline aprivano decine di decoder al secondo quando chiedevano un istante prima del primo fotogramma. Corretto, e in più una **sentinella** mette in attesa i lavori di sfondo se i decoder aperti diventano troppi.
