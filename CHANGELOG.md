@@ -12,6 +12,14 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.2] — 2026-10-30 · Meno scritte, tutto leggibile e a schermo
+
+- **Scritte leggibili**: il carattere a 7 segmenti resta solo sui numeri (timecode); pesi, VRAM e dati usano un carattere mono pulito.
+- **Centro AI a schede compatte** con ricerca, filtri e dettagli su richiesta.
+- **Proprietà più pulite**: schede AI corte, i dettagli col tasto «i».
+- **Modifica clip** nella grafica nuova, con menu laterale.
+- **Finale a schede**, curve di misura normale, tutto a schermo anche a 1440p e 4K; LIVE, Montage e Home più compatti.
+
 ## [1.8.1] — 2026-10-30 · Aggiornamenti di nuovo funzionanti
 
 - **Aggiorna** non diceva più «indirizzo non valido»: il progetto su GitHub ora si chiama DaProdEditorVideo e l'app accetta il nome nuovo (e anche quello vecchio). Anche i link a GitHub dentro l'app puntano al nome nuovo.
