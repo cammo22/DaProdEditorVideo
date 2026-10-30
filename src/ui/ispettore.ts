@@ -10,7 +10,7 @@ import { nuovaMaschera, nomeForma } from '../core/maschereForma';
 import { creaRombo, frameLocale, nomeParametro, parametriAnimabili, valoreVivo } from './keyframe';
 import { clipById, end, isVideoClip, mediaOf, newClip, newTrack, nextTrackName, trackOf, FX0 } from '../core/progetto';
 import { frameToTc, fps } from '../core/timecode';
-import { avviso, conferma, h, evidenzia } from './dom';
+import { avviso, conferma, dialogo, menuContesto, h, evidenzia } from './dom';
 import { SCHEDE, copiaScheda, dbTesto, destinatarieDellaCopia, etichettaStato, funzioniAIPerSelezione, haProprieta, lufsStimati, lufsTesto, pesoEVram, posizioniChiavi, ripristinaScheda, schedaDaMostrare, schedaDiSezione, schedeUsabili, zoomSuiClic, zoomTesto, type Scheda } from '../core/proprieta';
 import { mediaRT, PEAKS_PER_SEC, quandoPicchi } from '../media/libreria';
 import { applicaZoomCursore } from '../core/zoomCursore';
@@ -74,8 +74,12 @@ export class Ispettore {
   private chiave = '';
 
   private disiscrivi: (() => void)[] = [];
-  /** il pannello «Banco» a destra (schede QUADRO / COLORE / AUDIO / AI); l'editor della clip (`completo`) tiene l'elenco lungo di sempre */
+  /** il pannello «Banco» a destra (schede QUADRO / COLORE / AUDIO / AI); l'editor della clip (`completo`) usa la navigazione laterale */
   private banco: boolean;
+  private editorSezione = 'quadro';
+  private editorGruppo = '';
+  private aiFiltro = 'video';
+  private aiPagina = 0;
   /** la scheda aperta (si ricorda anche fra una sessione e l'altra) */
   private scheda: Scheda = leggiScheda();
   private navi: HTMLElement | null = null;
@@ -137,7 +141,8 @@ export class Ispettore {
       const tr = blocchi[0].fxb?.tipo === 'transizione';
       const parti = this.conOrdine(tr ? 'blocco:transizione' : 'blocco:effetto', this.blocchi(blocchi));
       // nel pannello Banco anche i blocchetti FX hanno il loro corpo che scorre
-      this.corpo.replaceChildren(...(this.banco ? [h('div', { class: 'pp-scroll' }, h('div', { class: 'pp-pannello', 'data-chiave': tr ? 'blocco:transizione' : 'blocco:effetto' }, ...parti))] : parti));
+      this.corpo.replaceChildren(...(this.banco ? [h('div', { class: 'pp-scroll' }, h('div', { class: 'pp-pannello', 'data-chiave': tr ? 'blocco:transizione' : 'blocco:effetto' }, ...parti))] : []));
+      if (this.completo) this.montaEditor(parti);
       return;
     }
     const video = cs.filter(isVideoClip);
@@ -190,10 +195,10 @@ export class Ispettore {
       const pronte = h('div', { class: 'pp-griglia' }, posizioniPronte().map((x) => h('button', {
         class: 'pp-tessera', title: x.titolo,
         on: { click: () => store.edit(x.nome, () => { for (const c of vive()) { c.tf = x.fn(c); c.tfFine = undefined; c.via = undefined; togliAnimazione(c, 'tf.x', 'tf.y', 'tf.scale', 'tf.sx', 'tf.rot'); } }) },
-      }, disegnino(x.box), h('span', null, x.nome))));
+      }, disegnino(x.box), h('span', null, this.completo ? ({ 'In alto a sinistra': 'Alto sx', 'In alto a destra': 'Alto dx', 'In basso a sinistra': 'Basso sx', 'In basso a destra': 'Basso dx' }[x.nome] ?? x.nome) : x.nome))));
       const opacita = this.cursore('Opacità', 0, 100, 1, (c) => Math.round(c.opacity * 100), (c, v) => { c.opacity = v / 100; c.opKeys = []; }, '%', video, 'opacity');
       const notaOpacita = video.some((c) => c.opKeys.length) ? h('p', { class: 'nota' }, 'Questa clip ha una linea elastica: la trasparenza cambia nel tempo. Muovere l\'opacità la toglie.') : null;
-      out.push(this.gruppo('immagine', this.completo ? 'Posizione e movimento' : 'Posizioni e movimento', [
+      out.push(this.gruppo('immagine', this.completo ? 'Posizione' : 'Posizioni e movimento', [
         h('label', { class: 'etichetta' }, 'Posizioni pronte'), pronte,
         this.completo ? opacita : null,
         h('div', { class: 'isp-riga col' }, h('label', null, 'Movimento', h('small', null, 'la clip si sposta o si ingrandisce da sola durante la ripresa')),
@@ -337,7 +342,7 @@ export class Ispettore {
       this.montaBanco({ cs, primo, m, tipo, legate, out, video, audio, sonore, conAudio: !!conAudio, preparazioni, bQuadro, bColore, bAudio, chiaveClip });
       return;
     }
-    this.corpo.replaceChildren(...this.conOrdine('clip:' + chiaveClip, out));
+    this.montaEditor(out);
   }
 
   /** gli effetti rapidi dell'audio: tessere con un disegnino del suono (si animano al passaggio), le due AI per la voce e gli effetti sul filtro */
@@ -888,7 +893,7 @@ export class Ispettore {
       quadro: [...sezioni.quadro.filter(inCima), ...dentro(x.bQuadro), ...sezioni.quadro.filter((e) => !inCima(e))],
       colore: [...dentro(x.bColore), ...sezioni.colore],
       audio: [...sezioni.audio.filter(inCima), ...dentro(x.bAudio), ...sezioni.audio.filter((e) => !inCima(e))],
-      ai: [...(x.cs.some((c) => c.media) ? [x.preparazioni] : []), ...this.elencoAI({ video: x.video.length, audio: x.audio.length, conAudio: x.conAudio || x.sonore.length > 0 }), ...sezioni.ai],
+      ai: this.elencoAI({ video: x.video.length, audio: x.audio.length, conAudio: x.conAudio || x.sonore.length > 0 }),
     };
     const pannelli: HTMLElement[] = [];
     this.pannelli.clear();
@@ -943,10 +948,10 @@ export class Ispettore {
       const c = store.doc.clips.find((x) => x.id === primo.id);
       if (!c) return;
       const p = store.doc;
-      const tc = frameToTc(c.len, p.rate, p.drop);
+
       dati.textContent = (m && m.type !== 'audio' && m.width
-        ? [`${m.width}×${m.height}`, m.fps ? `${Math.round(m.fps * 100) / 100} fps` : '', tc]
-        : [tipo, trackOf(p, c.track).name, tc]).filter(Boolean).join(' · ');
+        ? [tipo, (c.len / r).toFixed(2).replace('.', ',') + ' s']
+        : [tipo, (c.len / r).toFixed(2).replace('.', ',') + ' s']).filter(Boolean).join(' · ');
       da.textContent = frameToTc(c.start, p.rate, p.drop);
       dura.textContent = (c.len / r).toFixed(2).replace('.', ',') + ' s';
     };
@@ -959,17 +964,11 @@ export class Ispettore {
             class: 'isp-nome', value: cs.length > 1 ? `${cs.length} clip scelte` : primo.name, disabled: cs.length > 1, 'aria-label': 'Nome della clip',
             on: { change: (e: Event) => store.edit('Rinomina clip', () => { for (const c of this.sel()) c.name = (e.target as HTMLInputElement).value; }) },
           }),
-          dati)),
-      h('div', { class: 'isp-riassunto' },
-        h('span', { class: 'chip-tipo' }, tipo),
-        h('span', null, 'da ', da),
-        h('span', null, 'dura ', dura),
-        legate ? h('span', { class: 'chip-link' }, `⛓ +${legate}`) : null,
-        m ? h('span', { class: 'isp-sorgente' }, m.name) : null),
+          dati), h('button', { type: 'button', class: 'pp-mini-btn pp-info', 'aria-label': 'Dati clip', on: { click: () => { const d = dialogo('Dati clip'); d.corpo.append(h('p', null, primo.name), h('p', { class: 'pp-dati' }, [m?.name, m?.path, m?.width ? `${m.width}×${m.height}` : '', m?.fps ? `${m.fps} fps` : '', `Inizio ${da.textContent}`, `Durata ${dura.textContent}`].filter(Boolean).join(' · '))); } } }, 'i')),
       h('div', { class: 'isp-azioni pp-azioni' },
         h('button', { type: 'button', class: 'pp-mini-btn', title: 'Una copia subito dopo (Ctrl+D)', on: { click: () => esegui('duplica') } }, '⧉ Duplica'),
         h('button', { type: 'button', class: 'pp-mini-btn', title: 'Porta il cursore all\'inizio della clip', on: { click: () => { motore.setMonitor('recorder'); motore.vaiA(primo.start); } } }, '⇤ All\'inizio'),
-        h('button', { type: 'button', class: 'pp-mini-btn', title: 'Toglie la clip (2)', on: { click: () => esegui('elimina') } }, '🗑 Elimina')));
+        h('button', { type: 'button', class: 'pp-mini-btn pp-menu', 'aria-label': 'Altre azioni clip', on: { click: (e: Event) => { const b = (e.currentTarget as HTMLElement).getBoundingClientRect(); menuContesto(b.left, b.bottom, [{ nome: 'ⓘ Dati clip', fn: () => { const d = dialogo('Dati clip'); d.corpo.append(h('p', null, primo.name), h('p', { class: 'pp-dati' }, [m?.name, m?.path, m?.width ? `${m.width}×${m.height}` : '', m?.fps ? `${m.fps} fps` : '', `Inizio ${da.textContent}`, `Durata ${dura.textContent}`, legate ? `${legate} clip legate` : ''].filter(Boolean).join(' · '))); } }, { nome: 'Modifica clip', fn: () => { void import('./editorClip').then((x) => x.apriEditorClip(primo.id)); } }, { nome: 'Elimina', fn: () => esegui('elimina') }]); } } }, '⋯')));
     this.campi.push({ el: testa, aggiorna: agg });
     return testa;
   }
@@ -1240,28 +1239,122 @@ export class Ispettore {
     return el;
   }
 
+  /** Il popup riusa gli stessi campi: cambia soltanto la navigazione. */
+  private montaEditor(out: HTMLElement[]) {
+    const quadro = out.find((e) => e.dataset.g === 'immagine');
+    const movimento = quadro?.querySelector<HTMLElement>('.isp-riga.col:has(.mv-prev)');
+    if (movimento) out.push(this.gruppo('editor-movimento', 'Movimento', [movimento]));
+    const numeri = quadro?.querySelector<HTMLElement>('.pp-piu');
+    if (numeri) out.push(this.gruppo('editor-coordinate', 'Coordinate', [...numeri.children].filter((e) => e.tagName !== 'SUMMARY') as HTMLElement[]));
+    numeri?.remove();
+    for (const [origine, id, nome] of [['sfondo', 'editor-qualita', 'Qualità AI'], ['segui', 'editor-tracking', 'Tracking']]) {
+      const g = out.find((e) => e.dataset.g === origine);
+      const dettagli = [...(g?.querySelectorAll<HTMLElement>(':scope > .pp-piu') ?? [])];
+      if (dettagli.length) out.push(this.gruppo(id, nome, dettagli));
+    }
+    const categorie: [string, string, string, string[]][] = [
+      ['quadro', '▣', 'Quadro', ['immagine', 'titolo', 'animazione', 'generatore']],
+      ['movimento', '↗', 'Movimento', ['editor-movimento']],
+      ['effetti', '✦', 'Effetti', ['fxv', 'btipo']],
+      ['colore', '◐', 'Colore', ['colore']],
+      ['audio', '♪', 'Audio', ['audio', 'fxa', 'ducking', 'csuono', 'bsuono']],
+      ['ai', '✧', 'AI', ['sfondo', 'segui', 'audioai']],
+      ['tempo', '◷', 'Tempo', ['durata', 'trclip', 'bdurata']],
+      ['avanzate', '⚙', 'Avanzate', ['editor-coordinate', 'editor-qualita', 'editor-tracking', 'anim', 'maschere', 'ritaglio']],
+    ];
+    for (const g of out) {
+      for (const nota of g.querySelectorAll<HTMLElement>(':scope > p.nota')) {
+        if (!['immagine', 'anim', 'maschere', 'ritaglio', 'editor-coordinate'].includes(g.dataset.g ?? '') || nota.textContent!.length < 100 || nota.classList.contains('avviso-rosso') || nota.classList.contains('ok')) continue;
+        const testo = nota.textContent!;
+        const aiuto = h('button', { type: 'button', class: 'pp-mini-btn ec-aiuto', 'aria-label': 'Aiuto: ' + (g.querySelector('summary')?.textContent ?? 'Clip'), on: { click: () => { const d = dialogo('Come funziona'); d.corpo.append(h('p', null, testo)); d.piede.append(h('button', { class: 'btn', on: { click: () => d.chiudi() } }, 'Chiudi')); } } }, 'ⓘ Aiuto');
+        nota.replaceWith(aiuto);
+      }
+    }
+    for (const g of out.filter((e) => e.dataset.g)) {
+      const campi = [...g.children].filter((e) => e.tagName !== 'SUMMARY');
+      g.append(h('div', { class: 'ec-campi' }, ...campi as HTMLElement[]));
+    }
+    const nav = h('nav', { class: 'ec-nav', 'aria-label': 'Sezioni clip' });
+    const area = h('div', { class: 'ec-area' });
+    const disponibili = categorie.filter(([, , , ids]) => out.some((e) => ids.includes(e.dataset.g ?? '')));
+    if (!disponibili.some(([id]) => id === this.editorSezione)) this.editorSezione = disponibili[0]?.[0] ?? 'quadro';
+    const mostra = (id: string) => {
+      this.editorSezione = id;
+      nav.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.sezione === id)));
+      const cat = disponibili.find(([k]) => k === id)!;
+      const gruppi = out.filter((e) => cat[3].includes(e.dataset.g ?? '')) as HTMLDetailsElement[];
+      const scelte = h('div', { class: 'ec-scelte' });
+      const contenuto = h('div', { class: 'ec-contenuto' });
+      const apri = (g: HTMLDetailsElement) => {
+        this.editorGruppo = g.dataset.g!;
+        for (const x of gruppi) { x.hidden = x !== g; x.open = true; }
+        scelte.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.gruppo === g.dataset.g)));
+        contenuto.scrollTop = 0;
+      };
+      for (const g of gruppi) {
+        scelte.append(h('button', { class: 'pp-mini-btn', 'data-gruppo': g.dataset.g, on: { click: () => apri(g) } }, g.querySelector('summary')?.childNodes[0]?.textContent ?? 'Controlli'));
+        contenuto.append(g);
+      }
+      const avanzate = h('button', { class: 'pp-mini-btn', on: { click: () => mostra('avanzate') } }, '⚙ Avanzate');
+      area.replaceChildren(h('div', { class: 'ec-titolo' }, h('h2', null, cat[2]), ...(id !== 'avanzate' && disponibili.some(([k]) => k === 'avanzate') ? [avanzate] : [])), ...(gruppi.length > 1 ? [scelte] : []), contenuto);
+      apri(gruppi.find((g) => g.dataset.g === this.editorGruppo) ?? gruppi[0]);
+    };
+    for (const [id, ico, nome] of disponibili) nav.append(h('button', { type: 'button', 'data-sezione': id, on: { click: () => mostra(id) } }, h('span', { 'aria-hidden': 'true' }, ico), nome));
+    this.corpo.replaceChildren(nav, area);
+    mostra(this.editorSezione);
+  }
+
   // ——— AI ———
   /** l'elenco delle funzioni AI del registro (src/core/funzioniAI.ts): nome, che cosa fa, PRONTA / OPZIONALE / SPERIMENTALE, peso e VRAM */
   private elencoAI(s: { video: number; audio: number; conAudio: boolean }): HTMLElement[] {
-    const { clip, audio } = funzioniAIPerSelezione(s);
-    const voce = (f: FunzioneAI) => {
-      const et = etichettaStato(f.stato), peso = pesoEVram(f);
-      return h('button', { type: 'button', class: 'pp-ai', 'data-ai': f.id, 'data-stato': f.stato, title: f.descrizione, on: { click: (e: Event) => void this.eseguiAI(f, e.currentTarget as HTMLButtonElement) } },
-        h('span', { class: 'pp-ai-testo' },
-          h('b', null, f.nome),
-          h('small', null, f.descrizione),
-          peso || f.motore === 'locale' ? h('small', { class: 'pp-ai-peso' }, [peso, f.motore === 'locale' ? 'MOTORE LOCALE' : ''].filter(Boolean).join(' · ')) : null),
-        h('span', { class: 'pp-ai-stato', style: `color:${et.colore}` }, et.testo));
+    const funzioni = funzioniAIPerSelezione(s);
+    const clip = s.video ? funzioni.clip : [], audio = funzioni.audio;
+    const elenco = h('div', { class: 'pp-ai-elenco' });
+    const pagine = h('span', { class: 'pp-dati', 'aria-live': 'polite' });
+    const filtri = h('div', { class: 'pp-ai-filtri', role: 'group', 'aria-label': 'Tipo funzione AI' });
+    const info = (f: FunzioneAI) => {
+      const d = dialogo(f.nome);
+      d.corpo.append(h('p', null, f.descrizione), h('p', { class: 'pp-dati' }, pesoEVram(f)), h('p', null, f.motore === 'locale' ? 'Richiede il motore AI locale.' : 'Lavora nel browser dell’app.'));
+      d.piede.append(h('button', { class: 'btn', on: { click: () => d.chiudi() } }, 'Chiudi'));
     };
-    const out: HTMLElement[] = [];
-    if (clip.length) out.push(h('div', { class: 'pp-inciso' }, 'SULLA CLIP'), h('div', { class: 'pp-ai-elenco' }, clip.map(voce)));
-    if (audio.length) out.push(h('div', { class: 'pp-inciso' }, 'SULL\'AUDIO'), h('div', { class: 'pp-ai-elenco' }, audio.map(voce)));
-    if (!clip.length && !audio.length) out.push(h('p', { class: 'nota' }, 'Le funzioni AI per questa clip compaiono qui, con quanto pesano e quanta memoria della scheda video chiedono. Intanto trovi qui sotto lo sfondo e, nella scheda AUDIO, la pulizia della voce.'));
-    out.push(h('button', { type: 'button', class: 'pp-mini-btn pp-centro-ai', title: 'Tutte le funzioni intelligenti, come si usano e se sono pronte', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:centro-ai')) } }, '✨ Apri il Centro AI'));
+    const voce = (f: FunzioneAI) => {
+      const et = etichettaStato(f.stato);
+      const nomi: Record<string, string> = { clear: 'Voce da podcast', 'voce-pulita': 'Voce pulita locale', 'voce-musica': 'Voce e musica' };
+      const pesi = [...(f.peso ?? '').matchAll(/(\d+(?:[.,]\d+)?)\s*(MB|GB)/g)];
+      const peso = f.id === 'rumore' ? 'da 9 MB' : pesi.length ? `${pesi[0][1]} ${pesi[0][2]}` : 'Integrata';
+      const azione = h('button', { type: 'button', class: 'pp-mini-btn pp-ai-vai', title: f.descrizione, on: { click: () => void this.eseguiAI(f, azione as HTMLButtonElement) } }, f.id === 'rumore' ? '✦ Pulisci' : f.id === 'separa' ? '⑂ Separa' : '↗ Apri');
+      return h('article', { class: 'pp-ai', 'data-ai': f.id, 'data-stato': f.stato },
+        h('div', { class: 'pp-ai-testa' }, h('b', { title: f.nome }, nomi[f.id] ?? f.nome), h('span', { class: 'pp-ai-stato', style: `color:${et.colore}` }, '● ' + et.testo)),
+        h('div', { class: 'pp-ai-comandi' }, h('span', { class: 'pp-ai-peso' }, peso),
+          h('button', { type: 'button', class: 'pp-mini-btn pp-info', 'aria-label': 'Informazioni: ' + f.nome, on: { click: () => info(f) } }, 'i'), azione,
+          h('button', { type: 'button', class: 'pp-mini-btn pp-info', 'aria-label': 'Opzioni: ' + f.nome, on: { click: (e: Event) => { const b = (e.currentTarget as HTMLElement).getBoundingClientRect(); menuContesto(b.left, b.bottom, [{ nome: 'Dettagli', fn: () => info(f) }, { nome: 'Centro AI', fn: () => document.dispatchEvent(new CustomEvent('dpv:centro-ai')) }]); } } }, '⋯')));
+    };
+    const aggiorna = () => {
+      const lista = this.aiFiltro === 'audio' ? audio : clip;
+      const n = Math.max(1, Math.ceil(lista.length / 4));
+      this.aiPagina = Math.max(0, Math.min(this.aiPagina, n - 1));
+      elenco.replaceChildren(...lista.slice(this.aiPagina * 4, this.aiPagina * 4 + 4).map(voce));
+      if (!lista.length) elenco.append(h('p', { class: 'nota' }, 'Nessuna funzione per questa selezione.'));
+      pagine.textContent = `${this.aiPagina + 1} / ${n}`;
+      prima.disabled = this.aiPagina === 0; dopo.disabled = this.aiPagina >= n - 1;
+      filtri.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.filtro === this.aiFiltro)));
+    };
+    if (!audio.length) this.aiFiltro = 'video';
+    else if (!clip.length) this.aiFiltro = 'audio';
+    for (const [id, nome] of [['video', 'Video'], ['audio', 'Audio']]) filtri.append(h('button', { type: 'button', class: 'pp-mini-btn', 'data-filtro': id, disabled: id === 'audio' ? !audio.length : !clip.length, on: { click: () => { this.aiFiltro = id; this.aiPagina = 0; aggiorna(); } } }, nome));
+    const prima = h('button', { class: 'pp-mini-btn', 'aria-label': 'Funzioni precedenti', on: { click: () => { this.aiPagina--; aggiorna(); } } }, '‹') as HTMLButtonElement;
+    const dopo = h('button', { class: 'pp-mini-btn', 'aria-label': 'Funzioni successive', on: { click: () => { this.aiPagina++; aggiorna(); } } }, '›') as HTMLButtonElement;
+    aggiorna();
+    const out = [filtri, elenco, h('div', { class: 'pp-ai-pagine' }, prima, pagine, dopo), h('button', { type: 'button', class: 'pp-grande pp-centro-ai', on: { click: () => document.dispatchEvent(new CustomEvent('dpv:centro-ai')) } }, '✦ Centro AI')];
     return out;
   }
 
   private async eseguiAI(f: FunzioneAI, tasto?: HTMLButtonElement) {
+    const sezioni: Record<string, string> = { sfondo: 'sfondo', segui: 'segui' };
+    if (sezioni[f.id] && this.sel().length) {
+      const c = this.sel().find(isVideoClip) ?? this.sel()[0];
+      const { apriEditorClip } = await import('./editorClip'); apriEditorClip(c.id, sezioni[f.id]); return;
+    }
     if (!f.esegui) { document.dispatchEvent(new CustomEvent('dpv:centro-ai')); return; }
     // un lavoro alla volta per tasto: un secondo clic non lo fa partire due volte
     if (tasto?.disabled) return;
@@ -1275,12 +1368,23 @@ export class Ispettore {
    * false se per la clip scelta quella sezione non c'è (per esempio "Togli lo sfondo" su una clip audio).
    */
   apriSezione(id: string): boolean {
+    if (this.completo) {
+      const mappa: Record<string, string> = { immagine: 'quadro', titolo: 'quadro', animazione: 'quadro', generatore: 'quadro', 'editor-movimento': 'movimento', fxv: 'effetti', btipo: 'effetti', colore: 'colore', audio: 'audio', fxa: 'audio', ducking: 'audio', csuono: 'audio', bsuono: 'audio', sfondo: 'ai', segui: 'ai', audioai: 'ai', durata: 'tempo', trclip: 'tempo', bdurata: 'tempo' };
+      this.editorSezione = mappa[id] ?? 'avanzate'; this.editorGruppo = id;
+    }
     this.aperti.add(id);
     this.chiusi.delete(id);
     this.firma = '';
     this.costruisci();
     const el = this.corpo.querySelector(`.isp-gruppo[data-g="${id}"]`) as HTMLDetailsElement | null;
-    if (!el) return false;
+    if (!el) {
+      if (this.banco && ['sfondo', 'segui', 'audioai'].includes(id) && this.sel().length) {
+        const clipId = this.sel()[0].id;
+        void import('./editorClip').then((x) => x.apriEditorClip(clipId, id));
+        return true;
+      }
+      return false;
+    }
     const scheda = el.closest<HTMLElement>('.pp-pannello')?.dataset.scheda as Scheda | undefined;
     if (scheda) this.mostraScheda(scheda, true);
     el.open = true;
