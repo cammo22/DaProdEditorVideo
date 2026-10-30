@@ -75,6 +75,8 @@ await build({
         maschereForma: path.join(radice, 'src/core/maschereForma.ts'),
         titoliHtml: path.join(radice, 'src/core/titoliHtml.ts'),
         suggerimento: path.join(radice, 'src/ui/suggerimento.ts'),
+        funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
+        proprieta: path.join(radice, 'src/core/proprieta.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

@@ -1,5 +1,6 @@
 // Le prove del pannello Proprietà: tutto chiuso di partenza, le sezioni si riordinano trascinando e l'ordine si ricorda
-// per ogni tipo di elemento (immagine, titolo, animazione… e blocchi FX), anche dopo aver riaperto il programma.
+// per ogni tipo di elemento e per ogni scheda (QUADRO per le immagini, i titoli, le animazioni… e i blocchi FX), anche dopo
+// aver riaperto il programma. Dalla grafica «Banco» le sezioni stanno nelle quattro schede: qui si guarda QUADRO.
 import path from 'node:path';
 
 export async function provePannello({ page: paginaDi, prova, OUT }) {
@@ -13,7 +14,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.goto(paginaDi.url());
   await page.waitForSelector('.pulsantiera');
   await page.waitForTimeout(1200);
-  await page.evaluate(() => { try { localStorage.removeItem('dpv-isp-ordine'); } catch { /* niente */ } });
+  await page.evaluate(() => { try { localStorage.removeItem('dpv-isp-ordine'); localStorage.setItem('dpv-isp-scheda', 'quadro'); } catch { /* niente */ } });
   const ids = await page.evaluate(async () => {
     const { importaFile, P, B } = window.__dpvTest;
     const c = new OffscreenCanvas(640, 360); const x = c.getContext('2d'); x.fillStyle = '#c33'; x.fillRect(0, 0, 640, 360);
@@ -35,31 +36,32 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   });
   await page.evaluate(() => { const a = document.querySelector('#app'); a.classList.remove('senza-lato', 'stretto'); });
   const scegli = async (id) => { await page.evaluate((i) => window.__dpv.select([i]), id); await page.click('.lato .scheda[data-s=clip]').catch(() => {}); await page.waitForTimeout(450); };
-  const gruppi = () => page.evaluate(() => [...document.querySelectorAll('.isp-corpo > .isp-gruppo')].map((d) => ({ g: d.dataset.g, aperto: d.open, titolo: d.querySelector('summary').textContent.replace('⠿', '').trim() })));
+  const gruppi = () => page.evaluate(() => [...document.querySelectorAll('.pp-pannello:not([hidden]) > .isp-gruppo')].map((d) => ({ g: d.dataset.g, aperto: d.open, titolo: d.querySelector('summary').textContent.replace('⠿', '').trim() })));
 
   await scegli(ids.foto1);
   const g0 = await gruppi();
-  // solo la sezione "principale" per quel tipo (qui la posizione di un'immagine) parte aperta; le altre chiuse
-  prova('scegliendo una clip si apre da sola la sezione che serve (Posizione e grandezza), le altre restano chiuse', g0.length >= 3 && g0.filter((x) => x.aperto).map((x) => x.g).join() === 'immagine', JSON.stringify(g0));
+  // nel Banco i numeri principali stanno sul vetrino: le sezioni della scheda QUADRO partono tutte chiuse
+  prova('scegliendo una clip la scheda QUADRO mostra le sue sezioni, tutte chiuse', g0.length >= 3 && g0.every((x) => !x.aperto) && g0.some((x) => x.g === 'durata'), JSON.stringify(g0));
+  prova('il vetrino ha X, Y, scala e ruota', (await page.locator('.pp-pannello:not([hidden]) .pp-vetrino .pp-num').count()) === 4);
   await page.screenshot({ path: path.join(OUT, 'pannello-chiuso.png') });
 
   // si apre una sezione e resta aperta anche scegliendo un'altra clip dello stesso tipo
-  await page.click('.isp-corpo > .isp-gruppo[data-g="colore"] > summary');
+  await page.click('.pp-pannello:not([hidden]) > .isp-gruppo[data-g="durata"] > summary');
   await page.waitForTimeout(200);
   await scegli(ids.foto2);
   const g1 = await gruppi();
-  prova('una sezione aperta resta aperta passando a un\'altra clip; le altre restano chiuse', g1.find((x) => x.g === 'colore')?.aperto && g1.filter((x) => x.aperto).map((x) => x.g).sort().join() === 'colore,immagine', JSON.stringify(g1));
+  prova('una sezione aperta resta aperta passando a un\'altra clip; le altre restano chiuse', g1.find((x) => x.g === 'durata')?.aperto && g1.filter((x) => x.aperto).map((x) => x.g).join() === 'durata', JSON.stringify(g1));
 
   // il clic sulla maniglia non apre né chiude
   const prima = (await gruppi()).find((x) => x.g === 'immagine').aperto;
   await page.click('.isp-gruppo[data-g="immagine"] .isp-grip');
   prova('un clic sulla maniglia non apre né chiude la sezione', (await gruppi()).find((x) => x.g === 'immagine').aperto === prima);
-  // chi chiude la sezione principale la ritrova chiusa (e così le sezioni stanno tutte in vista per il trascinamento)
-  await page.click('.isp-corpo > .isp-gruppo[data-g="immagine"] > summary');
+  // la sezione aperta si richiude (e così le sezioni stanno tutte in vista per il trascinamento)
+  await page.click('.pp-pannello:not([hidden]) > .isp-gruppo[data-g="durata"] > summary');
   await page.waitForTimeout(200);
-  prova('una sezione principale chiusa apposta resta chiusa', !(await gruppi()).find((x) => x.g === 'immagine').aperto);
+  prova('una sezione aperta si richiude con un clic', !(await gruppi()).find((x) => x.g === 'durata').aperto);
 
-  // si trascina "Colore" in cima
+  // si trascina "Durata e velocità" in cima
   const ordineDi = async () => (await gruppi()).map((x) => x.g);
   const prima2 = await ordineDi();
   const trascina = async (g, sopraA) => {
@@ -72,32 +74,32 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
     await page.mouse.up();
     await page.waitForTimeout(500);
   };
-  await trascina('colore', prima2[0]);
+  await trascina('durata', prima2[0]);
   const dopo = await ordineDi();
-  prova('trascinando la maniglia di "Colore" in cima, la sezione va per prima', dopo[0] === 'colore' && dopo.length === prima2.length && prima2.every((g) => dopo.includes(g)), JSON.stringify([prima2, dopo]));
+  prova('trascinando la maniglia di "Durata e velocità" in cima, la sezione va per prima', dopo[0] === 'durata' && dopo.length === prima2.length && prima2.every((g) => dopo.includes(g)), JSON.stringify([prima2, dopo]));
   const salvato = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-isp-ordine') ?? '{}'));
-  prova('l\'ordine è salvato per questo tipo di elemento (clip:immagine)', salvato['clip:immagine']?.[0] === 'colore' && Object.keys(salvato).length === 1, JSON.stringify(salvato));
-  prova('durante il trascinamento la sezione aperta è rimasta com\'era', (await gruppi()).find((x) => x.g === 'colore')?.aperto === true);
+  prova('l\'ordine è salvato per questo tipo di elemento e per questa scheda (clip:immagine:quadro)', salvato['clip:immagine:quadro']?.[0] === 'durata' && Object.keys(salvato).length === 1, JSON.stringify(salvato));
+  prova('durante il trascinamento le sezioni chiuse sono rimaste chiuse', (await gruppi()).every((x) => !x.aperto));
   await page.screenshot({ path: path.join(OUT, 'pannello-riordinato.png') });
 
   // lo stesso ordine per ogni clip dello stesso tipo
   await scegli(ids.foto1);
-  prova('scegliendo un\'altra clip dello stesso tipo l\'ordine è quello salvato', (await ordineDi())[0] === 'colore', JSON.stringify(await ordineDi()));
+  prova('scegliendo un\'altra clip dello stesso tipo l\'ordine è quello salvato', (await ordineDi())[0] === 'durata', JSON.stringify(await ordineDi()));
   // un altro tipo (titolo) ha il suo ordine, che non si è mosso
   await scegli(ids.titolo);
   const gt = await ordineDi();
-  prova('un titolo ha il suo ordine, non toccato da quello delle immagini', gt.length >= 2 && gt[0] !== 'colore', JSON.stringify(gt));
+  prova('un titolo ha il suo ordine, non toccato da quello delle immagini', gt.length >= 2 && gt[0] !== 'durata', JSON.stringify(gt));
   // un blocco FX ha il suo ordine, e si può riordinare anche lì
   await scegli(ids.blocco);
   const gb = await ordineDi();
   // le sezioni principali dei blocchi partono aperte e sono alte: si chiudono per averle tutte in vista
-  await page.evaluate(() => document.querySelectorAll('.isp-corpo > .isp-gruppo[open] > summary').forEach((x) => x.click()));
+  await page.evaluate(() => document.querySelectorAll('.pp-pannello:not([hidden]) > .isp-gruppo[open] > summary').forEach((x) => x.click()));
   await page.waitForTimeout(250);
   if (gb.length >= 2) {
     await trascina(gb[gb.length - 1], gb[0]);
     const gb2 = await ordineDi();
     const s2 = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-isp-ordine') ?? '{}'));
-    prova('anche i blocchi FX si riordinano, con il loro ordine salvato a parte', gb2[0] === gb[gb.length - 1] && !!s2['blocco:effetto'] && s2['clip:immagine'][0] === 'colore', JSON.stringify([gb, gb2, s2]));
+    prova('anche i blocchi FX si riordinano, con il loro ordine salvato a parte', gb2[0] === gb[gb.length - 1] && !!s2['blocco:effetto'] && s2['clip:immagine:quadro'][0] === 'durata', JSON.stringify([gb, gb2, s2]));
   } else prova('i blocchi FX hanno almeno due sezioni', false, JSON.stringify(gb));
 
   // dopo aver riaperto il programma l'ordine c'è ancora
@@ -105,7 +107,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.waitForSelector('.pulsantiera');
   await page.waitForTimeout(1200);
   const rimasto = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-isp-ordine') ?? '{}'));
-  prova('riaprendo il programma l\'ordine è ancora salvato', rimasto['clip:immagine']?.[0] === 'colore', JSON.stringify(rimasto));
+  prova('riaprendo il programma l\'ordine è ancora salvato', rimasto['clip:immagine:quadro']?.[0] === 'durata', JSON.stringify(rimasto));
   // (il progetto non c'è più dopo il ricaricamento: si rifà una clip per vedere l'ordine applicato)
   await page.evaluate(async () => {
     const { importaFile, P } = window.__dpvTest;
@@ -117,7 +119,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.click('.lato .scheda[data-s=clip]').catch(() => {});
   await page.waitForTimeout(600);
   const dopoRiavvio = await ordineDi();
-  prova('con una clip nuova, dopo il riavvio, le sezioni sono già nell\'ordine scelto', dopoRiavvio[0] === 'colore' && (await gruppi()).filter((x) => x.aperto).map((x) => x.g).join() === 'immagine', JSON.stringify(dopoRiavvio));
+  prova('con una clip nuova, dopo il riavvio, le sezioni sono già nell\'ordine scelto', dopoRiavvio[0] === 'durata' && (await gruppi()).every((x) => !x.aperto), JSON.stringify(dopoRiavvio));
 
   // "Ordine di partenza" rimette tutto com'era
   const haBottone = await page.locator('.isp-ripristina').count();
@@ -125,7 +127,7 @@ export async function provePannello({ page: paginaDi, prova, OUT }) {
   await page.waitForTimeout(500);
   const ripristinato = await ordineDi();
   const rim2 = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-isp-ordine') ?? '{}'));
-  prova('"↺ Ordine di partenza" rimette le sezioni come all\'inizio per quel tipo (e si toglie dal salvataggio)', haBottone === 1 && ripristinato[0] !== 'colore' && !rim2['clip:immagine'], JSON.stringify([haBottone, ripristinato, rim2]));
+  prova('"↺ Ordine di partenza" rimette le sezioni come all\'inizio per quel tipo (e si toglie dal salvataggio)', haBottone === 1 && ripristinato[0] !== 'durata' && !rim2['clip:immagine:quadro'], JSON.stringify([haBottone, ripristinato, rim2]));
   prova('nessun errore nella pagina del pannello', errori.length === 0, errori.slice(0, 3).join(' | '));
   await contesto.close();
 }

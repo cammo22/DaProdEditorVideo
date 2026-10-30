@@ -160,6 +160,9 @@ async function proveSfondo({ page, prova, OUT }) {
   console.log('▶ Togliere lo sfondo: le proprietà e il contagocce');
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.select([c.id]); window.__motore.vaiA(10); });
   await page.waitForTimeout(300);
+  // nel pannello «Banco» lo sfondo sta nella scheda AI
+  await page.evaluate(() => document.querySelector('.pp-scheda[data-scheda=ai]')?.click());
+  await page.waitForTimeout(200);
   await apriGruppi(page);
   prova('nelle proprietà c\'è "Togli lo sfondo" con i quadratini dei modi (Off, Colore, Luce, AI)', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo]').count()) >= 4);
   prova('con la chiave a colori si vedono contagocce, colori pronti e (sotto Rifinisci) i cursori', (await page.locator('button:has-text("Prendi il colore dal monitor")').count()) === 1 && (await page.locator('button:has-text("Trovalo da solo")').count()) === 1 && (await page.locator('.isp-riga:has(label:has-text("Via il riflesso"))').count()) === 1);
