@@ -138,13 +138,17 @@ button svg { pointer-events: none; }
 #app[data-pagina='live']:not(.stretto) .live .fin-testa { grid-area: liveh; overflow: hidden; }
 #app[data-pagina='live']:not(.stretto) .live-schermo { grid-area: schermo; margin: 10px; }
 #app[data-pagina='live']:not(.stretto) .live-comandi { grid-area: comandi; padding: 10px 8px 10px 10px; background: var(--pann); border-left: 1px solid #000; box-shadow: inset 1px 0 0 var(--bordo); }
-/* la pagina DaProdMontage: tre colonne (file, stile, scelte), la timeline resta sotto per vedere il risultato */
+/* la pagina DaProdMontage: una barra con i passi e un passo per volta a tutto spazio; il monitor vero compare solo all'anteprima
+   (o accanto ai file, per guardare un video): le regole di quel posto stanno in montage.css */
 #app[data-pagina='montage']:not(.nessuna) {
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr) 22px;
+  grid-template-areas: 'testa' 'montage' 'stato';
+}
+#app.stretto[data-pagina='montage']:not(.nessuna) {
   grid-template-rows: 44px minmax(150px, 28vh) minmax(0, 1fr) 22px;
   grid-template-areas: 'testa' 'monitor' 'montage' 'stato';
 }
-/* l'anteprima è il monitor vero, in alto a tutta larghezza; la timeline e le colonne a lato aspettano */
 #app[data-pagina='montage'] .contenitore, #app[data-pagina='montage'] .lato, #app[data-pagina='montage'] .bordo-bin, #app[data-pagina='montage'] .bordo-lato,
 #app[data-pagina='montage'] .pulsantiera, #app[data-pagina='montage'] .timeline, #app[data-pagina='montage'] .divisore,
 #app[data-pagina='montage'] .finale, #app[data-pagina='montage'] .live, #app[data-pagina='montage'] .linguetta-lato { display: none !important; }
@@ -830,10 +834,6 @@ button svg { pointer-events: none; }
 .stretto[data-foglio='bin'] .contenitore, .stretto[data-foglio='lato'] .lato, .stretto[data-foglio='finale'] .finale { transform: none; visibility: visible; }
 /* DaProdMontage sul telefono: a tutto schermo fra la testata e la barra in basso, le tre colonne una sotto l'altra */
 #app.stretto[data-pagina='montage'] .montage { grid-area: auto; position: fixed; left: 0; right: 0; top: max(224px, calc(44px + 38vh)); bottom: 56px; z-index: 55; background: var(--fondo); overflow: auto; }
-.stretto .mt-dentro { grid-template-columns: 1fr; overflow: visible; flex: none; }
-.stretto .mt-col { overflow: visible; }
-.stretto .mt-file { grid-template-columns: repeat(4, 1fr); }
-.stretto .montage .fin-testa span:not(.mt-m) { display: none; }
 .stretto .timeline { grid-template-columns: 104px 1fr; }
 .stretto .tl-angolo { width: 104px; }
 .stretto .tt-nome { padding: 3px 5px; font-size: 10.5px; }
@@ -1187,52 +1187,6 @@ body.pip-live { margin: 0; background: #111016; overflow: hidden; }
 
 /* ——— DaProdMontage ——— */
 .montage { flex-direction: column; min-height: 0; border-left: 0; overflow: hidden; }
-.mt-m { color: var(--oro); }
-.mt-azioni { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid #000; background: #15141b; flex-wrap: wrap; }
-.mt-azioni .btn { padding: 9px 16px; font-size: 13px; letter-spacing: 0.8px; white-space: nowrap; }
-.mt-importa { background: linear-gradient(180deg, #5dd39e, #2ea36f) !important; color: #04170e !important; border-color: #0b3a26 !important; }
-.mt-variante { font: 800 11px var(--ui); letter-spacing: 1.5px; color: var(--oro); padding: 3px 9px; border-radius: 20px; background: #23212b; box-shadow: inset 0 0 0 1px #000; }
-.mt-variante:empty { display: none; }
-.mt-azioni .mt-lavoro { flex: 1; min-width: 180px; }
-.mt-dentro { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(240px, 0.9fr) minmax(320px, 1.5fr) minmax(300px, 1fr); gap: 10px; padding: 10px; }
-.mt-col { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 8px; background: var(--pannello, #1b1a21); box-shadow: inset 0 0 0 1px #000; }
-.mt-col h3 { display: flex; align-items: center; gap: 8px; margin: 0; font: 800 14px var(--ui); color: var(--testo); }
-.mt-num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--oro); color: #1a1206; font: 900 12px var(--ui); }
-.mt-barra { display: flex; flex-wrap: wrap; gap: 6px; }
-.mt-conta { color: var(--testo3); font: 700 11.5px var(--ui); }
-.mt-file { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; align-content: start; }
-.mt-thumb { position: relative; padding: 0; border: 2px solid #000; border-radius: 6px; overflow: hidden; background: #000; opacity: 0.45; cursor: pointer; line-height: 0; }
-.mt-thumb canvas { width: 100%; height: auto; display: block; }
-.mt-thumb.scelta { opacity: 1; border-color: var(--oro); }
-.mt-tipo { position: absolute; left: 3px; bottom: 3px; font: 800 9px var(--ui); background: rgba(0, 0, 0, 0.7); color: #fff; padding: 1px 4px; border-radius: 3px; line-height: 1.3; }
-.mt-linea { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--oro); display: none; pointer-events: none; }
-.mt-tempo { position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 4px; background: rgba(0, 0, 0, 0.7); color: #fff; font: 700 9.5px var(--ui); display: none; text-align: right; }
-.mt-thumb.scorre .mt-linea, .mt-thumb.scorre .mt-tempo { display: block; }
-.mt-thumb.scorre .mt-tipo { display: none; }
-.mt-guarda { position: absolute; right: 3px; bottom: 3px; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: rgba(0, 0, 0, 0.72); font-size: 11px; font-style: normal; line-height: 1; cursor: pointer; opacity: 0; transition: opacity 0.12s; }
-.mt-thumb:hover .mt-guarda { opacity: 1; }
-.mt-guarda:hover { background: var(--oro); }
-.mt-spunta { position: absolute; right: 3px; top: 3px; width: 16px; height: 16px; display: none; place-items: center; border-radius: 50%; background: var(--oro); color: #1a1206; font: 900 11px var(--ui); line-height: 1; }
-.mt-thumb.scelta .mt-spunta { display: grid; }
-.mt-vuoto { grid-column: 1 / -1; text-align: center; color: var(--testo3); padding: 24px 8px; border: 2px dashed #000; border-radius: 8px; }
-.mt-vuoto b { color: var(--testo2); font: 800 14px var(--ui); }
-.mt-feste { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; align-content: start; }
-.mt-festa { display: flex; flex-direction: column; gap: 3px; padding: 5px; text-align: left; border: 2px solid #000; border-radius: 8px; background: #23212b; color: var(--testo2); cursor: pointer; }
-.mt-festa:hover { background: #2b2934; }
-.mt-festa.scelta { border-color: var(--oro); box-shadow: 0 0 14px rgba(255, 190, 70, 0.3); }
-.mt-festa b { font: 800 12.5px var(--ui); color: var(--testo); }
-.mt-festa small { font: 600 10.5px var(--ui); color: var(--testo3); line-height: 1.25; }
-.mt-festa-img { position: relative; line-height: 0; border-radius: 5px; overflow: hidden; }
-.mt-festa-img canvas { width: 100%; height: auto; display: block; }
-.mt-emoji { position: absolute; right: 4px; bottom: 2px; font-size: 18px; line-height: 1; }
-.mt-testi { display: flex; flex-direction: column; gap: 6px; }
-.mt-campo { display: flex; flex-direction: column; gap: 2px; font: 700 11px var(--ui); color: var(--testo3); }
-.mt-mmss { display: inline-flex; align-items: center; gap: 4px; }
-.mt-mmss .num { width: 52px; }
-.mt-riepilogo { display: flex; flex-direction: column; gap: 3px; padding: 8px 10px; border-radius: 6px; background: #14131a; box-shadow: inset 0 0 0 1px #000; font: 600 12px var(--ui); color: var(--testo2); }
-.mt-riepilogo b { color: var(--testo); font-size: 13px; }
-.mt-lavoro { min-height: 0; }
-@media (max-width: 900px) { .mt-dentro { grid-template-columns: 1fr; overflow: auto; } .mt-col { overflow: visible; } }
 
 /* Finale: le opzioni che quasi nessuno cambia stanno in un riquadro chiuso */
 .fin-avanzate { border: 1px solid #000; border-radius: 8px; background: #17161d; padding: 0 8px; margin: 4px 0; }
