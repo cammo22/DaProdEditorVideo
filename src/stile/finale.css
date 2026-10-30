@@ -1,0 +1,97 @@
+/* La pagina Finale, in stile «Banco» (design: Finale.dc.html): fondo scuro, pannello, tasti di metallo, scritte incise
+   maiuscole, il colore pieno solo come spia. Oro = l'unica azione (Esporta video), ciano = scelta, verde/ambra/rosso = stato.
+   Le regole stanno tutte sotto «.finale», «.fin-misure» e «#app[data-pagina='finale']» così non toccano le altre pagine;
+   i colori vengono dalle variabili di editor.css (--fondo, --pann, --oro, --cia, --verde, --ambra, --rosso) con un ripiego
+   per quelle che il blocco «stile» può aggiungere (--vetro, --inciso). */
+
+/* ——— la griglia: monitor grande, sotto le misure, a destra il controllo prima dell'uscita, la timeline in fondo ——— */
+html #app[data-pagina='finale'] {
+  grid-template-rows: 44px minmax(0, 1fr) auto 7px var(--tlpag) 22px;
+  grid-template-areas: 'testa testa testa' 'monitor blato fin' 'misure blato fin' 'div div div' 'tl tl tl' 'stato stato stato';
+}
+#app .fin-misure { grid-area: misure; display: none; }
+#app[data-pagina='finale'] .fin-misure { display: grid; }
+#app.stretto .fin-misure { display: none; }
+
+/* ——— le quattro misure sotto il monitor ——— */
+.fin-misure { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px 12px; background: var(--fondo); border-top: 1px solid #000; min-width: 0; }
+.fm-cella { min-width: 0; padding: 8px 14px 9px; border-radius: 6px; background: var(--vetro, #050407); border: 1px solid var(--bordo); display: flex; flex-direction: column; gap: 1px; box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6); }
+.fm-nome { font: 700 12px var(--ui); letter-spacing: 3px; color: var(--inciso, #8d889c); }
+.fm-valore { font: 400 22px/1.15 "Share Tech Mono", "Space Mono", ui-monospace, monospace; color: var(--testo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.fm-riga { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 20px; }
+.fm-sotto { font: 600 12px var(--ui); color: var(--testo3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fm-cella[data-luce='ok'] .fm-valore { color: var(--verde); text-shadow: 0 0 10px rgba(93, 255, 180, 0.35); }
+.fm-cella[data-luce='att'] .fm-valore { color: var(--ambra); }
+.fm-cella[data-luce='ko'] .fm-valore { color: var(--rosso); text-shadow: 0 0 10px rgba(255, 77, 109, 0.35); }
+.fm-cella[data-luce='oro'] .fm-valore { color: var(--oro); }
+.fm-cella[data-luce='sp'] .fm-valore { color: var(--testo2); }
+.fm-cella.vecchia .fm-valore { opacity: 0.5; }
+.fm-tasto { height: 22px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: var(--testo); font: 700 12px var(--ui); letter-spacing: 1px; }
+.fm-tasto:hover { border-color: var(--cia); }
+
+/* ——— il pannello a destra ——— */
+.finale { background: var(--pann); border-left: 1px solid var(--bordo); }
+.finale .fin-testa { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: var(--pann); border-bottom: 1px solid var(--bordo); color: var(--inciso, #8d889c); }
+.finale .fin-testa > svg { display: none; }
+.finale .fin-testa-testi { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.finale .fin-etichetta { font: 700 12px var(--ui); letter-spacing: 3px; color: var(--inciso, #8d889c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.finale .fin-titolo { font: 700 20px/1.15 var(--ui); letter-spacing: 0; color: var(--testo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.finale .fin-tc { font: 400 20px var(--tc); color: var(--oro); letter-spacing: 1px; flex: none; }
+.finale .vu-cornice { background: var(--vetro, #050407); border-bottom: 1px solid var(--bordo); }
+
+.finale .fin-colonna { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.finale .fin-colonna .fin-corpo { padding: 12px 14px; gap: 14px; background: var(--pann); }
+.finale .fin-piede { flex: none; }
+.finale .fin-piede:empty { display: none; }
+.finale .fin-piede .es-fondo { padding: 12px 16px 14px; border-top: 1px solid var(--bordo); background: var(--pann); box-shadow: 0 -10px 18px rgba(0, 0, 0, 0.25); }
+
+/* le sezioni: etichetta incisa, niente scatole dentro scatole */
+.finale .fin-sezione { background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none; gap: 10px; }
+.finale .fin-sezione h4 { font: 700 12px var(--ui); letter-spacing: 3px; color: var(--inciso, #8d889c); text-transform: uppercase; }
+.finale .fin-sezione h4 svg { opacity: 0.7; }
+.finale .fin-pagina { gap: 14px; }
+
+/* il menu delle pagine: tasti di metallo, la pagina aperta è sottolineata di ciano (selezione), mai oro */
+.finale .fin-menu { width: 92px; gap: 6px; padding: 10px 8px; background: var(--fondo); border-left: 1px solid var(--bordo); }
+.finale .fin-voce { min-height: 52px; border-radius: 6px; border: 1px solid var(--bordo); background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo2); font: 600 12.5px var(--ui); letter-spacing: 0.5px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.finale .fin-voce:hover { color: var(--testo); border-color: var(--bordo-forte); background: linear-gradient(180deg, #2c2b34, #1d1c23); }
+.finale .fin-voce.attiva { color: var(--cia); border-color: var(--cia); background: linear-gradient(180deg, #23232b, #18171d); box-shadow: 0 0 0 1px rgba(53, 232, 255, 0.35), 0 0 12px rgba(53, 232, 255, 0.18); }
+.stretto .finale .fin-menu { width: auto; }
+
+/* tasti e interruttori dentro il Finale: metallo, spia verde quando sono accesi */
+.finale .btn, .finale .btn-mini { border-radius: 6px; border: 1px solid var(--bordo-forte); background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.finale .btn { min-height: 44px; padding: 0 16px; font: 600 16px var(--ui); }
+.finale .btn.piccolo, .finale .btn-mini { min-height: 34px; padding: 0 12px; font: 600 14px var(--ui); }
+.finale .btn-mini.oro, .finale .btn.primario:not(.fin-vai) { background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo); border-color: var(--bordo-forte); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.finale .btn:hover, .finale .btn-mini:hover { border-color: var(--cia); filter: none; }
+.finale .btn:disabled { opacity: 0.45; }
+.finale .chip, .es .chip { min-height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--bordo-forte); background: #15141b; color: #cfcadb; font: 600 14px var(--ui); box-shadow: none; }
+.finale .chip.acceso, .es .chip.acceso { background: var(--cia); color: #06171b; border-color: var(--cia); box-shadow: none; font-weight: 700; }
+.finale .chip.acceso.tr, .es .chip.acceso.tr { background: var(--cia); }
+.finale .fin-interruttore { min-height: 44px; border-radius: 6px; border: 1px solid var(--bordo-forte); background: linear-gradient(180deg, #2c2b34, #1d1c23); font: 600 15px var(--ui); color: var(--testo2); }
+.finale .fin-interruttore.acceso { color: var(--testo); box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.4); }
+.finale .fin-look.acceso { box-shadow: 0 0 0 2px var(--cia); }
+.finale input[type='range'] { accent-color: var(--cia); }
+.finale .fin-riga input { accent-color: var(--cia); }
+.finale .campo-testo, .finale select, .finale textarea, .finale input[type='text'], .finale input[type='number'] { min-height: 36px; border-radius: 6px; border: 1px solid var(--bordo); background: var(--vetro, #050407); color: var(--testo); }
+
+/* il riepilogo del montaggio */
+.finale .fin-numeri b { font: 400 18px "Share Tech Mono", "Space Mono", ui-monospace, monospace; color: var(--testo); }
+.finale .fin-numeri small { font: 700 11px var(--ui); letter-spacing: 2px; color: var(--inciso, #8d889c); }
+
+/* ——— il controllo prima dell'uscita: cinque spie ——— */
+.ctl { display: block; }
+.ctl-lista { display: flex; flex-direction: column; gap: 2px; }
+.ctl-riga { display: flex; align-items: center; gap: 12px; min-height: 34px; padding: 4px 6px; margin: 0; border: 0; border-radius: 6px; background: none; color: var(--testo); font: 500 16px var(--ui); text-align: left; width: 100%; }
+.ctl-riga.ctl-vai { cursor: pointer; }
+.ctl-riga.ctl-vai:hover { background: #1c1b23; }
+.ctl-spia { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--verde); box-shadow: 0 0 8px var(--verde); }
+.ctl-riga.ambra .ctl-spia { background: var(--ambra); box-shadow: 0 0 8px var(--ambra); }
+.ctl-riga.rossa .ctl-spia { background: var(--rosso); box-shadow: 0 0 8px var(--rosso); }
+.ctl-nome { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctl-dett { font: 500 14px var(--ui); color: var(--testo2); text-align: right; min-width: 0; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctl-riga.ambra .ctl-dett { color: var(--ambra); }
+.ctl-riga.rossa .ctl-dett { color: #ff8da1; }
+
+/* un solo pulsante oro per schermata: nel Finale è «Esporta video»; quello della testata diventa di metallo */
+#app[data-pagina='finale'] .testata .btn.primario { background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo); border-color: var(--bordo-forte); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }

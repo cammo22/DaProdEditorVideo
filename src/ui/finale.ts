@@ -25,7 +25,9 @@ import { mediaRT, preparaOra, senzaColoreMisurato, quandoPreparazioni } from '..
 import { motore } from '../motore';
 import { volumeLivellato } from '../effetti';
 import { esportaEdl, esportaFotogramma } from './dialoghi';
-import { pannelloEsporta } from './esportazione';
+import '../stile/finale.css';
+import { pannelloEsporta, type PannelloEsporta } from './esportazione';
+import { creaMisureFinale, type MisureFinale } from './misureFinale';
 import { avviso, clamp, conferma, h, icona } from './dom';
 import { creaPannelloColoreAvanzato } from './coloreAvanzato';
 import { faiParlareLocale, pannelloVoceLocale } from './motoreAI';
@@ -58,13 +60,13 @@ function spostaSottotitoli(p: Project, len: number) {
 type Sezione = 'colore' | 'audio' | 'sottotitoli' | 'logo' | 'apertura' | 'lingue' | 'esporta';
 
 const SEZIONI: { id: Sezione; nome: string; icona: string; info: string }[] = [
+  { id: 'esporta', nome: 'Uscita', icona: 'esporta', info: 'controllo prima dell\'uscita, destinazione, volume, esporta e coda' },
   { id: 'colore', nome: 'Colore', icona: 'effetti', info: 'colore automatico, look e ritocchi su tutto' },
   { id: 'audio', nome: 'Audio', icona: 'altoparlante', info: 'volume finale e limitatore' },
   { id: 'sottotitoli', nome: 'Sottotitoli', icona: 'sottotitoli', info: 'righe, tempi dai dialoghi, .srt' },
   { id: 'logo', nome: 'Logo', icona: 'logo', info: 'il logo sempre in vista' },
   { id: 'apertura', nome: 'Apertura', icona: 'apertura', info: 'clip, titoli e nero all\'inizio e alla fine' },
   { id: 'lingue', nome: 'Voce e lingue', icona: 'lingua', info: 'traduci i sottotitoli e falli parlare, anche in un\'altra lingua' },
-  { id: 'esporta', nome: 'Esporta', icona: 'esporta', info: 'il master, la EDL, il fotogramma' },
 ];
 
 export class Finale {
@@ -73,7 +75,7 @@ export class Finale {
   private riepilogo: HTMLElement;
   private menu: HTMLElement;
   private campi: Campo[] = [];
-  private sezione: Sezione = 'colore';
+  private sezione: Sezione = 'esporta';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
@@ -86,6 +88,16 @@ export class Finale {
   private firmaClip = '';
   private visibile = false;
   private selVista = '';
+  // la schermata Banco: le misure sotto il monitor (VOLUME, PICCO, DURATA, USCITA) e il pannello dell'uscita
+  private misureFinale: MisureFinale = creaMisureFinale();
+  private pannelloUscita: PannelloEsporta | null = null;
+  /** il pulsante oro e il peso, fissi in fondo (solo nella pagina Uscita) */
+  private piede = h('div', { class: 'fin-piede' });
+  private titoloProgetto = h('b', { class: 'fin-titolo' });
+  private tcFine = h('span', { class: 'fin-tc', title: 'Quanto dura il montaggio' });
+
+  /** le misure da mettere sotto il monitor (le mette in griglia app.ts) */
+  get misure(): HTMLElement { return this.misureFinale.el; }
 
   constructor() {
     this.riepilogo = h('div', { class: 'fin-riepilogo' });
@@ -96,18 +108,33 @@ export class Finale {
       on: { click: () => this.mostra(z.id) },
     }, icona(z.icona, 19), h('span', null, z.nome))));
     this.el = h('section', { class: 'pannello finale' },
-      h('header', { class: 'fin-testa' }, icona('finale', 18), h('b', null, 'FINALE'), h('span', null, 'ritocchi su tutto il montaggio, poi esporta')),
-      h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
-    this.mostra('colore');
+      h('header', { class: 'fin-testa' }, icona('finale', 18),
+        h('div', { class: 'fin-testa-testi' }, h('span', { class: 'fin-etichetta' }, 'FINALE · CONTROLLO PRIMA DELL\'USCITA'), this.titoloProgetto), this.tcFine),
+      h('div', { class: 'fin-dentro' }, h('div', { class: 'fin-colonna' }, this.corpo, this.piede), this.menu));
+    this.mostra('esporta');
+    this.aggiornaTesta();
     quandoPreparazioni(() => this.aggiornaRiepilogo());
-    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
+    store.on('doc', () => { this.aggiornaTesta(); this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
     // ogni modifica manda anche 'sel': conta come «scelta nella timeline» solo se la scelta è cambiata davvero
     store.on('sel', () => { const f = [...store.sel].sort().join('|'); const cambiata = f !== this.selVista; this.selVista = f; this.sincronizzaClipColore(cambiata); });
     store.on('head', () => this.segnaRigaCorrente());
   }
 
   /** la pagina Finale è in vista (o no): il pannello del colore avanzato esiste solo mentre la si guarda */
-  mostrata(on: boolean) { this.visibile = on; this.sincronizzaClipColore(true); }
+  mostrata(on: boolean) {
+    this.visibile = on;
+    this.misureFinale.mostrata(on);
+    this.pannelloUscita?.mostrata(on && this.sezione === 'esporta');
+    if (on) this.aggiornaTesta();
+    this.sincronizzaClipColore(true);
+  }
+
+  /** il nome del progetto e quanto dura, in alto */
+  private aggiornaTesta() {
+    const p = store.doc;
+    this.titoloProgetto.textContent = p.name || 'Montaggio senza nome';
+    this.tcFine.textContent = frameToTc(projectEnd(p), p.rate, p.drop);
+  }
 
   private m(): Master { return masterDi(store.doc); }
 
@@ -128,8 +155,11 @@ export class Finale {
     let pg = this.pagine.get(z);
     if (!pg) { pg = this.costruisci(z); this.pagine.set(z, pg); }
     const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
-    this.corpo.replaceChildren(sez('Riepilogo', 'info', this.riepilogo), pg);
+    // nella pagina Uscita il riepilogo (buchi neri, file da ricollegare) sta sotto: sopra c'è il controllo
+    this.corpo.replaceChildren(...(z === 'esporta' ? [pg, sez('Riepilogo del montaggio', 'info', this.riepilogo)] : [sez('Riepilogo', 'info', this.riepilogo), pg]));
     this.corpo.scrollTop = 0;
+    this.pannelloUscita?.mostrata(this.visibile && z === 'esporta');
+    this.piede.replaceChildren(...(z === 'esporta' && this.pannelloUscita ? [this.pannelloUscita.fondo] : []));
     this.aggiornaRiepilogo();
     for (const c of this.campi) c.aggiorna();
     if (z === 'sottotitoli') { this.firmaSott = ''; this.aggiornaSott(); }
@@ -224,15 +254,18 @@ export class Finale {
     if (z === 'logo') return pagina(this.paginaLogo(sez));
     if (z === 'apertura') return pagina(...this.paginaApertura(sez));
     if (z === 'lingue') return pagina(...this.paginaLingue(sez));
-    // l'esportazione ha il suo pannello (preset, cosa esce, coda): lo stesso della finestra Ctrl+M
+    // l'uscita: controllo, destinazione, volume, coda (lo stesso pannello della finestra Ctrl+M, in versione Banco)
+    this.pannelloUscita = pannelloEsporta(undefined, { banco: true });
+    this.pannelloUscita.mostrata(this.visibile && this.sezione === 'esporta');
     const esporta = h('div', { class: 'fin-esporta' },
-      pannelloEsporta().el,
-      h('div', { class: 'fin-altri' },
-        h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
-        h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
-        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
-        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
-      h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.'));
+      this.pannelloUscita.el,
+      sez('Altri file', 'cartella',
+        h('div', { class: 'fin-altri' },
+          h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
+          h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
+          h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
+          h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
+        h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.')));
     return pagina(esporta);
   }
 
