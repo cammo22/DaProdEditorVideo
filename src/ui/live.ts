@@ -33,7 +33,7 @@ import { importaFile } from '../progetti';
 import { invoke, isAndroid, isTauri, salvaMediaSulDisco, spazioLibero } from '../platform';
 import { CursoreLive } from '../media/cursoreLive';
 import { SceltaSchermoLive } from './liveCursore';
-import { applicaZoomCursore, bloccoClicLive } from '../core/zoomCursore';
+import { applicaZoomCursore, bloccoClicLive, CameraCursore, cssCamera } from '../core/zoomCursore';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
@@ -943,6 +943,36 @@ export class Live {
     this.el.classList.remove('con-cam');
   }
 
+  /** l'anteprima in diretta dello zoom che segue il cursore: un riquadro nell'anteprima grande e il telecomando */
+  private zoomDiretta: { ferma: () => void } | null = null;
+  private avviaAnteprimaZoom() {
+    this.fermaAnteprimaZoom();
+    const cam = new CameraCursore(), t0 = performance.now();
+    let clic: { cx: number; cy: number; t: number } | null = null;
+    let win: [number, number, number, number] | null = null;
+    const v = h('video', { muted: true, autoplay: true, playsinline: true }) as HTMLVideoElement;
+    v.muted = true; v.srcObject = this.anteprima;
+    const box = h('div', { class: 'live-zoom-anteprima', title: 'Così verrà lo zoom che segue il cursore' }, v, h('span', { class: 'live-zoom-etichetta' }, 'ZOOM'));
+    this.video.parentElement?.append(box);
+    let occupato = false;
+    const giro = window.setInterval(async () => {
+      if (occupato) return;
+      occupato = true;
+      try {
+        const t = performance.now() - t0;
+        const ora = await invoke<{ cx: number; cy: number; visible: boolean; clicks: number; win?: [number, number, number, number] } | null>('cursore_ora').catch(() => null);
+        if (ora?.win) win = ora.win;
+        if (ora?.visible && ora.clicks) clic = { cx: ora.cx, cy: ora.cy, t };
+        if (clic && t - clic.t > 1900) clic = null;
+        const css = cssCamera(cam.passo(t, ora?.visible ? [ora.cx, ora.cy] : null, clic ?? undefined, () => win));
+        v.style.transform = css;
+        this.tele.zoom(css);
+      } finally { occupato = false; }
+    }, 100);
+    this.zoomDiretta = { ferma: () => { clearInterval(giro); v.srcObject = null; box.remove(); this.tele.zoom(''); } };
+  }
+  private fermaAnteprimaZoom() { this.zoomDiretta?.ferma(); this.zoomDiretta = null; }
+
   private async apriMic(): Promise<MediaStream> {
     if (microfonoProva) return risorseLive.flusso(await microfonoProva());
     const f = this.opz.audio.filtri;
@@ -1177,6 +1207,7 @@ export class Live {
     this.fase = 'fermo';
     void this.cursoreLive?.ferma().catch(() => {});
     this.cursoreLive = null;
+    this.fermaAnteprimaZoom();
     this.chiudiFlussi();
     // i registratori già partiti finiscono da soli: i loro file temporanei si tolgono appena sono chiusi
     const orfani = [...this.pezzi, ...this.segCam.flatMap((g) => g.pezzi), ...this.pezziMic];
@@ -1331,7 +1362,7 @@ export class Live {
       const monitor = this.sceltaSchermo.scelto;
       const rapporto = st0.width && st0.height && monitor ? Math.abs(st0.width / st0.height - monitor.width / monitor.height) : Infinity;
       if (!this.regia && st0.displaySurface === 'monitor' && monitor && rapporto < 0.02) {
-        try { this.cursoreLive = await CursoreLive.avvia(monitor); }
+        try { this.cursoreLive = await CursoreLive.avvia(monitor); if (o.zoomCursore) this.avviaAnteprimaZoom(); }
         catch (e) { avviso('Registro senza dati del cursore: ' + String(e), 'info', 5000); }
       } else avviso('Registro senza dati del cursore: serve uno schermo intero, scelto anche nelle Altre opzioni di LIVE', 'info', 6000);
     }
@@ -1341,6 +1372,7 @@ export class Live {
       this.fase = 'fermo';
       void this.cursoreLive?.ferma().catch(() => {});
       this.cursoreLive = null;
+    this.fermaAnteprimaZoom();
       this.chiudiFlussi();
       this.aggiornaTasti();
       avviso('Non riesco a registrare: ' + String(e), 'errore', 4000);
@@ -1476,6 +1508,7 @@ export class Live {
     const scelteCursore = { ...this.scelteCursore };
     const scene = structuredClone(this.scene);
     this.cursoreLive = null;
+    this.fermaAnteprimaZoom();
     this.fase = 'fermo';
     this.fermaGiro();
     this.aggiornaTempo();

@@ -608,6 +608,7 @@ pub fn run() {
             cursore::cursore_schermi,
             cursore::cursore_avvia,
             cursore::cursore_ferma,
+            cursore::cursore_ora,
             audio_apri,
             audio_decodifica,
             audio_chiudi,
