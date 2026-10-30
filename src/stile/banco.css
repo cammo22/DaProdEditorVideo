@@ -240,3 +240,65 @@ input[type='range']:focus-visible { outline-offset: 4px; }
 .tl-vbar:hover .tl-vpollice, .tl-vbar.preso .tl-vpollice { border-color: var(--cia); background: linear-gradient(90deg, #4a4858, #37363f); }
 .divisore { background: linear-gradient(180deg, #0b0a0f, #1a1920 50%, #0b0a0f); }
 .bordo { background: var(--fondo); }
+
+/* Scene: il formato del progetto resta uguale fra anteprima e keyframe. */
+.live-schermo, .tele-quadro { container-type: size; }
+.scene-stage { position: absolute; width: min(100cqw, calc(100cqh * var(--rapporto-scena, 1.7777778))); height: min(100cqh, calc(100cqw / var(--rapporto-scena, 1.7777778))); left: 50%; top: 50%; transform: translate(-50%, -50%); overflow: hidden; background: var(--vetrino); }
+#app .live .live-schermo .live-quadro { inset: 0; transform: none; width: 100%; height: 100%; }
+.scene-stage video { display: block; max-width: none; max-height: none; box-shadow: none; }
+.scene-titolo { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: var(--pann); color: var(--testo); opacity: 0; pointer-events: none; transition: opacity 320ms ease; font: 700 clamp(18px, 4cqw, 64px) var(--ui); letter-spacing: 3px; }
+.scene-titolo small { font-size: 12px; color: var(--etichetta); }
+.scene-titolo.acceso { opacity: 1; }
+.live-scene, .tele-scene { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.live-scene .scena-btn, .live-mini .scena-btn { min-height: 44px; height: 44px; padding: 0 6px; gap: 5px; min-width: 0; font: 700 13px var(--ui); }
+.scena-btn kbd { font: 12px var(--tc); opacity: .7; }
+.live .scena-btn.attiva, .live-mini .scena-btn.attiva { background: var(--cia-fondo); border-color: var(--cia); color: var(--cia); box-shadow: inset 0 -2px var(--cia); }
+
+/* Telecomando Banco: tutti i comandi restano nella finestra, anche con anteprima spenta. */
+.live-mini.su { overflow: hidden; gap: 6px; padding: 8px; background: var(--fondo); }
+.live-mini .tele-testa { flex: none; padding: 0 6px; gap: 6px; min-height: 44px; background: var(--vetrino); }
+.live-mini .tele-torna { min-height: 44px; height: 44px; }
+.live-mini .tele-quadro { flex: 1 1 auto; min-height: 64px; border-radius: var(--raggio); background: var(--vetrino); }
+.live-mini .tele-tasti { flex: none; grid-template-columns: 1.4fr 1.1fr 1fr; gap: 6px; }
+.live-mini .live-btn { min-height: 44px; height: 44px; padding: 0 6px; background: var(--metallo-tasto); border: 1px solid var(--bordo-forte); color: var(--testo); box-shadow: inset 0 1px rgba(255,255,255,.08); font: 700 14px var(--ui); }
+.live-mini .tele-rec { font-size: 18px; }
+.live-mini.in-onda .live-btn.ferma { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.sta-registrando .tele-rec { border-color: var(--rosso); color: var(--rosso); background: var(--metallo-tasto); }
+.live-mini .live-mini-punto { background: var(--verde); }
+.live-mini.in-pausa .live-mini-punto { background: var(--etichetta); box-shadow: none; }
+.live-mini.in-pausa .tele-spia, .live-mini.in-pausa .tele-tempo { color: var(--etichetta); }
+.live-mini .tele-tempo { font: 26px var(--tc); }
+.live-mini .tele-livelli { position: static; flex: none; width: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; pointer-events: auto; }
+.live-mini .tele-liv { display: flex; flex-direction: column; gap: 3px; min-width: 0; filter: none; }
+.live-mini .tele-liv > span { flex: none; width: 100%; height: 5px; background: var(--vetrino); }
+.live-mini .tele-muto { width: 100%; font-size: 12px; letter-spacing: 1px; }
+.live-mini .tele-piede { flex: none; font: 12px var(--ui); color: var(--etichetta); }
+.live-mini .tele-spia { font: 700 12px var(--ui); letter-spacing: 3px; }
+.live-mini .tele-pausa-scritta { color: var(--etichetta); border-color: var(--bordo-forte); }
+.live-mini .tele-scene { flex: none; }
+.live .live-schermo .scene-stage .live-cam { display: none; }
+.live.con-cam .live-schermo .scene-stage .live-cam { display: block; }
+.live .live-vuoto:not(.via) { z-index: 2; pointer-events: none; }
+.live-mini.sta-registrando .live-mini-punto { background: var(--rosso); }
+.live-mini:not(.sta-registrando):not(.in-pausa) .live-mini-punto { background: var(--verde); animation: none; box-shadow: none; }
+.live-mini:not(.sta-registrando) .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+/* I caratteri del telecomando e di LIVE sono quelli del Banco, anche per i numeri. */
+.live, .live-mini { --tc: 'Share Tech Mono', monospace; }
+.live-mini.su .live-btn { min-height: 44px; height: 44px; font-family: var(--ui); background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.su .live-btn.acceso, .live-mini.su .scena-btn.attiva { color: var(--cia); border-color: var(--cia); }
+.live-mini.su.in-onda .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.su.sta-registrando .tele-rec { color: var(--rosso); border-color: var(--rosso); }
+.live-mini.su .tele-piede kbd { font: 12px 'Share Tech Mono', monospace; }
+.live-mini.su .tele-torna { height: 44px; min-height: 44px; }
+.live-mini.su.in-onda .live-btn.tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); font-size: 18px; }
+.live-mini.su.sta-registrando .live-btn.tele-rec { color: var(--rosso); border-color: var(--rosso); }
+.live.con-presentazione .scene-stage { background: var(--live-sfondo); }
+
+.live-mini .tele-quadro.spenta .scene-stage { visibility: hidden; }
+/* Sulla finestra 1280×720 le sei scene stanno su una riga: le due corsie restano tutte a vista. */
+@media (min-width: 1181px) and (max-width: 1400px) {
+  .live-scene { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+  .live-scene .scena-btn { padding: 0 2px; font-size: 12px; line-height: 12px; letter-spacing: 0; white-space: normal; }
+  .live-scene .scena-btn kbd { display: none; }
+}
+.live-mini.su .live-btn.tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); font-size: 18px; }

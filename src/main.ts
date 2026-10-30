@@ -2,6 +2,7 @@
 import '@fontsource/orbitron/latin-700.css';
 import '@fontsource/orbitron/latin-900.css';
 import '@fontsource/rajdhani/latin-500.css';
+import '@fontsource/share-tech-mono/latin-400.css';
 import '@fontsource/rajdhani/latin-600.css';
 import '@fontsource/rajdhani/latin-700.css';
 // i caratteri delle animazioni (sottopancia, titoli da cerimonia…): solo il latino, ognuno si scarica quando serve

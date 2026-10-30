@@ -14,9 +14,9 @@ function ambiente() {
     window: { addEventListener: (_, fn) => { handler = fn; } },
     document: { querySelector: () => null, documentElement: { classList: { contains: () => false } } },
   });
-  return (tagName, interattivo) => {
+  return (tagName, interattivo, defaultPrevented = false) => {
     let impedito = false;
-    handler({ target: { tagName, closest: () => interattivo ? {} : null }, key: 'Tab', code: 'Tab',
+    handler({ defaultPrevented, target: { tagName, closest: () => interattivo ? {} : null }, key: 'Tab', code: 'Tab',
       preventDefault: () => { impedito = true; } });
     return { impedito, chiamate };
   };
@@ -29,4 +29,8 @@ test('Tab sulla timeline conserva il cambio monitor storico', () => {
 });
 test('Tab nei campi non attiva il cambio monitor', () => {
   assert.deepEqual(ambiente()('INPUT', true), { impedito: false, chiamate: 0 });
+});
+
+test('un tasto già preso da LIVE non attiva un secondo comando globale', () => {
+  assert.deepEqual(ambiente()('CANVAS', false, true), { impedito: false, chiamate: 0 });
 });

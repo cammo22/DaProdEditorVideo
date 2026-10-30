@@ -121,3 +121,8 @@ Caratteri dei titoli HTML: solo quelli già nel programma, tutti con licenza SIL
 ## SAM 2.1 Tiny · Apache-2.0
 
 Il ritaglio usa [SAM 2.1 Tiny di Meta](https://huggingface.co/facebook/sam2.1-hiera-tiny), nella [conversione ONNX CardAnvilModels](https://huggingface.co/CardAnvilModels/sam2.1-hiera-tiny-ONNX): la scheda dichiara Apache-2.0 e copia invariata della conversione ONNX Community. I pesi si scaricano al primo uso, non sono inclusi nell’app. La licenza è nel repository del modello.
+
+## Share Tech Mono · SIL OFL 1.1
+
+Timecode LIVE e telecomando: Share Tech Mono di Carrois Type Design, incluso localmente tramite `@fontsource/share-tech-mono`; licenza SIL Open Font License 1.1 nel pacchetto (`LICENSE`).
+Copia distribuita con il programma: `licenze/Share-Tech-Mono-OFL.txt`.

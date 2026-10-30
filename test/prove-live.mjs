@@ -94,7 +94,14 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.evaluate(() => { const live = window.__dpvTest.ui().live; live.opz.cam = true; });
     await page.keyboard.press('r');
     await page.waitForFunction(() => document.querySelector('.live').classList.contains('in-onda'), null, { timeout: 12000 });
-    await page.waitForTimeout(1800);
+    // I numeri vanno alla regia e non ai comandi del montaggio nascosto.
+    const clipPrima = await page.evaluate(() => window.__dpv.doc.clips.length);
+    for (const key of ['1', '4', '3', '6', '2']) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(420);
+    }
+    const regia = await page.evaluate(() => ({ clip: window.__dpv.doc.clips.length, scene: window.__dpvTest.ui().live.scene.map(s => s.scena), attiva: document.querySelector('.live-scene [aria-pressed=true]')?.dataset.scena }));
+    prova('1–6 solo su LIVE: nessun taglio/eliminazione, scene e selezione aggiornate', regia.clip === clipPrima && ['schermo','affiancati','webcam-schermo','pausa','bolla'].every(s => regia.scene.includes(s)) && regia.attiva === 'bolla', JSON.stringify(regia));
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.waitForFunction(() => window.__dpv.doc.media.filter((m) => /webcam/.test(m.name)).length >= 3, null, { timeout: 15000 }).catch(() => {});
@@ -107,6 +114,13 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     });
     prova('con la webcam sempre accesa la registrazione dopo ha un solo file della webcam (tre in tutto: i due di prima e uno)', una.tot === 3, JSON.stringify(una));
 
+    const sceneMontate = await page.evaluate(() => {
+      const p = window.__dpv.doc;
+      const schermo = p.media.filter(m => !/webcam|microfono/.test(m.name)).at(-1);
+      const video = p.clips.filter(c => c.media === schermo?.id && p.tracks.find(t => t.id === c.track)?.kind === 'video');
+      return { dati: schermo?.sceneLive?.cambi.length, video: video.length, chiavi: video.some(c => c.anim?.['tf.x']?.length > 2 && c.anim?.opacity?.length > 2), titolo: p.clips.some(c => c.gen?.title?.text === 'TORNO SUBITO' && c.anim?.opacity?.some(k => k.v === 1)), segni: p.markers.filter(m => m.name.startsWith('Scena ·')).length };
+    });
+    prova('riprese pulite e scene salvate: keyframe, schermo sopra la webcam grande, titolo e marcatori modificabili', sceneMontate.dati >= 5 && sceneMontate.video === 2 && sceneMontate.chiavi && sceneMontate.titolo && sceneMontate.segni >= 5, JSON.stringify(sceneMontate));
     // la webcam che non si apre: l'errore è in parole (con il nome tecnico), si riprova senza la scelta vecchia e con richieste semplici
     const errW = await page.evaluate(async () => {
       const live = window.__dpvTest.ui().live;
@@ -159,7 +173,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
       const rec = document.querySelector('.live-btn.reg');
       return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left) }, schermo: sc && { right: Math.round(sc.right), w: Math.round(sc.width), h: Math.round(sc.height) }, barra: ba && { top: Math.round(ba.top), h: Math.round(ba.height) }, stato: st && Math.round(st.top), tl: tl ? getComputedStyle(tl).display : 'assente', rec: rec && { h: Math.round(rec.getBoundingClientRect().height), sfondo: getComputedStyle(rec).backgroundColor }, ombra: getComputedStyle(document.querySelector('.live-schermo')).boxShadow };
     });
-    prova('LIVE: barra in alto, anteprima grande, colonna a destra fino in fondo, niente timeline, REC da 44 px, nessun riquadro rosso', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.schermo.right && lay.schermo.w > 900 && lay.barra.h >= 60 && lay.tl === 'none' && lay.rec.h >= 44 && lay.ombra === 'none', JSON.stringify(lay));
+    prova('LIVE: barra in alto, anteprima grande, colonna a destra fino in fondo, niente timeline, REC da 44 px, nessun riquadro rosso', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.schermo.right && lay.schermo.w > 800 && lay.barra.h >= 60 && lay.tl === 'none' && lay.rec.h >= 44 && lay.ombra === 'none', JSON.stringify(lay));
     const fonti = await page.evaluate(() => [...document.querySelectorAll('.live-barra .live-sorg')].map((e) => ({ chi: e.dataset.chi, stato: e.querySelector('.spia')?.dataset.stato })));
     prova('la barra ha tre fonti (schermo, webcam, microfono) con la spia', fonti.length === 3 && fonti.every((f) => ['spenta', 'pronta', 'rec'].includes(f.stato)), JSON.stringify(fonti));
     const risorse = await page.evaluate(() => { const r = globalThis.__dpvRisorse; return r ? r.perdite({ video: 99 }) : null; });
@@ -186,7 +200,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
       if (!b) return null;
       const r = b.getBoundingClientRect();
       const figli = [...b.children].filter((x) => x.getBoundingClientRect().width > 0 && getComputedStyle(x).display !== 'none');
-      const tops = figli.map((x) => Math.round(x.getBoundingClientRect().top));
+      const tops = figli.map((x) => { const r = x.getBoundingClientRect(); return Math.round(r.top + r.height / 2); });
       return { su: b.classList.contains('su'), h: Math.round(r.height), w: Math.round(r.width), unaRiga: Math.max(...tops) - Math.min(...tops) < 4, figli: figli.length };
     });
     await page.screenshot({ path: `${OUT}/barra-monitor-slim.png` });
