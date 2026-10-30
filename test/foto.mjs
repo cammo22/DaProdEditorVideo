@@ -123,7 +123,6 @@ async function scatta(nome, viewport, extra = {}) {
     });
     await p.click('.pagina-btn[data-p=live]');
     await p.click('.live .fin-interruttore:has-text("Webcam")');
-    await p.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
     await p.click('.live .fin-interruttore:has-text("Stile presentazione")');
     await p.click('.live-sfondo[title=Tramonto]');
     await p.evaluate(() => { document.querySelector('.live-comandi').scrollTop = 0; });

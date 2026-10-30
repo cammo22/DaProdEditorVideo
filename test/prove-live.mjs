@@ -39,9 +39,9 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(400);
 
-    // la colonna dei comandi è stretta e compatta (300-340 px) e non scorre di lato
-    const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1 }; });
-    prova('la colonna dei comandi di LIVE è compatta (300-340 px a 1600 di larghezza) e non scorre di lato', col.w >= 300 && col.w <= 341 && !col.scrollX, JSON.stringify(col));
+    // la colonna usa --livecol, mostra le opzioni e non scorre di lato
+    const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1, opzioni: document.querySelector('.live-configurazione')?.tagName === 'SECTION' }; });
+    prova('la colonna usa --livecol, mostra le opzioni e non scorre di lato', col.w >= 380 && col.w <= 600 && !col.scrollX && col.opzioni, JSON.stringify(col));
 
     // prima di registrare: il tasto WEBCAM e il tasto C accendono e spengono
     const stato = () => page.evaluate(() => ({ opz: window.__dpvTest.ui().live.opz.cam, anteprima: document.querySelector('.live').classList.contains('con-cam'), tasto: document.querySelector('.live-btn.cam').classList.contains('acceso'), interruttore: [...document.querySelectorAll('.live .fin-interruttore')].find((e) => /Webcam/.test(e.textContent))?.classList.contains('acceso') }));

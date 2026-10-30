@@ -15,12 +15,12 @@
 #app[data-pagina='live'] .live, #app[data-pagina='live']:not(.stretto) .live { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--fondo); }
 #app[data-pagina='live'] .live-dentro, #app[data-pagina='live']:not(.stretto) .live-dentro {
   flex: 1; min-height: 0; display: grid; gap: 0; padding: 0;
-  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 340px);
+  grid-template-columns: minmax(0, 1fr) var(--livecol);
 }
 #app[data-pagina='live']:not(.stretto) .live-schermo { grid-area: auto; margin: 20px; }
-#app[data-pagina='live']:not(.stretto) .live-comandi { grid-area: auto; padding: 20px; }
+#app[data-pagina='live'] .live-comandi { grid-area: auto; padding: 14px; }
 /* finestra stretta: l'anteprima sopra, la colonna sotto */
-.stretto .live-dentro { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(200px, 38vh) auto; overflow: auto; }
+#app[data-pagina='live'].stretto .live-dentro { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(200px, 38vh) minmax(0, 1fr); overflow: hidden; }
 .stretto .live-schermo { margin: 12px; }
 
 /* ——— la barra in alto ——— */
@@ -86,7 +86,7 @@
 @keyframes live-lampo-banco { 0% { box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.55); } 100% { box-shadow: inset 0 0 0 0 transparent; } }
 
 /* ——— la colonna a destra ——— */
-#app .live .live-comandi { display: flex; flex-direction: column; gap: 18px; overflow-x: hidden; overflow-y: auto; background: var(--pann); border-left: 1px solid var(--bordo); box-shadow: none; min-height: 0; }
+#app .live .live-comandi { display: flex; flex-direction: column; gap: 12px; overflow-x: hidden; overflow-y: auto; background: var(--pann); border-left: 1px solid var(--bordo); box-shadow: none; min-height: 0; }
 .live-comandi .live-sez { margin: 0 0 8px; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--etichetta, #8d889c); }
 .live-comandi .live-blocco { display: flex; flex-direction: column; gap: 8px; }
 .live-comandi .live-blocco > .live-sez { margin-bottom: 0; }
@@ -116,25 +116,33 @@
 .live-forme { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .live-angoli .chip, .live-forme .chip { height: 44px; padding: 0; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: #cfcadb; font: 700 22px var(--ui); box-shadow: none; }
 .live-forme .chip { font-size: 15px; letter-spacing: 1px; }
-.live-angoli .chip.acceso, .live-forme .chip.acceso { background: var(--cia); border-color: transparent; color: #06171b; box-shadow: none; }
+.live-angoli .chip.acceso, .live-forme .chip.acceso { background: var(--metallo-chiaro); border-color: var(--cia); color: var(--cia); box-shadow: inset 0 -3px var(--cia); }
 .live:not(.con-cam) .live-angoli, .live:not(.con-cam) .live-forme { opacity: 0.6; }
 
-/* altre opzioni e registrazioni pronte: raccolte, con l'etichetta incisa (niente oro) */
+/* Le opzioni restano visibili; solo l'archivio si può richiudere. */
 .live-comandi .live-configurazione, .live-comandi .live-archivio { padding: 0; border-top: 1px solid var(--bordo); }
-.live-comandi .live-configurazione summary, .live-comandi .live-archivio summary { padding: 12px 2px; min-height: 44px; display: flex; align-items: center; font: 700 12px var(--ui); letter-spacing: 3px; color: var(--etichetta, #8d889c); }
-.live-comandi .live-configurazione[open] > summary, .live-comandi .live-archivio[open] > summary { color: var(--testo); }
-.live-configurazione .live-sez { margin: 14px 2px 6px; }
-.live-configurazione .fin-interruttore { height: 34px; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo); box-shadow: none; font: 600 13px var(--ui); color: var(--testo); }
-.live-configurazione .fin-interruttore.acceso { box-shadow: none; border-color: rgba(93, 255, 180, 0.35); }
-.live-configurazione .live-btn { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); box-shadow: none; font: 700 12px var(--ui); }
-.live-configurazione .live-sel, .live-comandi .live-sel { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: #050407; font: 600 13px var(--ui); max-width: none; }
-.live-configurazione .live-chips .chip { height: 34px; padding: 0 12px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: #cfcadb; font: 700 13px var(--ui); box-shadow: none; }
-.live-configurazione .live-chips .chip.acceso, .live-comandi .live-chips .chip.acceso { background: var(--cia); border-color: transparent; color: #06171b; box-shadow: none; }
+.live-comandi .live-configurazione { display: flex; flex-direction: column; gap: 6px; }
+.live-comandi .live-configurazione > .live-sez { margin: 10px 0 2px; }
+.live-comandi .live-archivio summary { padding: 10px 2px; min-height: 44px; display: flex; align-items: center; font: 700 12px var(--ui); letter-spacing: 3px; color: var(--etichetta, #8d889c); }
+.live-configurazione .live-griglia { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.live-configurazione .fin-interruttore {
+  min-height: 44px; height: auto; padding: 8px 12px; flex-direction: row-reverse; justify-content: space-between;
+  white-space: normal; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo);
+  box-shadow: none; font: 600 14px var(--ui); color: var(--testo);
+}
+.live-configurazione .fin-interruttore.acceso { box-shadow: none; border-color: var(--bordo); }
+.live-configurazione .live-btn { min-height: 44px; height: auto; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); box-shadow: none; font: 700 12px var(--ui); }
+.live-comandi .live-sel { height: 44px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: #050407; font: 600 13px var(--ui); max-width: none; }
+.live-configurazione .live-chips .chip { min-height: 44px; height: auto; padding: 0 10px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: var(--testo); font: 700 13px var(--ui); box-shadow: none; }
+.live-configurazione .live-chips .chip.acceso, .live-comandi .live-chips .chip.acceso { background: var(--metallo-chiaro); border-color: var(--cia); color: var(--cia); box-shadow: inset 0 -3px var(--cia); }
+.live-configurazione .live-riga { flex-wrap: wrap; }
+.live-configurazione .live-sfondi { flex-wrap: wrap; }
+.live-configurazione .live-sfondo { width: 44px; height: 44px; }
 .live-dispositivi { display: flex; flex-direction: column; gap: 8px; }
 .live-dispositivi label { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; font: 600 13px var(--ui); color: var(--testo2); }
 .live-dispositivi .live-sel { width: 100%; }
 .live-configurazione .live-sfondo.acceso { box-shadow: 0 0 0 2px var(--cia); }
-.live-nota-fine { margin: auto 0 0; font: 500 14px/1.4 var(--ui); color: var(--etichetta, #8d889c); }
+.live-nota-fine { margin: 0; font: 500 14px/1.4 var(--ui); color: var(--etichetta, #8d889c); }
 .live-tasti-nota { margin: 0; font: 500 12px var(--ui); color: var(--testo3); }
 .live-tasti-nota kbd { color: var(--testo2); }
 

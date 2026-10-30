@@ -41,6 +41,8 @@ test('Finale ha un solo pannello Esporta e il pannello un solo pulsante principa
 test('LIVE espone fase autorevole e sezioni sorgenti audio registrazioni', () => {
   const s = src('ui/live.ts');
   for (const nome of ['live-fase-certa', 'live-fonti-stato', 'live-configurazione', 'live-archivio']) assert.ok(s.includes(nome), nome);
+  assert.match(s, /h\('section', \{ class: 'live-configurazione'.*sezione\('Altre opzioni'\)/);
+  assert.ok(!s.includes("h('details', { class: 'live-configurazione' }"));
 });
 test('Attività conserva Sovraccarica e permette scartare le proposte in batch', () => {
   const s = src('ui/attivita.ts');
