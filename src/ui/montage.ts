@@ -104,9 +104,9 @@ export class Montage {
     this.campiTesto = h('div', { class: 'mt-testi' });
     this.selMusica = h('select', { class: 'mini-select largo', title: 'La musica del video', on: { change: () => { this.s.musica = this.selMusica.value; this.aggiorna(); } } }) as HTMLSelectElement;
     this.bCrea = h('button', { class: 'btn primario mt-crea', on: { click: () => void this.crea() } }, 'Crea anteprima') as HTMLButtonElement;
-    this.bRigenera = h('button', { class: 'btn mt-rigenera', title: 'Un altro montaggio con le stesse scelte: cambiano movimenti, durate, transizioni ed effetti', on: { click: () => void this.crea() } }, '🎲 RIGENERA') as HTMLButtonElement;
+    this.bRigenera = h('button', { class: 'btn mt-rigenera', title: 'Un altro montaggio con le stesse scelte: cambiano movimenti, durate, transizioni ed effetti', on: { click: () => void this.crea() } }, 'Rigenera') as HTMLButtonElement;
     this.bImporta = h('button', { class: 'btn primario mt-importa', title: 'Tiene questo montaggio e apre la timeline per ritoccarlo', on: { click: () => this.importa() } }, 'Tieni e apri nel Montaggio') as HTMLButtonElement;
-    this.bScarta = h('button', { class: 'btn mt-scarta', title: 'Toglie l\'anteprima e torna a com\'era prima', on: { click: () => this.scarta() } }, '✖ Scarta') as HTMLButtonElement;
+    this.bScarta = h('button', { class: 'btn mt-scarta', title: 'Toglie l\'anteprima e torna a com\'era prima', on: { click: () => this.scarta() } }, 'Scarta') as HTMLButtonElement;
     this.etichetta = h('span', { class: 'mt-variante' });
 
     const chip = (testo: string, acceso: () => boolean, fn: () => void, title = '') => {
@@ -178,7 +178,7 @@ export class Montage {
       this.riepilogo);
 
     this.el = h('section', { class: 'montage' },
-      h('header', { class: 'fin-testa' }, h('b', null, 'DAPROD'), h('b', { class: 'mt-m' }, 'MONTAGE'), h('span', null, 'butta dentro le foto, scegli la festa e il programma monta da solo'),
+      h('header', { class: 'fin-testa' }, h('b', null, 'DAPROD'), h('b', { class: 'mt-m' }, 'MONTAGE'), h('span', { class: 'sch-cartellino', 'data-stato': 'pronta', title: 'Funziona sul computer, senza AI da scaricare' }, 'PRONTA'), h('span', null, 'butta dentro le foto, scegli la festa e il programma monta da solo'),
         h('span', { class: 'live-tastiera' }, 'F8 · poi ritocchi tutto nel Montaggio')),
       h('div', { class: 'mt-azioni' }, this.bCrea, this.bRigenera, this.bImporta, this.bScarta, this.etichetta, h('div', { class: 'mt-lavoro' }, ...this.lavoro.elementi)),
       h('nav', { class: 'mt-etapes', 'aria-label': 'Preparazione del montaggio' }, ['1 · Foto e video', '2 · Stile', '3 · Durata, ordine e musica'].map((t, i) => h('button', { class: 'btn', on: { click: () => this.mostraPasso(i) } }, t))),

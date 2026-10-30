@@ -26,6 +26,8 @@ import { liberaVram } from '../media/vram';
 import { registra as reg } from '../azioni';
 import '../stile/copieAI.css';
 import { schedaMotoreLocale } from './motoreAI';
+import { FUNZIONI_AI as REGISTRO_AI } from '../core/funzioniAI';
+import { etichettaStato, ordinaPerStato, pesoDaMb, pesoEVram } from '../core/schedaAI';
 
 export interface FunzioneAI {
   id: string;
@@ -207,7 +209,7 @@ export function finestraCentroAI(subito = false) {
       r.togli.disabled = s.stato === 'da-scaricare';
       r.scarica.disabled = occupato;
       r.togli.disabled ||= occupato;
-      r.peso.textContent = `Download completo: circa ${m.mb} MB · resta su questo computer`;
+      r.peso.textContent = pesoEVram({ peso: m.mb ? 'circa ' + pesoDaMb(m.mb) : undefined, vram: 'non misurabile dal browser' }).riga + ' · resta su questo computer';
       const idoneita = idoneitaAI(m, hardware, usaSchedaAI());
       r.macchina.textContent = `${idoneita.dove} · ${idoneita.testo}`;
       r.macchina.dataset.esito = idoneita.ok === false ? 'lento' : 'stima';
@@ -242,7 +244,7 @@ export function finestraCentroAI(subito = false) {
       const attuale = () => lista.find((x) => x.id === m.id)!;
       const bScarica = h('button', { class: 'btn-mini', disabled: true, on: { click: async () => { bloccaTutto(true); await scarica(attuale()); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
       const bTogli = h('button', { class: 'btn-mini', disabled: true, title: 'Toglie il modello dal computer (potrai scaricarlo di nuovo)', on: { click: async () => { bloccaTutto(true); try { await attuale().togli(); } finally { bloccaTutto(false); await disegna(); void aggSpazio(); } } } }, 'Togli') as HTMLButtonElement;
-      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, 'Opzionale')), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
+      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, etichettaStato('opzionale'))), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
       righe.set(m.id, { el, stato, msg, peso, macchina, scarica: bScarica, togli: bTogli });
       return el;
     }),
@@ -303,6 +305,7 @@ export function finestraCentroAI(subito = false) {
 
   d.corpo.append(
     schedaMotoreLocale(),
+    schedeRegistro(),
     h('section', { class: 'ai-sezione' },
       h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
       h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),
@@ -314,9 +317,24 @@ export function finestraCentroAI(subito = false) {
       h('div', { class: 'ai-imp' }, h('span', null, 'Dopo un minuto e mezzo senza AI i modelli escono da soli dalla scheda video'), liberaMemoria),
       h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (se richiesto). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face'), chiaveHF, salvaChiave),
       nvidia));
-  d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
+  d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn chiudi', on: { click: d.chiudi } }, 'Chiudi'));
   if (subito) void fai();
   return d;
+}
+
+/** le funzioni del registro AI (src/core/funzioniAI.ts), una scheda per ognuna: cartellino, peso, VRAM e il tasto per usarla */
+function schedeRegistro(): HTMLElement {
+  const sez = h('section', { class: 'ai-sezione', 'data-ai': 'registro' });
+  if (!REGISTRO_AI.length) { sez.hidden = true; return sez; }
+  sez.append(h('h4', null, 'Funzioni AI'), h('div', { class: 'sch-funzioni' }, ordinaPerStato(REGISTRO_AI).map((f) => {
+    const pv = pesoEVram(f);
+    return h('div', { class: 'sch-funzione', 'data-funzione': f.id },
+      h('span', { class: 'sch-cartellino', 'data-stato': f.stato }, etichettaStato(f.stato)),
+      h('b', null, f.nome), h('p', null, f.descrizione),
+      h('small', { class: 'sch-pesovram' }, pv.riga + ' · ' + (f.motore === 'locale' ? 'motore locale' : 'nel browser')),
+      f.esegui ? h('button', { class: 'btn-mini', on: { click: () => { void f.esegui!({ clipIds: [...store.sel] }).catch((e) => avviso(spiegaErroreAI(e), 'errore', 6000)); } } }, 'Usa') : null);
+  })));
+  return sez;
 }
 
 function disegnaDiagnosi(el: HTMLElement, g: Diagnosi) {

@@ -292,5 +292,5 @@ export function finestraGuida(id?: string) {
   d.piede.append(
     h('button', { class: 'btn', on: { click: () => { d.chiudi(); evento('dpv:tasti'); } } }, '⌨ Tutti i tasti'),
     h('span', { class: 'spazio' }),
-    h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
+    h('button', { class: 'btn', on: { click: d.chiudi } }, 'Chiudi'));
 }

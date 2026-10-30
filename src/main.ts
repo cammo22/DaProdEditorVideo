@@ -29,6 +29,8 @@ import './stile/flussi.css';
 import './stile/guscio.css';
 import './stile/titoliHtml.css';
 import { avvia } from './ui/app';
+// il sistema «Banco» sulle altre schermate: va DOPO tutti gli altri stili (anche quelli che arrivano con ui/app)
+import './stile/schermate.css';
 import { h } from './ui/dom';
 import { isTauri } from './platform';
 import { preparaRiserva } from './media/riserva';

@@ -48,7 +48,7 @@ export function finestraMontaggioTesto() {
   const soglia = h('input', { class: 'num', type: 'number', min: '0.1', max: '60', step: '0.1', value: '0.7', 'aria-label': 'Silenzio minimo in secondi' });
   const elenco = h('input', { type: 'text', value: 'ehm, uhm, allora', 'aria-label': 'Intercalari separati da virgole' });
   const anteprima = h('p', { class: 'testo-anteprima', role: 'status', 'aria-live': 'polite' });
-  const trascrivi = h('button', { class: 'btn primario', on: { click: () => void ascolta() } }, 'Trascrivi la clip');
+  const trascrivi = h('button', { class: 'btn', on: { click: () => void ascolta() } }, 'Trascrivi la clip');
   const togli = h('button', { class: 'btn', on: { click: () => eliminaParole() } }, 'Togli le parole scelte (Canc)');
   const silenzi = h('button', { class: 'btn', on: { click: () => {
     if (!soglia.checkValidity() || !Number.isFinite(soglia.valueAsNumber)) { soglia.reportValidity(); return; }
@@ -56,7 +56,7 @@ export function finestraMontaggioTesto() {
     prepara(pezzi().flatMap((c) => intervalliSilenzi(parole.filter((w) => w.clip === c.id), { da: c.start, a: end(c) }, soglia.valueAsNumber * r, Math.round(0.08 * r))));
   } } }, 'Togli i silenzi più lunghi di');
   const intercalari = h('button', { class: 'btn', on: { click: () => prepara(intervalliIntercalari(parole, elenco.value, fps(store.doc.rate) * 3)) } }, 'Togli ehm/uhm/allora ripetuti');
-  const applica = h('button', { class: 'btn primario', on: { click: () => esegui('Testo · pulisci il parlato') } }, 'Applica i tagli');
+  const applica = h('button', { class: 'btn', on: { click: () => esegui('Testo · pulisci il parlato') } }, 'Applica i tagli');
   const indietro = h('button', { class: 'btn', on: { click: () => store.doUndo() } }, 'Annulla');
   const pezzi = () => store.doc.clips.filter((c) => gruppo(c) === scelta && c.kind === 'media');
   const azzera = () => { piano = null; anteprima.textContent = ''; applica.disabled = true; testo.querySelectorAll('.taglio').forEach((n) => n.classList.remove('taglio')); };
@@ -94,6 +94,9 @@ export function finestraMontaggioTesto() {
     } }, w.testo), ' ']));
     if (!parole.length) testo.textContent = lista.length ? 'Premi «Trascrivi la clip» per vedere il parlato con i tempi per parola.' : 'Metti una clip video o audio nella timeline, poi riapri Testo.';
     trascrivi.disabled = !!ctrl || !pezzi().length;
+    // un solo pulsante oro: prima si trascrive, poi si applicano i tagli
+    trascrivi.classList.toggle('primario', !parole.length);
+    applica.classList.toggle('primario', !!parole.length);
     trascrivi.textContent = parole.length ? 'Rifai il testo della clip' : 'Trascrivi la clip';
     silenzi.disabled = intercalari.disabled = !!ctrl || !parole.length;
     clip.disabled = lingua.disabled = modello.disabled = !!ctrl;

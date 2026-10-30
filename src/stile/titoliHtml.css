@@ -1,7 +1,7 @@
-/* Titoli animati HTML: le righe dedicate nel pannello Proprietà e nella Libreria.
+/* Titoli animati HTML: le righe dedicate nel pannello Proprietà e nella Libreria, nel sistema Banco.
    (Il CSS dei titoli veri sta dentro i modelli, in src/core/titoliHtml.ts: gira dentro l'immagine SVG, non nella pagina.) */
-.html-nota { color: var(--testo-3, #6f6b7d); font-size: 12px; line-height: 1.4; margin: 6px 0 0; overflow-wrap: anywhere; }
-.html-stato { display: flex; align-items: flex-start; gap: 6px; margin-top: 6px; font-size: 12px; line-height: 1.35; color: var(--testo-2, #a19db0); overflow-wrap: anywhere; }
-.html-stato i { flex: none; margin-top: 4px; width: 8px; height: 8px; border-radius: 50%; background: #5dffb4; box-shadow: 0 0 6px #5dffb4; }
+.html-nota { color: #a19db0; font: 500 13.5px/1.4 var(--ui, Rajdhani, sans-serif); margin: 6px 0 0; overflow-wrap: anywhere; }
+.html-stato { display: flex; align-items: flex-start; gap: 8px; margin-top: 6px; padding: 8px 10px; border-radius: 5px; background: #050407; border: 1px solid rgba(255, 255, 255, 0.08); font: 500 14px/1.35 var(--ui, Rajdhani, sans-serif); color: #cfcadb; overflow-wrap: anywhere; }
+.html-stato i { flex: none; margin-top: 5px; width: 9px; height: 9px; border-radius: 50%; background: #5dffb4; box-shadow: 0 0 6px #5dffb4; }
 .html-stato.ripiego i { background: #ffb23d; box-shadow: 0 0 6px #ffb23d; }
 .carta[data-html] .carta-nome { letter-spacing: .02em; }

@@ -15,6 +15,8 @@ import { finestraAggiornamenti, finestraNovita } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
 import { finestraGuida } from './guida';
 import { finestraCentroAI, FUNZIONI_AI } from './centroAI';
+import { FUNZIONI_AI as REGISTRO_AI } from '../core/funzioniAI';
+import { etichettaStato, ordinaPerStato } from '../core/schedaAI';
 import { copieLeggereAutomatiche, impostaCopieLeggereAutomatiche, modoProxy, impostaModoProxy, svuotaProxy } from '../media/proxy';
 import { svuotaCache } from '../media/cache';
 
@@ -90,6 +92,8 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: 'Centro AI (tutte le funzioni, come si usano)…', fn: () => finestraCentroAI() },
       { sep: true },
       ...FUNZIONI_AI.map((f) => ({ nome: `${f.icona} ${f.nome}`, fn: f.apri })),
+      // le funzioni del registro AI, ognuna col suo cartellino (PRONTA / OPZIONALE / SPERIMENTALE)
+      ...(REGISTRO_AI.length ? [{ sep: true } as VoceMenu, ...ordinaPerStato(REGISTRO_AI).map((f): VoceMenu => ({ nome: `${f.nome} · ${etichettaStato(f.stato)}`, fn: () => { if (f.esegui) void f.esegui({ clipIds: [...store.sel] }).catch((e) => avviso(String(e instanceof Error ? e.message : e), 'errore', 5000)); else finestraCentroAI(); } }))] : []),
       { sep: true },
       { nome: '🔍 Controlla l\'AI (se qualcosa non va)', fn: () => finestraCentroAI(true) },
       { nome: 'Se un\'AI non parte (guida)', fn: () => finestraGuida('problemi-ai') },
