@@ -46,7 +46,7 @@
 <h2 align="center">Requisiti</h2>
 
 - **Windows 10 o 11**, oppure **macOS 14** o più nuovo.
-- **Minimo**: 8 GB di RAM e un processore recente. Il montaggio va anche senza scheda video.
+- **Minimo**: un PC Windows o Mac normale. Il montaggio va anche senza scheda video.
 - **Per l'AI pesante** (rumore, sfondo, separazione voce): una scheda **NVIDIA RTX** con **8 GB** di memoria video è consigliata. Senza scheda video l'AI gira lo stesso, ma più lenta.
 - Spazio libero sul disco: i modelli AI pesano da pochi MB a qualche GB. Li scarichi solo se li vuoi.
 
@@ -54,10 +54,10 @@
 
 <h2 align="center">Primi passi</h2>
 
-1. Apri il programma e premi **Progetti → Nuovo**.
+1. Apri il programma e crea un progetto nuovo (File → Nuovo).
 2. Trascina i video nel **Contenitore** a sinistra, poi sulla timeline.
 3. Taglia con **1**, togli le parti brutte con **2**, sposta le clip con il mouse.
-4. Premi **Esporta** in alto a destra (Finale): scegli il preset e fai partire.
+4. Vai al **Finale**, scegli il preset e fai partire l'esportazione.
 
 <br>
 
@@ -108,7 +108,7 @@ Ogni risultato è materiale che puoi modificare. L'originale resta, e **Ctrl + Z
 
 <h2 align="center">Privacy</h2>
 
-Tutto resta sul tuo PC. I video, l'audio e i progetti non vanno su internet. I modelli AI si scaricano una volta e poi girano in locale. Niente telemetria dei tuoi file, niente account.
+Tutto resta sul tuo PC. I video, l'audio e i progetti non vanno su internet. I modelli AI si scaricano una volta e poi girano in locale. I tuoi file non escono dal PC. Unico contatto esterno: il download dei modelli AI e, se usi Clear, un conteggio d'uso anonimo del suo SDK.
 
 <br>
 
