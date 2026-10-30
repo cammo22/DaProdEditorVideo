@@ -1,35 +1,29 @@
-// Il pannello dell'esportazione: lo usano la pagina Finale (sezione Esporta) e la finestra Esporta (Ctrl+M).
-// In cima si sceglie dove va il video (YouTube, verticale, WhatsApp…), in mezzo si vede cosa esce davvero
-// (misura, fotogrammi, codec, peso stimato), poi i ritocchi, e in fondo la coda: le esportazioni vanno una dopo l'altra.
-// I conti stanno in `src/core/esportazione.ts`, la coda in `src/export/coda.ts`, i codec in `src/export/codec.ts`.
+// Il pannello dell'esportazione: lo usano la pagina Finale (sezione Uscita) e la finestra Esporta (Ctrl+M).
+// In cima si controlla che tutto sia a posto (solo nel Finale) e si sceglie dove va il video (YouTube, verticale,
+// archivio, solo audio…), poi il volume (misurato davvero, con la normalizzazione se la vuoi), i dettagli di cosa esce
+// (misura, fotogrammi, codec, peso stimato), e in fondo un solo pulsante oro e la coda: le esportazioni vanno una dopo l'altra.
+// I conti stanno in `src/core/esportazione.ts`, la coda in `src/export/coda.ts`, i codec in `src/export/codec.ts`,
+// le scelte condivise in `src/ui/uscita.ts`, la misura del volume in `src/media/loudness.ts`.
 import '../stile/esportazione.css';
 import { store } from '../core/store';
 import { projectEnd } from '../core/progetto';
-import { durataUmana, f2s, fps, frameToTc } from '../core/timecode';
+import { durataUmana, f2s, frameToTc } from '../core/timecode';
 import { durataTesto } from '../core/stima';
 import {
-  CODEC_DI, INFO_CODEC, MISURE, NOME_CODEC, NOME_CONTENITORE, PRESET, codecPossibili, descriviQualita, impostazioni,
-  nomeFile, pesoStimato, pesoTesto, presetDi, proporzioneTesto, testoAdattamento,
-  type Adatta, type CodecVideo, type Contenitore, type Impostazioni, type Scelte,
+  CODEC_DI, INFO_CODEC, MISURE, NOME_CODEC, NOME_CONTENITORE, PRESET, PRESET_ALTRI, PRESET_PRINCIPALI, TRAGUARDI_LUFS, codecPossibili,
+  descriviQualita, impostazioni, nomeFile, pesoStimato, pesoTesto, presetDi, proporzioneTesto, sottoDestinazione, testoAdattamento,
+  traguardoLufs,
+  type Adatta, type CodecVideo, type Contenitore, type Impostazioni, type Preset,
 } from '../core/esportazione';
+import { PICCO_TETTO, guadagnoPer, numeroDb } from '../core/loudness';
 import { statiCodec, type StatoCodec } from '../export/codec';
 import { accoda, annullaVoce, coda, mostraNellaCartella, pulisciFinite, quandoCoda, quandoFinita, spostaVoce, togliVoce } from '../export/coda';
 import type { StatoVoce } from '../core/codaExport';
-import { isTauri } from '../platform';
+import { haAudio, misura, misuraValida, quandoMisura, statoMisura, trattoDa, ultimaMisura } from '../media/loudness';
+import { cartellaUscita, isTauri } from '../platform';
 import { avviso, h, icona } from './dom';
-
-/** le scelte di adesso: valgono per tutti i pannelli aperti (pagina Finale e finestra) */
-const S = {
-  preset: 'yt1080',
-  formato: 'mp4' as Contenitore,
-  codec: null as CodecVideo | null,
-  /** null = quella del preset */
-  qualita: null as number | null,
-  adatta: null as Adatta | null,
-  misura: 'progetto',
-  inOut: false,
-  nome: '',
-};
+import { creaControlloUscita } from './controlloUscita';
+import { S, avvisaScelte, progettoOra, scelteDi, trattoUscita } from './uscita';
 
 let avvisiPronti = false;
 function preparaAvvisi() {
@@ -42,39 +36,64 @@ function preparaAvvisi() {
   });
 }
 
-export interface PannelloEsporta { el: HTMLElement; smonta: () => void }
+export interface PannelloEsporta {
+  el: HTMLElement;
+  smonta: () => void;
+  /** la pagina in cui sta è in vista (o no): il controllo prima dell'uscita lavora solo allora */
+  mostrata: (on: boolean) => void;
+  /** peso, cartella e pulsanti: nel Finale (`banco`) non sono dentro `el` ma vanno fissi in fondo alla colonna, sempre in vista */
+  fondo: HTMLElement;
+}
 
-export function pannelloEsporta(preset?: string): PannelloEsporta {
+/**
+ * `banco`: la versione della pagina Finale (controllo prima dell'uscita in cima, destinazioni a carte, un solo pulsante
+ * oro); senza, la finestra Esporta (Ctrl+M) con le stesse scelte, lo stesso volume e la stessa coda.
+ */
+export function pannelloEsporta(preset?: string, opz: { banco?: boolean } = {}): PannelloEsporta {
+  const banco = !!opz.banco;
   preparaAvvisi();
-  if (preset && PRESET.some((x) => x.id === preset)) { S.preset = preset; S.codec = null; S.qualita = null; S.adatta = null; }
-  const el = h('div', { class: 'es' });
+  if (preset && PRESET.some((x) => x.id === preset)) { S.preset = preset; S.codec = null; S.qualita = null; S.adatta = null; S.lufs = null; }
+  const el = h('div', { class: 'es' + (banco ? ' es-banco' : '') });
   const pre = h('div', { class: 'es-preset' });
+  const altre = h('div', { class: 'es-preset es-altre-carte' });
   const anteprima = h('div', { class: 'es-anteprima' });
   const regole = h('div', { class: 'es-regole' });
+  const volume = h('div', { class: 'es-volume' });
+  const piede = h('div', { class: 'es-piede' });
   const azioni = h('div', { class: 'es-azioni' });
   const lista = h('div', { class: 'es-lista' });
   const testaCoda = h('span', { class: 'es-coda-riep' });
+  const controllo = banco ? creaControlloUscita() : null;
   const sez = (titolo: string, ic: string, ...figli: HTMLElement[]) => h('div', { class: 'fin-sezione es-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli);
-  el.append(
-    sez('Dove lo porti', 'video', pre),
-    sez('Cosa esce', 'info', anteprima),
-    sez('Regola', 'ingranaggio', regole),
-    azioni,
-    sez('Coda', 'esporta', h('div', { class: 'es-coda-testa' }, testaCoda, h('button', { class: 'btn piccolo', title: 'Toglie dalla lista quelle già finite', on: { click: () => pulisciFinite() } }, 'Svuota le finite')), lista));
+  const altreDest = h('details', { class: 'es-dettagli es-altre' }, h('summary', null, 'Altre destinazioni'), altre) as HTMLDetailsElement;
+  const dettagli = h('details', { class: 'es-dettagli' }, h('summary', null, 'Come esce, nei dettagli'), anteprima, regole) as HTMLDetailsElement;
+  const codaSez = sez('Coda', 'esporta', h('div', { class: 'es-coda-testa' }, testaCoda, h('button', { class: 'btn piccolo', title: 'Toglie dalla lista quelle già finite', on: { click: () => pulisciFinite() } }, 'Svuota le finite')), lista);
+  const fondo = h('div', { class: 'es-fondo' }, piede, azioni);
+  if (banco) {
+    el.append(
+      sez('Controllo prima dell\'uscita', 'info', controllo!.el),
+      sez('Destinazione', 'video', pre, altreDest),
+      sez('Volume', 'altoparlante', volume),
+      dettagli,
+      codaSez);
+  } else {
+    el.append(
+      sez('Dove lo porti', 'video', pre, altreDest),
+      sez('Cosa esce', 'info', anteprima),
+      sez('Regola', 'ingranaggio', regole),
+      sez('Volume', 'altoparlante', volume),
+      fondo,
+      codaSez);
+  }
 
   let ultimo: { imp: Impostazioni; stati: StatoCodec[]; vuota: boolean; durata: number } | null = null;
   let giro = 0;
+  let inMisura = false;
+  let nomeCartella = isTauri ? '' : 'Download';
+  let percorsoCartella = '';
 
-  const scelte = (): Scelte => ({ preset: S.preset, codec: S.codec, formato: S.formato, qualita: S.qualita ?? undefined, adatta: S.adatta ?? undefined, misura: S.misura });
-  const progettoOra = () => { const p = store.doc; return { w: p.w, h: p.h, fps: fps(p.rate) }; };
-  /** i fotogrammi da esportare: tutto, oppure da attacco a stacco */
-  const tratto = () => {
-    const p = store.doc;
-    const haInOut = p.inF !== null && p.outF !== null && p.outF > p.inF;
-    const usa = S.inOut && haInOut;
-    const fine = projectEnd(p);
-    return { haInOut, usa, len: usa ? p.outF! - p.inF! : fine };
-  };
+  const scelte = scelteDi;
+  const tratto = trattoUscita;
 
   /** calcola cosa uscirebbe e, per i video, quali codec la macchina sa fare a quella misura */
   async function calcola(): Promise<NonNullable<typeof ultimo>> {
@@ -92,16 +111,35 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
     return { imp, stati, vuota: !projectEnd(p), durata: f2s(t.len, p.rate) };
   }
 
+  const scegliPreset = (pr: Preset) => { S.preset = pr.id; S.codec = null; S.qualita = null; S.adatta = null; S.lufs = null; if (pr.libero) S.formato = S.formato || 'mp4'; void ridisegna(); };
+
   function disegnaPreset() {
-    pre.replaceChildren(...PRESET.map((pr) => {
-      const prog = progettoOra();
-      const imp = impostazioni({ preset: pr.id, formato: pr.formato }, prog, CODEC_DI[pr.libero ? 'mp4' : pr.formato]);
-      const sotto = pr.formato === 'wav' ? 'WAV · solo suono' : pr.libero ? 'tutto a mano' : `${imp.w}×${imp.h} · ${NOME_CONTENITORE[pr.formato]}`;
-      return h('button', {
-        class: 'es-carta' + (pr.id === S.preset ? ' acceso' : ''), 'data-preset': pr.id, title: pr.info,
-        on: { click: () => { S.preset = pr.id; S.codec = null; S.qualita = null; S.adatta = null; if (pr.libero) S.formato = S.formato || 'mp4'; ridisegna(); } },
-      }, h('span', { class: 'led' }), h('b', null, pr.nome), h('small', null, pr.info), h('em', null, sotto));
-    }));
+    const prog = progettoOra();
+    const impDi = (pr: Preset) => impostazioni({ preset: pr.id, formato: pr.formato }, prog, CODEC_DI[pr.libero ? 'mp4' : pr.formato]);
+    if (banco) {
+      // le carte del Finale: nome, forma · misura · volume, e a destra il codec
+      const carta = (pr: Preset) => {
+        const imp = impDi(pr);
+        const scelto = pr.id === S.preset;
+        const nomeCodec = (c: CodecVideo) => NOME_CODEC[c].replace(' (HEVC)', '');
+        const codec = pr.formato === 'wav' ? 'WAV' : scelto && ultimo?.imp.codec ? nomeCodec(ultimo.imp.codec) : pr.codec[0] ? nomeCodec(pr.codec[0]) : '';
+        return h('button', { class: 'es-dest' + (scelto ? ' acceso' : ''), type: 'button', 'data-preset': pr.id, title: pr.info, 'aria-pressed': scelto, on: { click: () => scegliPreset(pr) } },
+          h('span', { class: 'es-dest-testi' }, h('b', null, pr.corto ?? pr.nome), h('small', null, sottoDestinazione(pr, imp))),
+          h('span', { class: 'es-dest-codec' }, pr.libero ? '' : codec));
+      };
+      pre.replaceChildren(...PRESET_PRINCIPALI.map(carta));
+      altre.replaceChildren(...PRESET_ALTRI.map(carta));
+    } else {
+      const cartaVecchia = (pr: Preset) => {
+        const imp = impDi(pr);
+        const sotto = pr.formato === 'wav' ? 'WAV · solo suono' : pr.libero ? 'tutto a mano' : `${imp.w}×${imp.h} · ${NOME_CONTENITORE[pr.formato]}`;
+        return h('button', { class: 'es-carta' + (pr.id === S.preset ? ' acceso' : ''), 'data-preset': pr.id, title: pr.info, on: { click: () => scegliPreset(pr) } },
+          h('span', { class: 'led' }), h('b', null, pr.nome), h('small', null, pr.info), h('em', null, sotto));
+      };
+      pre.replaceChildren(...PRESET_PRINCIPALI.map(cartaVecchia));
+      altre.replaceChildren(...PRESET_ALTRI.map(cartaVecchia));
+    }
+    if (PRESET_ALTRI.some((pr) => pr.id === S.preset)) altreDest.open = true;
   }
 
   function riga(nome: string, ...v: (string | HTMLElement)[]) { return h('div', { class: 'es-riga' }, h('span', null, nome), h('b', null, ...v)); }
@@ -131,6 +169,18 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
     }
     if (vuota) note.push(h('p', { class: 'es-nota attento' }, 'La timeline è vuota: prima monta qualcosa.'));
     anteprima.replaceChildren(h('div', { class: 'es-righe' }, ...righe), ...note);
+    disegnaPiede();
+  }
+
+  /** il peso e la cartella, sopra il pulsante; il peso va anche al controllo (lo spazio sul disco) */
+  function disegnaPiede() {
+    if (!ultimo) return;
+    const { imp, vuota, durata } = ultimo;
+    const peso = vuota ? null : pesoStimato(imp, durata);
+    controllo?.imposta(peso);
+    piede.replaceChildren(
+      h('span', { class: 'es-piede-peso' }, vuota ? 'Timeline vuota' : `Circa ${pesoTesto(peso!)} · ${durataTesto(durata)}`),
+      h('span', { class: 'es-piede-cartella', title: percorsoCartella ? `${percorsoCartella}\nCon «Metti in coda» il file va qui; con «Esporta» ti chiedo dove salvarlo se la coda è libera.` : '' }, `Cartella: ${nomeCartella || 'quella che scegli'}`));
   }
 
   function chips<T extends string>(nome: string, opz: { v: T; t: string; info?: string; spento?: boolean }[], attuale: T, scegli: (v: T) => void): HTMLElement {
@@ -149,19 +199,19 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
     out.push(chips('Tratto', [
       { v: 'tutto', t: 'Tutto il montaggio' },
       { v: 'inout', t: t.haInOut ? `Attacco–stacco · ${frameToTc(p.inF!, p.rate, p.drop)} → ${frameToTc(p.outF!, p.rate, p.drop)}` : 'Attacco–stacco (segna I e O)', spento: !t.haInOut },
-    ], t.usa ? 'inout' : 'tutto', (v) => { S.inOut = v === 'inout'; ridisegna(); }));
+    ], t.usa ? 'inout' : 'tutto', (v) => { S.inOut = v === 'inout'; void ridisegna(); }));
     if (pr.libero) {
-      out.push(chips('Formato', (['mp4', 'mov', 'webm', 'wav'] as Contenitore[]).map((f) => ({ v: f, t: f === 'wav' ? 'Solo audio (WAV)' : NOME_CONTENITORE[f] })), imp.formato, (v) => { S.formato = v; S.codec = null; ridisegna(); }));
-      if (imp.formato !== 'wav') out.push(chips('Misura', MISURE.map((m) => ({ v: m.id, t: m.nome })), S.misura, (v) => { S.misura = v; ridisegna(); }));
+      out.push(chips('Formato', (['mp4', 'mov', 'webm', 'wav'] as Contenitore[]).map((f) => ({ v: f, t: f === 'wav' ? 'Solo audio (WAV)' : NOME_CONTENITORE[f] })), imp.formato, (v) => { S.formato = v; S.codec = null; void ridisegna(); }));
+      if (imp.formato !== 'wav') out.push(chips('Misura', MISURE.map((m) => ({ v: m.id, t: m.nome })), S.misura, (v) => { S.misura = v; void ridisegna(); }));
     }
     if (imp.formato !== 'wav') {
       const buoni = stati.filter((s) => s.disponibile && codecPossibili(pr, imp.formato, [s.codec]).length);
       if (buoni.length) {
-        out.push(chips('Codec', buoni.map((s) => ({ v: s.codec, t: NOME_CODEC[s.codec] + (s.scheda ? ' · scheda video' : ''), info: INFO_CODEC[s.codec] })), imp.codec ?? buoni[0].codec, (v) => { S.codec = v; ridisegna(); }));
+        out.push(chips('Codec', buoni.map((s) => ({ v: s.codec, t: NOME_CODEC[s.codec] + (s.scheda ? ' · scheda video' : ''), info: INFO_CODEC[s.codec] })), imp.codec ?? buoni[0].codec, (v) => { S.codec = v; void ridisegna(); }));
         if (imp.codec) out.push(h('p', { class: 'es-nota' }, INFO_CODEC[imp.codec] + '.'));
       }
       if (imp.geometria) {
-        out.push(chips('Se la forma è diversa', [{ v: 'bande', t: 'Bande nere', info: 'L\'immagine resta intera' }, { v: 'ritaglio', t: 'Ritaglia al centro', info: 'L\'immagine riempie il quadro' }] as { v: Adatta; t: string; info: string }[], imp.adatta ?? 'bande', (v) => { S.adatta = v; ridisegna(); }));
+        out.push(chips('Se la forma è diversa', [{ v: 'bande', t: 'Bande nere', info: 'L\'immagine resta intera' }, { v: 'ritaglio', t: 'Ritaglia al centro', info: 'L\'immagine riempie il quadro' }] as { v: Adatta; t: string; info: string }[], imp.adatta ?? 'bande', (v) => { S.adatta = v; void ridisegna(); }));
       }
       // la qualità: dice cosa succede, non solo un numero
       const q0 = S.qualita ?? pr.qualita;
@@ -194,35 +244,93 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
     disegnaAnteprima();
   }
 
+  // ——— il volume ———
+  function disegnaVolume() {
+    const p = store.doc;
+    const pr = presetDi(S.preset);
+    const target = traguardoLufs(pr, true, S.lufs) ?? -14;
+    const tr = trattoDa(p, tratto().usa);
+    const st = statoMisura();
+    const valida = misuraValida(p, tr);
+    const r = ultimaMisura()?.r ?? null;
+    const suono = haAudio(p);
+
+    const interruttore = h('button', { class: 'fin-interruttore' + (S.normalizza ? ' acceso' : ''), type: 'button', 'aria-pressed': S.normalizza,
+      title: 'Porta tutto l\'audio allo stesso volume delle piattaforme (YouTube, Spotify, TikTok…) con un semplice aumento o calo, senza comprimere il suono. Il picco non supera mai -1 dBTP.',
+      on: { click: () => { S.normalizza = !S.normalizza; avvisaScelte(); disegnaVolume(); disegnaAzioni(); } } },
+      h('span', { class: 'led' + (S.normalizza ? ' acceso' : '') }), h('span', { class: 'fin-int-testo' }, `Porta il volume a ${numeroDb(target, 0)} LUFS`));
+    const righe: (HTMLElement | string)[] = [interruttore];
+    if (S.normalizza) {
+      righe.push(h('div', { class: 'es-scelta' }, h('span', null, 'Traguardo'), h('div', { class: 'isp-chips' }, TRAGUARDI_LUFS.map((n) => h('button', {
+        class: 'chip' + (n === target ? ' acceso' : ''), type: 'button', title: n === -14 ? 'YouTube, TikTok, Instagram' : n === -16 ? 'Podcast e Spotify (circa)' : 'Televisione (EBU R128)',
+        on: { click: () => { S.lufs = n === pr.lufs ? null : n; avvisaScelte(); disegnaVolume(); } },
+      }, `${numeroDb(n, 0)} LUFS`)))));
+    }
+    let testo = '';
+    let tasto = false;
+    if (!suono) testo = 'Nel montaggio non c\'è suono da misurare.';
+    else if (st.tipo === 'misuro') testo = `Misuro il volume… ${Math.round(st.k * 100)}%`;
+    else if (valida && r && r.lufs !== null) {
+      testo = `Adesso ${numeroDb(r.lufs)} LUFS${r.picco !== null ? `, picco ${numeroDb(r.picco)} dBTP` : ''}.`;
+      if (S.normalizza) {
+        const g = guadagnoPer(r, target);
+        if (g) testo += ` Esce a ${numeroDb(g.lufsDopo)} LUFS (${numeroDb(g.db)} dB)${g.limitato ? `: il picco si ferma a ${numeroDb(PICCO_TETTO, 0)} dBTP, più forte non si può senza comprimere` : ''}.`;
+      }
+    } else if (valida && r) testo = 'Troppo piano per misurarlo: non c\'è niente da portare al volume.';
+    else { testo = st.tipo === 'errore' ? `La misura non è riuscita: ${st.msg}` : `Non ancora misurato${S.normalizza ? ': lo misuro da solo prima di esportare' : ''}.`; tasto = true; }
+    righe.push(h('div', { class: 'es-volume-info' }, testo, tasto ? h('button', { class: 'btn-mini', type: 'button', on: { click: () => void misura(store.doc, tr) } }, 'Misura ora') : null));
+    volume.replaceChildren(...righe.filter(Boolean) as HTMLElement[]);
+  }
+
   function disegnaAzioni() {
     const occupata = coda.voci.some((v) => v.stato === 'attesa' || v.stato === 'lavoro');
     const vuota = !!ultimo?.vuota;
     const nessunCodec = !!ultimo && ultimo.imp.formato !== 'wav' && !ultimo.imp.codec;
-    const spento = vuota || nessunCodec;
+    const spento = vuota || nessunCodec || inMisura;
+    const audio = ultimo?.imp.formato === 'wav';
     azioni.replaceChildren(
-      h('button', { class: 'btn primario fin-vai', disabled: spento, title: occupata ? 'C\'è già un\'esportazione al lavoro: questa va in coda' : 'Esporta adesso e scegli dove salvare', on: { click: () => lancia(true) } }, icona('esporta', 18), occupata ? 'ESPORTA (VA IN CODA)' : 'ESPORTA'),
-      h('button', { class: 'btn', disabled: spento, title: isTauri ? 'La aggiunge alla coda: il file va in Video/DaProd Video' : 'La aggiunge alla coda: il file si scarica', on: { click: () => lancia(false) } }, icona('piu', 16), 'Metti in coda'));
+      h('button', { class: 'btn primario fin-vai', type: 'button', disabled: spento, title: inMisura ? 'Sto misurando il volume' : occupata ? 'C\'è già un\'esportazione al lavoro: questa va in coda' : 'Esporta adesso e scegli dove salvare', on: { click: () => lancia(true) } },
+        icona('esporta', 18), inMisura ? 'Misuro il volume…' : audio ? 'Esporta audio' : 'Esporta video', occupata && !inMisura ? h('small', null, ' · va in coda') : null),
+      h('button', { class: 'btn', type: 'button', disabled: spento, title: isTauri ? 'La aggiunge alla coda: il file va in Video/DaProd Video' : 'La aggiunge alla coda: il file si scarica', on: { click: () => lancia(false) } }, icona('piu', 16), 'Metti in coda'));
   }
 
-  function lancia(chiedi: boolean) {
-    if (!ultimo || ultimo.vuota) return;
+  async function lancia(chiedi: boolean) {
+    if (!ultimo || ultimo.vuota || inMisura) return;
+    const pr = presetDi(S.preset);
+    const traguardo = traguardoLufs(pr, S.normalizza, S.lufs);
+    let guadagnoDb: number | undefined;
+    if (traguardo !== null && haAudio(store.doc)) {
+      const tr = trattoDa(store.doc, tratto().usa);
+      let r = misuraValida(store.doc, tr) ? ultimaMisura()!.r : null;
+      if (!r) {
+        inMisura = true; disegnaAzioni(); disegnaVolume();
+        avviso('Misuro il volume prima di esportare…', 'info', 2400);
+        r = await misura(store.doc, tr);
+        inMisura = false; disegnaAzioni(); disegnaVolume();
+        if (!r) { avviso('La misura del volume non è riuscita: l\'export non è partito', 'errore', 5000); return; }
+        if (!misuraValida(store.doc, tr)) { avviso('Il montaggio è cambiato mentre misuravo: premi di nuovo Esporta', 'info', 4000); return; }
+      }
+      const g = guadagnoPer(r, traguardo);
+      if (g) guadagnoDb = g.db;
+    }
     const { imp } = ultimo;
     const p = store.doc;
-    const pr = presetDi(S.preset);
     const t = tratto();
     const file = S.nome.trim() ? `${S.nome.trim().replace(/[\\/:*?"<>|]/g, '_')}.${imp.formato}` : nomeFile(p.name, pr, imp.formato);
+    const volumeTesto = guadagnoDb !== undefined && traguardo !== null ? ` · ${numeroDb(traguardo, 0)} LUFS` : '';
     const riassunto = imp.formato === 'wav'
-      ? `WAV · solo audio · circa ${pesoTesto(pesoStimato(imp, ultimo.durata))}`
-      : `${imp.w}×${imp.h} · ${imp.fps.toFixed(imp.fps % 1 ? 2 : 0).replace('.', ',')} fps · ${NOME_CONTENITORE[imp.formato]}${imp.codec ? ' ' + NOME_CODEC[imp.codec] : ''} · circa ${pesoTesto(pesoStimato(imp, ultimo.durata))}`;
+      ? `WAV · solo audio${volumeTesto} · circa ${pesoTesto(pesoStimato(imp, ultimo.durata))}`
+      : `${imp.w}×${imp.h} · ${imp.fps.toFixed(imp.fps % 1 ? 2 : 0).replace('.', ',')} fps · ${NOME_CONTENITORE[imp.formato]}${imp.codec ? ' ' + NOME_CODEC[imp.codec] : ''}${volumeTesto} · circa ${pesoTesto(pesoStimato(imp, ultimo.durata))}`;
     const v = accoda({
       titolo: `Esporto «${file}»`,
-      presetNome: pr.nome,
+      presetNome: pr.corto ?? pr.nome,
       riassunto,
       tratto: t.usa ? `Da ${frameToTc(p.inF!, p.rate, p.drop)} a ${frameToTc(p.outF!, p.rate, p.drop)}` : 'Tutto il montaggio',
       progetto: structuredClone(p),
       opzioni: {
         formato: imp.formato, w: imp.w, h: imp.h, qualita: 'alta', soloInOut: t.usa, nome: file,
         codec: imp.codec ?? undefined, bitrate: imp.bitrate || undefined, audioBps: imp.audioBps || undefined, passo: imp.passo, geometria: imp.geometria,
+        guadagnoDb,
       },
     }, chiedi);
     if (v.dato.chiedi) return;
@@ -283,13 +391,16 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
 
   // ——— tutto insieme ———
   async function ridisegna() {
+    avvisaScelte();
     disegnaPreset();
     const mio = ++giro;
     const nuovo = await calcola();
     if (mio !== giro) return;
     ultimo = nuovo;
+    disegnaPreset();
     disegnaAnteprima();
     disegnaRegole();
+    disegnaVolume();
     disegnaAzioni();
     disegnaCoda();
   }
@@ -302,7 +413,19 @@ export function pannelloEsporta(preset?: string): PannelloEsporta {
     if (rAF) return;
     rAF = requestAnimationFrame(() => { rAF = 0; disegnaCoda(); disegnaAzioni(); });
   }));
+  sciolti.push(quandoMisura(() => { disegnaVolume(); }));
+  if (isTauri) void cartellaUscita().then((c) => {
+    if (!c) { nomeCartella = 'Video'; disegnaPiede(); return; }
+    percorsoCartella = c;
+    nomeCartella = c.split(/[\\/]/).filter(Boolean).pop() ?? c;
+    disegnaPiede();
+  });
   void ridisegna();
 
-  return { el, smonta: () => { for (const s of sciolti) s(); clearTimeout(attesa); if (rAF) cancelAnimationFrame(rAF); } };
+  return {
+    el,
+    fondo,
+    mostrata: (on) => controllo?.mostrata(on),
+    smonta: () => { for (const s of sciolti) s(); controllo?.smonta(); clearTimeout(attesa); if (rAF) cancelAnimationFrame(rAF); },
+  };
 }

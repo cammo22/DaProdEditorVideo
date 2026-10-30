@@ -170,3 +170,23 @@ export async function impostaGrandezzaUI(k: number): Promise<boolean> {
     return true;
   } catch { return false; }
 }
+
+/** Quanti byte liberi ci sono dove va l'export: nell'app il disco di Video/DaProd Video (o della cartella data), nel
+ *  browser quello che il browser concede alla pagina (quota meno usato). Null se non si riesce a saperlo. */
+export async function spazioLibero(cartella?: string): Promise<number | null> {
+  try {
+    if (isTauri) return await invoke<number>('spazio_libero', { path: cartella ?? null });
+    const st = await navigator.storage?.estimate?.();
+    if (st?.quota) return Math.max(0, st.quota - (st.usage ?? 0));
+  } catch { /* si dice «non so quanto» */ }
+  return null;
+}
+
+/** La cartella dove l'app mette gli export senza chiedere (Video/DaProd Video); null nel browser. */
+export async function cartellaUscita(): Promise<string | null> {
+  if (!isTauri || isAndroid) return null;
+  try {
+    const c = await invoke<{ nome: string; percorso: string }[]>('cartelle_lavoro');
+    return c[0]?.percorso ?? null;
+  } catch { return null; }
+}

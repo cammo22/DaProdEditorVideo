@@ -627,6 +627,7 @@ name = "daprod-video"
 version = "1.7.1"
 dependencies = [
  "getrandom 0.3.4",
+ "libc",
  "serde",
  "serde_json",
  "symphonia",
