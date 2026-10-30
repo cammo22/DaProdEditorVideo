@@ -33,7 +33,7 @@ import { importaFile } from '../progetti';
 import { invoke, isAndroid, isTauri, salvaMediaSulDisco, spazioLibero } from '../platform';
 import { CursoreLive } from '../media/cursoreLive';
 import { SceltaSchermoLive } from './liveCursore';
-import { applicaZoomCursore, bloccoClicLive, CameraCursore, cssCamera } from '../core/zoomCursore';
+import { applicaZoomCursore, bloccoClicLive, CameraCursore, cssCamera, type PuntoCamera } from '../core/zoomCursore';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
@@ -494,6 +494,8 @@ export class Live {
   /** il microfono registrato a parte (audio separato) */
   private pezziMic: Promise<Tratto>[] = [];
   private micSep: MediaStream | null = null;
+  /** l'audio del computer che si registra (dallo schermo), per il suo tasto muto */
+  private tracceComputer: MediaStreamTrack[] = [];
   /** millisecondi registrati (senza le pause) e da quando si sta registrando adesso */
   private fatto = 0;
   private da = 0;
@@ -527,10 +529,9 @@ export class Live {
   private muto(chi: 'voce' | 'computer') {
     this.opz.audio[chi].muto = !this.opz.audio[chi].muto;
     this.mixer?.imposta(this.opz.audio);
-    if (!this.mixer) {
-      const sorgente = chi === 'voce' ? this.micReg : this.flussi[0];
-      sorgente?.getAudioTracks().forEach(t => { t.enabled = !this.opz.audio[chi].muto; });
-    }
+    // ogni tasto spegne solo la sua traccia: la voce il microfono, il computer l'audio dello schermo
+    const tracce = chi === 'voce' ? this.micReg?.getAudioTracks() ?? [] : this.tracceComputer;
+    tracce.forEach(t => { t.enabled = !this.opz.audio[chi].muto; });
     this.audio.aggiorna(); this.salvaOpzioni(); this.aggiornaTempo();
   }
   private annullaConto: (() => void) | null = null;
@@ -964,12 +965,20 @@ export class Live {
         if (ora?.win) win = ora.win;
         if (ora?.visible && ora.clicks) clic = { cx: ora.cx, cy: ora.cy, t };
         if (clic && t - clic.t > 1900) clic = null;
-        const css = cssCamera(cam.passo(t, ora?.visible ? [ora.cx, ora.cy] : null, clic ?? undefined, () => win));
-        v.style.transform = css;
-        this.tele.zoom(css);
+        prima = dopo; dopo = { ...cam.passo(t, ora?.visible ? [ora.cx, ora.cy] : null, clic ?? undefined, () => win) }; arrivato = performance.now();
       } finally { occupato = false; }
     }, 100);
-    this.zoomDiretta = { ferma: () => { clearInterval(giro); v.srcObject = null; box.remove(); this.tele.zoom(''); } };
+    // fra un passo della camera e l'altro (100 ms) la posizione si mescola a ogni fotogramma dello schermo: niente scatti
+    let prima: PuntoCamera = { tMs: 0, cx: .5, cy: .5, z: 1 }, dopo = prima, arrivato = performance.now(), raf = 0;
+    const disegna = () => {
+      const k = Math.min(1, (performance.now() - arrivato) / 100);
+      const css = cssCamera({ tMs: 0, cx: prima.cx + (dopo.cx - prima.cx) * k, cy: prima.cy + (dopo.cy - prima.cy) * k, z: prima.z + (dopo.z - prima.z) * k });
+      v.style.transform = css;
+      this.tele.zoom(css);
+      raf = requestAnimationFrame(disegna);
+    };
+    raf = requestAnimationFrame(disegna);
+    this.zoomDiretta = { ferma: () => { clearInterval(giro); cancelAnimationFrame(raf); v.srcObject = null; box.remove(); this.tele.zoom(''); } };
   }
   private fermaAnteprimaZoom() { this.zoomDiretta?.ferma(); this.zoomDiretta = null; }
 
@@ -1293,22 +1302,22 @@ export class Live {
       } catch (e) { avviso('⚠ Il microfono non si apre, la voce NON viene registrata. Controlla in Windows → Privacy → Microfono. (' + String(e).slice(0, 80) + ')', 'errore', 9000); }
     }
     await mix.pronto;
+    // il contesto audio può essere nato senza un clic diretto (telecomando, conto alla rovescia): si sveglia qui
+    void mix.ctx?.resume().catch(() => {});
     this.micSep = null;
     const haPc = audioPc.length > 0;
+    this.tracceComputer = audioPc;
+    // le barre dei livelli: il mixer ascolta le sorgenti, ognuna sulla sua barra
     if (mix.ok) {
       mix.imposta(o.audio);
       if (haPc) mix.collegaComputer(new MediaStream(audioPc));
       if (mic) mix.collegaVoce(mic);
-      if (o.separato && haPc && mic) {
-        tracce.push(...mix.flussoComputer().getAudioTracks());
-        this.micSep = mix.flussoVoce();
-      } else if (haPc && mic) tracce.push(...mix.flussoMix().getAudioTracks());
-      else if (haPc) tracce.push(...mix.flussoComputer().getAudioTracks());
-      else if (mic) tracce.push(...mix.flussoVoce().getAudioTracks());
-    } else {
-      // niente audio elaborato (il browser non ha il mixer): si registra com'è, la voce a parte
-      audioPc.forEach(t => { t.enabled = !o.audio.computer.muto; });
-      mic?.getAudioTracks().forEach(t => { t.enabled = !o.audio.voce.muto; });
+    }
+    // si registrano le tracce vere, non le uscite del mixer: se il contesto audio restava in pausa i file venivano muti
+    audioPc.forEach(t => { t.enabled = !o.audio.computer.muto; });
+    mic?.getAudioTracks().forEach(t => { t.enabled = !o.audio.voce.muto; });
+    if (haPc && mic && !o.separato && mix.ok) tracce.push(...mix.flussoMix().getAudioTracks()); // una traccia sola: serve il mescolatore
+    else {
       tracce.push(...audioPc);
       if (mic) {
         if (haPc) this.micSep = new MediaStream(mic.getAudioTracks());

@@ -228,9 +228,12 @@ export class Telecomando {
         await w.setMinSize(new LogicalSize(360, 500));
         await w.setSize(new LogicalSize(MISURA.w, MISURA.h));
         await w.setAlwaysOnTop(true);
+        // il telecomando non deve finire nella registrazione dello schermo (Windows lo esclude dalla cattura)
+        await w.setContentProtected(true).catch(() => {});
         this.modoPiccolo(true);
       } else {
         this.modoPiccolo(false);
+        await w.setContentProtected(false).catch(() => {});
         await w.setAlwaysOnTop(false);
         await w.setMinSize(new LogicalSize(1000, 640));
         const p = this.prima;

@@ -12,6 +12,13 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.9] — 2026-10-30 · Audio del LIVE giusto, telecomando invisibile nella registrazione
+
+- **Audio del LIVE**: si registrano le tracce vere del microfono e del computer. Prima passavano dal mixer, e se il suo contesto audio restava in pausa (registrazione partita dal telecomando o dal conto alla rovescia) i file venivano **muti**.
+- **Tasti VOCE e COMPUTER**: ognuno spegne solo la sua traccia (prima il tasto del computer poteva spegnere il microfono).
+- **Il telecomando non finisce nella registrazione**: Windows lo esclude dalla cattura dello schermo mentre è aperto.
+- **Anteprima dello zoom fluida**: niente più scatti fra un passo della camera e l'altro.
+
 ## [1.8.8] — 2026-10-30 · Lo zoom si vede mentre registri
 
 - **Anteprima dello zoom in diretta**: mentre registri con lo zoom che segue il cursore, un riquadro piccolo nell'anteprima del LIVE e l'anteprima del telecomando mostrano lo zoom che sta facendo, con la stessa camera che poi finisce nel montaggio.
