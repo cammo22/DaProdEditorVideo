@@ -30,11 +30,11 @@ export const tipoFinestra: 'win' | 'mac' | 'web' = isTauri && !isAndroid ? (isMa
 /** il logo: il disco con la D e il tasto play, e attorno l'anello tratteggiato che gira lento (CSS: .logo-giro .anello) */
 const LOGO = `<svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true"><defs>
 <linearGradient id="btlo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffbe0"/><stop offset=".45" stop-color="#ffd54a"/><stop offset="1" stop-color="#b87a14"/></linearGradient>
-<linearGradient id="btlm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7bf6"/><stop offset="1" stop-color="#8a2cff"/></linearGradient></defs>
+<linearGradient id="btlm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9af3ff"/><stop offset="1" stop-color="#1fa9c0"/></linearGradient></defs>
 <circle cx="32" cy="32" r="28" fill="#150e24" stroke="url(#btlo)" stroke-width="4"/>
-<g class="anello"><circle cx="32" cy="32" r="21" fill="none" stroke="url(#btlm)" stroke-width="2.4" stroke-dasharray="3 3.4"/><circle cx="32" cy="11" r="3.2" fill="#ff3df2"/></g>
+<g class="anello"><circle cx="32" cy="32" r="21" fill="none" stroke="url(#btlm)" stroke-width="2.4" stroke-dasharray="3 3.4"/><circle cx="32" cy="11" r="3.2" fill="#35e8ff"/></g>
 <path d="M24 19h9.5c8 0 13 5 13 13s-5 13-13 13H24z M30 25v14h3.2c4.3 0 7-2.6 7-7s-2.7-7-7-7z" fill="url(#btlo)" fill-rule="evenodd"/>
-<path d="M34.5 28.5l5 3.5-5 3.5z" fill="#ff3df2"/></svg>`;
+<path d="M34.5 28.5l5 3.5-5 3.5z" fill="#35e8ff"/></svg>`;
 
 /** la finestra dell'app (solo nell'app sul computer) */
 async function finestra() {

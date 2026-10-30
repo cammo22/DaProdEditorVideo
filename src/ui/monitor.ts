@@ -328,7 +328,7 @@ export class PannelloMonitor {
     if (W / H > 1.5) {
       const w43 = H * 4 / 3;
       ctx.setLineDash([6, 5]);
-      ctx.strokeStyle = 'rgba(255,61,242,.55)';
+      ctx.strokeStyle = 'rgba(53,232,255,.55)';
       ctx.strokeRect((W - w43) / 2, 0, w43, H);
       ctx.setLineDash([]);
     }
@@ -528,7 +528,7 @@ class JogShuttle {
       ctx.beginPath(); ctx.moveTo(R + Math.cos(a) * (R - 5), R + Math.sin(a) * (R - 5)); ctx.lineTo(R + Math.cos(a) * (R - 12), R + Math.sin(a) * (R - 12)); ctx.stroke();
     }
     const sa = -Math.PI / 2 + this.shuttle * 1.4;
-    ctx.fillStyle = Math.abs(this.shuttle) > 0.05 ? '#ff3df2' : '#8e8a99';
+    ctx.fillStyle = Math.abs(this.shuttle) > 0.05 ? '#35e8ff' : '#8e8a99';
     ctx.beginPath(); ctx.arc(R + Math.cos(sa) * (R - 9), R + Math.sin(sa) * (R - 9), 4.5, 0, Math.PI * 2); ctx.fill();
     // rotella jog
     const r2 = R * 0.62;

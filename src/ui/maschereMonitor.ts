@@ -147,8 +147,8 @@ export class EditorMaschere {
     const { m, mappa } = x;
     ctx.save();
     ctx.lineWidth = 1.5 * dpr;
-    ctx.strokeStyle = '#ff3df2';
-    ctx.fillStyle = 'rgba(255,61,242,.10)';
+    ctx.strokeStyle = '#35e8ff';
+    ctx.fillStyle = 'rgba(53,232,255,.10)';
     const poly = contornoMaschera(m, mappa.aspetto);
     if (poly.length > 1) {
       ctx.beginPath();
@@ -179,11 +179,11 @@ export class EditorMaschere {
       ctx.fillStyle = '#ffd54a';
       ctx.beginPath(); ctx.arc(mn.gira[0] * k, mn.gira[1] * k, 6 * dpr, 0, Math.PI * 2); ctx.fill();
       const c = mn.centro;
-      ctx.strokeStyle = '#ff3df2';
+      ctx.strokeStyle = '#35e8ff';
       ctx.beginPath(); ctx.moveTo(c[0] * k - 7 * dpr, c[1] * k); ctx.lineTo(c[0] * k + 7 * dpr, c[1] * k); ctx.moveTo(c[0] * k, c[1] * k - 7 * dpr); ctx.lineTo(c[0] * k, c[1] * k + 7 * dpr); ctx.stroke();
     }
     ctx.font = `700 ${11 * dpr}px Rajdhani, sans-serif`;
-    ctx.fillStyle = '#ff3df2';
+    ctx.fillStyle = '#35e8ff';
     ctx.textAlign = 'left';
     const frase = this.att!.disegna ? 'Maschera: clic = nuovo punto · trascina = sposta · tasto destro = toglie · Invio = finito'
       : m.forma === 'bezier' ? 'Maschera: trascina i punti o la forma · Invio = finito' : 'Maschera: trascina la forma, i lati e il pallino · Invio = finito';

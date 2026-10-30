@@ -28,7 +28,9 @@ import './stile/editor.css';
 import './stile/flussi.css';
 import './stile/guscio.css';
 import './stile/titoliHtml.css';
+import './stile/banco.css';
 import { avvia } from './ui/app';
+import { attivaSuggerimenti } from './ui/suggerimento';
 import { h } from './ui/dom';
 import { isTauri } from './platform';
 import { preparaRiserva } from './media/riserva';
@@ -59,6 +61,8 @@ if (problema) {
   // nell'app, prima di aprire qualunque file, si accende (se serve) la decodifica audio di riserva in Rust
   await preparaRiserva().catch(() => []);
   banco = avvia(radice);
+  // i suggerimenti al passaggio, sul vetrino invece del riquadro bianco del browser
+  attivaSuggerimenti();
   // i caratteri delle animazioni arrivano in silenzio: quando ci sono, il monitor ridisegna
   void caricaFontAnimazioni().then(() => import('./motore').then((m) => m.motore.ridisegna()));
   // i titoli animati HTML si disegnano a parte: quando arriva un fotogramma nuovo il monitor ridisegna
