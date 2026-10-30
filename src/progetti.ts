@@ -496,6 +496,7 @@ export async function apri() {
 
 /** apre un progetto da un percorso (app, anche col doppio clic sul file) o da un file (browser) */
 export async function apriFile(s: Sorgente) {
+  void segnaAvvio(); // se il programma è partito da questo file, la sessione si segna lo stesso (la prima chiamata decide se l'ultima chiusura era anomala)
   const nome = s.file?.name ?? nomeDaPercorso(s.path ?? '');
   if (/\.(daprod|dap)$/i.test(nome)) { await apriPacchetto(s, /\.dap$/i.test(nome)); return; }
   ricordaDap(null);
@@ -783,7 +784,10 @@ const K_SESSIONE = 'dpv-sessione';
  * Segna che il programma è aperto e ritorna se l'ultima volta NON si è chiuso come si deve (il segno era rimasto
  * «aperta»). Si rimette «chiusa» quando la pagina se ne va o la finestra si nasconde, e «aperta» quando torna.
  */
-async function segnaAvvio(): Promise<boolean> {
+let sessione: Promise<boolean> | null = null;
+/** una volta sola per sessione (anche se si parte aprendo un file col doppio clic e riprendi() non viene chiamata) */
+const segnaAvvio = (): Promise<boolean> => (sessione ??= segnaAvvioVero());
+async function segnaAvvioVero(): Promise<boolean> {
   let anomala = false;
   const metti = (v: 'aperta' | 'chiusa') => { try { localStorage.setItem(K_SESSIONE, v); } catch { /* niente memoria */ } };
   // nel browser possono esserci due schede aperte insieme: se un'altra è viva il segno «aperta» è suo, non è un crash

@@ -185,9 +185,9 @@ export function finestraSpazio(a: AzioniSpazio) {
     };
     const c = r.copie;
     const righe: HTMLElement[] = [
-      voce('copieVecchie', 'Copie leggere vecchie', c.vecchie.length ? `${c.vecchie.length} di file che non sono in questo progetto e non si usano da un mese` : 'Nessuna', c.byteVecchie, c.vecchie.length > 0),
+      voce('copieVecchie', 'Copie leggere vecchie', c.vecchie.length ? `${c.vecchie.length} di file che non sono in questo progetto, fatte più di un mese fa` : 'Nessuna', c.byteVecchie, c.vecchie.length > 0),
       voce('copieAltre', 'Altre copie leggere', c.altre.length ? `${c.altre.length} di file che non sono in questo progetto (più recenti)` : 'Nessuna', c.byteAltre, c.altre.length > 0),
-      voce('cache', 'Misure vecchie', r.cache.vecchie ? `${r.cache.vecchie} forme d'onda, colori e locandine non usate da un mese` : 'Nessuna', r.cache.byteVecchie, r.cache.vecchie > 0),
+      voce('cache', 'Misure vecchie', r.cache.vecchie ? `${r.cache.vecchie} forme d'onda, colori e locandine fatte più di un mese fa` : 'Nessuna', r.cache.byteVecchie, r.cache.vecchie > 0),
       voce('versioni', 'Versioni dei progetti', r.versioni.quante ? `${r.versioni.quante} versioni vecchie: resta l'ultima di ogni progetto` : 'Nessuna', r.versioni.byte, r.versioni.quante > 0),
     ];
     const blocchi: HTMLElement[] = [
