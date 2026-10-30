@@ -138,6 +138,10 @@ class Ricerca {
   want: number | null = null;
   /** il punto a cui sta decodificando adesso */
   verso: number | null = null;
+  /** l'ultimo t chiesto che nessun fotogramma copre (prima del primo fotogramma, buchi del file): non si richiede più,
+   *  se no la ricerca ripartiva dal fotogramma chiave a ogni disegno, con un decoder nuovo ogni volta (fino a 50 al
+   *  secondo: nell'app con la scheda video riempivano RAM e VRAM del processo grafico di WebView2) */
+  private scoperto: number | null = null;
   busy = false;
   dead = false;
   lastUse = performance.now();
@@ -149,7 +153,7 @@ class Ricerca {
 
   at(t: number): VideoSample | null {
     this.lastUse = performance.now();
-    if (!copre(this.current, t)) {
+    if (!copre(this.current, t) && this.scoperto !== t) {
       this.want = t;
       if (!this.busy) void this.run();
     }
@@ -203,10 +207,14 @@ class Ricerca {
           this.iter = this.sink.samples(Math.max(0, t));
         }
         // legge fino al fotogramma che copre t; quello dopo resta pronto per il passo seguente
+        let primo = !avanti;
         for (;;) {
           const s = await this.prossimo();
           if (this.dead) { s?.close(); break; }
           if (!s) break;
+          // ripartiti da capo e il primo fotogramma è già dopo t (t prima dell'inizio del file): si mostra quello
+          if (primo && s.timestamp > t + SCARTO_TIMESTAMP) { this.current?.close(); this.current = s; break; }
+          primo = false;
           if (s.timestamp > t + SCARTO_TIMESTAMP && this.current) { this.dopo = s; break; }
           this.current?.close();
           this.current = s;
@@ -216,6 +224,7 @@ class Ricerca {
         // decoder in errore: si riparte da capo alla prossima richiesta
         this.chiudiCursore();
       }
+      this.scoperto = copre(this.current, t) ? null : t;
       if (!this.dead) avvisa();
     }
     this.verso = null;
