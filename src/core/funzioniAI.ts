@@ -46,7 +46,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   },
   {
     id: 'rallenta', nome: 'Rallentatore fluido', dove: 'clip', motore: 'locale', stato: 'sperimentale', peso: '23 MB (più l\'ambiente Python, circa 6 GB)', vram: '1–3 GB a 1080p',
-    descrizione: 'RIFE 4.25 (MIT) inventa i fotogrammi in mezzo e fa una clip nuova più lenta; l\'originale resta. SPERIMENTALE: mai provato col modello vero, e il motore aspetta ancora il modulo con l'architettura di RIFE.',
+    descrizione: 'RIFE 4.25 (MIT) inventa i fotogrammi in mezzo e fa una clip nuova più lenta; l\'originale resta. SPERIMENTALE: mai provato col modello vero, e il motore aspetta ancora il modulo con l\'architettura di RIFE.',
   },
   // ——— sull'audio ———
   {
