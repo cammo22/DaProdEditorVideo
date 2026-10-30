@@ -19,6 +19,7 @@
 
 /* comandi alti almeno 44 px */
 .btn.sol-alto { min-height: 44px; padding: 0 18px; border-radius: 6px; font-size: 14px; font-weight: 700; }
+.dialogo.solido .btn.sol-alto { font: 700 15px var(--ui); } /* tutti i tasti del piede della stessa misura */
 .btn.sol-leggero { color: var(--testo2); }
 .btn.sol-leggero:hover { color: var(--testo); }
 .btn.sol-alto:disabled { opacity: 0.45; cursor: default; }

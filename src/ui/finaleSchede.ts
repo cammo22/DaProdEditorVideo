@@ -12,6 +12,12 @@ export function schedeFinale(pannelli: HTMLElement[], nomi?: string[], iniziale 
   pannelli.forEach((p, i) => nav.append(h('button', {
     type: 'button', class: 'btn-mini', on: { click: () => scegli(i) },
   }, nomi?.[i] ?? p.querySelector('h4, legend')?.textContent ?? `Sezione ${i + 1}`)));
+  // il titolo del pannello che ripete la scheda appena premuta è scritta in più: si nasconde
+  pannelli.forEach((p, i) => {
+    const t = p.querySelector(':scope > h4');
+    const scheda = nav.children[i]?.textContent?.trim().toLowerCase();
+    if (t && scheda && t.textContent?.trim().toLowerCase() === scheda) t.classList.add('fin-doppio');
+  });
   scegli(iniziale);
   return h('div', { class: 'fin-schede' }, nav, corpo);
 }

@@ -36,6 +36,10 @@
   border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: var(--testo);
   font: 700 17px var(--ui); letter-spacing: 1px; box-shadow: none;
 }
+/* l'unico oro della pagina è REGISTRA (fermo); «Esporta» della testata diventa di metallo */
+#app .live:not(.in-onda):not(.in-pausa) .live-btn.reg:not(:disabled) { background: var(--oro); color: #14110a; border-color: rgba(255, 213, 74, 0.5); box-shadow: 0 0 0 1px rgba(255, 213, 74, 0.35), 0 6px 18px rgba(255, 171, 0, 0.22); }
+#app .live:not(.in-onda):not(.in-pausa) .live-btn.reg:not(:disabled) .live-punto { background: var(--rosso); }
+#app[data-pagina='live'] .testata .btn.primario { background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo); border-color: var(--bordo-forte); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
 #app .live .live-btn.reg .live-punto { width: 14px; height: 14px; border-radius: 50%; flex: none; background: #4d4650; box-shadow: none; transition: background 0.15s, border-radius 0.15s; }
 #app .live.in-onda .live-btn.reg { border-color: var(--rosso); background: rgba(255, 77, 109, 0.15); }
 #app .live.in-onda .live-btn.reg .live-punto { border-radius: 2px; background: var(--rosso); box-shadow: 0 0 12px var(--rosso); animation: live-pulsa 1s ease-in-out infinite; }
