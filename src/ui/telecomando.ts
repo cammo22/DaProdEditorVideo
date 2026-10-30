@@ -1,22 +1,33 @@
-// Il telecomando di LIVE: una finestrella quasi quadrata, sempre in primo piano, con l'anteprima di quello che si sta
-// registrando (e la webcam nel suo angolo), il tempo, la PAUSA grande, il segno, il cambio di finestra e FERMA.
+// Il telecomando Banco di LIVE: REC/FERMA, pausa, tempo, segni, audio, webcam e sei scene.
+// Le scene muovono subito l’anteprima e diventano dati modificabili sulle riprese separate.
 // Nel browser (Chrome, Edge) è una finestra Document Picture-in-Picture, che il sistema tiene già sopra alle altre;
 // nell'app è la finestra stessa che si fa piccola e si mette sopra (setAlwaysOnTop), poi torna com'era.
 // L'anteprima si può spegnere (si risparmia un po' di lavoro alla scheda video): la scelta si ricorda.
+import { SCENE_LIVE, type ScenaLive, type CambioScena } from '../core/sceneLive';
+import { mostraScena } from './sceneLive';
 import { h, icona, avviso } from './dom';
 import { isAndroid, isTauri } from '../platform';
 import { posizioneBarra, SOGLIA_CLIP } from '../core/liveAudio';
 
 export interface ComandiTelecomando {
+  registra: () => void;
+  scena: (s: ScenaLive) => void;
+  webcam: () => void;
+  muto: (chi: 'voce' | 'computer') => void;
   pausa: () => void;
   segna: () => void;
   ferma: () => void;
   prossima: () => void;
-  /** i tasti di LIVE (Spazio, M, F, 1-9) valgono anche nella finestrella */
+  /** i tasti di LIVE (Spazio, M, F, 1-6) valgono anche nella finestrella */
   tasto: (e: KeyboardEvent) => void;
 }
 
 export interface StatoTelecomando {
+  scena: CambioScena;
+  rapporto: number;
+  mutoVoce: boolean;
+  mutoComputer: boolean;
+  webcam: boolean;
   fase: 'fermo' | 'conto' | 'registra' | 'pausa';
   /** il tempo già scritto (00:01:23, o "… 3" durante il conto alla rovescia) */
   tempo: string;
@@ -28,7 +39,7 @@ export interface StatoTelecomando {
   finestre: number;
 }
 
-const MISURA = { w: 360, h: 420 };
+const MISURA = { w: 400, h: 540 };
 const CHIAVE = 'dpv-tele-anteprima';
 
 export class Telecomando {
@@ -42,6 +53,11 @@ export class Telecomando {
   private quadro: HTMLElement;
   private video: HTMLVideoElement;
   private cam: HTMLVideoElement;
+  private bRec: HTMLButtonElement;
+  private bWebcam: HTMLButtonElement;
+  private muti: HTMLButtonElement[] = [];
+  private scene: HTMLButtonElement[] = [];
+  private titolo = h('div', { class: 'scene-titolo' }, h('small', null, 'DIRETTA'), h('b', null, 'TORNO SUBITO'));
   private bPausa: HTMLButtonElement;
   private bSegna: HTMLButtonElement;
   private bCambia: HTMLButtonElement;
@@ -60,14 +76,16 @@ export class Telecomando {
     this.spia = h('span', { class: 'tele-spia' }, 'PRONTO');
     this.segni = h('span', { class: 'tele-segni' });
     this.barre = [h('i'), h('i')];
-    const livelli = h('div', { class: 'tele-livelli', title: 'Livelli: computer e voce' },
-      h('div', { class: 'tele-liv computer' }, icona('altoparlante', 10), h('span', null, this.barre[0])),
-      h('div', { class: 'tele-liv voce' }, icona('mic', 10), h('span', null, this.barre[1])));
-    this.quadro = h('div', { class: 'tele-quadro', title: 'Clic: nascondi o mostra l\'anteprima', on: { click: () => this.alternaAnteprima() } },
-      this.video, this.cam, livelli, h('span', { class: 'tele-pausa-scritta' }, '❚❚ IN PAUSA'), h('span', { class: 'tele-spenta' }, icona('occhio', 20), 'anteprima spenta'));
-    this.bPausa = h('button', { class: 'live-btn tele-grande', title: 'Pausa e riprendi (Spazio)', on: { click: () => c.pausa() } }) as HTMLButtonElement;
+    this.muti = (['computer', 'voce'] as const).map(chi => h('button', { class: 'live-btn tele-muto', 'data-canale': chi, title: `Muto ${chi === 'voce' ? 'voce' : 'computer'}`, on: { click: () => c.muto(chi) } }, chi === 'voce' ? 'VOCE' : 'COMPUTER') as HTMLButtonElement);
+    const livelli = h('div', { class: 'tele-livelli' }, ...this.muti.map((b, i) => h('div', { class: 'tele-liv' }, b, h('span', null, this.barre[i]))));
+    this.quadro = h('div', { class: 'tele-quadro', title: 'Clic: nascondi o mostra l’anteprima', on: { click: () => this.alternaAnteprima() } },
+      h('div', { class: 'scene-stage' }, this.video, this.cam, this.titolo), h('span', { class: 'tele-pausa-scritta' }, '❚❚ IN PAUSA'), h('span', { class: 'tele-spenta' }, icona('occhio', 20), 'Anteprima spenta'));
+    this.bRec = h('button', { class: 'live-btn ferma tele-rec', on: { click: () => { if (this.stato?.fase === 'fermo') c.registra(); else c.ferma(); } } }, 'REC') as HTMLButtonElement;
+    this.bWebcam = h('button', { class: 'live-btn tele-webcam', on: { click: () => c.webcam() } }, 'WEBCAM') as HTMLButtonElement;
+    this.scene = SCENE_LIVE.map((s, i) => h('button', { class: 'live-btn scena-btn', 'data-scena': s.id, title: `${i + 1} · ${s.nome}`, 'aria-label': s.nome, on: { click: () => c.scena(s.id) } }, h('kbd', null, String(i + 1)), s.breve) as HTMLButtonElement);
+    this.bPausa = h('button', { class: 'live-btn tele-pausa', title: 'Pausa e riprendi (Spazio)', on: { click: () => c.pausa() } }) as HTMLButtonElement;
     this.bSegna = h('button', { class: 'live-btn segna', title: 'Un segno qui: diventa un marcatore (M)', on: { click: () => c.segna() } }, icona('marcatore', 15), 'SEGNA') as HTMLButtonElement;
-    this.bCambia = h('button', { class: 'live-btn', title: 'Passa alla finestra dopo (tasti 1-9)', on: { click: () => c.prossima() } }, '⇄ FINESTRA') as HTMLButtonElement;
+    this.bCambia = h('button', { class: 'live-btn', title: 'Passa alla finestra dopo (CAMBIA)', on: { click: () => c.prossima() } }, '⇄ FINESTRA') as HTMLButtonElement;
     this.bOcchio = h('button', { class: 'live-btn', title: 'Mostra o nascondi l\'anteprima', on: { click: () => this.alternaAnteprima() } }, icona('occhio', 15)) as HTMLButtonElement;
     // la testa si trascina (nell'app la finestra piccola non ha cornice)
     this.el = h('div', { class: 'live-mini' },
@@ -75,9 +93,10 @@ export class Telecomando {
         h('i', { class: 'live-mini-punto' }), this.spia, this.tempo, this.segni,
         h('button', { class: 'live-btn tele-torna', title: 'Torna alla finestra grande', on: { click: () => void this.chiudi() } }, '⤢')),
       this.quadro,
-      h('div', { class: 'tele-tasti' }, this.bPausa, this.bSegna),
-      h('div', { class: 'tele-tasti tre' }, this.bCambia, this.bOcchio,
-        h('button', { class: 'live-btn ferma', title: 'Ferma: la registrazione va nel contenitore (F)', on: { click: () => c.ferma() } }, '■ FERMA')),
+      h('div', { class: 'tele-tasti' }, this.bRec, this.bPausa, this.bSegna),
+      h('div', { class: 'tele-tasti tre' }, this.bWebcam, this.bOcchio, this.bCambia),
+      livelli,
+      h('div', { class: 'tele-scene', role: 'group', 'aria-label': 'Scene in diretta' }, this.scene),
       h('div', { class: 'tele-piede' }, h('kbd', null, 'Spazio'), ' pausa ', h('kbd', null, 'M'), ' segno ', h('kbd', null, 'F'), ' ferma'));
     document.body.append(this.el);
     this.segnaAnteprima();
@@ -136,6 +155,14 @@ export class Telecomando {
     this.segni.textContent = s.segni ? `⚑ ${s.segni}` : '';
     this.el.classList.toggle('in-pausa', s.fase === 'pausa');
     this.el.classList.toggle('in-onda', inOnda);
+    this.bRec.textContent = s.fase === 'fermo' ? '● REC' : s.fase === 'conto' ? 'ANNULLA' : '■ FERMA';
+    this.el.classList.toggle('sta-registrando', s.fase === 'registra');
+    this.bRec.title = s.fase === 'fermo' ? 'Registra (R)' : 'Ferma e salva (F)';
+    this.bWebcam.classList.toggle('acceso', s.webcam); this.bWebcam.setAttribute('aria-pressed', String(s.webcam));
+    [s.mutoComputer, s.mutoVoce].forEach((m, i) => { this.muti[i].classList.toggle('acceso', m); this.muti[i].setAttribute('aria-pressed', String(m)); this.muti[i].textContent = (i ? 'VOCE' : 'COMPUTER') + (m ? ' · MUTO' : ''); });
+    this.scene.forEach((b, i) => { const attiva = SCENE_LIVE[i].id === s.scena.scena; b.classList.toggle('attiva', attiva); b.setAttribute('aria-pressed', String(attiva)); });
+    mostraScena(this.video, this.cam, this.titolo, s.scena, s.rapporto);
+    this.quadro.style.setProperty('--rapporto-scena', String(s.rapporto));
     this.bPausa.disabled = !inOnda;
     const pausa = s.fase === 'pausa';
     // il tempo si aggiorna quattro volte al secondo: il tasto si rifà solo quando cambia
@@ -195,7 +222,7 @@ export class Telecomando {
         const s = (await w.innerSize()).toLogical(k);
         this.prima = { max: await w.isMaximized(), w: s.width, h: s.height };
         if (this.prima.max) await w.unmaximize();
-        await w.setMinSize(new LogicalSize(300, 340));
+        await w.setMinSize(new LogicalSize(360, 500));
         await w.setSize(new LogicalSize(MISURA.w, MISURA.h));
         await w.setAlwaysOnTop(true);
         this.modoPiccolo(true);

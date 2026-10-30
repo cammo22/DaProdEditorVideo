@@ -115,8 +115,13 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
   const mon = await page.evaluate(() => ({ player: window.__motore.attivo, play: window.__motore.playing }));
   prova('la lente apre il video nel monitor in alto e lo fa partire', mon.player === 'player' && mon.play, JSON.stringify(mon));
   await page.evaluate(() => window.__motore.stop());
-  const alt = await page.evaluate(() => { const r = document.querySelector('.monitor').getBoundingClientRect(); return { h: Math.round(r.height), vh: window.innerHeight }; });
-  prova('il monitor della pagina Montage è piccolo (meno di un terzo dello schermo)', alt.h < alt.vh * 0.33, JSON.stringify(alt));
+  // il video si guarda accanto ai file (a destra), senza coprire la griglia; «Chiudi il video» lo toglie
+  const alt = await page.evaluate(() => { const r = document.querySelector('.monitor').getBoundingClientRect(), g = document.querySelector('.mt-file').getBoundingClientRect(); return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), vw: window.innerWidth, grigliaFine: Math.round(g.right), chiudi: getComputedStyle(document.querySelector('.mt-chiudi-mon')).display !== 'none' }; });
+  prova('il video si guarda nel monitor accanto ai file: sta a destra, non copre la griglia e c\'è «Chiudi il video»', alt.w > 300 && alt.w < alt.vw * 0.5 && alt.h > 200 && alt.grigliaFine <= alt.x + 2 && alt.chiudi, JSON.stringify(alt));
+  await page.click('.mt-chiudi-mon');
+  await page.waitForTimeout(200);
+  const chiuso = await page.evaluate(() => ({ monitor: getComputedStyle(document.querySelector('.monitor')).display, attr: document.getElementById('app').dataset.mtMonitor ?? '' }));
+  prova('chiuso il video il monitor sparisce di nuovo', chiuso.monitor === 'none' && chiuso.attr === '', JSON.stringify(chiuso));
   const adatta = await page.evaluate((ids) => {
     const { MT } = window.__dpvTest;
     const p = { w: 1920, h: 1080 }, ver = { width: 600, height: 800, rotation: 0 };
@@ -126,6 +131,7 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
     return { a, b, atteso: kc / kf };
   }, ids);
   prova('"Intere con lo sfondo" lascia la foto verticale come scheda; "Riempi il quadro" la mette a tutto quadro (taglia, non stira)', adatta.a.scheda && !adatta.b.scheda && Math.abs(adatta.b.scala - adatta.atteso) < 1e-6, JSON.stringify(adatta));
+  await page.locator('.mt-etapes .mt-vai').nth(2).click();
   await page.locator('.mt-colcome .chip', { hasText: 'Riempi il quadro' }).click();
   prova('la scelta si ricorda', (await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-montage')).adatta)) === 'riempi');
   await page.keyboard.press('F8');
@@ -143,14 +149,14 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
     const prog = [];
     const out = await TD.traduciTesti(['Buongiorno', '', 'Come stai?'], 'it', 'en', (f, k) => prog.push(k));
     const stessa = await TD.traduciTesti(['ciao'], 'it', 'it', () => {});
-    const nap = TD.codiceNllb('nap');
+    const nap = TD.codiceLingua('nap');
     let errore = '';
     try { await TD.traduciTesti(['x'], 'it', 'xx', () => {}); } catch (e) { errore = e.message; }
     TD.impostaTraduttore(null);
-    return { out, stessa, chiamate, nap, errore, cresce: prog.every((x, i) => !i || x >= prog[i - 1] - 1e-9), ultimo: prog[prog.length - 1], zh: TD.codiceNllb('zh') };
+    return { out, stessa, chiamate, nap, errore, cresce: prog.every((x, i) => !i || x >= prog[i - 1] - 1e-9), ultimo: prog[prog.length - 1], zh: TD.codiceLingua('zh') };
   });
-  prova('la traduzione lascia vuote le righe vuote, non traduce se la lingua è la stessa e il napoletano si traduce come l\'italiano', tr.out.join('|') === '[en] Buongiorno||[en] Come stai?' && tr.stessa[0] === 'ciao' && tr.nap === 'ita_Latn' && /xx|coppia/.test(tr.errore) && tr.chiamate.includes('it>en:2'), JSON.stringify(tr));
-  prova('la barra della traduzione non torna indietro e arriva a 100%; il cinese è fra le lingue', tr.cresce && tr.ultimo === 1 && tr.zh === 'zho_Hans', JSON.stringify([tr.cresce, tr.ultimo, tr.zh]));
+  prova('la traduzione lascia vuote le righe vuote, non traduce se la lingua è la stessa e il napoletano si traduce come l\'italiano', tr.out.join('|') === '[en] Buongiorno||[en] Come stai?' && tr.stessa[0] === 'ciao' && tr.nap === 'it' && /xx|coppia/.test(tr.errore) && tr.chiamate.includes('it>en:2'), JSON.stringify(tr));
+  prova('la barra della traduzione non torna indietro e arriva a 100%; il cinese è fra le lingue', tr.cresce && tr.ultimo === 1 && tr.zh === 'zh', JSON.stringify([tr.cresce, tr.ultimo, tr.zh]));
 
   // la voce in un'altra lingua: i sottotitoli italiani si traducono (solo per la voce) prima di essere letti
   const vo = await page.evaluate(async () => {

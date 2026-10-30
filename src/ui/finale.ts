@@ -25,9 +25,13 @@ import { mediaRT, preparaOra, senzaColoreMisurato, quandoPreparazioni } from '..
 import { motore } from '../motore';
 import { volumeLivellato } from '../effetti';
 import { esportaEdl, esportaFotogramma } from './dialoghi';
-import { pannelloEsporta } from './esportazione';
+import '../stile/finale.css';
+import { pannelloEsporta, type PannelloEsporta } from './esportazione';
+import { creaMisureFinale, type MisureFinale } from './misureFinale';
 import { avviso, clamp, conferma, h, icona } from './dom';
 import { creaPannelloColoreAvanzato } from './coloreAvanzato';
+import { faiParlareLocale, pannelloVoceLocale } from './motoreAI';
+import { motoreLocaleDisponibile } from '../media/motoreAI';
 
 type Campo = { aggiorna: () => void };
 
@@ -56,13 +60,13 @@ function spostaSottotitoli(p: Project, len: number) {
 type Sezione = 'colore' | 'audio' | 'sottotitoli' | 'logo' | 'apertura' | 'lingue' | 'esporta';
 
 const SEZIONI: { id: Sezione; nome: string; icona: string; info: string }[] = [
+  { id: 'esporta', nome: 'Uscita', icona: 'esporta', info: 'controllo prima dell\'uscita, destinazione, volume, esporta e coda' },
   { id: 'colore', nome: 'Colore', icona: 'effetti', info: 'colore automatico, look e ritocchi su tutto' },
   { id: 'audio', nome: 'Audio', icona: 'altoparlante', info: 'volume finale e limitatore' },
   { id: 'sottotitoli', nome: 'Sottotitoli', icona: 'sottotitoli', info: 'righe, tempi dai dialoghi, .srt' },
   { id: 'logo', nome: 'Logo', icona: 'logo', info: 'il logo sempre in vista' },
   { id: 'apertura', nome: 'Apertura', icona: 'apertura', info: 'clip, titoli e nero all\'inizio e alla fine' },
   { id: 'lingue', nome: 'Voce e lingue', icona: 'lingua', info: 'traduci i sottotitoli e falli parlare, anche in un\'altra lingua' },
-  { id: 'esporta', nome: 'Esporta', icona: 'esporta', info: 'il master, la EDL, il fotogramma' },
 ];
 
 export class Finale {
@@ -71,7 +75,7 @@ export class Finale {
   private riepilogo: HTMLElement;
   private menu: HTMLElement;
   private campi: Campo[] = [];
-  private sezione: Sezione = 'colore';
+  private sezione: Sezione = 'esporta';
   private pagine = new Map<Sezione, HTMLElement>();
   private listaSott: HTMLElement | null = null;
   private firmaSott = '';
@@ -84,6 +88,16 @@ export class Finale {
   private firmaClip = '';
   private visibile = false;
   private selVista = '';
+  // la schermata Banco: le misure sotto il monitor (VOLUME, PICCO, DURATA, USCITA) e il pannello dell'uscita
+  private misureFinale: MisureFinale = creaMisureFinale();
+  private pannelloUscita: PannelloEsporta | null = null;
+  /** il pulsante oro e il peso, fissi in fondo (solo nella pagina Uscita) */
+  private piede = h('div', { class: 'fin-piede' });
+  private titoloProgetto = h('b', { class: 'fin-titolo' });
+  private tcFine = h('span', { class: 'fin-tc', title: 'Quanto dura il montaggio' });
+
+  /** le misure da mettere sotto il monitor (le mette in griglia app.ts) */
+  get misure(): HTMLElement { return this.misureFinale.el; }
 
   constructor() {
     this.riepilogo = h('div', { class: 'fin-riepilogo' });
@@ -94,18 +108,33 @@ export class Finale {
       on: { click: () => this.mostra(z.id) },
     }, icona(z.icona, 19), h('span', null, z.nome))));
     this.el = h('section', { class: 'pannello finale' },
-      h('header', { class: 'fin-testa' }, icona('finale', 18), h('b', null, 'FINALE'), h('span', null, 'ritocchi su tutto il montaggio, poi esporta')),
-      h('div', { class: 'fin-dentro' }, this.corpo, this.menu));
-    this.mostra('colore');
+      h('header', { class: 'fin-testa' }, icona('finale', 18),
+        h('div', { class: 'fin-testa-testi' }, h('span', { class: 'fin-etichetta' }, 'FINALE · CONTROLLO PRIMA DELL\'USCITA'), this.titoloProgetto), this.tcFine),
+      h('div', { class: 'fin-dentro' }, h('div', { class: 'fin-colonna' }, this.corpo, this.piede), this.menu));
+    this.mostra('esporta');
+    this.aggiornaTesta();
     quandoPreparazioni(() => this.aggiornaRiepilogo());
-    store.on('doc', () => { this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
+    store.on('doc', () => { this.aggiornaTesta(); this.aggiornaRiepilogo(); for (const c of this.campi) c.aggiorna(); this.aggiornaSott(); this.sincronizzaClipColore(false); });
     // ogni modifica manda anche 'sel': conta come «scelta nella timeline» solo se la scelta è cambiata davvero
     store.on('sel', () => { const f = [...store.sel].sort().join('|'); const cambiata = f !== this.selVista; this.selVista = f; this.sincronizzaClipColore(cambiata); });
     store.on('head', () => this.segnaRigaCorrente());
   }
 
   /** la pagina Finale è in vista (o no): il pannello del colore avanzato esiste solo mentre la si guarda */
-  mostrata(on: boolean) { this.visibile = on; this.sincronizzaClipColore(true); }
+  mostrata(on: boolean) {
+    this.visibile = on;
+    this.misureFinale.mostrata(on);
+    this.pannelloUscita?.mostrata(on && this.sezione === 'esporta');
+    if (on) this.aggiornaTesta();
+    this.sincronizzaClipColore(true);
+  }
+
+  /** il nome del progetto e quanto dura, in alto */
+  private aggiornaTesta() {
+    const p = store.doc;
+    this.titoloProgetto.textContent = p.name || 'Montaggio senza nome';
+    this.tcFine.textContent = frameToTc(projectEnd(p), p.rate, p.drop);
+  }
 
   private m(): Master { return masterDi(store.doc); }
 
@@ -126,8 +155,11 @@ export class Finale {
     let pg = this.pagine.get(z);
     if (!pg) { pg = this.costruisci(z); this.pagine.set(z, pg); }
     const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
-    this.corpo.replaceChildren(sez('Riepilogo', 'info', this.riepilogo), pg);
+    // nella pagina Uscita il riepilogo (buchi neri, file da ricollegare) sta sotto: sopra c'è il controllo
+    this.corpo.replaceChildren(...(z === 'esporta' ? [pg, sez('Riepilogo del montaggio', 'info', this.riepilogo)] : [sez('Riepilogo', 'info', this.riepilogo), pg]));
     this.corpo.scrollTop = 0;
+    this.pannelloUscita?.mostrata(this.visibile && z === 'esporta');
+    this.piede.replaceChildren(...(z === 'esporta' && this.pannelloUscita ? [this.pannelloUscita.fondo] : []));
     this.aggiornaRiepilogo();
     for (const c of this.campi) c.aggiorna();
     if (z === 'sottotitoli') { this.firmaSott = ''; this.aggiornaSott(); }
@@ -222,15 +254,18 @@ export class Finale {
     if (z === 'logo') return pagina(this.paginaLogo(sez));
     if (z === 'apertura') return pagina(...this.paginaApertura(sez));
     if (z === 'lingue') return pagina(...this.paginaLingue(sez));
-    // l'esportazione ha il suo pannello (preset, cosa esce, coda): lo stesso della finestra Ctrl+M
+    // l'uscita: controllo, destinazione, volume, coda (lo stesso pannello della finestra Ctrl+M, in versione Banco)
+    this.pannelloUscita = pannelloEsporta(undefined, { banco: true });
+    this.pannelloUscita.mostrata(this.visibile && this.sezione === 'esporta');
     const esporta = h('div', { class: 'fin-esporta' },
-      pannelloEsporta().el,
-      h('div', { class: 'fin-altri' },
-        h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
-        h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
-        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
-        h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
-      h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.'));
+      this.pannelloUscita.el,
+      sez('Altri file', 'cartella',
+        h('div', { class: 'fin-altri' },
+          h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
+          h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
+          h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
+          h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
+        h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.')));
     return pagina(esporta);
   }
 
@@ -437,7 +472,7 @@ export class Finale {
 
   // ——— la voce AI: i sottotitoli letti da una voce di NVIDIA (Magpie) ———
   private voce = (() => {
-    const base = { voce: 0, lingua: '', silenzia: true };
+    const base = { voce: 0, lingua: '', silenzia: true, motore: 'magpie' };
     try { return { ...base, ...(JSON.parse(localStorage.getItem('dpv-voce') ?? '{}') as Partial<typeof base>) }; } catch { return base; }
   })();
   private lavoroVoce: AbortController | null = null;
@@ -459,6 +494,8 @@ export class Finale {
     const linguaSott = () => sottotitoliDi(store.doc).lingua;
     const scelte = scelta('La voce parla', [['', 'Come i sottotitoli', 'Nella lingua in cui sono scritti i sottotitoli'], ...LINGUE_PARLATE.map(([v, , t]) => [v, t, 'Se i sottotitoli sono in un\'altra lingua, prima si traducono (solo per la voce)'] as [string, string, string])], () => this.voce.lingua, (v) => { this.voce.lingua = v; });
     const nota = h('p', { class: 'nota' });
+    const locale = pannelloVoceLocale();
+    sinc.push(() => { locale.hidden = this.voce.motore !== 'qwen'; });
     const nomeLingua = (l: string) => LINGUE.find(([v]) => v === l)?.[1] ?? l;
     sinc.push(() => {
       const lS = linguaSott(), lV = this.voce.lingua || lS;
@@ -470,11 +507,16 @@ export class Finale {
           : diversa
             ? `I sottotitoli sono in ${nomeLingua(lS)} e la voce parla ${nomeLingua(lV)}: prima li traduco (solo per la voce, i sottotitoli restano come sono), poi li leggo. Ogni frase va al suo posto, e diventa una clip che puoi spostare o abbassare.`
             : `La voce legge i sottotitoli (${nomeLingua(lS)}) con una voce sintetica di NVIDIA (Magpie TTS). Ogni frase va al suo posto, e diventa una clip che puoi spostare o abbassare.`;
-      vai.disabled = !motoreNemo() || !!this.lavoroVoce;
+      if (this.voce.motore === 'qwen') nota.textContent = 'Voce realistica con Qwen3-TTS 0.6B Base. Scegli il campione qui sotto; installazione e download sono nel Centro AI.';
+      vai.disabled = (this.voce.motore === 'qwen' ? !motoreLocaleDisponibile() : !motoreNemo()) || !!this.lavoroVoce;
     });
     this.aggiornaAI.push(() => sinc.forEach((f) => f()));
+    const vociMagpie = scelta('Voce', VOCI_MAGPIE.map((n, i) => [String(i), n] as [string, string]), () => String(this.voce.voce), (v) => { this.voce.voce = Number(v); });
+    sinc.push(() => { vociMagpie.hidden = this.voce.motore === 'qwen'; });
     const out = [
-      scelta('Voce', VOCI_MAGPIE.map((n, i) => [String(i), n] as [string, string]), () => String(this.voce.voce), (v) => { this.voce.voce = Number(v); }),
+      scelta('Come leggo', [['magpie', 'Voce attuale (Magpie)'], ['qwen', 'Voce realistica (motore AI)']], () => this.voce.motore, (v) => { this.voce.motore = v; }),
+      locale,
+      vociMagpie,
       scelte,
       h('label', { class: 'spunta-riga', title: 'Le voci originali vanno a zero: si sente solo la voce AI' }, silenzia, ' silenzia le voci originali'),
       h('div', { class: 'isp-pulsanti' }, vai, ferma),
@@ -491,6 +533,7 @@ export class Finale {
     if (!sottotitoliDi(p).righe.some((x) => x.testo.trim())) { avviso('Prima servono i sottotitoli: scrivili qui, o fatti aiutare dall\'AI', 'info', 3000); return; }
     const lingua = linguaVoce(p, this.voce.lingua || undefined);
     if (!lingua) { avviso('La voce parla italiano, inglese, spagnolo, francese, tedesco e cinese: scegli in che lingua', 'info', 3200); return; }
+    if (this.voce.motore === 'qwen') { await faiParlareLocale(lingua, this.voce.silenzia); return; }
     if (!(await confermaAvvioAI({ compito: 'Fai parlare i sottotitoli', ambito: 'Tutte le righe dei sottotitoli · nuova traccia Voce AI', modello: 'Magpie · ' + this.voce.voce, dettagli: 'Il motore nativo può scaricare anche i modelli di traduzione se necessari.' }))) return;
     if (this.lavoroVoce) return;
     const progetto = progettoAttuale();
@@ -701,7 +744,7 @@ export class Finale {
       nota.textContent = !s.righe.some((x) => x.testo.trim()) ? 'Prima servono i sottotitoli: scrivili nella pagina Sottotitoli, o fatti aiutare dall\'AI.'
         : stessa ? 'I sottotitoli sono già in questa lingua.'
           : !sappiamoTradurre(s.lingua, this.trad.a) ? `Da ${nome(s.lingua)} a ${nome(this.trad.a)} non so tradurre.`
-            : `Le righe restano ai loro tempi, cambia solo il testo (da ${nome(s.lingua)} a ${nome(this.trad.a)}). Si annulla con Ctrl+Z. Il modello di traduzione (NLLB di Meta) si scarica la prima volta e poi resta sul computer.`;
+            : `Le righe restano ai loro tempi, cambia solo il testo (da ${nome(s.lingua)} a ${nome(this.trad.a)}). Si annulla con Ctrl+Z. Traduce Hy-MT2, nel motore AI locale opzionale (Centro AI): se non c'è, ti dico cosa installare.`;
     } });
     return [
       sez('1 · Sottotitoli', 'sottotitoli',
@@ -722,7 +765,7 @@ export class Finale {
     const da = s.lingua, a = this.trad.a;
     const righe = s.righe.map((x) => ({ id: x.id, testo: x.testo }));
     if (!righe.some((x) => x.testo.trim())) { avviso('Non ci sono righe da tradurre', 'info'); return; }
-    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'NLLB-200', repo: 'Xenova/nllb-200-distilled-600M', mb: 600, ids: ['nllb'] }))) return;
+    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'Hy-MT2 1.8B · motore AI locale', locale: true, dettagli: 'Serve il motore AI locale opzionale con Hy-MT2 già scaricato dal Centro AI: da qui non viene scaricato niente. Il risultato si applica ai sottotitoli; Ctrl+Z lo annulla.', ids: ['hymt2'] }))) return;
     if (this.lavoroTrad) return;
     const progetto = progettoAttuale();
     const ctrl = new AbortController();

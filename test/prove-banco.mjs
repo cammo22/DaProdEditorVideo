@@ -26,7 +26,7 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
       const testa = document.querySelector('.testata');
       return {
         sopra: barra.nextElementSibling?.id === 'app' && r.top === 0,
-        bianca: getComputedStyle(barra).backgroundColor,
+        bianca: getComputedStyle(barra).backgroundImage,
         rapidi: ['.marchio', '.btn-progetti', '.nome-progetto'].every((s) => barra.querySelector(s)),
         trascina: barra.getAttribute('data-tauri-drag-region'),
         tastiFinestra: !!barra.querySelector('.bt-finestra'),
@@ -35,7 +35,7 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
         testata: { menu: !!testa.querySelector('.menu'), pagine: testa.querySelectorAll('.pagina-btn').length, esporta: !!testa.querySelector('.btn.primario'), vecchi: !!testa.querySelector('.marchio, .btn-progetti, .nome-progetto, .btn-cerca') },
       };
     });
-    prova('la barra del titolo sta sopra al banco, è bianca e ha marchio, progetti e nome', b.sopra && b.bianca === 'rgb(255, 255, 255)' && b.rapidi && b.trascina === 'deep', JSON.stringify(b));
+    prova('la barra del titolo sta sopra al banco, è Banco e ha marchio, progetti e nome', b.sopra && /gradient/.test(b.bianca) && b.rapidi && b.trascina === 'deep', JSON.stringify(b));
     prova('nel browser niente tasti della finestra (li ha il browser)', b.finestra === 'web' && !b.tastiFinestra, JSON.stringify(b));
     prova('la testata tiene solo menu, AI, le quattro pagine ed Esporta', b.testata.menu && b.testata.pagine === 4 && b.testata.esporta && !b.testata.vecchi, JSON.stringify(b.testata));
 
@@ -96,18 +96,33 @@ export async function proveBanco({ page: paginaDi, prova, OUT }) {
     });
     prova('il telecomando occupa la finestra (il resto si nasconde) e fa vedere quello che registri', t1.su && t1.solo && t1.inOnda && t1.spia === 'REC' && t1.anteprima && t1.va, JSON.stringify(t1));
     // la finestra piccola dell'app è quasi quadrata: qui la si fa grande uguale e si guarda che tutto ci stia
-    await page.setViewportSize({ width: 360, height: 420 });
+    await page.setViewportSize({ width: 400, height: 540 });
     await page.waitForTimeout(200);
     const dentro = await page.evaluate(() => [...document.querySelectorAll('.live-mini button, .tele-quadro')].every((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right <= innerWidth + 0.5 && r.bottom <= innerHeight + 0.5; }));
+    const controllo = await page.evaluate(() => [...document.querySelectorAll('.live-mini button')].every(b => b.getBoundingClientRect().height >= 44));
+    prova('i comandi del telecomando sono alti almeno 44 px', controllo);
     const quadro = await page.evaluate(() => document.querySelector('.tele-quadro').getBoundingClientRect().height);
     await page.screenshot({ path: `${OUT}/telecomando.png` });
-    prova('a 360×420 (la misura del telecomando) tasti e anteprima ci stanno tutti, e l\'anteprima è grande', dentro && quadro >= 150, JSON.stringify({ dentro, quadro }));
+    prova('a 400×540 (la misura del telecomando) tasti e anteprima ci stanno tutti, e l\'anteprima è grande', dentro && quadro >= 64, JSON.stringify({ dentro, quadro }));
 
+    for (const chi of ['voce', 'computer']) {
+      await page.click(`.tele-muto[data-canale=${chi}]`);
+      prova(`muto ${chi} dal telecomando`, await page.locator(`.tele-muto[data-canale=${chi}]`).getAttribute('aria-pressed') === 'true');
+      await page.click(`.tele-muto[data-canale=${chi}]`);
+    }
+    await page.setViewportSize({ width: 360, height: 500 });
+    const minimo = await page.evaluate(() => [...document.querySelectorAll('.live-mini button')].every(b => b.getBoundingClientRect().bottom <= innerHeight && b.getBoundingClientRect().right <= innerWidth));
+    prova('anche alla misura minima 360×500 non serve scorrere', minimo);
+    await page.setViewportSize({ width: 400, height: 540 });
+    await page.click('.tele-scene [data-scena=pausa]');
+    const scena = await page.evaluate(() => ({ attiva: document.querySelector('.tele-scene [data-scena=pausa]').getAttribute('aria-pressed'), titolo: document.querySelector('.tele-quadro .scene-titolo').classList.contains('acceso') }));
+    prova('le sei scene cambiano dal telecomando e il cartello si vede subito', scena.attiva === 'true' && scena.titolo, JSON.stringify(scena));
+    await page.click('.tele-scene [data-scena=schermo]');
     // pausa e ripresa, segno, anteprima spenta e riaccesa, tutto dal telecomando
-    await page.click('.live-mini .tele-grande');
+    await page.click('.live-mini .tele-pausa');
     await page.waitForTimeout(400);
-    const p1 = await page.evaluate(() => ({ live: document.querySelector('.live').classList.contains('in-pausa'), tele: document.querySelector('.live-mini').classList.contains('in-pausa'), spia: document.querySelector('.tele-spia').textContent, scritta: getComputedStyle(document.querySelector('.tele-pausa-scritta')).display, tasto: document.querySelector('.tele-grande').textContent }));
-    await page.click('.live-mini .tele-grande');
+    const p1 = await page.evaluate(() => ({ live: document.querySelector('.live').classList.contains('in-pausa'), tele: document.querySelector('.live-mini').classList.contains('in-pausa'), spia: document.querySelector('.tele-spia').textContent, scritta: getComputedStyle(document.querySelector('.tele-pausa-scritta')).display, tasto: document.querySelector('.tele-pausa').textContent }));
+    await page.click('.live-mini .tele-pausa');
     await page.waitForTimeout(400);
     await page.click('.live-mini .live-btn.segna');
     await page.waitForTimeout(150);

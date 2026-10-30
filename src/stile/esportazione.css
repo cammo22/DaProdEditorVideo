@@ -58,3 +58,55 @@
 .es-voce.errore .es-voce-stato { color: var(--rosso); }
 .es-voce-tasti { display: flex; align-items: center; gap: 2px; flex: none; }
 .dialogo.dlg-esporta { width: min(860px, calc(100vw - 24px)); }
+
+/* ——— stile Banco: destinazioni, volume, peso e pulsante oro (Finale e finestra Esporta) ——— */
+.es-dettagli { border: 1px solid var(--bordo); border-radius: 6px; background: var(--pann2, #1c1b23); padding: 0 12px; }
+.es-dettagli > summary { min-height: 40px; display: flex; align-items: center; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--inciso, #8d889c); cursor: pointer; list-style: none; }
+.es-dettagli > summary::-webkit-details-marker { display: none; }
+.es-dettagli > summary::before { content: '▸'; margin-right: 10px; letter-spacing: 0; }
+.es-dettagli[open] > summary::before { content: '▾'; }
+.es-dettagli > :not(summary) { margin-bottom: 12px; }
+.es-altre { margin-top: 8px; }
+.es-altre .es-preset { margin-top: 2px; }
+
+/* le carte della destinazione: nome, forma · misura · volume, codec a destra; la scelta è bordata di ciano */
+.es-banco .es-preset { grid-template-columns: 1fr; gap: 8px; }
+.es-dest { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 52px; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--bordo); background: #1c1b23; color: var(--testo); font-family: var(--ui); text-align: left; }
+.es-dest:hover { border-color: var(--bordo-forte); }
+.es-dest.acceso { border-color: var(--cia); box-shadow: 0 0 0 1px rgba(53, 232, 255, 0.35), 0 0 14px rgba(53, 232, 255, 0.12); }
+.es-dest-testi { display: flex; flex-direction: column; min-width: 0; }
+.es-dest-testi b { font: 700 17px var(--ui); }
+.es-dest-testi small { font: 500 13px var(--ui); color: var(--inciso, #8d889c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.es-dest-codec { font: 400 14px "Share Tech Mono", "Space Mono", ui-monospace, monospace; color: #a19db0; flex: none; }
+
+/* anche le carte vecchie (finestra Esporta) perdono il magenta: la scelta è ciano, la spia verde */
+.es-carta.acceso { box-shadow: 0 0 0 2px var(--cia); }
+.es-carta em { color: var(--cia); }
+.es-nota b, .es-qdice b { color: var(--testo); }
+
+/* il volume */
+.es-volume { display: flex; flex-direction: column; gap: 10px; }
+.es-volume .fin-interruttore { min-height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--bordo-forte); background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo2); font: 600 15px var(--ui); text-align: left; }
+.es-volume .fin-interruttore.acceso { color: var(--testo); box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.4); }
+.es-volume-info { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font: 500 14px/1.35 var(--ui); color: var(--testo2); }
+.es-volume-info .btn-mini { min-height: 34px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--bordo-forte); background: linear-gradient(180deg, #2c2b34, #1d1c23); color: var(--testo); font: 600 14px var(--ui); }
+
+/* peso, cartella e i due pulsanti: un solo oro per schermata */
+.es-fondo { display: flex; flex-direction: column; gap: 10px; }
+.es-piede { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 500 15px var(--ui); color: #a19db0; }
+.es-piede-peso { font-variant-numeric: tabular-nums; }
+.es-piede-cartella { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+.es-fondo .es-azioni { flex-direction: column; align-items: stretch; gap: 8px; }
+.es-fondo .es-azioni .btn { justify-content: center; }
+.es .btn.fin-vai { min-height: 52px; border-radius: 6px; border: 0; background: var(--oro); color: #14110a; font: 700 19px var(--ui); letter-spacing: 0; box-shadow: 0 0 0 1px rgba(255, 213, 74, 0.4), 0 6px 18px rgba(255, 171, 0, 0.25); }
+.es .btn.fin-vai:hover { filter: brightness(1.06); border: 0; }
+.es .btn.fin-vai:disabled { background: #4a4631; color: #8c8663; box-shadow: none; }
+.es .btn.fin-vai small { font: 600 14px var(--ui); opacity: 0.75; }
+.es-fondo .es-azioni .btn:not(.fin-vai) { min-height: 44px; }
+
+/* la coda */
+.es-voce { border-radius: 6px; border: 1px solid var(--bordo); background: #1c1b23; }
+.es-voce.lavoro { box-shadow: 0 0 0 1px rgba(255, 213, 74, 0.35); }
+.es-anteprima { border-radius: 6px; background: var(--vetro, #050407); border: 1px solid var(--bordo); }
+.es-riga > span { letter-spacing: 2px; }
+.es-fondo .es-azioni .fin-vai, .es-fondo .es-azioni .btn { flex: none; width: 100%; }

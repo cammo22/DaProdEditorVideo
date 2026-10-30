@@ -123,7 +123,6 @@ async function scatta(nome, viewport, extra = {}) {
     });
     await p.click('.pagina-btn[data-p=live]');
     await p.click('.live .fin-interruttore:has-text("Webcam")');
-    await p.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
     await p.click('.live .fin-interruttore:has-text("Stile presentazione")');
     await p.click('.live-sfondo[title=Tramonto]');
     await p.evaluate(() => { document.querySelector('.live-comandi').scrollTop = 0; });
@@ -163,6 +162,12 @@ async function scatta(nome, viewport, extra = {}) {
     await p.screenshot({ path: path.join(OUT, nome + '-montage.png') });
   // l'anteprima in alto: si crea (ferma sul fotogramma) e si guarda, poi si scarta
   await p.evaluate(() => { window.__dpvTest.ui().montage.partenza = false; });
+  await p.locator('.mt-etapes .mt-vai').nth(1).click();
+  await p.waitForTimeout(500);
+  await p.screenshot({ path: path.join(OUT, nome + '-montage-stili.png') });
+  await p.locator('.mt-etapes .mt-vai').nth(2).click();
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: path.join(OUT, nome + '-montage-durata.png') });
   await p.click('.mt-crea');
   await p.evaluate(() => window.__dpvTest.ui().montage.ultimo);
   await p.waitForTimeout(1800);

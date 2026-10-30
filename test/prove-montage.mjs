@@ -189,15 +189,51 @@ export async function proveMontage({ page, prova, OUT }) {
   await page.screenshot({ path: path.join(OUT, 'montage-pagina.png') });
 
   // Attraversare gli step visibili, come nell'uso reale: non forzare click nascosti.
-  prova('la pagina parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes button').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
-  // sullo schermo largo le tre colonne stanno affiancate: i passi si usano solo sugli schermi stretti
-  { const passo = page.getByRole('button', { name: '2 · Stile', exact: true }); if (await passo.isVisible()) await passo.click(); }
+  prova('la pagina parte dai file e dichiara lo step corrente', await page.locator('.mt-etapes .mt-vai').nth(0).getAttribute('aria-current') === 'step' && await page.locator('.mt-colfile').isVisible());
+  // la barra: quattro passi, quello attuale è ciano, il monitor grande non c'è ancora (compare solo all'anteprima)
+  const barra = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('.mt-etapes .mt-vai')];
+    return { n: b.length, testi: b.map((x) => x.textContent.replace(/^\d/, '')), stati: b.map((x) => x.dataset.stato), monitor: getComputedStyle(document.querySelector('.monitor')).display, monitorAttr: document.getElementById('app').dataset.mtMonitor ?? '' };
+  });
+  prova('la barra ha i quattro passi (attuale / fatti / futuri) e il monitor aspetta l\'anteprima', barra.n === 4 && barra.testi.join('|') === 'Foto e video|Stile|Durata e musica|Anteprima' && barra.stati.join() === 'attuale,futuro,futuro,futuro' && barra.monitor === 'none' && barra.monitorAttr === '', JSON.stringify(barra));
+  await page.locator('.mt-etapes .mt-vai').nth(1).click();
   await page.waitForSelector('.mt-colfesta', { state: 'visible' });
+  const stili = await page.evaluate(() => {
+    const c = [...document.querySelectorAll('.mt-festa')];
+    const r = (e) => e.getBoundingClientRect();
+    const tutte = c.length;
+    const piccole = c.filter((e) => r(e).width < 200 || r(e).height < 120).length;
+    const nomi = c.every((e) => e.querySelector('b')?.textContent && e.querySelector('small')?.textContent);
+    const filtri = [...document.querySelectorAll('.mt-filtri .chip')].map((x) => x.textContent);
+    const bar = [...document.querySelectorAll('.mt-etapes .mt-vai')].map((x) => x.dataset.stato).join();
+    return { tutte, piccole, nomi, filtri: filtri.length, bar, sfondo: c[0].style.background.includes('gradient') };
+  });
+  prova('al passo 2 ci sono tutti gli stili come schede grandi, con nome, descrizione e colore, e il filtro per gruppo', stili.tutte >= 22 && stili.piccole === 0 && stili.nomi && stili.filtri === 8 && stili.bar === 'fatto,attuale,futuro,futuro' && stili.sfondo, JSON.stringify(stili));
+  await page.locator('.mt-filtri .chip').nth(1).click();
+  const filtrati = await page.evaluate(() => document.querySelectorAll('.mt-festa').length);
+  await page.locator('.mt-filtri .chip').nth(0).click();
+  prova('il filtro mostra solo il gruppo scelto e «Tutti» li rimette', filtrati > 0 && filtrati < stili.tutte && (await page.evaluate(() => document.querySelectorAll('.mt-festa').length)) === stili.tutte, String(filtrati));
+  await page.screenshot({ path: path.join(OUT, 'montage-stili.png') });
   await page.click('.mt-festa[data-preset="battesimo"]');
-  // sullo schermo largo le tre colonne stanno affiancate: i passi si usano solo sugli schermi stretti
-  { const passo = page.getByRole('button', { name: '3 · Durata, ordine e musica', exact: true }); if (await passo.isVisible()) await passo.click(); }
+  await page.locator('.mt-etapes .mt-vai').nth(2).click();
   await page.waitForSelector('.mt-colcome', { state: 'visible' });
   await page.waitForTimeout(200);
+  // il passo 3 si vede tutto senza scorrere (sul portatile da 1366x768 come sullo schermo grande)
+  for (const [w, hh] of [[1600, 950], [1366, 768], [1280, 720]]) {
+    await page.setViewportSize({ width: w, height: hh });
+    await page.waitForTimeout(250);
+    const ness = await page.evaluate(() => {
+      const c = document.querySelector('.mt-schede'), schede = [...document.querySelectorAll('.mt-scheda')];
+      const comandi = [...document.querySelectorAll('.mt-colcome .mt-scheda button, .mt-colcome .mt-scheda input, .mt-colcome .mt-scheda select')];
+      const bassi = comandi.filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().height));
+      const fuori = comandi.filter((e) => { const r = e.getBoundingClientRect(), q = c.getBoundingClientRect(); return r.bottom > q.bottom + 1 || r.right > q.right + 1; }).length;
+      return { misure: schede.map((e) => [e.querySelector('h4')?.textContent, e.scrollHeight, e.clientHeight]), schede: schede.length, tutteIntere: schede.every((e) => e.scrollHeight <= e.clientHeight + 1), pagina: c.scrollHeight <= c.clientHeight + 1, bassi, fuori, alto: Math.round(c.getBoundingClientRect().height) };
+    });
+    prova(`al passo 3 durata, musica, titoli e formato si vedono tutti senza scorrere (${w}×${hh})`, ness.schede === 5 && ness.tutteIntere && ness.pagina && ness.fuori === 0 && ness.bassi.length === 0, JSON.stringify(ness));
+    if (w === 1366) await page.screenshot({ path: path.join(OUT, 'montage-durata-1366.png') });
+  }
+  await page.setViewportSize({ width: 1600, height: 950 });
+  await page.waitForTimeout(250);
   await page.evaluate(() => {
     const campo = [...document.querySelectorAll('.mt-campo input')][0];
     campo.value = 'Leonardo'; campo.dispatchEvent(new Event('input', { bubbles: true }));
@@ -221,25 +257,42 @@ export async function proveMontage({ page, prova, OUT }) {
     const fine = foto.length ? Math.max(...foto.map((c) => c.start + c.len)) : 0;
     const titoli = d.clips.filter((c) => c.kind === 'title');
     const nome = d.sequenze?.find((s) => s.id === d.seqAttiva)?.nome;
-    const vis = (q) => { const e = document.querySelector(q); return !!e && getComputedStyle(e).display !== 'none'; };
-    const box = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { y: Math.round(r.top), h: Math.round(r.height), w: Math.round(r.width) }; };
+    const vis = (q) => { const e = document.querySelector(q); const g = e?.closest('.mt-duebtn'); return !!e && getComputedStyle(e).display !== 'none' && (!g || getComputedStyle(g).display !== 'none'); };
+    const box = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), h: Math.round(r.height), w: Math.round(r.width) }; };
     const forma = JSON.stringify([
       foto.slice().sort((a, b) => a.start - b.start).map((c) => [c.media.slice(-5), c.len, Math.round((c.tfFine?.scale ?? 0) * 1000), Math.round(c.tf?.x ?? 0), Math.round(c.tfFine?.x ?? 0)]),
       d.clips.filter((c) => c.kind === 'fx').map((c) => (c.fxb?.id ?? '') + ':' + c.start + ':' + c.len),
       titoli.map((c) => c.gen?.anim?.id + ':' + c.start),
     ]);
     return {
-      pagina: document.getElementById('app').dataset.pagina, nome, fine, atteso: Math.round(20 * fps), nFoto: foto.length, titoli: titoli.length, testo: JSON.stringify(titoli.map((c) => c.gen?.anim)),
+      pagina: document.getElementById('app').dataset.pagina, nome, fine, atteso: Math.round(20 * fps), nFoto: foto.length, titoli: titoli.length, testo: JSON.stringify(titoli.map((c) => c.gen)),
       blocchi: d.clips.filter((c) => c.kind === 'fx').length, seq: (d.sequenze ?? []).length, undo: window.__dpv.undoLabel(), forma,
       crea: vis('.mt-crea'), rigenera: vis('.mt-rigenera'), importa: vis('.mt-importa'), scarta: vis('.mt-scarta'), variante: document.querySelector('.mt-variante')?.textContent ?? '',
-      monitor: box('.monitor'), pannello: box('.montage'), timeline: vis('.timeline'),
+      monitor: box('.monitor'), pannello: box('.mt-colanteprima'), timeline: vis('.timeline'), passo: document.querySelector('.mt-etapes .mt-vai[aria-current=step]')?.dataset.passo,
+      titoliN: d.clips.filter((c) => c.kind === 'title').length, riassunto: document.querySelector('.mt-riassunto')?.textContent ?? '',
     };
   });
   const dopo = await stato();
-  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Anteprima · variante [0-9A-Z]{5} · Rigenera la sostituisce, Scarta torna indietro$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
+  prova('"Crea il montaggio" fa l\'anteprima e resta sulla pagina: ci sono Rigenera, Importa e Scarta, e la variante', dopo.pagina === 'montage' && /Battesimo/.test(dopo.nome ?? '') && dopo.nFoto >= 3 && !dopo.crea && dopo.rigenera && dopo.importa && dopo.scarta && /^Anteprima · variante [0-9A-Z]{5}$/.test(dopo.variante), JSON.stringify({ ...dopo, forma: undefined }));
   prova('le foto riempiono esattamente 20 secondi e il nome inserito sta nel titolo', dopo.fine === dopo.atteso && /Leonardo/.test(dopo.testo) && dopo.titoli >= 1, JSON.stringify([dopo.fine, dopo.atteso]));
   prova('ci sono transizioni o effetti come blocchetti sopra le clip', dopo.blocchi >= 2, String(dopo.blocchi));
-  prova('il monitor sta in alto e grande (anche col pannello Proprietà fissato), il pannello sotto, la timeline nascosta', dopo.monitor && dopo.pannello && dopo.monitor.h > 200 && dopo.monitor.w > 900 && dopo.monitor.y < dopo.pannello.y && dopo.pannello.h > 250 && !dopo.timeline, JSON.stringify([dopo.monitor, dopo.pannello, dopo.timeline]));
+  prova('all\'anteprima il passo 4 è attuale, il monitor vero è grande a sinistra (anche col pannello Proprietà fissato), i comandi a destra, la timeline nascosta', dopo.passo === 'anteprima' && dopo.monitor && dopo.pannello && dopo.monitor.h > 400 && dopo.monitor.w > 900 && dopo.monitor.x + dopo.monitor.w <= dopo.pannello.x + 2 && dopo.pannello.h > 400 && !dopo.timeline, JSON.stringify([dopo.passo, dopo.monitor, dopo.pannello, dopo.timeline]));
+  prova('«Ti piace?» dice stile, file, durata e musica; i sette ritocchi veloci ci sono', /^Battesimo/.test(dopo.riassunto) && /20 s/.test(dopo.riassunto) && /senza musica/.test(dopo.riassunto) && (await page.locator('.mt-ritocco').count()) === 7, dopo.riassunto);
+  // anche sul portatile piccolo (1280×720) i comandi dell'anteprima stanno tutti nello schermo, senza scorrere il pannello
+  for (const [w, hh] of [[1366, 768], [1280, 720]]) {
+    await page.setViewportSize({ width: w, height: hh });
+    await page.waitForTimeout(300);
+    const st = await page.evaluate(() => {
+      const p = document.querySelector('.mt-colanteprima'), vh = window.innerHeight;
+      const c = [...p.querySelectorAll('button')].filter((e) => e.offsetParent !== null);
+      const fuori = c.filter((e) => { const r = e.getBoundingClientRect(); return r.bottom > vh + 1 || r.top < 0; }).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().bottom));
+      const bassi = c.filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className);
+      return { vh, fuori, bassi, scorre: p.scrollHeight > p.clientHeight + 1, n: c.length };
+    });
+    prova(`all'anteprima i comandi stanno tutti nello schermo senza scorrere (${w}×${hh})`, st.fuori.length === 0 && st.bassi.length === 0 && !st.scorre && st.n >= 7, JSON.stringify(st));
+  }
+  await page.setViewportSize({ width: 1600, height: 950 });
+  await page.waitForTimeout(300);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, 'montage-risultato.png') });
 
@@ -300,7 +353,65 @@ export async function proveMontage({ page, prova, OUT }) {
   });
   prova('con 12 semi cambiano movimenti, durate, transizioni, effetti e sovrapposizioni; sempre 60 s esatti e mai due movimenti uguali di fila', variet.moti >= 10 && variet.durate >= 10 && variet.transizioni >= 8 && variet.effetti >= 6 && variet.somme && variet.mossa && variet.limiti, JSON.stringify(variet));
 
+  // le scartate: al passo 1 hanno il bordo grigio col perché, e un clic le rimette (e il motore non le toglie più)
+  console.log('▶ DaProdMontage: le scartate e i ritocchi veloci');
+  await page.locator('.mt-etapes .mt-vai').nth(0).click();
+  await page.waitForTimeout(300);
+  const scartate = await page.evaluate(() => {
+    const q = [...document.querySelectorAll('.mt-thumb.scartata')];
+    return { n: q.length, id: q[0]?.dataset.id ?? '', motivo: q[0]?.dataset.scarto ?? '', etichetta: q[0]?.querySelector('.mt-scarto')?.textContent ?? '', bordo: q[0] ? getComputedStyle(q[0]).borderStyle : '', tasto: document.querySelector('.mt-scartate')?.textContent ?? '', tastoVisibile: getComputedStyle(document.querySelector('.mt-scartate')).display !== 'none' };
+  });
+  prova('al passo 1 le scartate hanno il bordo grigio tratteggiato, il perché e il tasto «rimettile»', scartate.n >= 1 && scartate.bordo === 'dashed' && /^(doppia|mossa|fuori)$/.test(scartate.motivo) && scartate.etichetta.length > 2 && scartate.tastoVisibile && /rimettile/.test(scartate.tasto), JSON.stringify(scartate));
+  await page.locator(`.mt-thumb[data-id="${scartate.id}"]`).click();
+  await page.waitForTimeout(400);
+  const rimessa = await page.evaluate((id) => ({ ancora: document.querySelector(`.mt-thumb[data-id="${id}"]`).classList.contains('scartata'), scelta: document.querySelector(`.mt-thumb[data-id="${id}"]`).classList.contains('scelta'), n: document.querySelectorAll('.mt-thumb.scartata').length }), scartate.id);
+  prova('un clic su una scartata la rimette (resta scelta, il bordo non è più grigio)', !rimessa.ancora && rimessa.scelta, JSON.stringify(rimessa));
+  await page.locator('.mt-etapes .mt-vai').nth(3).click();
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(500);
+  const rifatta = await page.evaluate((id) => ({ dentro: window.__dpv.doc.clips.some((c) => c.kind === 'media' && c.media === id), passo: document.querySelector('.mt-etapes .mt-vai[aria-current=step]')?.dataset.passo, scartate: document.querySelectorAll('.mt-thumb.scartata').length, variante: document.querySelector('.mt-variante')?.textContent }), scartate.id);
+  prova('tornando all\'anteprima si rifà da sola e la foto rimessa c\'è davvero nel montaggio', rifatta.dentro && rifatta.passo === 'anteprima', JSON.stringify(rifatta));
+  // i ritocchi veloci: più corto, più lento, togli i titoli. Ogni ritocco rifà il montaggio con lo STESSO seme.
+  const fpsDoc = await page.evaluate(() => window.__dpv.doc.rate.num / window.__dpv.doc.rate.den);
+  const seme0 = await page.evaluate(() => document.querySelector('.mt-variante').textContent);
+  const lunghezza = () => page.evaluate(() => { const d = window.__dpv.doc; const f = d.clips.filter((c) => c.kind === 'media'); return f.length ? Math.max(...f.map((c) => c.start + c.len)) : 0; });
+  const nomeNeiTitoli = () => page.evaluate(() => /Leonardo/.test(JSON.stringify(window.__dpv.doc.clips.filter((c) => c.kind === 'title').map((c) => c.gen))));
+  const titoliPrima = await nomeNeiTitoli();
+  await page.click('.mt-ritocco[data-ritocco=piuCorto]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(500);
+  const corto = { fine: await lunghezza(), variante: await page.evaluate(() => document.querySelector('.mt-variante').textContent), salvata: await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-montage')).durata) };
+  prova('«Più corto» porta il montaggio da 20 a 15 secondi e rigenera con lo stesso seme', corto.salvata === 15 && corto.fine === Math.round(15 * fpsDoc) && corto.variante === seme0, JSON.stringify([corto, seme0]));
+  await page.click('.mt-ritocco[data-ritocco=piuLento]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(500);
+  const lento = await page.evaluate(() => ({ l: JSON.parse(localStorage.getItem('dpv-montage')).lentezza, nome: document.querySelector('.mt-ritocco[data-ritocco=piuLento]').textContent }));
+  prova('«Più lento» sale di un gradino (e il bottone lo dice)', lento.l === 1 && /1 su 3/.test(lento.nome), JSON.stringify(lento));
+  await page.click('.mt-ritocco[data-ritocco=titoli]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(500);
+  const senzaTitoli = await page.evaluate(() => ({ nome: document.querySelector('.mt-ritocco[data-ritocco=titoli]').textContent, salvato: JSON.parse(localStorage.getItem('dpv-montage')).titoli }));
+  senzaTitoli.nome_nei_titoli = await nomeNeiTitoli();
+  prova('«Togli i titoli» toglie davvero i titoli (il nome "Leonardo" non c\'è più) e il bottone diventa «Rimetti i titoli»', titoliPrima && !senzaTitoli.nome_nei_titoli && senzaTitoli.salvato === false && senzaTitoli.nome === 'Rimetti i titoli', JSON.stringify([titoliPrima, senzaTitoli]));
+  await page.screenshot({ path: path.join(OUT, 'montage-ritocchi.png') });
+  // si rimette tutto com'era (le prove dopo contano su 20 secondi, ritmo dello stile e titoli accesi)
+  await page.click('.mt-scarta');
+  await page.waitForTimeout(300);
+  await page.evaluate(async () => {
+    const ok = [...document.querySelectorAll('.mt-colcome .mt-scheda')];
+    const ritmo = ok[0].querySelector('select'); ritmo.value = '0'; ritmo.dispatchEvent(new Event('change', { bubbles: true }));
+    [...document.querySelectorAll('.mt-colcome .fin-interruttore')].find((b) => /Titoli/.test(b.textContent)).click();
+    const [mm, ss] = document.querySelectorAll('.mt-mmss input');
+    mm.value = '0'; mm.dispatchEvent(new Event('change', { bubbles: true })); ss.value = '20'; ss.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(300);
+  const ripristino = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-montage')));
+  prova('scartando l\'anteprima si torna al passo 3 con le scelte da rimettere a posto', ripristino.durata === 20 && ripristino.lentezza === 0 && ripristino.titoli === true, JSON.stringify(ripristino));
+
   // importa: il montaggio resta come timeline vera e si apre il Montaggio
+  await page.click('.mt-crea');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(500);
   const nSeq = (await stato()).seq;
   await page.click('.mt-importa');
   await page.waitForFunction(() => document.getElementById('app').dataset.pagina === 'montaggio', null, { timeout: 10000 }).catch(() => {});
@@ -339,12 +450,43 @@ export async function proveMontage({ page, prova, OUT }) {
     // si tengono solo tre foto (i video eventualmente già nel progetto si tolgono)
     const q = [...document.querySelectorAll('.mt-thumb')];
     let foto = 0;
-    q.forEach((b) => { const video = !!b.querySelector('.mt-tipo'); if ((video || ++foto > 3) && b.classList.contains('scelta')) b.click(); });
+    q.forEach((b) => { const video = !!b.querySelector('.mt-tipo'); if (video || ++foto > 3) for (let k = 0; k < 2 && b.classList.contains('scelta'); k++) b.click(); });
     await new Promise((r) => setTimeout(r, 400));
     return { riep: document.querySelector('.mt-riepilogo')?.textContent, conta: document.querySelector('.mt-conta')?.textContent };
   });
   prova('con tre sole foto e 20 secondi il riepilogo lo dice e il tasto resta acceso', /^3 foto · 0 video/.test(poche.conta) && poche.riep.length > 20, JSON.stringify(poche));
   await page.screenshot({ path: path.join(OUT, 'montage-poche.png') });
+  // Le opzioni locali restano visibili nel browser, senza avviare motori o download.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:pagina', { detail: 'montage' })));
+  await page.waitForSelector('.montage', { state: 'visible' });
+  await page.locator('.mt-vai[data-passo=durata]').click();
+  const ai = await page.evaluate(() => [...document.querySelectorAll('.mt-auto-ai')].map((e) => ({
+    spento: e.querySelector('button').disabled, testo: e.textContent,
+  })));
+  prova('gli aiuti AI sono visibili, opzionali e spenti nel browser, con le istruzioni', ai.length === 2 && ai.every((a) => a.spento && /OPZIONALE/.test(a.testo) && /Centro AI/.test(a.testo)), JSON.stringify(ai));
+  await page.click('.mt-crea');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(250);
+  const misurePrima = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h, seq: window.__dpv.doc.sequenze.length }));
+  await page.click('.mt-ritocco[data-ritocco=verticale]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(250);
+  const verticale = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h, seq: window.__dpv.doc.sequenze.length,
+    key: window.__dpv.doc.clips.some((c) => c.anim?.['tf.scale']?.length), lut: window.__dpv.doc.clips.find((c) => c.fx?.colore?.lut)?.fx.colore.lut.id }));
+  prova('Rendi verticale funziona anche con sequenze esistenti, con keyframe e LUT', verticale.w === 1080 && verticale.h === 1920 && verticale.seq === misurePrima.seq && verticale.key && !!verticale.lut, JSON.stringify(verticale));
+  await page.click('.mt-ritocco[data-ritocco=look]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(200);
+  const lutDopo = await page.evaluate(() => window.__dpv.doc.clips.find((c) => c.fx?.colore?.lut)?.fx.colore.lut.id);
+  prova('Cambia look applica un’altra LUT alle clip vere', !!lutDopo && lutDopo !== verticale.lut, String(lutDopo));
+  await page.click('.mt-ritocco[data-ritocco=bilancia]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(200);
+  const voce = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-montage')).audioVideo);
+  prova('Più musica / più voce cambia il bilanciamento salvato', voce === -3, String(voce));
+  await page.click('.mt-scarta');
+  const tornato = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h }));
+  prova('Scarta annulla insieme sequenza, look e formato', tornato.w === misurePrima.w && tornato.h === misurePrima.h, JSON.stringify(tornato));
   await page.keyboard.press('F8');
   await page.waitForTimeout(300);
 }

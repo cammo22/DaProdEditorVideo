@@ -20,7 +20,7 @@ await build({
   logLevel: 'warn',
   // Esponiamo solo nel bundle di prova un confine asincrono privato; nessun hook nell'app.
   plugins: [{ name: 'confini-progetti-test', enforce: 'pre', transform(code, id) {
-    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia, valida as _testValida };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia, valida as _testValida, reteDiSicurezza as _testRete, apriDaTesto as _testApriDaTesto };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/media/proxy.ts')) return { code: code + '\nexport { scriviProxy as _testScriviProxy };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/ui/live.ts')) return { code: code + '\nexport { avvisaErroreSchermo as _testAvvisaErroreSchermo };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/pacchetto.ts')) return { code: code + '\nexport { progettoDentro as _testProgettoDentro };', map: null };
@@ -34,6 +34,7 @@ await build({
     minify: false,
     rollupOptions: {
       input: {
+        motoreAI: path.join(radice, 'src/media/motoreAI.ts'),
         flussiUI: path.join(radice, 'src/core/flussiUI.ts'),
         attivita: path.join(radice, 'src/media/attivita.ts'),
         libreria: path.join(radice, 'src/media/libreria.ts'),
@@ -57,6 +58,9 @@ await build({
         mossformer: path.join(radice, 'src/core/mossformer.ts'),
         esportazione: path.join(radice, 'src/core/esportazione.ts'),
         codaExport: path.join(radice, 'src/core/codaExport.ts'),
+        loudness: path.join(radice, 'src/core/loudness.ts'),
+        funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
+        controlloFinale: path.join(radice, 'src/core/controlloFinale.ts'),
         lut: path.join(radice, 'src/render/lut.ts'),
         curve: path.join(radice, 'src/render/curve.ts'),
         colore: path.join(radice, 'src/render/colore.ts'),
@@ -68,11 +72,32 @@ await build({
         coloreAudioProgetto: path.join(radice, 'src/core/coloreAudioProgetto.ts'),
         zoomCursore: path.join(radice, 'src/core/zoomCursore.ts'),
         cursoreLive: path.join(radice, 'src/media/cursoreLive.ts'),
+        risorseLive: path.join(radice, 'src/core/risorseLive.ts'),
+        sceneLive: path.join(radice, 'src/core/sceneLive.ts'),
+        liveInfo: path.join(radice, 'src/core/liveInfo.ts'),
+        spoolLive: path.join(radice, 'src/media/spoolLive.ts'),
+        funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
         anelliClic: path.join(radice, 'src/render/cursore.ts'),
         pacchetto: path.join(radice, 'src/pacchetto.ts'),
         automazioni: path.join(radice, 'src/core/automazioni.ts'),
         maschereForma: path.join(radice, 'src/core/maschereForma.ts'),
         titoliHtml: path.join(radice, 'src/core/titoliHtml.ts'),
+        suggerimento: path.join(radice, 'src/ui/suggerimento.ts'),
+        funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
+        proprieta: path.join(radice, 'src/core/proprieta.ts'),
+        schedaAI: path.join(radice, 'src/core/schedaAI.ts'),
+        solido: path.join(radice, 'src/core/solido.ts'),
+        sottotitoli: path.join(radice, 'src/core/sottotitoli.ts'),
+        versioni: path.join(radice, 'src/media/versioni.ts'),
+        ricollega: path.join(radice, 'src/media/ricollega.ts'),
+        spazio: path.join(radice, 'src/media/spazio.ts'),
+        materialeAI: path.join(radice, 'src/core/materialeAI.ts'),
+        funzioniMotore: path.join(radice, 'src/media/funzioniMotore.ts'),
+        funzioniMotoreUI: path.join(radice, 'src/ui/funzioniMotoreUI.ts'),
+        clear: path.join(radice, 'src/media/clear.ts'),
+        montage: path.join(radice, 'src/core/montage.ts'),
+        montagePassi: path.join(radice, 'src/core/montagePassi.ts'),
+        montagePreset: path.join(radice, 'src/core/montagePreset.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

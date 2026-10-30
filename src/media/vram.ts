@@ -1,4 +1,4 @@
-// La memoria della scheda video (VRAM). I modelli AI restano caricati nei loro worker dopo il lavoro (SAM 3 + SAM 2.1 circa 1 GB, Whisper
+// La memoria della scheda video (VRAM). I modelli AI restano caricati nei loro worker dopo il lavoro (SAM 2.1, Whisper
 // circa mezzo giro in più): senza un limite la scheda resta piena finché il programma è aperto, e si porta via la memoria a giochi, render
 // e altri programmi. Qui ogni modello che sta in un worker si iscrive con due cose: come si scarica e se sta lavorando adesso. Se per
 // un po' (di partenza 90 s) nessuno lo usa, o se si preme «Libera la memoria della scheda video», i worker si chiudono e la memoria torna

@@ -39,9 +39,9 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(400);
 
-    // la colonna dei comandi è larga (e non scorre di lato)
-    const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1 }; });
-    prova('la colonna dei comandi di LIVE è larga (almeno 440 px a 1600 di larghezza) e non scorre di lato', col.w >= 440 && !col.scrollX, JSON.stringify(col));
+    // la colonna usa --livecol, mostra le opzioni e non scorre di lato
+    const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1, opzioni: document.querySelector('.live-configurazione')?.tagName === 'SECTION' }; });
+    prova('la colonna usa --livecol, mostra le opzioni e non scorre di lato', col.w >= 380 && col.w <= 660 && !col.scrollX && col.opzioni, JSON.stringify(col));
 
     // prima di registrare: il tasto WEBCAM e il tasto C accendono e spengono
     const stato = () => page.evaluate(() => ({ opz: window.__dpvTest.ui().live.opz.cam, anteprima: document.querySelector('.live').classList.contains('con-cam'), tasto: document.querySelector('.live-btn.cam').classList.contains('acceso'), interruttore: [...document.querySelectorAll('.live .fin-interruttore')].find((e) => /Webcam/.test(e.textContent))?.classList.contains('acceso') }));
@@ -72,6 +72,11 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.waitForTimeout(500);
+    // finita la registrazione si va dritti al Montaggio (e a fine registrazione le risorse tornano a zero)
+    const dopo = await page.evaluate(() => ({ pagina: document.getElementById('app').dataset.pagina, reg: document.querySelector('.live-btn.reg')?.textContent }));
+    prova('a fine registrazione si va dritti al Montaggio', dopo.pagina === 'montaggio', JSON.stringify(dopo));
+    await page.click('.pagina-btn[data-p=live]');
+    await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
       const d = window.__dpv.doc;
       const cams = d.media.filter((m) => /webcam/.test(m.name));
@@ -89,10 +94,18 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.evaluate(() => { const live = window.__dpvTest.ui().live; live.opz.cam = true; });
     await page.keyboard.press('r');
     await page.waitForFunction(() => document.querySelector('.live').classList.contains('in-onda'), null, { timeout: 12000 });
-    await page.waitForTimeout(1800);
+    // I numeri vanno alla regia e non ai comandi del montaggio nascosto.
+    const clipPrima = await page.evaluate(() => window.__dpv.doc.clips.length);
+    for (const key of ['1', '4', '3', '6', '2']) {
+      await page.keyboard.press(key);
+      await page.waitForTimeout(420);
+    }
+    const regia = await page.evaluate(() => ({ clip: window.__dpv.doc.clips.length, scene: window.__dpvTest.ui().live.scene.map(s => s.scena), attiva: document.querySelector('.live-scene [aria-pressed=true]')?.dataset.scena }));
+    prova('1–6 solo su LIVE: nessun taglio/eliminazione, scene e selezione aggiornate', regia.clip === clipPrima && ['schermo','affiancati','webcam-schermo','pausa','bolla'].every(s => regia.scene.includes(s)) && regia.attiva === 'bolla', JSON.stringify(regia));
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.waitForFunction(() => window.__dpv.doc.media.filter((m) => /webcam/.test(m.name)).length >= 3, null, { timeout: 15000 }).catch(() => {});
+    await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(300);
     const una = await page.evaluate(() => {
       const d = window.__dpv.doc;
@@ -101,6 +114,13 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     });
     prova('con la webcam sempre accesa la registrazione dopo ha un solo file della webcam (tre in tutto: i due di prima e uno)', una.tot === 3, JSON.stringify(una));
 
+    const sceneMontate = await page.evaluate(() => {
+      const p = window.__dpv.doc;
+      const schermo = p.media.filter(m => !/webcam|microfono/.test(m.name)).at(-1);
+      const video = p.clips.filter(c => c.media === schermo?.id && p.tracks.find(t => t.id === c.track)?.kind === 'video');
+      return { dati: schermo?.sceneLive?.cambi.length, video: video.length, chiavi: video.some(c => c.anim?.['tf.x']?.length > 2 && c.anim?.opacity?.length > 2), titolo: p.clips.some(c => c.gen?.title?.text === 'TORNO SUBITO' && c.anim?.opacity?.some(k => k.v === 1)), segni: p.markers.filter(m => m.name.startsWith('Scena ·')).length };
+    });
+    prova('riprese pulite e scene salvate: keyframe, schermo sopra la webcam grande, titolo e marcatori modificabili', sceneMontate.dati >= 5 && sceneMontate.video === 2 && sceneMontate.chiavi && sceneMontate.titolo && sceneMontate.segni >= 5, JSON.stringify(sceneMontate));
     // la webcam che non si apre: l'errore è in parole (con il nome tecnico), si riprova senza la scelta vecchia e con richieste semplici
     const errW = await page.evaluate(async () => {
       const live = window.__dpvTest.ui().live;
@@ -144,13 +164,20 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     prova('nella pagina LIVE non ci sono più i filtri audio (restano le barre dei livelli)', senzaFiltri.filtri === 0 && senzaFiltri.barre === 2, JSON.stringify(senzaFiltri));
     await page.evaluate(() => { for (const i of window.__giri ?? []) clearInterval(i); });
 
-    // la pagina LIVE: i comandi stanno sempre in vista, a tutta altezza accanto alla timeline
+    // la pagina LIVE: barra in alto, anteprima grande a sinistra, colonna stretta a destra, niente timeline
+    await page.click('.pagina-btn[data-p=live]');
+    await page.waitForTimeout(300);
     const lay = await page.evaluate(() => {
       const r = (s) => document.querySelector(s)?.getBoundingClientRect();
-      const c = r('.live-comandi'), t = r('.timeline'), sc = r('.live-schermo'), st = r('.stato');
-      return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left), w: Math.round(c.width) }, tl: t && { right: Math.round(t.right), bottom: Math.round(t.bottom) }, schermo: sc && { right: Math.round(sc.right) }, stato: st && Math.round(st.top) };
+      const c = r('.live-comandi'), sc = r('.live-schermo'), st = r('.stato'), ba = r('.live-barra'), tl = document.querySelector('.timeline');
+      const rec = document.querySelector('.live-btn.reg');
+      return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left) }, schermo: sc && { right: Math.round(sc.right), w: Math.round(sc.width), h: Math.round(sc.height) }, barra: ba && { top: Math.round(ba.top), h: Math.round(ba.height) }, stato: st && Math.round(st.top), tl: tl ? getComputedStyle(tl).display : 'assente', rec: rec && { h: Math.round(rec.getBoundingClientRect().height), sfondo: getComputedStyle(rec).backgroundColor }, ombra: getComputedStyle(document.querySelector('.live-schermo')).boxShadow };
     });
-    prova('LIVE: i comandi scendono fino in fondo, accanto alla timeline (che resta a sinistra), come il pannello fisso del montaggio', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.tl.right - 1 && lay.comandi.left >= lay.schermo.right && lay.comandi.top < 200, JSON.stringify(lay));
+    prova('LIVE: barra in alto, anteprima grande, colonna a destra fino in fondo, niente timeline, REC da 44 px, nessun riquadro rosso', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.schermo.right && lay.schermo.w > 800 && lay.barra.h >= 60 && lay.tl === 'none' && lay.rec.h >= 44 && lay.ombra === 'none', JSON.stringify(lay));
+    const fonti = await page.evaluate(() => [...document.querySelectorAll('.live-barra .live-sorg')].map((e) => ({ chi: e.dataset.chi, stato: e.querySelector('.spia')?.dataset.stato })));
+    prova('la barra ha tre fonti (schermo, webcam, microfono) con la spia', fonti.length === 3 && fonti.every((f) => ['spenta', 'pronta', 'rec'].includes(f.stato)), JSON.stringify(fonti));
+    const risorse = await page.evaluate(() => { const r = globalThis.__dpvRisorse; return r ? r.perdite({ video: 99 }) : null; });
+    prova('a registrazione finita LIVE non lascia aperti registratori, contesti audio o intervalli (solo in sviluppo: con il build di produzione il contatore non è attivo)', risorse === null || risorse.filter((x) => /registratore|audio|intervallo|worker|tela/.test(x)).length === 0, JSON.stringify(risorse));
 
     // ——— il banco ———
     console.log('▶ Banco: barra sul monitor sottile, zoom della timeline');
@@ -173,7 +200,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
       if (!b) return null;
       const r = b.getBoundingClientRect();
       const figli = [...b.children].filter((x) => x.getBoundingClientRect().width > 0 && getComputedStyle(x).display !== 'none');
-      const tops = figli.map((x) => Math.round(x.getBoundingClientRect().top));
+      const tops = figli.map((x) => { const r = x.getBoundingClientRect(); return Math.round(r.top + r.height / 2); });
       return { su: b.classList.contains('su'), h: Math.round(r.height), w: Math.round(r.width), unaRiga: Math.max(...tops) - Math.min(...tops) < 4, figli: figli.length };
     });
     await page.screenshot({ path: `${OUT}/barra-monitor-slim.png` });

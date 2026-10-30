@@ -1,3 +1,4 @@
+import { migraRitagli } from './core/sfondo';
 import { migraColoreAudio } from './core/coloreAudioProgetto';
 // Progetti: nuovo, apri, salva, autosalvataggio, importazione dei file e ricollegamento dei media.
 // Nell'app (Tauri) i media si ritrovano dal percorso; nel browser dalle "maniglie" dei file che Chrome
@@ -16,6 +17,11 @@ import { converti, esamina, normalizzaAttivo } from './media/normalizza';
 import { dialogoApri, dialogoSalva, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
 import { dapAttuale, indicePacchetto, leggi as leggiPezzo, leggiPacchetto, pianoDap, pianoPacchetto, ricordaDap, scriviDapApp, scriviDapBrowser, scriviPacchetto, type PianoDap, type Sorgente, type VoceLetta } from './pacchetto';
 import { proxyDelProgetto, rimettiProxy } from './media/proxy';
+import { chiaveVersioni, chiaviVersioni, elencoVersioniDi, eliminaVersione, emergenzaPulita, leggiEmergenza, registraVersione, scriviEmergenza, testoVersione, togliEmergenza } from './media/versioni';
+import { cercaMancanti, puoCercareInCartella, scegliCartella, comeCercato, type RisultatoRicerca } from './media/ricollega';
+import { misuraSpazio, puliscoSpazio } from './media/spazio';
+import { frasiRecupero, sceltaCopia, serveRecupero } from './core/solido';
+import { finestraRecupero, finestraRicollega, finestraSpazio, finestraVersioni } from './ui/solido';
 import { avviso, conferma, dialogo, h } from './ui/dom';
 import { motore } from './motore';
 import { s2f } from './core/timecode';
@@ -383,6 +389,7 @@ export async function salva(come = false) {
     }
     if (!r) return;
     store.dirty = false;
+    void dopoSalvataggio(JSON.stringify(store.doc));
     registraRecente(store.doc, isTauri ? r : undefined, isTauri ? undefined : serializza());
     const aggiunti = piano.byte > 1 << 20 ? ` (+${mb(piano.byte)})` : '';
     avviso(`💾 Salvato con tutti i file: ${nomeDaPercorso(r)}${aggiunti}`, 'ok', 3000);
@@ -398,9 +405,40 @@ export async function salva(come = false) {
   }
 }
 
+/** salvato davvero: la copia di emergenza non ha più modifiche da tenere, e questa è una versione da ritrovare */
+async function dopoSalvataggio(testo: string) {
+  try {
+    // il testo e la chiave si prendono subito: mentre si aspetta, il montaggio può già essere cambiato
+    const p = store.doc;
+    const chiave = chiaveVersioni(p, percorsoProgetto);
+    await emergenzaPulita();
+    if (p.clips.length || p.media.length) await registraVersione(p, testo, chiave, 'salvataggio');
+  } catch { /* la rete di sicurezza non deve mai rompere il salvataggio */ }
+}
+
 /** la revisione del documento già scritta dall'autosalvataggio (-1 = niente ancora) */
 let autosalvata = -1;
 let avvisatoAutosalvataggio = false;
+
+/**
+ * La rete di sicurezza: oltre all'autosalvataggio, una copia di emergenza con i dati di contorno (serve a capire se
+ * dopo una chiusura anomala c'è lavoro da recuperare) e, ogni tanto, una versione automatica del progetto.
+ * Non deve mai dare fastidio: se il deposito non va, si va avanti.
+ */
+let emergenzaDaToglere = false;
+async function reteDiSicurezza(testo: string, rev: number) {
+  try {
+    const p = store.doc;
+    if (!p.clips.length && !p.media.length) {
+      // progetto vuoto («Nuovo»): se avevamo una copia da recuperare, non ha più senso. Senza copie scritte da noi non si tocca il deposito.
+      if (emergenzaDaToglere) { emergenzaDaToglere = false; await emergenzaPulita(); }
+      return;
+    }
+    await scriviEmergenza(p, testo, rev, percorsoProgetto ?? undefined, store.dirty);
+    emergenzaDaToglere = store.dirty;
+    await registraVersione(p, testo, chiaveVersioni(p, percorsoProgetto), 'automatica');
+  } catch { /* deposito pieno o negato: l'autosalvataggio c'è comunque */ }
+}
 
 export async function autosalva() {
   if (!store.dirty && store.doc.saved) return;
@@ -408,6 +446,7 @@ export async function autosalva() {
   const rev = store.revisione;
   if (rev === autosalvata) return;
   const testo = serializza();
+  void reteDiSicurezza(testo, rev);
   try {
     if (isTauri) await invoke('autosalva', { text: testo });
     else await idb('kv', 'put', 'autosalvataggio', testo, true);
@@ -436,6 +475,7 @@ function valida(o: unknown): Project | null {
   p.master = { ...MASTER0, ...(p.master ?? {}) };
   // dalla 1.0.5: gli FX stanno sulle tracce video (la corsia a parte della 1.0.4 sparisce), e le transizioni delle
   // clip video diventano blocchetti
+  migraRitagli(p);
   migraBlocchi(p);
   migraColoreAudio(p);
   migraTitoliHtml(p);
@@ -456,6 +496,7 @@ export async function apri() {
 
 /** apre un progetto da un percorso (app, anche col doppio clic sul file) o da un file (browser) */
 export async function apriFile(s: Sorgente) {
+  void segnaAvvio(); // se il programma è partito da questo file, la sessione si segna lo stesso (la prima chiamata decide se l'ultima chiusura era anomala)
   const nome = s.file?.name ?? nomeDaPercorso(s.path ?? '');
   if (/\.(daprod|dap)$/i.test(nome)) { await apriPacchetto(s, /\.dap$/i.test(nome)); return; }
   ricordaDap(null);
@@ -504,6 +545,7 @@ async function apriPacchetto(s: Sorgente, dap = false) {
     for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
     motore.caricaPlayer(null);
     store.load(p);
+    void emergenzaPulita().catch(() => {});
     let mancano = 0;
     let i = 0;
     for (const m of p.media) {
@@ -584,6 +626,7 @@ export async function nuovo(fmt: { w: number; h: number; rate: { num: number; de
   motore.caricaPlayer(null);
   store.load(newProject(fmt));
   store.doc.saved = 0;
+  void emergenzaPulita().catch(() => {});
   // i file tenuti nel browser che non servono più a nessun progetto recente: si libera lo spazio
   void potaDeposito();
 }
@@ -594,6 +637,7 @@ export async function carica(p: Project) {
   for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
   motore.caricaPlayer(null);
   store.load(p);
+  void emergenzaPulita().catch(() => {});
   await riapriMedia(false);
   void potaDeposito();
 }
@@ -659,12 +703,64 @@ export async function riapriMedia(conGesto: boolean): Promise<number> {
   return mancano;
 }
 
-/** ricollega a mano i file mancanti: si scelgono i file, si abbinano per nome (e dimensione) */
+/** quali file del progetto non sono collegati */
+const mancantiOra = () => store.doc.media.filter((m) => mediaRT(m.id)?.stato !== 'ok');
+
+/**
+ * Ricollega i file mancanti, in modo guidato: prima si riprova a riaprirli come sempre (percorso, maniglia ricordata),
+ * poi si sceglie UNA cartella dove sono stati spostati e il programma cerca lì (anche nelle sottocartelle) per nome e
+ * grandezza, fa vedere cosa ha trovato e ricollega tutto con un clic. Resta la scelta dei file a mano.
+ */
 export async function ricollega() {
-  const mancanti = store.doc.media.filter((m) => mediaRT(m.id)?.stato !== 'ok');
-  if (!mancanti.length) { avviso('Tutti i file sono collegati', 'ok'); return; }
+  if (!mancantiOra().length) { avviso('Tutti i file sono collegati', 'ok'); return; }
   const n0 = await riapriMedia(true);
   if (!n0) { avviso('File ricollegati', 'ok'); return; }
+  const mancanti = mancantiOra();
+  finestraRicollega({
+    mancanti: mancanti.map(comeCercato),
+    puoCartella: puoCercareInCartella(),
+    cercaInCartella: async () => {
+      const c = await scegliCartella();
+      if (!c) return null;
+      return cercaMancanti(mancantiOra(), c);
+    },
+    applica: (r, ids) => applicaRicollegamenti(r, ids),
+    aMano: () => void ricollegaFile(),
+  });
+}
+
+/** apre davvero i file abbinati (quelli scelti nella finestra) e mette il percorso nuovo nel progetto */
+export async function applicaRicollegamenti(r: RisultatoRicerca, ids: ReadonlySet<string>): Promise<{ ok: number; falliti: number }> {
+  const lav = nuova({ titolo: 'Ricollego i file', categoria: 'file' });
+  let ok = 0, falliti = 0, i = 0;
+  const da = r.abbinati.filter((a) => ids.has(a.id));
+  try {
+    for (const a of da) {
+      if (lav.fermato) break;
+      const m = store.doc.media.find((x) => x.id === a.id);
+      const t = r.trovati[a.trovato];
+      lav.imposta(i++ / Math.max(1, da.length), `${i} di ${da.length} · ${t?.name ?? ''}`);
+      if (!m || !t) { falliti++; continue; }
+      try {
+        const file = t.maniglia ? await t.maniglia.getFile() : undefined;
+        const rt = await apriMedia(m, { file, path: t.path });
+        if (rt.stato !== 'ok') { falliti++; continue; }
+        ok++;
+        if (t.path && t.path !== m.path) store.aggiornaMedia(m.id, { path: t.path });
+        // nel browser la maniglia si ricorda: la prossima apertura trova il file senza chiedere
+        if (t.maniglia) void idb('maniglie', 'put', m.id, t.maniglia);
+      } catch { falliti++; }
+    }
+  } finally { lav.fine(`${ok} ricollegati${falliti ? `, ${falliti} no` : ''}`); }
+  store.emit('doc');
+  motore.ridisegna();
+  const restano = mancantiOra().length;
+  avviso(`${ok} file ricollegati${restano ? `, ${restano} ancora mancanti` : ''}`, ok ? 'ok' : 'info');
+  return { ok, falliti };
+}
+
+/** ricollega a mano i file mancanti: si scelgono i file, si abbinano per nome (e dimensione) */
+export async function ricollegaFile() {
   const scelti = await scegliMedia();
   let ok = 0;
   for (const m of store.doc.media) {
@@ -680,33 +776,153 @@ export async function ricollega() {
   avviso(`${ok} file ricollegati${store.doc.media.some((m) => mediaRT(m.id)?.stato !== 'ok') ? ', altri ancora mancanti' : ''}`, ok ? 'ok' : 'info');
 }
 
-/** all'avvio: riprende l'ultimo montaggio dall'autosalvataggio */
-export async function riprendi(): Promise<boolean> {
-  let testo: string | undefined;
+// ——— all'avvio: riprendere, e recuperare dopo una chiusura anomala ———
+
+const K_SESSIONE = 'dpv-sessione';
+
+/**
+ * Segna che il programma è aperto e ritorna se l'ultima volta NON si è chiuso come si deve (il segno era rimasto
+ * «aperta»). Si rimette «chiusa» quando la pagina se ne va o la finestra si nasconde, e «aperta» quando torna.
+ */
+let sessione: Promise<boolean> | null = null;
+/** una volta sola per sessione (anche se si parte aprendo un file col doppio clic e riprendi() non viene chiamata) */
+const segnaAvvio = (): Promise<boolean> => (sessione ??= segnaAvvioVero());
+async function segnaAvvioVero(): Promise<boolean> {
+  let anomala = false;
+  const metti = (v: 'aperta' | 'chiusa') => { try { localStorage.setItem(K_SESSIONE, v); } catch { /* niente memoria */ } };
+  // nel browser possono esserci due schede aperte insieme: se un'altra è viva il segno «aperta» è suo, non è un crash
+  // (e questa scheda non lo tocca: ci pensa l'altra quando se ne va)
+  let altraViva = false;
   try {
-    testo = isTauri ? await invoke<string>('autosalvataggio_leggi') : await idb<string>('kv', 'get', 'autosalvataggio');
-  } catch { testo = undefined; }
-  if (!testo) return false;
+    const lk = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    if (lk) {
+      altraViva = (await lk.query()).held?.some((x) => x.name === K_SESSIONE) ?? false;
+      void lk.request(K_SESSIONE, () => new Promise<void>(() => { /* si tiene finché la pagina vive */ })).catch(() => {});
+    }
+  } catch { /* niente Web Locks: si va col segno */ }
+  if (altraViva) return false;
+  try { anomala = localStorage.getItem(K_SESSIONE) === 'aperta'; } catch { /* niente memoria */ }
+  metti('aperta');
+  addEventListener('pagehide', () => metti('chiusa'));
+  document.addEventListener('visibilitychange', () => metti(document.visibilityState === 'hidden' ? 'chiusa' : 'aperta'));
+  return anomala;
+}
+
+/** dopo che si è detto no al recupero, la copia automatica non deve tornare alla prossima apertura */
+async function scartaAutosalvataggio() {
+  try {
+    if (isTauri) await invoke('autosalva', { text: '' });
+    else await idb('kv', 'delete', 'autosalvataggio');
+  } catch { /* niente */ }
+  autosalvata = -1;
+}
+
+/**
+ * Apre un progetto da un testo (l'autosalvataggio, la copia di emergenza, una versione): chiude i file di prima,
+ * carica, riapre il .dap da cui veniva (se c'è ancora) e i media. Ritorna quanti file mancano, o null se il testo non è un progetto.
+ */
+async function apriDaTesto(testo: string, dap: string | null): Promise<number | null> {
   let p: Project | null = null;
   try { p = valida(JSON.parse(testo)); } catch { p = null; }
-  if (!p || (!p.clips.length && !p.media.length)) return false;
+  if (!p || (!p.clips.length && !p.media.length)) return null;
   cambiaProgetto();
+  for (const m of store.doc.media) { chiudiMedia(m.id); dimenticaMedia(m.id); }
+  motore.caricaPlayer(null);
   store.load(p);
   store.dirty = false;
+  percorsoProgetto = null;
   // il progetto era un .dap: Salva continua ad aggiungere lì (se il file c'è ancora e i media vengono da lì o è stato salvato lì)
   try {
-    const dap = isTauri ? localStorage.getItem('dpv-percorso') : null;
-    if (dap && /\.dap$/i.test(dap)) {
+    if (dap && isTauri && /\.dap$/i.test(dap)) {
       const v = await indicePacchetto({ path: dap }).catch(() => null);
       if (v) { percorsoProgetto = dap; ricordaDap(dap, p, v); }
     }
   } catch { /* niente */ }
-  const mancano = await riapriMedia(false);
+  return riapriMedia(false);
+}
+
+/** all'avvio: riprende l'ultimo montaggio; dopo una chiusura anomala con lavoro non salvato propone «Recupera il lavoro» */
+export async function riprendi(): Promise<boolean> {
+  const anomala = await segnaAvvio();
+  let testo: string | undefined;
+  try {
+    testo = isTauri ? await invoke<string>('autosalvataggio_leggi') : await idb<string>('kv', 'get', 'autosalvataggio');
+  } catch { testo = undefined; }
+  const dapSalvato = (() => { try { return isTauri ? localStorage.getItem('dpv-percorso') : null; } catch { return null; } })();
+
+  // chiusura anomala: la finestra del recupero (non nelle prove automatiche: lì il banco deve essere subito libero)
+  const em = await leggiEmergenza().catch(() => null);
+  if (em && serveRecupero(anomala, em) && !navigator.webdriver) {
+    if (!(await finestraRecupero(frasiRecupero(em)))) {
+      await togliEmergenza();
+      await scartaAutosalvataggio();
+      avviso('Parto da un progetto nuovo. Le versioni salvate restano in File → Versioni del progetto', 'info', 5000);
+      return false;
+    }
+    const salvatoAl = Number(/"saved":(\d+)/.exec(testo ?? '')?.[1]) || 0;
+    const quale = sceltaCopia(em.quando, testo ? salvatoAl : undefined);
+    const mancano = await apriDaTesto(quale === 'autosalvataggio' && testo ? testo : em.testo, em.percorso ?? dapSalvato);
+    if (mancano !== null) {
+      store.dirty = true; // il lavoro recuperato non è nel file: Salva lo mette al sicuro
+      avviso(mancano ? `Lavoro recuperato. ${mancano} file da ricollegare: File → Ricollega media` : 'Lavoro recuperato: salvalo con Ctrl+S', mancano ? 'info' : 'ok', 6000);
+      if (mancano) document.dispatchEvent(new CustomEvent('dpv:mancano', { detail: mancano }));
+      return true;
+    }
+  }
+
+  if (!testo) return false;
+  const mancano = await apriDaTesto(testo, dapSalvato);
+  if (mancano === null) return false;
   if (mancano) {
     avviso(`Montaggio ripreso. ${mancano} file da ricollegare: File → Ricollega media`, 'info', 6000);
     document.dispatchEvent(new CustomEvent('dpv:mancano', { detail: mancano }));
   } else avviso('Montaggio ripreso da dove eri rimasto', 'ok', 2500);
   return true;
+}
+
+// ——— le versioni del progetto ———
+
+/** apre la finestra delle ultime versioni: ognuna si ripristina (prima si tiene una copia di com'è adesso) o si toglie */
+export async function apriVersioni() {
+  const chiave = () => chiaveVersioni(store.doc, percorsoProgetto);
+  const chiavi = () => chiaviVersioni(store.doc, percorsoProgetto);
+  finestraVersioni({
+    nome: store.doc.name || 'Montaggio senza nome',
+    elenco: () => elencoVersioniDi(chiavi()),
+    ripristina: async (id) => {
+      const testo = await testoVersione(id);
+      if (!testo) { avviso('Questa versione non c\'è più', 'errore'); return false; }
+      const p = store.doc;
+      // com'è adesso non si butta: diventa una versione, così si può tornare indietro anche da qui
+      if (p.clips.length || p.media.length) await registraVersione(p, JSON.stringify(p), chiave(), 'prima-ripristino', { max: 13 });
+      const mancano = await apriDaTesto(testo, percorsoProgetto);
+      if (mancano === null) { avviso('Questa versione non si apre', 'errore'); return false; }
+      store.dirty = true;
+      avviso(mancano ? `Versione ripristinata. ${mancano} file da ricollegare` : 'Versione ripristinata (com\'era prima è nell\'elenco)', mancano ? 'info' : 'ok', 4500);
+      setTimeout(() => document.dispatchEvent(new CustomEvent('dpv:adatta')), 200);
+      return true;
+    },
+    elimina: (id) => eliminaVersione(chiavi(), id),
+  });
+}
+
+// ——— lo spazio ———
+
+/** quanto è grande il .dap aperto e quanto basterebbe riscrivendolo da capo (solo nell'app) */
+async function misureDap() {
+  if (!isTauri || !percorsoProgetto || !/\.dap$/i.test(percorsoProgetto)) return null;
+  const byte = await invoke<number>('media_dimensione', { path: percorsoProgetto });
+  const piano = await pianoDap(null, await proxyDelProgetto(store.doc.media));
+  return { percorso: percorsoProgetto, byte, necessario: piano.byte };
+}
+
+/** la finestra «Spazio»: cosa pesa, cosa si può togliere (sempre con la conferma), il .dap che è cresciuto */
+export async function apriSpazio() {
+  finestraSpazio({
+    misura: () => misuraSpazio(store.doc, misureDap),
+    pulisci: (r, s) => puliscoSpazio(r, s),
+    riscriviDap: () => void salva(true),
+  });
 }
 
 /** togli un media dal contenitore (e le sue clip, se si conferma) */

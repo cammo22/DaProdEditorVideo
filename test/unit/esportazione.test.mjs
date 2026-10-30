@@ -97,8 +97,8 @@ test('stima del peso: cresce con la qualità, cala coi codec più bravi, scala c
   assert.equal(peso({ preset: 'yt1080' }, 0), 0);
   // un ordine di grandezza sensato: 1080p25 «alto» per un minuto sta fra 20 e 200 MB
   assert.ok(un > 20e6 && un < 200e6, String(un));
-  // WhatsApp è molto più leggero della versione master
-  assert.ok(peso({ preset: 'whatsapp' }) * 10 < peso({ preset: 'master' }));
+  // WhatsApp è molto più leggero dell'archivio (che prova HEVC: file più piccolo, ma sempre alta qualità)
+  assert.ok(peso({ preset: 'whatsapp' }) * 5 < peso({ preset: 'master' }));
 });
 
 test('testi: peso e qualità a parole, nome del file', () => {
@@ -146,4 +146,31 @@ test('coda: sposta solo fra quelle che aspettano, in cima, togli e svuota le fin
   assert.equal(c.riepilogo(), '1 in coda');
   c.togli(b.id);
   assert.equal(c.riepilogo(), 'La coda è vuota');
+});
+
+test('Finale: quattro destinazioni in vista (YouTube, verticale, archivio HEVC, solo audio) e le altre sotto', () => {
+  assert.deepEqual(E.PRESET_PRINCIPALI.map((p) => p.id), ['yt1080', 'verticale', 'master', 'audio']);
+  assert.ok(E.PRESET_ALTRI.some((p) => p.id === 'libero') && E.PRESET_ALTRI.some((p) => p.id === 'yt4k'));
+  assert.equal(E.presetDi('yt1080').lufs, -14);
+  assert.equal(E.presetDi('yt1080').fpsMax, 60, 'YouTube tiene i 60 fotogrammi');
+  const arch = E.impostazioni({ preset: 'master' }, { w: 2560, h: 1440, fps: 24 }, TUTTI);
+  assert.equal(arch.codec, 'hevc', 'l\'archivio prova prima HEVC');
+  assert.equal(E.impostazioni({ preset: 'master' }, FHD25, ['avc']).codec, 'avc', 'se HEVC non c\'è si ripiega');
+});
+
+test('Finale: il traguardo del volume è quello scelto, o del preset, o -14; spento = nessuno', () => {
+  const yt = E.presetDi('yt1080'), arch = E.presetDi('master');
+  assert.equal(E.traguardoLufs(yt, false, null), null);
+  assert.equal(E.traguardoLufs(yt, true, null), -14);
+  assert.equal(E.traguardoLufs(E.presetDi('audio'), true, null), -16);
+  assert.equal(E.traguardoLufs(arch, true, null), -14, 'l\'archivio non ha un traguardo suo: il più comune');
+  assert.equal(E.traguardoLufs(yt, true, -23), -23);
+});
+
+test('Finale: la riga sotto la destinazione dice forma, misura, fotogrammi e volume', () => {
+  const sotto = (id, prog) => { const pr = E.presetDi(id); const i = E.impostazioni({ preset: id }, prog, TUTTI); return E.sottoDestinazione(pr, i); };
+  assert.equal(sotto('yt1080', { w: 1920, h: 1080, fps: 60 }), '16:9 · 1080p60 \u00b7 \u221214 LUFS'.replace('\u00b7', '·'));
+  assert.match(sotto('verticale', FHD25), /^9:16 · 1080p25 · .14 LUFS$/);
+  assert.match(sotto('audio', FHD25), /^Voce e musica/);
+  assert.match(sotto('master', { w: 3840, h: 2160, fps: 25 }), /^16:9 · 4K25$/);
 });

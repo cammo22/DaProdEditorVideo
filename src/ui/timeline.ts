@@ -664,7 +664,7 @@ export class Timeline {
       if (y > H || y + hh < RIGHELLO) continue;
       ctx.fillStyle = t.kind === 'audio' ? '#13161a' : '#16151e';
       ctx.fillRect(0, y, W, hh);
-      if (modi.attive.has(t.id)) { ctx.fillStyle = 'rgba(255,213,74,.07)'; ctx.fillRect(0, y, W, hh); ctx.fillStyle = 'rgba(255,213,74,.5)'; ctx.fillRect(0, y, 3, hh); }
+      if (modi.attive.has(t.id)) { ctx.fillStyle = 'rgba(53,232,255,.07)'; ctx.fillRect(0, y, W, hh); ctx.fillStyle = 'rgba(53,232,255,.5)'; ctx.fillRect(0, y, 3, hh); }
       ctx.fillStyle = 'rgba(255,255,255,.035)';
       ctx.fillRect(0, y + hh - 1, W, 1);
       if (t.lock) {
@@ -707,12 +707,12 @@ export class Timeline {
       }
     }
     // il contorno delle clip scelte si disegna DOPO tutte le clip: dopo un taglio i due pezzi sono attaccati e la
-    // vicina, disegnata dopo, copriva metà del bordo giallo (non si capiva più cosa era scelto)
+    // vicina, disegnata dopo, copriva metà del bordo ciano (non si capiva più cosa era scelto)
     for (const k of this.contorniScelte) {
-      ctx.strokeStyle = 'rgba(255,213,74,.35)';
+      ctx.strokeStyle = 'rgba(53,232,255,.35)';
       ctx.lineWidth = 5;
       ctx.beginPath(); ctx.roundRect(k.x, k.y, k.w, k.h, k.r); ctx.stroke();
-      ctx.strokeStyle = '#ffd54a';
+      ctx.strokeStyle = '#35e8ff';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.roundRect(k.x + 1, k.y + 1, Math.max(1, k.w - 2), Math.max(1, k.h - 2), k.r); ctx.stroke();
     }
@@ -724,15 +724,15 @@ export class Timeline {
       for (const g of this.fantasma) {
         const row = righe.find((x) => x.t.id === g.track);
         if (!row) continue;
-        ctx.fillStyle = 'rgba(255,213,74,.25)';
-        ctx.strokeStyle = '#ffd54a';
+        ctx.fillStyle = 'rgba(53,232,255,.25)';
+        ctx.strokeStyle = '#35e8ff';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([5, 4]);
         ctx.fillRect(this.fX(g.f), row.y + 2, g.len * this.ppf, row.h - 4);
         ctx.strokeRect(this.fX(g.f) + 0.5, row.y + 2.5, g.len * this.ppf - 1, row.h - 5);
         ctx.setLineDash([]);
         if (g.nuova) {
-          ctx.fillStyle = '#ffd54a';
+          ctx.fillStyle = '#35e8ff';
           ctx.font = '700 11px Rajdhani, sans-serif';
           ctx.textBaseline = 'middle';
           ctx.fillText('＋ su una traccia nuova (qui è occupato)', this.fX(g.f) + 6, row.y + row.h / 2);
@@ -745,7 +745,7 @@ export class Timeline {
       const row = righe.find((x) => x.t.id === g.track);
       if (g.taglio) {
         const tx = Math.round(this.fX(g.taglio.f)) + 0.5;
-        ctx.strokeStyle = g.tipo === 'transizione' ? '#35e8ff' : '#ff6bff';
+        ctx.strokeStyle = g.tipo === 'transizione' ? '#35e8ff' : '#ffd54a';
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 4]);
         ctx.beginPath(); ctx.moveTo(tx, RIGHELLO); ctx.lineTo(tx, H); ctx.stroke();
@@ -784,7 +784,7 @@ export class Timeline {
       const c = clipById(p, this.bersaglioFx);
       const row = c && righe.find((x) => x.t.id === c.track);
       if (c && row) {
-        ctx.strokeStyle = '#ff3df2';
+        ctx.strokeStyle = '#35e8ff';
         ctx.lineWidth = 3;
         ctx.strokeRect(this.fX(c.start) + 1.5, row.y + 3.5, c.len * this.ppf - 3, row.h - 7);
         ctx.lineWidth = 1;
@@ -793,8 +793,8 @@ export class Timeline {
     // riquadro di selezione
     if (this.presa?.tipo === 'riquadro') {
       const q = this.presa;
-      ctx.fillStyle = 'rgba(255,213,74,.08)';
-      ctx.strokeStyle = 'rgba(255,213,74,.8)';
+      ctx.fillStyle = 'rgba(53,232,255,.08)';
+      ctx.strokeStyle = 'rgba(53,232,255,.8)';
       ctx.fillRect(Math.min(q.x0, q.x1), Math.min(q.y0, q.y1), Math.abs(q.x1 - q.x0), Math.abs(q.y1 - q.y0));
       ctx.strokeRect(Math.min(q.x0, q.x1) + 0.5, Math.min(q.y0, q.y1) + 0.5, Math.abs(q.x1 - q.x0), Math.abs(q.y1 - q.y0));
     }
@@ -922,13 +922,13 @@ export class Timeline {
     ctx.restore();
     if (sp) this.disegnaAltoparlante(ctx, sp.x, sp.y, sp.s, !!b.audio && !t.mute);
     ctx.lineWidth = sel ? 2 : 1;
-    ctx.strokeStyle = sel ? '#ffd54a' : spento ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.6)';
+    ctx.strokeStyle = sel ? '#35e8ff' : spento ? 'rgba(255,255,255,.55)' : 'rgba(0,0,0,.6)';
     if (spento) ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.roundRect(x + (sel ? 1 : 0.5), top + (sel ? 1 : 0.5), w - (sel ? 2 : 1), alt - (sel ? 2 : 1), raggio); ctx.stroke();
     ctx.setLineDash([]);
     // scelto: le due maniglie ai bordi dicono che si allunga e si accorcia
     if (sel && w > 18) {
-      ctx.fillStyle = '#ffd54a';
+      ctx.fillStyle = '#35e8ff';
       ctx.fillRect(x + 2, top + alt / 2 - 4, 3, 8);
       ctx.fillRect(x + w - 5, top + alt / 2 - 4, 3, 8);
     }
@@ -959,7 +959,7 @@ export class Timeline {
       ctx.globalAlpha = s.nelVideo ? 1 : 0.55;
       ctx.fillStyle = r.testo.trim() ? (qui ? '#3f7fa0' : '#2e5f78') : 'rgba(46,95,120,.35)';
       ctx.beginPath(); ctx.roundRect(x0 + 0.5, top, w - 1, alt, 2); ctx.fill();
-      ctx.strokeStyle = sel ? '#ffd54a' : r.testo.trim() ? 'rgba(0,0,0,.55)' : 'rgba(140,200,230,.7)';
+      ctx.strokeStyle = sel ? '#35e8ff' : r.testo.trim() ? 'rgba(0,0,0,.55)' : 'rgba(140,200,230,.7)';
       ctx.lineWidth = sel ? 2 : 1;
       if (!r.testo.trim()) ctx.setLineDash([3, 3]);
       ctx.beginPath(); ctx.roundRect(x0 + (sel ? 1 : 0.5), top + (sel ? 0.5 : 0), w - (sel ? 2 : 1), alt, 2); ctx.stroke();
@@ -973,7 +973,7 @@ export class Timeline {
         ctx.restore();
       }
       if (sel && w > 14) {
-        ctx.fillStyle = '#ffd54a';
+        ctx.fillStyle = '#35e8ff';
         ctx.fillRect(x0 + 2, top + alt / 2 - 4, 2, 8);
         ctx.fillRect(x1 - 4, top + alt / 2 - 4, 2, 8);
       }
@@ -1340,9 +1340,9 @@ export class Timeline {
     // il tasto "fx" in fondo alla testa, con un puntino per ogni effetto acceso
     if (conFx) {
       const bx = x + w - 9 - FX_W;
-      ctx.fillStyle = accesi.length ? 'rgba(255,61,242,.85)' : 'rgba(255,255,255,.14)';
+      ctx.fillStyle = accesi.length ? 'rgba(53,232,255,.85)' : 'rgba(255,255,255,.14)';
       ctx.beginPath(); ctx.roundRect(bx, top + 2, FX_W, testa - 4, 3); ctx.fill();
-      ctx.fillStyle = accesi.length ? '#fff' : 'rgba(255,255,255,.75)';
+      ctx.fillStyle = accesi.length ? '#06171b' : 'rgba(255,255,255,.75)';
       ctx.font = '800 9.5px Rajdhani, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('fx', bx + FX_W / 2, top + testa / 2 + 0.5);
@@ -1356,8 +1356,8 @@ export class Timeline {
     if (this.haVolume(c, t) && corpoH > 12) this.volume(ctx, c, x, w, corpoY, corpoH);
     else if ((modi.elastico || c.opKeys.length) && isVideoClip(c) && corpoH > 10) this.elastico(ctx, c, t, x, w, corpoY, corpoH);
     ctx.globalAlpha = 1;
-    // scelta: una velatura gialla su tutta la clip, così si vede anche quando è attaccata ad altre
-    if (sel) { ctx.fillStyle = 'rgba(255,213,74,.16)'; ctx.fillRect(xl, top, xr - xl, alt); }
+    // scelta: una velatura ciano su tutta la clip, così si vede anche quando è attaccata ad altre
+    if (sel) { ctx.fillStyle = 'rgba(53,232,255,.16)'; ctx.fillRect(xl, top, xr - xl, alt); }
     ctx.restore();
     // bordo (quello giallo delle scelte arriva alla fine, sopra a tutte le clip)
     ctx.lineWidth = 1;
@@ -1501,13 +1501,13 @@ export class Timeline {
     ctx.fillStyle = '#ff4d6d';
     ctx.fillRect(2 + store.head * k - 0.5, 1, 1.5, NAV - 2);
     const a = 2 + this.scrollF * k, w = Math.max(16, (this.W / this.ppf) * k);
-    ctx.fillStyle = 'rgba(255,213,74,.13)';
+    ctx.fillStyle = 'rgba(53,232,255,.13)';
     ctx.beginPath(); ctx.roundRect(a, 2, w, NAV - 4, 5); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,213,74,.9)';
+    ctx.strokeStyle = 'rgba(53,232,255,.9)';
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.lineWidth = 1;
-    ctx.fillStyle = '#ffd54a';
+    ctx.fillStyle = '#35e8ff';
     ctx.fillRect(a + 2, NAV / 2 - 5, 3, 10);
     ctx.fillRect(a + w - 5, NAV / 2 - 5, 3, 10);
   }

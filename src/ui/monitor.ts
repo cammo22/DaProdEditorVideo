@@ -142,6 +142,19 @@ export class PannelloMonitor {
     // sposta, ingrandisci e fai muovere quello che vedi, direttamente sull'immagine
     this.pos = new Posiziona(this.schermo, this.sopra, () => this.disegnaSopra());
     motore.rec = new Compositore(this.canvas);
+    if (import.meta.env.DEV) {
+      const fps = h('small', { class: 'monitor-fps', style: 'position:absolute;top:8px;left:8px;pointer-events:none;background:#000b;color:#fff;padding:3px 6px', title: 'Disegni e immagini video nuove al secondo; tempi CPU, senza sincronizzare la GPU' });
+      this.schermo.append(fps);
+      let da = performance.now(), prima = { ...motore.rec.prestazioni };
+      motore.ogniGiro(() => {
+        const ora = performance.now();
+        if (ora - da < 1000 || !motore.rec) return;
+        const p = motore.rec.prestazioni, s = (ora - da) / 1000, n = p.disegni - prima.disegni;
+        fps.hidden = motore.attivo !== 'recorder' || !motore.playing;
+        fps.textContent = `${(n / s).toFixed(1)} fps · video ${((p.immagini - prima.immagini) / s).toFixed(1)} · CPU ${((p.renderMs - prima.renderMs) / Math.max(1, n)).toFixed(1)} ms`;
+        prima = { ...p }; da = ora;
+      });
+    }
     motore.playerCanvas = this.canvasSorgente;
     store.on('status', () => this.aggiorna());
     store.on('head', () => { this.aggiorna(); this.disegnaSopra(); });
@@ -315,7 +328,7 @@ export class PannelloMonitor {
     if (W / H > 1.5) {
       const w43 = H * 4 / 3;
       ctx.setLineDash([6, 5]);
-      ctx.strokeStyle = 'rgba(255,61,242,.55)';
+      ctx.strokeStyle = 'rgba(53,232,255,.55)';
       ctx.strokeRect((W - w43) / 2, 0, w43, H);
       ctx.setLineDash([]);
     }
@@ -515,7 +528,7 @@ class JogShuttle {
       ctx.beginPath(); ctx.moveTo(R + Math.cos(a) * (R - 5), R + Math.sin(a) * (R - 5)); ctx.lineTo(R + Math.cos(a) * (R - 12), R + Math.sin(a) * (R - 12)); ctx.stroke();
     }
     const sa = -Math.PI / 2 + this.shuttle * 1.4;
-    ctx.fillStyle = Math.abs(this.shuttle) > 0.05 ? '#ff3df2' : '#8e8a99';
+    ctx.fillStyle = Math.abs(this.shuttle) > 0.05 ? '#35e8ff' : '#8e8a99';
     ctx.beginPath(); ctx.arc(R + Math.cos(sa) * (R - 9), R + Math.sin(sa) * (R - 9), 4.5, 0, Math.PI * 2); ctx.fill();
     // rotella jog
     const r2 = R * 0.62;

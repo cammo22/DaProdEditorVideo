@@ -23,7 +23,7 @@ interface Msg {
 let T: LibreriaAI | null = null;
 let sfondo: ((img: unknown) => Promise<Immagine | Immagine[]>) | null = null;
 type Sam = { model: ModelloSam; processor: Elaboratore };
-/** i modelli SAM caricati, uno per «posto»: 'p' è quello della scelta (SAM 3), 'traccia' quello più leggero che segue l'oggetto di fotogramma in fotogramma */
+/** i modelli SAM caricati, uno per «posto»: 'p' è quello della scelta, 'traccia' quello più leggero che segue l'oggetto di fotogramma in fotogramma */
 const sams = new Map<string, { sam: Sam; chiave: string }>();
 let caricato = '';
 let dispositivo: Dispositivo = 'wasm';
@@ -31,12 +31,7 @@ let base = '';
 const manda = (m: unknown, trasferibili: Transferable[] = []) => (self as unknown as Worker).postMessage(m, trasferibili);
 
 /** i tipi da provare: sulla scheda mezza precisione (leggera e veloce), sul processore prima il quantizzato, poi il pieno */
-const tipi = (d: Dispositivo, repo = ''): Tipo[] => {
-  // SAM 3: l'encoder dell'immagine pieno pesa 1,8 GB (891 MB a mezza precisione): si usano i pesi a 4 bit (282 MB) sulla
-  // scheda, gli 8 bit (503 MB) sul processore
-  if (/sam3/i.test(repo)) return d === 'webgpu' ? (tipiScheda().includes('fp16') ? ['q4f16', 'q4'] : ['q4']) : ['q8', 'q4'];
-  return d === 'webgpu' ? tipiScheda() : ['q8', 'fp16', 'fp32'];
-};
+const tipi = (d: Dispositivo): Tipo[] => d === 'webgpu' ? tipiScheda() : ['q8', 'fp16', 'fp32'];
 
 async function carica(famiglia: string, repo: string[], conScheda = true, slot = 'p') {
   const chiave = famiglia + ':' + repo.join(',');
@@ -50,7 +45,8 @@ async function carica(famiglia: string, repo: string[], conScheda = true, slot =
   const ok = await caricaConRipieghi(repo, await dispositivi(conScheda), tipi, async (r, device, dtype) => {
     if (famiglia === 'sam') {
       const processor = await T!.AutoProcessor.from_pretrained(r, { progress_callback });
-      const Classe = /sam3/i.test(r) && T!.Sam3TrackerModel ? T!.Sam3TrackerModel : /sam2|edgetam/i.test(r) && T!.Sam2Model ? T!.Sam2Model : T!.SamModel;
+      const Classe = /sam2|edgetam/i.test(r) ? T!.Sam2Model : T!.SamModel;
+      if (!Classe) throw new Error('La libreria non supporta SAM 2');
       const model = await Classe.from_pretrained(r, { device, dtype, progress_callback });
       return { sam: { model, processor } as { model: ModelloSam; processor: Elaboratore } };
     }

@@ -8,9 +8,11 @@
 mod aggiorna;
 mod audio_riserva;
 mod associazioni;
+mod cartelle;
 mod conversioni;
 mod cursore;
 mod motori;
+mod motore_ai;
 
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -209,6 +211,7 @@ async fn registrazione_percorso(app: AppHandle, name: String) -> Esito<String> {
     Ok(p.to_string_lossy().into_owned())
 }
 
+
 /// Le cartelle di lavoro: Video/DaProd Video e, dentro, Registrazioni. Le crea se mancano ("Aggiusta tutto" della pagina
 /// iniziale). Ritorna per ognuna il percorso e se l'ha dovuta creare adesso.
 #[derive(serde::Serialize)]
@@ -230,6 +233,56 @@ async fn cartelle_lavoro(app: AppHandle) -> Esito<Vec<CartellaLavoro>> {
         fuori.push(CartellaLavoro { nome, percorso: dir.to_string_lossy().into_owned(), creata });
     }
     Ok(fuori)
+}
+
+/// Quanti byte liberi ci sono sul disco dove va l'export (la cartella `path`, o Video/DaProd Video): il Finale li
+/// confronta col peso stimato prima di far partire un'esportazione lunga.
+#[tauri::command]
+async fn spazio_libero(app: AppHandle, path: Option<String>) -> Esito<u64> {
+    let dir = match path.filter(|p| !p.is_empty()) {
+        Some(p) => std::path::PathBuf::from(p),
+        None => app.path().video_dir().or_else(|_| app.path().app_data_dir()).map_err(|e| e.to_string())?,
+    };
+    // la cartella può non esserci ancora: si guarda la prima che esiste, sullo stesso disco
+    let mut d = dir.as_path();
+    while !d.exists() {
+        match d.parent() {
+            Some(su) => d = su,
+            None => break,
+        }
+    }
+    spazio_libero_di(d)
+}
+
+#[cfg(windows)]
+fn spazio_libero_di(d: &std::path::Path) -> Esito<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+    let w: Vec<u16> = d.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    let mut libero: u64 = 0;
+    // SAFETY: `w` finisce con uno zero e vive per tutta la chiamata; gli altri due puntatori possono essere nulli
+    let ok = unsafe { GetDiskFreeSpaceExW(w.as_ptr(), &mut libero, std::ptr::null_mut(), std::ptr::null_mut()) };
+    if ok == 0 {
+        return Err("non riesco a leggere lo spazio libero del disco".into());
+    }
+    Ok(libero)
+}
+
+#[cfg(unix)]
+fn spazio_libero_di(d: &std::path::Path) -> Esito<u64> {
+    use std::os::unix::ffi::OsStrExt;
+    let c = std::ffi::CString::new(d.as_os_str().as_bytes()).map_err(|e| e.to_string())?;
+    // SAFETY: `c` è una stringa C valida; `s` è una struttura vuota che statvfs riempie
+    let mut s: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(c.as_ptr(), &mut s) } != 0 {
+        return Err("non riesco a leggere lo spazio libero del disco".into());
+    }
+    Ok((s.f_bavail as u64).saturating_mul(s.f_frsize as u64))
+}
+
+#[cfg(not(any(windows, unix)))]
+fn spazio_libero_di(_d: &std::path::Path) -> Esito<u64> {
+    Err("spazio libero non disponibile su questo sistema".into())
 }
 
 /// Apre il file dell'export in scrittura; ritorna un numero da usare per scrivere e chiudere.
@@ -535,6 +588,7 @@ pub fn run() {
             progetto_scrivi,
             autosalva,
             autosalvataggio_leggi,
+            cartelle::cartella_elenca,
             export_apri,
             export_scrivi,
             export_chiudi,
@@ -548,6 +602,7 @@ pub fn run() {
             mostra_nella_cartella,
             istantanea_percorso,
             registrazione_percorso,
+            spazio_libero,
             cartelle_lavoro,
             associazioni::associa_file,
             cursore::cursore_schermi,
@@ -561,6 +616,12 @@ pub fn run() {
             aggiorna::aggiornamento_scarica,
             aggiorna::aggiornamento_progresso,
             aggiorna::aggiornamento_apri,
+            motore_ai::ai_locale_stato,
+            motore_ai::ai_locale_installa,
+            motore_ai::ai_locale_accendi,
+            motore_ai::ai_locale_spegni,
+            motore_ai::ai_locale_disinstalla,
+            motore_ai::ai_locale_richiesta,
             motori::motore_stato,
             motori::motore_scarico,
             motori::motore_installa,
@@ -579,6 +640,7 @@ pub fn run() {
         .run(|_app, _ev| {
             if matches!(_ev, tauri::RunEvent::Exit) {
                 _app.state::<cursore::Cursore>().chiudi();
+                motore_ai::chiudi();
             }
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)
             #[cfg(any(target_os = "macos", target_os = "ios"))]

@@ -45,6 +45,9 @@ export interface Opzioni {
   automatica?: boolean;
   /** a file finito, dove sta (solo nell'app) */
   alPercorso?: (percorso: string) => void;
+  /** normalizzazione del volume: dB da aggiungere (o togliere) a tutto l'audio, calcolati con la misura BS.1770 del Finale
+   *  (src/core/loudness.ts `guadagnoPer`); è una moltiplicazione, non cambia il suono */
+  guadagnoDb?: number;
 }
 
 export interface Avanzamento { fatti: number; totale: number; fase: string; fpsResa: number }
@@ -266,11 +269,13 @@ export async function esporta(p0: Project, o: Opzioni, avanza: (a: Avanzamento) 
     await out.start();
     const aSec = f2s(a, p.rate), bSec = f2s(b, p.rate);
     const pezzi = asrc ? mixaggio(p, aSec, bSec) : null;
+    const guadagno = o.guadagnoDb ? Math.pow(10, o.guadagnoDb / 20) : 1;
     let audioFino = aSec;
     const altroAudio = async () => {
       if (!pezzi || !asrc) return false;
       const n = await pezzi.next();
       if (n.done) { audioFino = Infinity; return false; }
+      if (guadagno !== 1) for (let ch = 0; ch < n.value.numberOfChannels; ch++) { const d = n.value.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] *= guadagno; }
       await asrc.add(n.value);
       audioFino += n.value.duration;
       return true;

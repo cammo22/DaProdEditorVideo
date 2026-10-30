@@ -15,3 +15,4 @@ src-tauri/gen/android/keystore.properties
 *.keystore
 *.jks
 public/ai/
+__pycache__/

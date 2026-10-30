@@ -1547,6 +1547,10 @@ function hex(c: string): [number, number, number] {
 
 
 export class Compositore {
+  /** Tempi CPU di invio alla GPU (non tempi GPU). Solo sviluppo: nessun readback per misurare gli fps. */
+  readonly prestazioni = { disegni: 0, immagini: 0, uploadMs: 0, renderMs: 0, readbackMs: 0 };
+  private immaginiPrima = new Map<string, unknown>();
+  private immagineNuova = false;
   gl: WebGL2RenderingContext;
   readonly coloreGpu: ColoreGpu;
   private pLayer: WebGLProgram;
@@ -1667,6 +1671,7 @@ export class Compositore {
 
   /** carica sulla GPU un'immagine (fotogramma, tela, bitmap) solo se è cambiata */
   private upload(key: string, src: TexImageSource, w: number, h: number, sameAs: unknown): Tex {
+    const inizio = import.meta.env.DEV ? performance.now() : 0;
     const gl = this.gl;
     let t = this.texs.get(key);
     if (!t) {
@@ -1682,6 +1687,13 @@ export class Compositore {
       t.w = w;
       t.h = h;
     }
+    if (import.meta.env.DEV) {
+      this.prestazioni.uploadMs += performance.now() - inizio;
+      if (key.startsWith('v:')) {
+        if (this.immaginiPrima.get(key) !== sameAs) this.immagineNuova = true;
+        this.immaginiPrima.set(key, sameAs);
+      }
+    }
     return t;
   }
 
@@ -1690,6 +1702,8 @@ export class Compositore {
    * (anteprima): tutto scala. playing = in riproduzione (i fotogrammi arrivano dal flusso).
    */
   render(p: Project, strati: Strato[], playing: boolean, frame: number, fornitore?: Fornitore, successivo?: Fornitore) {
+    const inizio = import.meta.env.DEV ? performance.now() : 0;
+    this.immagineNuova = false;
     this.fornitore = fornitore;
     this.successivo = successivo;
     this.interp?.inizia();
@@ -1779,10 +1793,16 @@ export class Compositore {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     // i buffer delle clip non più in scena si liberano
     for (const [k, t] of this.texs) {
-      if (!this.used.has(k) && !k.startsWith('img:')) { gl.deleteTexture(t.tex); this.texs.delete(k); }
+      if (!this.used.has(k)) { gl.deleteTexture(t.tex); this.texs.delete(k); }
     }
     this.interp?.finisce();
     this.coloreGpu.finisce();
+    if (import.meta.env.DEV) {
+      this.prestazioni.disegni++;
+      if (this.immagineNuova) this.prestazioni.immagini++;
+      this.prestazioni.renderMs += performance.now() - inizio;
+      for (const k of this.immaginiPrima.keys()) if (!this.used.has(k)) this.immaginiPrima.delete(k);
+    }
   }
 
   private sovr: { firma: string; tela: HTMLCanvasElement | OffscreenCanvas } | null = null;
@@ -2176,6 +2196,7 @@ export class Compositore {
 
   /** legge l'uscita in piccolo (per gli strumenti di misura: forma d'onda e vettorscopio) */
   leggiPiccolo(w: number, h: number, out: Uint8Array) {
+    const inizio = import.meta.env.DEV ? performance.now() : 0;
     const gl = this.gl;
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
     // si ridisegna l'uscita in un buffer piccolo con blit, poi si legge
@@ -2198,6 +2219,7 @@ export class Compositore {
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.small.fb);
     gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, out);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (import.meta.env.DEV) this.prestazioni.readbackMs += performance.now() - inizio;
   }
   private small: { fb: WebGLFramebuffer; rb: WebGLRenderbuffer } | null = null;
   private smallW = 0;

@@ -24,10 +24,11 @@ afterEach(() => {
 });
 
 const normale = { type: 'video', width: 1920, height: 1080, vcodec: 'avc' };
-test('Soglie: Full HD orizzontale e verticale restano leggeri, oltre si prepara la copia', () => {
+test('Soglie: 1440p orizzontale e verticale restano leggeri, oltre si prepara la copia', () => {
   assert.equal(PX.videoPesante(normale), false);
   assert.equal(PX.videoPesante({ ...normale, width: 1080, height: 1920 }), false);
-  for (const [width, height] of [[1921, 1080], [1920, 1081], [3840, 2160], [2160, 3840]]) {
+  for (const [width, height] of [[2560, 1440], [1440, 2560]]) assert.equal(PX.videoPesante({ ...normale, width, height }), false);
+  for (const [width, height] of [[2561, 1440], [2560, 1441], [3840, 2160], [2160, 3840]]) {
     assert.equal(PX.videoPesante({ ...normale, width, height }), true, `${width}×${height}`);
   }
   assert.equal(PX.videoPesante({ ...normale, type: 'image', width: 6000 }), false);
@@ -37,6 +38,7 @@ test('Soglie: 10 bit, HEVC, ProRes, AV1 e bitrate alto', () => {
   assert.equal(PX.videoPesante(normale, { bit: 8 }), false);
   assert.equal(PX.videoPesante(normale, { bit: 10 }), true);
   assert.equal(PX.videoPesante(normale, { bit: 12 }), true);
+  assert.equal(PX.videoPesante(normale, { hdr: true }), true);
   for (const codec of ['hevc', 'hvc1.2.4.L153.B0', 'hev1', 'prores', 'apch', 'apcn', 'apcs', 'apco', 'ap4h', 'ap4x', 'av1', 'av01.0.08M.10', 'vp09.02.10.10', 'avc1.6e0033']) {
     assert.equal(PX.videoPesante(normale, { codec }), true, codec);
   }

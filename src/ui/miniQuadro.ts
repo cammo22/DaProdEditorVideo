@@ -68,10 +68,11 @@ export function miniQuadro(clips: () => Clip[]): MiniQuadro {
     ctx.fillRect(0, 0, W, Hh);
     if (vecchia || performance.now() - ultima > (motore.playing ? 200 : 600)) {
       if (leggi()) {
-        const t = document.createElement('canvas');
-        t.width = LARGO; t.height = H;
-        t.getContext('2d')!.putImageData(imm, 0, 0);
-        piccola = t;
+        if (!piccola) {
+          piccola = document.createElement('canvas');
+          piccola.width = LARGO; piccola.height = H;
+        }
+        piccola.getContext('2d')!.putImageData(imm, 0, 0);
       }
       vecchia = false; ultima = performance.now();
     }

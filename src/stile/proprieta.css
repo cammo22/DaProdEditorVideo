@@ -1,0 +1,203 @@
+/* Proprietà «Banco» — il pannello di destra, rifatto da zero (design: Proprieta.dc.html).
+   Intestazione con miniatura e dati in mono, quattro schede (QUADRO · COLORE · AUDIO · AI, ciano la scelta), il corpo che
+   scorre da solo e il piede con Ripristina e Copia su tutte. Niente esce dallo schermo: la larghezza è quella della colonna
+   (--lato) e dentro si scorre. Colori: solo spie (oro = il valore che si regola, ciano = selezione, rosso = muto/errore,
+   verde = pronto); il metallo è per i tasti, il vetrino scuro per i numeri. Le variabili sono quelle di editor.css: qui
+   se ne leggono, non se ne ridefiniscono (i fallback servono solo se mancano).
+   Vale solo per .ispettore.banco: l'editor della clip (doppio clic) tiene il suo aspetto. */
+
+.ispettore.banco {
+  --pp-vetrino: var(--vetrino, #050407);
+  --pp-inciso: var(--inciso, #8d889c);
+  --pp-mono: 'Share Tech Mono', 'Space Mono', 'Cascadia Mono', Consolas, monospace;
+  --pp-tasto: var(--metallo-chiaro, linear-gradient(180deg, #2c2b34, #1d1c23));
+  --pp-riga: var(--pann2, #1c1b23);
+  flex: 1; min-height: 0; min-width: 0; width: 100%; padding: 0;
+  display: flex; flex-direction: column;
+  background: var(--pann); color: var(--testo); font-family: var(--ui);
+}
+/* la colonna delle schede laterali lascia tutta l'altezza al pannello: il corpo scorre, intestazione e piede restano */
+.lato-corpo:has(> .ispettore.banco) { display: flex; flex-direction: column; overflow: hidden; }
+.ispettore.banco .isp-corpo { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.ispettore.banco * { min-width: 0; }
+.ispettore.banco .isp-vuoto { flex: 1; min-height: 0; padding: 16px; overflow-y: auto; font-size: 15px; }
+.ispettore.banco .isp-vuoto b { font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--pp-inciso); }
+.ispettore.banco .isp-vuoto p { font-size: 15px; }
+
+/* ——— l'intestazione ——— */
+.ispettore.banco .pp-testa { flex: none; margin: 0; padding: 14px 16px 10px; gap: 8px; border-bottom: 1px solid var(--bordo); }
+.pp-testa-riga { display: flex; gap: 12px; align-items: center; }
+.pp-mini { flex: none; width: 64px; height: 36px; border-radius: 4px; overflow: hidden; display: grid; place-items: center;
+  background: linear-gradient(135deg, #2a3b4a, #151d26); border: 1px solid color-mix(in srgb, var(--cia) 50%, transparent);
+  color: var(--testo2); font: 700 14px var(--ui); }
+.pp-mini canvas { width: 100%; height: 100%; display: block; }
+.pp-mini.generata { color: var(--pp-inciso); }
+.pp-testa-testo { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.ispettore.banco .isp-nome { width: 100%; padding: 1px 3px; margin-left: -3px; border: 1px solid transparent; border-radius: 4px; background: transparent; box-shadow: none;
+  font: 700 17px var(--ui); color: var(--testo); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+.ispettore.banco .isp-nome:hover:not(:disabled) { border-color: var(--bordo-forte); }
+.ispettore.banco .isp-nome:focus { outline: none; background: var(--pp-vetrino); border-color: var(--cia); }
+.pp-dati { font: 13px var(--pp-mono); color: var(--pp-inciso); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ispettore.banco .isp-riassunto { gap: 2px 12px; font: 13px var(--pp-mono); color: var(--pp-inciso); }
+.ispettore.banco .isp-riassunto b { color: var(--testo2); font-weight: 400; }
+.ispettore.banco .chip-tipo { font: 700 11px var(--ui); letter-spacing: 2px; text-transform: uppercase; color: var(--cia); padding: 0; background: none; border: 0; box-shadow: none; }
+.ispettore.banco .chip-tipo.tr, .ispettore.banco .chip-tipo.fx { color: var(--cia); }
+.ispettore.banco .chip-link { color: var(--cia); }
+.ispettore.banco .isp-sorgente { max-width: 100%; }
+.pp-azioni { display: flex; gap: 6px; margin: 0; }
+.pp-mini-btn { height: 34px; padding: 0 12px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo);
+  font: 600 14px var(--ui); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); white-space: nowrap; }
+.pp-mini-btn:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.28); }
+.pp-mini-btn:disabled { opacity: 0.4; cursor: default; }
+.pp-azioni .pp-mini-btn { flex: 1; padding: 0 6px; }
+
+/* ——— le quattro schede ——— */
+.pp-schede { flex: none; display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--bordo); }
+.pp-scheda { flex: 1; height: 44px; border: 0; border-radius: 5px; background: transparent; color: var(--testo2);
+  font: 700 15px var(--ui); letter-spacing: 1px; }
+.pp-scheda:hover:not(:disabled):not(.attiva) { background: rgba(255, 255, 255, 0.05); color: var(--testo); }
+.pp-scheda.attiva { background: var(--cia); color: #06171b; }
+.pp-scheda:disabled { opacity: 0.32; cursor: default; }
+
+/* ——— il corpo che scorre ——— */
+.pp-scroll { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 16px; overscroll-behavior: contain; }
+.pp-pannello { display: flex; flex-direction: column; gap: 18px; }
+.pp-pannello[hidden] { display: none; }
+.pp-vuoto { margin: 0; font-size: 14px; color: var(--pp-inciso); }
+.pp-blocco { display: flex; flex-direction: column; gap: 10px; }
+.pp-inciso, .ispettore.banco .etichetta { font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--pp-inciso); margin: 0; }
+.pp-mono { font: 14px var(--pp-mono); color: var(--oro); }
+
+/* INQUADRATURA: i numeri sul vetrino */
+.pp-vetrino { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pp-campo { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 5px; background: var(--pp-vetrino); border: 1px solid var(--bordo); }
+.pp-campo:focus-within { border-color: var(--cia); }
+.pp-campo-testa { display: flex; align-items: center; justify-content: space-between; gap: 4px; min-height: 20px; }
+.pp-campo-testa .pp-inciso { letter-spacing: 2px; white-space: nowrap; }
+.pp-num { width: 100%; min-height: 28px; padding: 0; border: 0; outline: none; background: transparent; color: var(--oro); font: 19px var(--pp-mono); appearance: textfield; -moz-appearance: textfield; }
+.pp-num::-webkit-inner-spin-button, .pp-num::-webkit-outer-spin-button { appearance: none; margin: 0; }
+/* il rombo dei keyframe, piccolo: le frecce compaiono solo se il valore è animato */
+.pp-campo .kf { opacity: 0.7; }
+.pp-campo .kf-freccia { display: none; }
+.pp-campo .kf.acceso .kf-freccia { display: inline-block; }
+.pp-campo .kf-rombo { width: 24px; height: 24px; font-size: 15px; }
+
+/* ANIMAZIONE: i keyframe in una riga */
+.pp-key { position: relative; display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 12px; border-radius: 5px; background: var(--pp-vetrino); border: 1px solid var(--bordo); }
+.pp-key-nome { font: 13px var(--pp-mono); color: var(--pp-inciso); }
+.pp-key-linea { position: relative; flex: 1; height: 2px; background: #2c2b34; }
+.pp-key-rombo { position: absolute; top: -5px; width: 10px; height: 10px; padding: 0; border: 0; background: var(--oro); transform: translateX(-50%) rotate(45deg); cursor: pointer; }
+.pp-key-rombo::after { content: ''; position: absolute; inset: -9px; }
+.pp-key-rombo:hover { background: #fff1b0; }
+.pp-key-testina { position: absolute; top: -9px; width: 2px; height: 20px; margin-left: -1px; background: var(--cia); pointer-events: none; }
+.pp-key-testina[hidden] { display: none; }
+.pp-key-nota { position: absolute; right: 10px; font-size: 12px; color: var(--pp-inciso); pointer-events: none; }
+.pp-key:has(.pp-key-nota:not(:empty)) .pp-key-linea { visibility: hidden; }
+.pp-key:has(.pp-key-nota:not(:empty)) .pp-key-nota { position: static; }
+
+/* ZOOM SUI CLIC, LUT: una riga di testo con un tasto a destra */
+.pp-riga-piena { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-radius: 5px; background: var(--pp-riga); border: 1px solid var(--bordo); font-size: 16px; }
+.pp-azioni-mini { display: inline-flex; gap: 6px; flex: none; }
+.pp-lut { padding: 8px 12px; }
+
+/* COLORE */
+.pp-looks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pp-look { height: 56px; padding: 6px; display: flex; align-items: flex-end; text-align: left; border-radius: 5px; border: 1px solid var(--bordo);
+  background: var(--tinta, #2a2932); color: var(--testo); font: 700 14px/1.05 var(--ui); overflow: hidden; }
+.pp-look:hover { border-color: rgba(255, 255, 255, 0.28); }
+.pp-look.acceso { border-color: var(--cia); box-shadow: inset 0 0 0 1px var(--cia); }
+.pp-grande { width: 100%; height: 44px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo);
+  font: 600 16px var(--ui); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.pp-grande:hover { border-color: rgba(255, 255, 255, 0.28); }
+
+/* AUDIO */
+.pp-vetrino-largo { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 5px; background: var(--pp-vetrino); border: 1px solid var(--bordo); }
+.pp-grande-mono { font: 400 22px var(--pp-mono); color: var(--oro); }
+.pp-traccia { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; }
+.pp-tt { width: 34px; height: 34px; padding: 0; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo2); font: 700 14px var(--ui); }
+.pp-tt.acceso { color: #06171b; background: var(--cia); border-color: var(--cia); }
+.pp-tt:first-child.acceso { color: #fff; background: var(--rosso); border-color: var(--rosso); }
+.pp-traccia input[type='range'] { width: 100%; accent-color: var(--oro); height: 28px; }
+
+/* AI */
+.pp-ai-elenco { display: flex; flex-direction: column; gap: 8px; }
+.pp-ai { display: flex; justify-content: space-between; align-items: center; gap: 10px; width: 100%; min-height: 52px; padding: 8px 12px; text-align: left;
+  border-radius: 5px; border: 1px solid var(--bordo); background: var(--pp-riga); color: var(--testo); font-family: var(--ui); }
+.pp-ai:hover { border-color: rgba(255, 255, 255, 0.28); }
+.pp-ai-testo { display: flex; flex-direction: column; gap: 1px; flex: 1; }
+.pp-ai-testo b { font-size: 16px; font-weight: 700; }
+.pp-ai-testo small { font-size: 13px; color: var(--pp-inciso); font-weight: 500; }
+.pp-ai-testo .pp-ai-peso { font-family: var(--pp-mono); font-size: 12px; }
+.pp-ai-stato { flex: none; font: 700 11px var(--ui); letter-spacing: 2px; }
+.pp-centro-ai { align-self: flex-start; }
+
+/* ——— il piede ——— */
+.pp-piede { flex: none; display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--bordo); }
+.pp-pie { flex: 1; height: 44px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo); font: 600 16px var(--ui);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07); }
+.pp-pie.pp-fantasma { background: transparent; border-color: var(--bordo); color: var(--testo2); box-shadow: none; }
+.pp-pie:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.28); }
+.pp-pie:disabled { opacity: 0.4; cursor: default; }
+
+/* ——— quello che c'era già, con la pelle nuova ——— */
+.ispettore.banco .isp-gruppo { margin: 0; border: 1px solid var(--bordo); border-radius: 5px; background: var(--pp-riga); box-shadow: none; }
+.ispettore.banco .isp-gruppo.principale { box-shadow: none; border-color: color-mix(in srgb, var(--cia) 35%, transparent); }
+.ispettore.banco .isp-gruppo summary { min-height: 44px; padding: 0 12px; font: 700 12px var(--ui); letter-spacing: 3px; color: var(--pp-inciso); text-transform: uppercase; }
+.ispettore.banco .isp-gruppo.principale > summary { font-size: 12px; color: var(--testo2); }
+.ispettore.banco .isp-gruppo > :not(summary) { margin: 0 12px 10px; }
+.ispettore.banco .isp-gruppo > .campo-testo, .ispettore.banco .isp-gruppo > select, .ispettore.banco .isp-gruppo > .mini-select.largo { width: calc(100% - 24px); }
+.ispettore.banco .isp-grip { font-size: 16px; padding: 4px 6px; }
+.ispettore.banco .isp-grip:hover { color: var(--cia); }
+.ispettore.banco .isp-gruppo.trascinato { outline-color: var(--cia); }
+.ispettore.banco .isp-ripristina { align-self: center; height: 34px; padding: 0 14px; border-radius: 5px; border: 1px solid var(--bordo); background: transparent; color: var(--testo2); font: 600 13px var(--ui); }
+
+/* una riga con cursore: nome a sinistra, valore a destra in mono, la barra sotto */
+.ispettore.banco .isp-riga { font-size: 15px; color: var(--testo); }
+.ispettore.banco .isp-riga:has(> input[type='range']) { grid-template-columns: minmax(0, 1fr) auto auto; row-gap: 2px; }
+.ispettore.banco .isp-riga:has(> input[type='range']) > label { grid-column: 1; grid-row: 1; }
+.ispettore.banco .isp-riga:has(> input[type='range']) > .isp-num { grid-column: 2; grid-row: 1; }
+.ispettore.banco .isp-riga:has(> input[type='range']) > .kf { grid-column: 3; grid-row: 1; }
+.ispettore.banco .isp-riga:has(> input[type='range']) > input[type='range'] { grid-column: 1 / -1; grid-row: 2; height: 28px; margin: 0; }
+.ispettore.banco .isp-riga label { font-size: 15px; }
+.ispettore.banco .isp-riga.col label small { font: 500 12px var(--ui); color: var(--pp-inciso); }
+.ispettore.banco .isp-num .num { width: 66px; background: transparent; border: 0; box-shadow: none; padding: 0; color: var(--oro); font: 16px var(--pp-mono); text-align: right; }
+.ispettore.banco .isp-num .num:focus { outline: none; background: var(--pp-vetrino); border-radius: 3px; }
+.ispettore.banco .isp-num small { font: 12px var(--pp-mono); color: var(--pp-inciso); }
+.ispettore.banco .isp-riga input[type='range'] { accent-color: var(--oro); }
+.ispettore.banco .isp-riga input[type='color'] { height: 34px; border-color: var(--bordo-forte); background: var(--pp-vetrino); }
+.ispettore.banco .isp-riga.spunta { min-height: 36px; }
+.ispettore.banco .isp-riga.spunta input { width: 20px; height: 20px; accent-color: var(--cia); }
+.ispettore.banco .kf-riga { grid-template-columns: minmax(0, 1fr) auto auto; }
+
+.ispettore.banco .btn-mini { height: 34px; padding: 0 12px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo); font: 600 14px var(--ui); }
+.ispettore.banco .btn-mini:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.28); color: var(--testo); }
+.ispettore.banco .isp-pulsanti { gap: 6px; }
+.ispettore.banco .mini-select { min-height: 34px; padding: 0 8px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-vetrino); font: 600 14px var(--ui); }
+.ispettore.banco .campo-testo { border-radius: 5px; border: 1px solid var(--bordo); background: var(--pp-vetrino); box-shadow: none; font: 600 15px var(--ui); }
+.ispettore.banco .campo-testo:focus { outline: none; border-color: var(--cia); }
+.ispettore.banco .num { background: var(--pp-vetrino); border: 1px solid var(--bordo); border-radius: 5px; font: 14px var(--pp-mono); padding: 4px 6px; color: var(--oro); }
+.ispettore.banco .nota { margin: 4px 0; font-size: 13px; line-height: 1.35; color: var(--pp-inciso); font-weight: 500; }
+.ispettore.banco .nota.ok { color: var(--verde); }
+.ispettore.banco .avviso-rosso { color: var(--rosso); }
+.ispettore.banco .pp-piu > summary { min-height: 34px; display: flex; align-items: center; font: 600 14px var(--ui); color: var(--testo2); }
+
+/* chip e tessere: la scelta è ciano, mai magenta */
+.ispettore.banco .chip { height: 34px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--pp-tasto); color: var(--testo2); font: 600 14px var(--ui); box-shadow: none; }
+.ispettore.banco .chip.acceso, .ispettore.banco .pp-tessera.acceso { background: color-mix(in srgb, var(--cia) 22%, #15141b); border-color: var(--cia); color: var(--testo); box-shadow: none; }
+.ispettore.banco .pp-tessera { border-radius: 5px; border-color: var(--bordo); font-weight: 600; }
+.ispettore.banco .pp-tessera.acceso { box-shadow: inset 0 0 0 1px var(--cia); }
+.ispettore.banco .pp-griglia { gap: 6px; }
+
+/* il colore pieno dei kbd del vuoto non è un tasto da premere */
+.ispettore.banco .isp-tasti { font-size: 15px; }
+.ispettore.banco .isp-aiuti .btn { height: 44px; border-radius: 5px; }
+
+/* la tastiera: l'anello di fuoco è sempre ciano */
+.ispettore.banco button:focus-visible, .ispettore.banco select:focus-visible, .ispettore.banco input:focus-visible { outline: 2px solid var(--cia); outline-offset: 1px; }
+
+/* Voce e musica (duckingClip.ts): interruttori alti 44px, la scelta accesa è ciano */
+.ispettore.banco .ck-interruttore { min-height: 44px; padding: 0 12px; border-radius: 5px; border: 1px solid var(--bordo); background: var(--pp-vetrino); box-shadow: none; font-size: 15px; }
+.ispettore.banco .ck-interruttore.acceso { border-color: var(--cia); box-shadow: inset 0 0 0 1px var(--cia); }
+.ispettore.banco .ck-numero { font-size: 14px; }
+.ispettore.banco .ck-numero input { background: var(--pp-vetrino); border: 1px solid var(--bordo); border-radius: 5px; color: var(--oro); font: 14px var(--pp-mono); padding: 4px 6px; min-height: 32px; }
+.ispettore.banco .ck-altre summary { min-height: 34px; display: flex; align-items: center; font-size: 14px; color: var(--testo2); }

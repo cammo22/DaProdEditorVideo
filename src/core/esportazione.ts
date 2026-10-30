@@ -52,20 +52,53 @@ export interface Preset {
   adatta: Adatta;
   /** si può cambiare tutto a mano */
   libero?: boolean;
+  /** il volume che chiede la piattaforma (LUFS integrati); senza, la normalizzazione non ha un traguardo suo */
+  lufs?: number;
+  /** il nome corto che si vede sulle carte del Finale */
+  corto?: string;
+  /** una delle quattro destinazioni sempre in vista nel Finale (le altre stanno sotto «Altre destinazioni») */
+  principale?: boolean;
 }
 
 export const PRESET: Preset[] = [
-  { id: 'yt1080', nome: 'YouTube 1080p', info: 'Full HD, il formato di tutti i giorni', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1920, h: 1080 }, fpsMax: 60, qualita: 62, audioKbps: 192, adatta: 'bande' },
-  { id: 'yt4k', nome: 'YouTube 4K', info: 'Ultra HD, per schermi grandi', formato: 'mp4', codec: ['avc', 'hevc', 'vp9'], quadro: { tipo: 'fisso', w: 3840, h: 2160 }, fpsMax: 60, qualita: 68, audioKbps: 256, adatta: 'bande' },
-  { id: 'verticale', nome: 'Reel · TikTok · Shorts', info: 'Verticale 9:16, per il telefono', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1080, h: 1920 }, fpsMax: 30, qualita: 58, audioKbps: 192, adatta: 'bande' },
-  { id: 'quadrato', nome: 'Instagram quadrato', info: 'Quadrato 1:1, per i post', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1080, h: 1080 }, fpsMax: 30, qualita: 58, audioKbps: 192, adatta: 'bande' },
-  { id: 'master', nome: 'Alta qualità (master)', info: 'Come il progetto, per conservare o rifare altri formati', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'progetto' }, qualita: 92, audioKbps: 320, adatta: 'bande' },
-  { id: 'whatsapp', nome: 'Leggero per WhatsApp', info: 'Piccolo da mandare in chat', formato: 'mp4', codec: ['avc'], quadro: { tipo: 'progetto', lungoMax: 1280 }, fpsMax: 30, qualita: 22, audioKbps: 96, adatta: 'bande' },
-  { id: 'audio', nome: 'Solo audio (WAV)', info: 'Solo il suono, senza compressione', formato: 'wav', codec: [], quadro: { tipo: 'progetto' }, qualita: 100, audioKbps: 0, adatta: 'bande' },
+  { id: 'yt1080', nome: 'YouTube 1080p', corto: 'YouTube', principale: true, lufs: -14, info: 'Full HD, il formato di tutti i giorni', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1920, h: 1080 }, fpsMax: 60, qualita: 62, audioKbps: 192, adatta: 'bande' },
+  { id: 'yt4k', nome: 'YouTube 4K', lufs: -14, info: 'Ultra HD, per schermi grandi', formato: 'mp4', codec: ['avc', 'hevc', 'vp9'], quadro: { tipo: 'fisso', w: 3840, h: 2160 }, fpsMax: 60, qualita: 68, audioKbps: 256, adatta: 'bande' },
+  { id: 'verticale', nome: 'Reel · TikTok · Shorts', principale: true, lufs: -14, info: 'Verticale 9:16, per il telefono', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1080, h: 1920 }, fpsMax: 30, qualita: 58, audioKbps: 192, adatta: 'bande' },
+  { id: 'quadrato', nome: 'Instagram quadrato', lufs: -14, info: 'Quadrato 1:1, per i post', formato: 'mp4', codec: ['avc', 'hevc'], quadro: { tipo: 'fisso', w: 1080, h: 1080 }, fpsMax: 30, qualita: 58, audioKbps: 192, adatta: 'bande' },
+  { id: 'master', nome: 'Archivio alta qualità', corto: 'Archivio alta qualità', principale: true, info: 'Come il progetto, per conservare o rifare altri formati', formato: 'mp4', codec: ['hevc', 'avc'], quadro: { tipo: 'progetto' }, qualita: 92, audioKbps: 320, adatta: 'bande' },
+  { id: 'whatsapp', nome: 'Leggero per WhatsApp', lufs: -16, info: 'Piccolo da mandare in chat', formato: 'mp4', codec: ['avc'], quadro: { tipo: 'progetto', lungoMax: 1280 }, fpsMax: 30, qualita: 22, audioKbps: 96, adatta: 'bande' },
+  { id: 'audio', nome: 'Solo audio (WAV)', corto: 'Solo audio', principale: true, lufs: -16, info: 'Solo il suono, senza compressione', formato: 'wav', codec: [], quadro: { tipo: 'progetto' }, qualita: 100, audioKbps: 0, adatta: 'bande' },
   { id: 'libero', nome: 'Personalizzato', info: 'Scegli tu formato, codec e misura', formato: 'mp4', codec: ['avc', 'hevc', 'vp9', 'av1'], quadro: { tipo: 'progetto' }, qualita: 62, audioKbps: 192, adatta: 'bande', libero: true },
 ];
 
 export const presetDi = (id: string): Preset => PRESET.find((p) => p.id === id) ?? PRESET[0];
+
+/** le quattro destinazioni del Finale (YouTube, verticale, archivio, solo audio) e le altre */
+export const PRESET_PRINCIPALI = PRESET.filter((p) => p.principale);
+export const PRESET_ALTRI = PRESET.filter((p) => !p.principale);
+
+/** i volumi fra cui scegliere quando si normalizza a mano */
+export const TRAGUARDI_LUFS = [-14, -16, -23] as const;
+
+/**
+ * Il volume a cui portare il file: quello scelto dall'utente, se no quello del preset, se no -14 (il più comune).
+ * Ritorna null se la normalizzazione è spenta.
+ */
+export function traguardoLufs(pr: Preset, normalizza: boolean, scelto: number | null): number | null {
+  if (!normalizza) return null;
+  return scelto ?? pr.lufs ?? -14;
+}
+
+/** la riga sotto il nome di una destinazione: "16:9 · 1080p60 · −14 LUFS" (la misura vera dipende dal progetto) */
+export function sottoDestinazione(pr: Preset, imp: { formato: Contenitore; w: number; h: number; fps: number }): string {
+  const lufs = pr.lufs !== undefined ? ` · −${Math.abs(pr.lufs)} LUFS` : '';
+  if (imp.formato === 'wav') return `Voce e musica${lufs}`;
+  if (pr.libero) return 'Scegli tu formato, codec e misura';
+  const fps = Math.round(imp.fps);
+  const lato = Math.min(imp.w, imp.h);
+  const nome = lato >= 2160 ? '4K' : `${lato}p`;
+  return `${proporzioneTesto(imp.w, imp.h)} · ${nome}${fps}${lufs}`;
+}
 
 /** le misure del «Personalizzato»: l'altezza, con la forma del progetto */
 export const MISURE: { id: string; nome: string; altezza: number | null; k?: number }[] = [

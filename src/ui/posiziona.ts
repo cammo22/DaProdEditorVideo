@@ -371,7 +371,7 @@ export class Posiziona {
         tappe.forEach((tp, i) => {
           if (i === b.chiave || (i !== 0 && i !== tappe.length - 1)) return;
           const r = riquadroClip(p, b.c, tp.tf, fotogrammaDi(b.c, tp.t, false));
-          if (r) rettangolo(ctx, r, k, 'rgba(255,61,242,.75)');
+          if (r) rettangolo(ctx, r, k, 'rgba(53,232,255,.75)');
         });
         ctx.setLineDash([]);
         this.percorso(ctx, W, H, dpr, (x) => { const lf = x * (b.c.len - 1); const r = riquadroClip(p, b.c, tfAl(b.c, lf), b.c.start + Math.round(lf)); return r ? [r.cx * k, r.cy * k] : null; });
@@ -385,7 +385,7 @@ export class Posiziona {
       if (q) {
         rettangolo(ctx, q, k, b.chiave < 0 ? '#ffb02e' : '#ffd54a');
         // le maniglie: angoli e lati (stirano o ritagliano), e il pallino sopra (rotazione)
-        ctx.fillStyle = this.ritaglia ? '#ff8ff8' : '#ffd54a';
+        ctx.fillStyle = this.ritaglia ? '#9af3ff' : '#ffd54a';
         ctx.strokeStyle = '#1a1206';
         for (const [sx, sy] of MANIGLIE) {
           const m = mondo(q, (sx * q.w) / 2, (sy * q.h) / 2);
@@ -415,7 +415,7 @@ export class Posiziona {
     for (let i = 0; i <= 48; i++) { const q = punto(i / 48); if (q) pts.push(q); }
     if (pts.length < 2) return;
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,61,242,.85)';
+    ctx.strokeStyle = 'rgba(53,232,255,.85)';
     ctx.lineWidth = 2 * dpr;
     ctx.setLineDash([5 * dpr, 4 * dpr]);
     ctx.beginPath();
@@ -424,7 +424,7 @@ export class Posiziona {
     ctx.setLineDash([]);
     const [xa, ya] = pts[pts.length - 2], [xb, yb] = pts[pts.length - 1];
     const a = Math.atan2(yb - ya, xb - xa), s = 10 * dpr;
-    ctx.fillStyle = 'rgba(255,61,242,.9)';
+    ctx.fillStyle = 'rgba(53,232,255,.9)';
     ctx.beginPath();
     ctx.moveTo(xb, yb);
     ctx.lineTo(xb - s * Math.cos(a - 0.45), yb - s * Math.sin(a - 0.45));
@@ -436,7 +436,7 @@ export class Posiziona {
   /** la pallina di una tappa (numerata: 1 = partenza) */
   private pallina(ctx: CanvasRenderingContext2D, x: number, y: number, i: number, n: number, dpr: number) {
     ctx.save();
-    ctx.fillStyle = i === 0 ? '#5dd39e' : i === n - 1 ? '#ff3df2' : '#ff8ff8';
+    ctx.fillStyle = i === 0 ? '#5dd39e' : i === n - 1 ? '#35e8ff' : '#9af3ff';
     ctx.strokeStyle = '#1a1206';
     ctx.lineWidth = 1.5 * dpr;
     ctx.beginPath(); ctx.arc(x, y, 8 * dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -492,7 +492,7 @@ export class Posiziona {
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 4 * dpr;
     ctx.strokeRect(X - lato / 2, Y - lato / 2, lato, lato);
-    ctx.strokeStyle = m.lavoro ? '#35e8ff' : '#ff3df2';
+    ctx.strokeStyle = m.lavoro ? '#35e8ff' : '#ffd54a';
     ctx.lineWidth = 2 * dpr;
     ctx.strokeRect(X - lato / 2, Y - lato / 2, lato, lato);
     ctx.beginPath(); ctx.moveTo(X - lato, Y); ctx.lineTo(X - lato / 2, Y); ctx.moveTo(X + lato / 2, Y); ctx.lineTo(X + lato, Y); ctx.moveTo(X, Y - lato); ctx.lineTo(X, Y - lato / 2); ctx.moveTo(X, Y + lato / 2); ctx.lineTo(X, Y + lato); ctx.stroke();

@@ -14,6 +14,7 @@ import {
   bilancioADb, codiceWorklet, EQ_FREQ, guadagnoCanale, paramComputer, paramDinVoce, paramLimiteVoce, paramPorta, paramSomma,
   type FiltriVoce, type ImpostazioniAudio, type ParamDin,
 } from '../core/liveAudio';
+import { risorseLive } from '../core/risorseLive';
 
 export type Picchi = [number, number];
 
@@ -185,6 +186,7 @@ export class MixerLive {
   private ascolto: GainNode | null = null;
   private a: ImpostazioniAudio | null = null;
   private chiuso = false;
+  private chiudiRisorsa: () => void = () => {};
 
   /**
    * Accende il mixer. Da chiamare nel gesto dell'utente (il clic): il contesto audio nasce qui, il resto (il
@@ -195,6 +197,7 @@ export class MixerLive {
     this.a = a;
     try {
       this.ctx = new AudioContext({ sampleRate: 48000, latencyHint: interattivo ? 'interactive' : 'playback' });
+      this.chiudiRisorsa = risorseLive.apri('audio');
       void this.ctx.resume().catch(() => {});
     } catch {
       this.ctx = null;
@@ -297,11 +300,17 @@ export class MixerLive {
     };
   }
 
+  /** chiude tutto: gli ingressi si staccano, le uscite smettono di produrre tracce e il contesto audio si chiude (si può chiamare più volte) */
   chiudi() {
     this.chiuso = true;
     this.ok = false;
+    try { this.ascolta(false); this.voce?.metti(null); this.computer?.metti(null); } catch { /* già staccati */ }
     const ctx = this.ctx;
     this.ctx = null;
-    void ctx?.close().catch(() => {});
+    for (const d of [this.destVoce, this.destComputer, this.destMix]) risorseLive.fermaTutte(d?.stream);
+    this.destVoce = this.destComputer = this.destMix = null;
+    this.chiudiRisorsa();
+    this.chiudiRisorsa = () => {};
+    if (ctx && ctx.state !== 'closed') void ctx.close().catch(() => {});
   }
 }

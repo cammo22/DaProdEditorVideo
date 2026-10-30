@@ -1147,7 +1147,6 @@ try {
     await pg.click('.pagina-btn[data-p=live]');
     await pg.waitForTimeout(300);
     await pg.click('.live .fin-interruttore:has-text("Webcam")');
-    await pg.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
     await pg.click('.live .fin-interruttore:has-text("Stile presentazione")');
     await pg.waitForTimeout(500);
     const camSu = await pg.evaluate(() => document.querySelector('.live').classList.contains('con-cam'));
@@ -1880,7 +1879,6 @@ try {
   });
   await pg.click('.pagina-btn[data-p=live]');
   await pg.waitForTimeout(300);
-  await pg.evaluate(() => { document.querySelector('.live-configurazione').open = true; });
   await pg.click('.live .fin-interruttore:has-text("Conto alla rovescia")');
   // «più finestre» non è più un interruttore nella pagina: il motore della regia si accende da codice (la scelta vera è aggiungere finestre prima di registrare)
   await pg.evaluate(() => { window.__dpvTest.ui().live.opz.finestre = true; });

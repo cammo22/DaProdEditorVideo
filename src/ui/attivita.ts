@@ -194,6 +194,7 @@ export class CentroAttivita {
     this.pannello = h('section', { class: 'att-pannello', role: 'dialog', 'aria-label': 'Attività del programma' },
       h('header', { class: 'att-p-testa' }, h('b', null, 'Attività'), this.sotto, this.bForza, this.bPausa,
         h('button', { class: 'btn piccolo', title: 'Toglie dall\'elenco quelle già finite', on: { click: () => puliscoFinite() } }, 'Pulisci'),
+        h('button', { class: 'btn piccolo att-spazio', title: 'Quanto pesano le copie leggere, le misure e le versioni, e cosa si può togliere (con la conferma)', on: { click: () => { this.chiudi(); document.dispatchEvent(new CustomEvent('dpv:spazio')); } } }, 'Spazio'),
         h('button', { class: 'btn-icona piccolo', title: 'Chiudi (Esc)', 'aria-label': 'Chiudi', on: { click: () => this.chiudi() } }, '✕')),
       this.nota, this.prepara, this.daAvviare, this.lista, h('h5', { class: 'att-p-titolo' }, 'Finite da poco'), this.finite);
     document.body.appendChild(this.pannello);

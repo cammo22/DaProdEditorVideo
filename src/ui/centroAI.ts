@@ -10,7 +10,7 @@ import { clipEsplicita } from '../core/flussiUI';
 import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
-import { MODELLI_TRADUZIONE } from '../media/traduci';
+import { MODELLO_TRADUZIONE } from '../media/traduci';
 import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, possibilita, togliModelloRumore, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
@@ -25,6 +25,10 @@ import { modelliHub, statoModelli, type ModelloHub } from '../media/modelliAI';
 import { liberaVram } from '../media/vram';
 import { registra as reg } from '../azioni';
 import '../stile/copieAI.css';
+import { schedaMotoreLocale } from './motoreAI';
+import { FUNZIONI_AI as REGISTRO_AI } from '../core/funzioniAI';
+import { etichettaStato, ordinaPerStato, pesoDaMb, pesoEVram } from '../core/schedaAI';
+import { faiRallentaFluido, faiSottotitoliParole, faiTrovaScene, faiVocePulitaMotore, faiVoceMusicaMotore, interruttoreClear, schedaFunzioniAI, schedaModelliMotore } from './funzioniMotoreUI';
 
 export interface FunzioneAI {
   id: string;
@@ -67,10 +71,10 @@ export const FUNZIONI_AI: FunzioneAI[] = [
     apri: () => { vaiFinale('sottotitoli'); evidenzia('[data-ai="sottotitoli"]'); },
   },
   {
-    id: 'traduci', nome: 'Traduci i sottotitoli', icona: '🌍', dove: 'tutto',
+    id: 'traduci', nome: 'Traduci i sottotitoli', icona: '🌍', dove: 'app',
     cosaFa: 'Traduce le righe in un\'altra lingua (nove lingue, anche cinese, giapponese, arabo); i tempi restano.',
     come: ['Prima servono i sottotitoli', 'Scegli la lingua d\'arrivo', 'Premi "Traduci i sottotitoli" (Ctrl+Z torna indietro)'],
-    modelli: [{ repo: MODELLI_TRADUZIONE[0], nome: 'NLLB-200 di Meta', mb: 600 }],
+    modelli: [{ repo: MODELLO_TRADUZIONE.repo, nome: 'Hy-MT2 1.8B (motore AI locale)', mb: MODELLO_TRADUZIONE.mb }],
     manca: () => (haSottotitoli() ? null : 'Prima servono i sottotitoli (scritti a mano o dall\'AI)'),
     apri: () => { vaiFinale('lingue'); evidenzia('[data-ai="traduci"]'); },
   },
@@ -109,6 +113,46 @@ export const FUNZIONI_AI: FunzioneAI[] = [
     apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
     installa: () => installaSeparazione(),
     togli: () => togliSeparazione(),
+  },
+  {
+    id: 'scene', nome: 'Trova i tagli automatici', icona: '🎬', dove: 'app',
+    cosaFa: 'Guarda una ripresa e mette dei marcatori dove cambia la scena (TransNetV2): li sposti o li cancelli, e «Taglia alle scene» li fa diventare tagli.',
+    come: ['Scegli la ripresa nella timeline', 'Menu AI → Trova i tagli automatici', 'Sposta o cancella i marcatori «Scena», poi Taglia la clip alle scene (Ctrl+Z torna indietro)'],
+    modelli: [{ repo: 'elya5/transnetv2', nome: 'TransNetV2 (motore AI locale)', mb: 31 }],
+    manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una ripresa video nella timeline'),
+    apri: () => { const c = clipVideoDaUsare(true); if (c) void faiTrovaScene(c.id); else avviso('Scegli una ripresa video nella timeline', 'info', 3000); },
+  },
+  {
+    id: 'voce-pulita', nome: 'Voce pulita (motore locale)', icona: '🎙', dove: 'app',
+    cosaFa: 'DeepFilterNet3 nel motore locale: toglie i rumori da un parlato e fa un audio nuovo; l\'originale si conserva.',
+    come: ['Scegli la clip audio', 'Menu AI → Voce pulita (motore locale)', 'Se non ti piace: «Audio originale» o Ctrl+Z'],
+    modelli: [{ repo: 'Rikorose/DeepFilterNet', nome: 'DeepFilterNet3 (motore AI locale)', mb: 8 }],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { const c = clipAudioDaUsare(true); if (c) void faiVocePulitaMotore(c.id); else avviso(MANCA_AUDIO, 'info', 3000); },
+  },
+  {
+    id: 'voce-musica', nome: 'Voce e musica (Kim Vocal 2)', icona: '🎤', dove: 'app',
+    cosaFa: 'Divide il cantato dalla musica su due tracce nuove con Kim Vocal 2 (motore locale). L\'originale resta in silenzio.',
+    come: ['Scegli la clip della canzone', 'Menu AI → Voce e musica (Kim Vocal 2)', 'Ctrl+Z rimette tutto'],
+    modelli: [{ repo: 'KimberleyJSN/melbandroformer', nome: 'Kim Vocal 2 (motore AI locale)', mb: 900 }],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { const c = clipAudioDaUsare(true); if (c) void faiVoceMusicaMotore(c.id); else avviso(MANCA_AUDIO, 'info', 3000); },
+  },
+  {
+    id: 'sottotitoli-parole', nome: 'Sottotitoli con parole e tempi', icona: '📝', dove: 'app',
+    cosaFa: 'Qwen3-ASR scrive i dialoghi e il ForcedAligner mette ogni parola al suo tempo: righe di sottotitolo modificabili (motore locale).',
+    come: ['Metti in timeline i video con i dialoghi', 'Menu AI → Sottotitoli con parole e tempi', 'Correggi le righe nella riga SOTT'],
+    modelli: [{ repo: 'Qwen/Qwen3-ASR-0.6B', nome: 'Qwen3-ASR + ForcedAligner (motore AI locale)', mb: 3700 }],
+    manca: () => (haAudio() ? null : 'Metti in timeline un video con l\'audio dei dialoghi'),
+    apri: () => { void faiSottotitoliParole(); },
+  },
+  {
+    id: 'rallenta', nome: 'Rallentatore fluido (sperimentale)', icona: '🐌', dove: 'app',
+    cosaFa: 'RIFE inventa i fotogrammi in mezzo e fa una clip nuova più lenta (fino a 12 secondi). SPERIMENTALE: non ancora collaudato col modello vero.',
+    come: ['Taglia la ripresa a meno di 12 secondi (tasto 1)', 'Menu AI → Rallentatore fluido', 'La clip nuova sta sopra l\'originale, che resta'],
+    modelli: [{ repo: 'Comfy-Org/Frame-Interpolation', nome: 'RIFE 4.25 (motore AI locale)', mb: 23 }],
+    manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una ripresa video nella timeline'),
+    apri: () => { const c = clipVideoDaUsare(true); if (c) void faiRallentaFluido(c.id); else avviso('Scegli una ripresa video nella timeline', 'info', 3000); },
   },
   {
     id: 'segui', nome: 'Segui un oggetto', icona: '🎯', dove: 'locale',
@@ -206,7 +250,7 @@ export function finestraCentroAI(subito = false) {
       r.togli.disabled = s.stato === 'da-scaricare';
       r.scarica.disabled = occupato;
       r.togli.disabled ||= occupato;
-      r.peso.textContent = `Download completo: circa ${m.mb} MB · resta su questo computer`;
+      r.peso.textContent = pesoEVram({ peso: m.mb ? 'circa ' + pesoDaMb(m.mb) : undefined, vram: 'non misurabile dal browser' }).riga + ' · resta su questo computer';
       const idoneita = idoneitaAI(m, hardware, usaSchedaAI());
       r.macchina.textContent = `${idoneita.dove} · ${idoneita.testo}`;
       r.macchina.dataset.esito = idoneita.ok === false ? 'lento' : 'stima';
@@ -241,7 +285,7 @@ export function finestraCentroAI(subito = false) {
       const attuale = () => lista.find((x) => x.id === m.id)!;
       const bScarica = h('button', { class: 'btn-mini', disabled: true, on: { click: async () => { bloccaTutto(true); await scarica(attuale()); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
       const bTogli = h('button', { class: 'btn-mini', disabled: true, title: 'Toglie il modello dal computer (potrai scaricarlo di nuovo)', on: { click: async () => { bloccaTutto(true); try { await attuale().togli(); } finally { bloccaTutto(false); await disegna(); void aggSpazio(); } } } }, 'Togli') as HTMLButtonElement;
-      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, 'Opzionale')), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
+      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, etichettaStato('opzionale'))), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
       righe.set(m.id, { el, stato, msg, peso, macchina, scarica: bScarica, togli: bTogli });
       return el;
     }),
@@ -274,7 +318,7 @@ export function finestraCentroAI(subito = false) {
   // ——— le impostazioni
   const scheda = h('input', { type: 'checkbox', checked: usaSchedaAI() }) as HTMLInputElement;
   scheda.addEventListener('change', () => { impostaSchedaAI(scheda.checked); aggiornaHardware(); });
-  // la chiave di Hugging Face: serve ai modelli «gated» come SAM 3 (si crea gratis su huggingface.co → Settings → Access Tokens)
+  // la chiave di Hugging Face: serve ai modelli «gated» se richiesto (si crea gratis su huggingface.co → Settings → Access Tokens)
   const chiaveHF = h('input', { type: 'password', class: 'campo-testo', placeholder: 'hf_…', value: chiaveHFSalvata(), 'aria-label': 'Chiave Hugging Face', autocomplete: 'off' }) as HTMLInputElement;
   const salvaChiave = h('button', { class: 'btn-mini', on: { click: () => {
     try {
@@ -291,7 +335,7 @@ export function finestraCentroAI(subito = false) {
     try { localStorage.removeItem('dpv-modelli-pronti'); } catch { /* niente */ }
     await disegna(); await aggSpazio();
   } } }, 'Libera lo spazio');
-  const liberaMemoria = h('button', { class: 'btn-mini', title: 'Chiude i modelli caricati nella scheda video (SAM 3, Whisper, traduzione). Non toglie nulla dal computer: i modelli già sul computer si ricaricano in pochi secondi al prossimo uso. Succede da solo dopo un minuto e mezzo senza AI.', on: { click: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'} dalla memoria` : 'Nella scheda video non c\'è niente da liberare (o un lavoro AI sta girando)', n ? 'ok' : 'info', 2600); } } }, 'Libera la memoria della scheda video');
+  const liberaMemoria = h('button', { class: 'btn-mini', title: 'Chiude i modelli caricati nella scheda video (SAM 2.1, Whisper, traduzione). Non toglie nulla dal computer: i modelli già sul computer si ricaricano in pochi secondi al prossimo uso. Succede da solo dopo un minuto e mezzo senza AI.', on: { click: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'} dalla memoria` : 'Nella scheda video non c\'è niente da liberare (o un lavoro AI sta girando)', n ? 'ok' : 'info', 2600); } } }, 'Libera la memoria della scheda video');
   const nvidia = motoreNemo() ? h('div', { class: 'ai-imp' },
     h('span', null, 'Motore NVIDIA (sottotitoli e voce nell\'app)'),
     h('button', { class: 'btn-mini', on: { click: async () => {
@@ -301,6 +345,10 @@ export function finestraCentroAI(subito = false) {
     } } }, 'Togli motore e modelli')) : null;
 
   d.corpo.append(
+    schedaFunzioniAI(),
+    schedaMotoreLocale(),
+    schedeRegistro(),
+    schedaModelliMotore(),
     h('section', { class: 'ai-sezione' },
       h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
       h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),
@@ -308,13 +356,29 @@ export function finestraCentroAI(subito = false) {
     h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
       h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video quando c\'è'),
+      interruttoreClear(),
       h('div', { class: 'ai-imp' }, spazio, svuota),
       h('div', { class: 'ai-imp' }, h('span', null, 'Dopo un minuto e mezzo senza AI i modelli escono da soli dalla scheda video'), liberaMemoria),
-      h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (come SAM 3). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face (SAM 3)'), chiaveHF, salvaChiave),
+      h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (se richiesto). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face'), chiaveHF, salvaChiave),
       nvidia));
-  d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Chiudi'));
+  d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn chiudi', on: { click: d.chiudi } }, 'Chiudi'));
   if (subito) void fai();
   return d;
+}
+
+/** le funzioni del registro AI (src/core/funzioniAI.ts), una scheda per ognuna: cartellino, peso, VRAM e il tasto per usarla */
+function schedeRegistro(): HTMLElement {
+  const sez = h('section', { class: 'ai-sezione', 'data-ai': 'registro' });
+  if (!REGISTRO_AI.length) { sez.hidden = true; return sez; }
+  sez.append(h('h4', null, 'Funzioni AI'), h('div', { class: 'sch-funzioni' }, ordinaPerStato(REGISTRO_AI).map((f) => {
+    const pv = pesoEVram(f);
+    return h('div', { class: 'sch-funzione', 'data-funzione': f.id },
+      h('span', { class: 'sch-cartellino', 'data-stato': f.stato }, etichettaStato(f.stato)),
+      h('b', null, f.nome), h('p', null, f.descrizione),
+      h('small', { class: 'sch-pesovram' }, pv.riga + ' · ' + (f.motore === 'locale' ? 'motore locale' : 'nel browser')),
+      f.esegui ? h('button', { class: 'btn-mini', on: { click: () => { void f.esegui!({ clipIds: [...store.sel] }).catch((e) => avviso(spiegaErroreAI(e), 'errore', 6000)); } } }, 'Usa') : null);
+  })));
+  return sez;
 }
 
 function disegnaDiagnosi(el: HTMLElement, g: Diagnosi) {
@@ -340,6 +404,6 @@ fonteCerca(() => FUNZIONI_AI.map((f) => ({ id: 'ai:' + f.id, titolo: f.nome, sot
 
 reg({
   id: 'liberaVram', nome: 'Libera la memoria della scheda video (AI)', gruppo: 'AI',
-  info: 'Scarica dalla scheda video i modelli AI che non stanno lavorando (SAM 3, Whisper, traduzione): torna la memoria a giochi e altri programmi. I modelli già sul computer si ricaricano in pochi secondi al prossimo uso.',
+  info: 'Scarica dalla scheda video i modelli AI che non stanno lavorando (SAM 2.1, Whisper, traduzione): torna la memoria a giochi e altri programmi. I modelli già sul computer si ricaricano in pochi secondi al prossimo uso.',
   fn: () => { const n = liberaVram(); avviso(n ? `Scheda video liberata: ${n} ${n === 1 ? 'modello scaricato' : 'modelli scaricati'}` : 'Nella scheda video non c\'è niente da liberare', n ? 'ok' : 'info', 2400); },
 });

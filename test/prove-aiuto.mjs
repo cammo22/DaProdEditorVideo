@@ -124,7 +124,7 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       const motore = diag.find((x) => /Motore AI/.test(x.t));
       prova('"Controlla l\'AI": il motore AI parte davvero, dai file dell\'app (niente CDN)', !!motore && /\bok\b/.test(motore.ok) && /dai file dell'app/.test(motore.t), JSON.stringify(diag));
       prova('la diagnosi dice di Hugging Face, della scheda video e dei modelli sul computer', diag.some((x) => /Hugging Face/.test(x.t)) && diag.some((x) => /Scheda video/.test(x.t)) && diag.some((x) => /Modelli sul computer/.test(x.t)));
-      await page.click('.centro-ai .dlg-piede .primario');
+      await page.click('.centro-ai .dlg-piede .chiudi');
       await page.waitForSelector('.dialogo.centro-ai', { state: 'detached' });
 
       console.log('▶ Aiuto: tasti e menu riordinati');

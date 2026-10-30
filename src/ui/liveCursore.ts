@@ -9,8 +9,7 @@ export class SceltaSchermoLive {
   el = h('div', { class: 'live-schermo-scelta' },
     h('label', { title: cursoreDisponibile
       ? 'Scegli qui il monitor, poi lo stesso schermo intero nel selettore di Windows. Finestre, schede e più finestre non sono supportate. Clic campionati a circa 60 Hz: i colpi molto rapidi possono sfuggire.'
-      : 'Zoom del cursore e clic animati sono disponibili nell’app per Windows, registrando uno schermo intero.' }, h('span', null, 'Schermo del cursore'), this.select),
-    cursoreDisponibile ? null : h('p', { class: 'nota' }, 'Zoom e clic animati: solo nell’app per Windows, con uno schermo intero.'));
+      : 'Zoom del cursore e clic animati sono disponibili nell’app per Windows, registrando uno schermo intero.' }, h('span', null, 'Schermo del cursore'), this.select));
 
   constructor() {
     this.select.append(h('option', { value: '' }, 'Scegli lo schermo…'));

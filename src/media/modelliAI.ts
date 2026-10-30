@@ -6,7 +6,8 @@
 // percorso dell'uso (stesso worker, stessa scheda video, stesso peso), così la volta dopo non si scarica più niente.
 import { MODELLI, caricaModelloVoce } from './voce';
 import { MODELLI_RITAGLIO, caricaModelloRitaglio } from './ritaglio';
-import { MODELLI_TRADUZIONE, caricaTraduttore } from './traduci';
+import { MODELLO_TRADUZIONE } from './traduci';
+import { motoreAI, motoreLocaleDisponibile } from './motoreAI';
 import { MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, modelloRumoreScelto, togliModelloRumore, togliSeparazione } from './audioAI';
 import { modelloInCache } from './modelliAudio';
 import { modelliScaricati, togliRepoModello } from './diagnosiAI';
@@ -32,6 +33,8 @@ export interface ModelloHub extends RequisitiAI {
   repos: string[];
   /** un modello che sta in un file solo (Demucs, MossFormer2): l'indirizzo, per controllare la cache */
   file?: string;
+  /** un modello che sta nel motore AI locale (non nella cache del browser): com'è messo lo dice lui */
+  stato?: () => Promise<{ stato: StatoModello; bytes: number }>;
   scarica(avanza: Avanzamento): Promise<void>;
   togli(): Promise<void>;
 }
@@ -43,13 +46,52 @@ const leggi = modelliPronti;
 /** "onnx-community/BEN2-ONNX · scheda video · q4" → "onnx-community/BEN2-ONNX" */
 const repoDa = (s: string) => (/^[\w.-]+\/[\w.-]+/.exec(s)?.[0] ?? '');
 
+/**
+ * Un modello che vive nel motore AI locale opzionale. Si scarica solo su richiesta (accende il motore e prende i pesi),
+ * si toglie dal motore; com'è messo lo dice il motore se è acceso, se no si fida di quanto ricordato dall'ultima volta.
+ */
+function modelloDelMotore(d: { id: string; modello: string; gruppo: Gruppo; nome: string; info: string; uso: string; mb: number; ramGB: number; thread: number }): ModelloHub {
+  return {
+    id: d.id, gruppo: d.gruppo, nome: d.nome, info: d.info, uso: d.uso, processore: true, ramGB: d.ramGB, thread: d.thread, mb: d.mb, consigliato: false, repos: [],
+    async stato() {
+      if (!motoreLocaleDisponibile()) return { stato: 'da-scaricare', bytes: 0 };
+      try {
+        const s = await motoreAI.stato();
+        if (s.stato === 'acceso') {
+          const m = (await motoreAI.modelli()).find((x) => x.id === d.modello);
+          if (m?.scaricato) return { stato: 'pronto', bytes: m.byte };
+          return { stato: 'da-scaricare', bytes: 0 };
+        }
+        if (s.stato === 'non-installato' || s.stato === 'installazione') return { stato: 'da-scaricare', bytes: 0 };
+      } catch { /* si usa il ricordo */ }
+      return leggi()[d.id] ? { stato: 'pronto', bytes: d.mb * 1048576 } : { stato: 'da-scaricare', bytes: 0 };
+    },
+    async scarica(avanza) {
+      if (!motoreLocaleDisponibile()) throw new Error("Il motore AI locale c'è solo nell'app per Windows: nel browser questo modello non si può scaricare");
+      const s = await motoreAI.stato();
+      if (s.stato === 'non-installato' || s.stato === 'installazione') throw new Error('Prima installa il motore AI locale (scheda «Motore AI locale» del Centro AI): poi si scarica questo modello');
+      await motoreAI.azione('accendi', (k, t) => avanza(t, k ?? 0));
+      await motoreAI.lavoro('/modelli/scarica', { modello: d.modello }, (k, t) => avanza(t, k ?? 0));
+      ricorda(d.id, d.modello);
+    },
+    async togli() {
+      if (motoreLocaleDisponibile()) {
+        const s = await motoreAI.stato();
+        if (s.stato === 'acceso') await motoreAI.togliModello(d.modello);
+        else if (s.stato !== 'non-installato') { await motoreAI.azione('accendi'); await motoreAI.togliModello(d.modello); }
+      }
+      dimentica(d.id);
+    },
+  };
+}
+
 export function modelliHub(): ModelloHub[] {
   const out: ModelloHub[] = [];
-  const consigliati = new Set(['sam3', 'whisper-base']);
-  // per togliere lo sfondo c'è un modo solo, SAM 3 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
-  for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam3')) {
+  const consigliati = new Set(['sam2', 'whisper-base']);
+  // per togliere lo sfondo c'è un modo solo, SAM 2.1 (gli altri restano dentro per i progetti vecchi e come ricambio, ma non si scelgono)
+  for (const m of MODELLI_RITAGLIO.filter((x) => x.id === 'sam2')) {
     out.push({
-      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, uso: 'Ritaglia gli oggetti scelti con i clic e li segue nella ripresa.', ramGB: 8, thread: 8, mb: 300, consigliato: consigliati.has(m.id), repos: m.repo,
+      id: m.id, gruppo: 'Togli lo sfondo e segui', nome: m.nome, info: m.info, uso: 'Ritaglia gli oggetti scelti con i clic e li segue nella ripresa.', ramGB: 8, thread: 8, mb: 78, consigliato: consigliati.has(m.id), repos: m.repo,
       async scarica(avanza) {
         const r = repoDa(await caricaModelloRitaglio(m, avanza));
         if (!r || r === m.repo[0]) { ricorda(m.id, r || m.repo[0]); return; }
@@ -68,15 +110,10 @@ export function modelliHub(): ModelloHub[] {
       async togli() { await togliRepoModello(w.id); dimentica('whisper-' + w.id.split('-').pop()); },
     });
   }
-  out.push({
-    id: 'nllb', gruppo: 'Traduzione', nome: 'NLLB-200 di Meta', info: 'traduce i sottotitoli in nove lingue', uso: 'Traduce il testo dei sottotitoli in un’altra lingua.', processore: true, ramGB: 8, thread: 4, mb: 600, consigliato: false, repos: MODELLI_TRADUZIONE,
-    async scarica(avanza) {
-      await caricaTraduttore(avanza);
-      const b = await modelliScaricati();
-      ricorda('nllb', MODELLI_TRADUZIONE.find((r) => (b.get(r) ?? 0) > 0) ?? MODELLI_TRADUZIONE[0]);
-    },
-    async togli() { for (const r of MODELLI_TRADUZIONE) await togliRepoModello(r); dimentica('nllb'); },
-  });
+  out.push(modelloDelMotore({
+    id: 'hymt2', modello: MODELLO_TRADUZIONE.id, gruppo: 'Traduzione', nome: `${MODELLO_TRADUZIONE.nome} · motore AI locale`, info: 'traduce i sottotitoli in nove lingue (Apache-2.0)',
+    uso: 'Traduce il testo dei sottotitoli in un’altra lingua; gira nel motore AI locale opzionale.', mb: MODELLO_TRADUZIONE.mb, ramGB: 8, thread: 4,
+  }));
   const rumore = modelloRumoreScelto();
   out.push({
     id: 'rumore', gruppo: 'Audio', nome: 'MossFormer2 · togli i rumori', info: 'il filtro per le voci (ClearerVoice)', uso: 'Toglie il rumore di fondo dai dialoghi e lascia la voce.', ramGB: 4, thread: 8, mb: Math.round(rumore.peso / 1048576), consigliato: true, repos: [rumore.repo], file: rumore.url,
@@ -97,6 +134,7 @@ export async function statoModelli(lista: ModelloHub[] = modelliHub()): Promise<
   const rec = leggi();
   const out = new Map<string, { stato: StatoModello; bytes: number }>();
   for (const m of lista) {
+    if (m.stato) { out.set(m.id, await m.stato()); continue; }
     if (m.file) {
       const n = await modelloInCache({ url: m.file } as Parameters<typeof modelloInCache>[0]);
       out.set(m.id, { stato: n ? 'pronto' : 'da-scaricare', bytes: n ?? 0 });

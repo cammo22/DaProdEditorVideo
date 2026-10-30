@@ -33,6 +33,7 @@ export function suTastierino(fn: (cifra: string) => void) { tcInserimento = fn; 
 
 export function installaTastiera() {
   window.addEventListener('keydown', (e) => {
+    if (e.defaultPrevented) return;
     const t = e.target as HTMLElement;
     const inCampo = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
     if (inCampo) {

@@ -1,7 +1,7 @@
 {
   "name": "daprod-video",
   "productName": "DaProd Video",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "DaProd Video: il montaggio video vecchio stile, moderno dentro. Timeline, due monitor, pulsantiera e VU a lancetta.",
   "author": "DaProd",
   "license": "MIT",
@@ -30,6 +30,7 @@
     "@fontsource/oswald": "^5.3.0",
     "@fontsource/playfair-display": "^5.3.0",
     "@fontsource/rajdhani": "^5.3.0",
+    "@fontsource/share-tech-mono": "^5.3.0",
     "@fontsource/space-mono": "^5.3.0",
     "@litertjs/core": "^2.5.3",
     "@mediabunny/aac-encoder": "^1.59.1",

@@ -1,0 +1,304 @@
+/* DaProd Video — sistema «Banco 1.0» (cammoWiki: progetti/daprodvideo/design/Main.dc.html).
+   Un banco di regia: metallo scuro, scritte incise, spie che si accendono solo quando serve.
+   Qui stanno le regole che valgono su tutto e il ritocco della schermata Montaggio. Si carica DOPO editor.css e
+   guscio.css, quindi vince a parità di forza. Le variabili (--fondo, --metallo-tasto, --vetrino, --etichetta…) vivono in
+   editor.css: qui si usano, non si ridefiniscono.
+
+   Le regole di colore, in breve:
+   · oro  = l'azione principale (al massimo UN pulsante oro per schermata) e i numeri del timecode
+   · ciano = la selezione (cosa è scelto, cosa è acceso, dove cade il trascinamento)
+   · rosso = REC o errore · verde = pronto
+   · il magenta non c'è: resta solo per colorare le clip (--clip-mag)
+   La schermata Montaggio cambia solo d'aspetto: nessun comando si sposta, nessun comportamento cambia. */
+
+/* ——— etichette incise: MAIUSCOLE, larghe, grigio-viola ——— */
+.etichetta-incisa,
+.bin-albero-titolo, .bin-sezione, .att-p-titolo, .cerca-intesta, .tasti-griglia h4, .guida-elenco h5, .ai-sezione h4, .home-etichetta {
+  font-family: var(--ui); font-weight: 700; font-size: var(--etichetta-px); letter-spacing: var(--etichetta-lettere);
+  text-transform: uppercase; color: var(--etichetta);
+}
+.bin-sezione { font-size: 12px; }
+.bin-sezione small { letter-spacing: 1px; }
+.bin-albero-titolo { letter-spacing: 2.5px; opacity: 1; }
+.bin-impostazioni .etichetta, .bin-durate > span, .segno-io label {
+  font-family: var(--ui); font-weight: 700; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--etichetta);
+}
+.segno-io label { font-size: 10.5px; letter-spacing: 1.5px; }
+.nota { font-weight: 500; font-size: 13px; }
+
+/* ——— comandi ——— */
+.btn {
+  min-height: var(--comando-alto); padding: 0 18px; border-radius: var(--raggio); border: 1px solid var(--bordo-forte);
+  background: var(--metallo-tasto); color: var(--testo); font-weight: 700; font-size: 15px; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c;
+}
+.btn:hover { filter: none; background: var(--metallo-chiaro); border-color: rgba(255, 255, 255, 0.2); }
+.btn:active { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
+.btn:disabled { opacity: 0.45; }
+/* l'unico oro: l'azione principale della schermata */
+.btn.primario {
+  background: var(--oro); color: #14110a; border-color: rgba(255, 213, 74, 0.4); font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(255, 213, 74, 0.4), 0 6px 18px rgba(255, 171, 0, 0.25);
+}
+.btn.primario:hover { background: #ffe07a; border-color: rgba(255, 224, 122, 0.6); }
+.btn.primario:active { transform: translateY(1px); }
+/* nel Montaggio l'oro è di «Esporta» (barra in alto): «Importa» nel contenitore resta tasto metallo, con il bordo oro sottile a dirlo */
+.bin-testa .btn.primario { background: var(--metallo-tasto); color: var(--oro); border-color: rgba(255, 213, 74, 0.4); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c; }
+.bin-testa .btn.primario:hover { background: var(--metallo-chiaro); }
+/* le barre dense (pulsantiera, testate, contenitore) stanno a 34 px */
+.btn.piccolo, .bin-testa .btn, .dlg-piede .btn.piccolo, .vel-preset .btn { min-height: var(--comando-denso); padding: 0 12px; font-size: 13px; }
+.btn-icona { border-radius: var(--raggio); min-width: var(--comando-denso); min-height: var(--comando-denso); }
+.btn-icona:hover { background: #2a2933; }
+.btn-mini { background: var(--metallo-tasto); border: 1px solid var(--bordo-forte); border-radius: var(--raggio-piccolo); color: var(--testo2); }
+.btn-mini:hover { color: var(--testo); border-color: rgba(255, 255, 255, 0.2); }
+.mini-select, .bin-cerca, .tc-inserimento {
+  background: var(--vetrino); border: 1px solid var(--bordo); border-radius: var(--raggio-piccolo);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+.mini-select { min-height: var(--comando-denso); }
+.bin-cerca { min-height: var(--comando-denso); font-size: 14px; }
+.bin-cerca:focus, .mini-select:focus { border-color: var(--cia-bordo); outline: none; box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.75), 0 0 0 2px var(--cia-fondo); }
+.chip { border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); min-height: 30px; font-size: 13px; }
+.chip:hover { color: var(--testo); border-color: rgba(255, 255, 255, 0.2); }
+.chip.acceso, .chip.acceso.tr { background: var(--cia); color: #06171b; border-color: var(--cia-bordo); box-shadow: 0 0 10px rgba(53, 232, 255, 0.3); }
+.chip-tipo:not(.fx):not(.tr) { background: var(--cia); color: #06171b; }
+.btn-cerca, .btn-ai { border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); color: var(--testo2); min-height: var(--comando-denso); font-size: 13px; }
+.btn-cerca:hover, .btn-ai:hover { color: var(--testo); border-color: rgba(255, 255, 255, 0.2); box-shadow: none; }
+.btn-ai { color: var(--testo); }
+.btn-ai:hover { box-shadow: 0 0 0 1px var(--cia-bordo); }
+.led.acceso, .acceso > .led { background: radial-gradient(circle at 35% 35%, #d8ffe9, var(--verde) 60%); box-shadow: 0 0 8px var(--verde); }
+
+/* ——— selezione = ciano ——— */
+.scheda { font-size: 12px; letter-spacing: 2px; border-radius: var(--raggio) var(--raggio) 0 0; }
+.scheda.attiva { color: var(--cia); border-color: var(--bordo-forte); box-shadow: inset 0 2px 0 var(--cia); }
+.scheda-fissa.acceso { background: var(--cia-fondo); border-color: var(--cia-bordo); }
+.bin-cat.attiva { background: var(--cia-fondo); color: var(--cia); border-color: var(--cia-bordo); }
+.bin-cat:hover { background: rgba(255, 255, 255, 0.05); }
+.bin-cat.sopra { background: var(--cia-fondo); border-color: var(--cia); color: var(--cia); }
+.bin-percorso button.pezzo:hover { color: var(--cia); }
+.contenitore.sopra { box-shadow: inset 0 0 0 2px var(--cia); }
+.carta { border-radius: var(--raggio); border-color: var(--bordo); background: var(--pann2); }
+.carta:hover { background: #26252f; border-color: var(--bordo-forte); }
+.carta.scelta { border-color: var(--cia); background: #14272d; box-shadow: 0 0 0 1.5px var(--cia), 0 0 12px rgba(53, 232, 255, 0.22); }
+.carta.cartella:hover .cartella-img { color: var(--oro); }
+.carta.fxt:hover { border-color: var(--bordo-forte); }
+.carta.tr:hover { border-color: var(--bordo-forte); }
+.carta-img.gira > canvas.provino.vero { box-shadow: inset 0 0 0 1px var(--cia-bordo); }
+.bin-scelti { background: var(--cia); color: #06171b; border-radius: var(--raggio-piccolo); }
+.bin-impostazioni .chip.acceso, .bin-durate .chip.acceso { background: var(--cia); color: #06171b; box-shadow: 0 0 10px rgba(53, 232, 255, 0.28); }
+.bin-sezione { color: var(--etichetta); }
+.bin-vuoto { border-radius: var(--raggio); border-color: #34323e; }
+.bin-vuoto-icona { color: var(--etichetta); }
+.cerca-voce.scelta { background: linear-gradient(90deg, rgba(53, 232, 255, 0.16), rgba(53, 232, 255, 0.03)); box-shadow: inset 2px 0 0 var(--cia); }
+.cerca-cat[data-cat='AI'] { color: var(--testo2); background: #1f1d26; }
+.cerca-cat[data-cat='Transizioni'], .cerca-cat[data-cat='Effetti a tempo'] { color: var(--testo2); }
+.guida-voce.attiva { background: linear-gradient(90deg, rgba(53, 232, 255, 0.16), transparent); color: var(--cia); }
+.guida-passi li::marker, .guida-passi b { color: var(--testo); }
+.voce .spunta { color: var(--cia); }
+.prima-dopo.acceso { color: var(--cia); box-shadow: inset 0 0 0 1px var(--cia); }
+.tasto-trasporto.loop.acceso { color: var(--cia); box-shadow: inset 0 0 0 1px var(--cia), 0 2px 0 #0b0a0e; }
+.bordo:hover::after, .bordo.preso::after, .divisore:hover::after, .divisore.preso::after { background: var(--cia); }
+/* il controllo indicato dalla guida lampeggia in ciano (era giallo: il giallo è l'azione) */
+@keyframes evidenzia { 0%, 100% { box-shadow: 0 0 0 0 rgba(53, 232, 255, 0); } 50% { box-shadow: 0 0 0 4px rgba(53, 232, 255, 0.85), 0 0 22px rgba(53, 232, 255, 0.55); } }
+.sott-testo:focus { outline: 1px solid var(--cia); }
+.ai-barra i { background: linear-gradient(90deg, #3b3a44, var(--oro)); }
+.fin-testa { background: linear-gradient(180deg, #23222b, var(--pann)); color: var(--etichetta); }
+.fin-presto i { color: var(--etichetta); border-color: var(--bordo-forte); }
+
+/* ——— focus visibile, uguale ovunque ——— */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible, a:focus-visible {
+  outline: 2px solid var(--cia); outline-offset: 2px; border-radius: var(--raggio-piccolo);
+}
+.tl-tela:focus-visible, .ca-finestra:focus-visible { outline: none; }
+input[type='range']:focus-visible { outline-offset: 4px; }
+::selection { background: rgba(53, 232, 255, 0.3); color: #fff; }
+.dialogo { user-select: text; }
+
+/* ——— testata, menu, pagine ——— */
+.testata { background: linear-gradient(180deg, #1d1c23, #121117); }
+.voce-menu { border-radius: var(--raggio); font-size: 14px; letter-spacing: 0.4px; min-height: var(--comando-denso); }
+.voce-menu:hover, .voce-menu.aperto { background: #2a2933; }
+.pagine { border-radius: var(--raggio); background: var(--vetrino); border-color: var(--bordo); padding: 3px; }
+.pagina-btn { border-radius: var(--raggio-piccolo); min-height: 32px; font-size: 11px; }
+.pagina-btn.attiva, .pagina-btn[data-p='finale'].attiva {
+  background: var(--cia); color: #06171b; box-shadow: 0 0 12px rgba(53, 232, 255, 0.3);
+}
+.moneta { box-shadow: 0 0 12px rgba(255, 213, 74, 0.3), inset 0 0 0 2px rgba(53, 232, 255, 0.3); }
+.badge { border-radius: var(--raggio-piccolo); background: var(--vetrino); }
+.badge.usato { color: var(--testo); }
+.linguetta-lato { border-color: var(--cia-bordo); color: var(--cia); background: var(--pann); border-radius: 0 var(--raggio) var(--raggio) 0; }
+
+/* ——— menu a tendina e menu contestuali ——— */
+.menu-contesto, .att-pannello {
+  background: rgba(24, 23, 30, 0.97); border: 1px solid var(--bordo-forte); border-radius: var(--raggio);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.voce { min-height: 34px; border-radius: var(--raggio-piccolo); font-size: 14px; }
+.voce:hover { background: #2a2933; }
+.menu-contesto .sep { background: var(--bordo); box-shadow: none; }
+
+/* ——— dialoghi (vetro) e avvisi ——— */
+.dialogo { border-radius: 8px; }
+.dlg-testa { padding: 12px 14px; }
+.dlg-testa b { font: 700 18px var(--ui); letter-spacing: 0.5px; color: var(--testo); }
+.dlg-piede { padding: 12px 14px; }
+.form label { font-weight: 600; }
+.avviso.tasto { color: var(--oro); }
+.avviso-lungo { border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: rgba(24, 23, 30, 0.97); }
+.stato { background: var(--vetrino); font-size: 12px; letter-spacing: 0.3px; border-top: 1px solid var(--bordo); }
+.att-nota { background: #231f10; }
+.att-r-stop { border-radius: var(--raggio-piccolo); }
+.btn.att-forza { background: var(--metallo-tasto); color: var(--oro); border-color: rgba(255, 213, 74, 0.4); }
+.btn.att-forza.acceso { background: var(--oro); color: #14110a; }
+
+/* ——— MONTAGGIO: contenitore ——— */
+.contenitore { background: var(--pann); }
+.bin-testa { background: #17161d; border-bottom: 1px solid #000; }
+.bin-albero { background: #101015; }
+.bin-barra { background: #17161d; }
+.bin-cat { min-height: 30px; border-radius: var(--raggio-piccolo); font-size: 14px; font-weight: 600; }
+.bin-cat .conta { font: 700 12px var(--tc); color: var(--etichetta); }
+.pannello { background: var(--pann); }
+.schede { background: #101015; }
+
+/* ——— MONTAGGIO: monitor (il vetrino, il timecode in oro, la spia verde) ——— */
+.monitor { background: var(--metallo); }
+.mon-testa b { font: 700 12px var(--ui); letter-spacing: var(--etichetta-lettere); color: var(--etichetta); text-shadow: none; }
+.monitor .mon-testa .led { background: radial-gradient(circle at 35% 35%, #d8ffe9, var(--verde) 60%); box-shadow: 0 0 8px var(--verde); }
+.monitor.sorgente .mon-testa b { color: var(--cia); text-shadow: none; }
+.monitor.sorgente .mon-testa .led { background: radial-gradient(circle at 35% 35%, #e0fbff, var(--cia) 60%); box-shadow: 0 0 8px var(--cia); }
+.schermo { background: var(--vetrino); border-radius: var(--raggio-piccolo); box-shadow: inset 0 0 0 1px #000, inset 0 0 30px rgba(0, 0, 0, 0.9), 0 1px 0 rgba(255, 255, 255, 0.06); }
+.tc { color: var(--oro); background: var(--vetrino); border: 1px solid var(--bordo); border-radius: var(--raggio-piccolo); text-shadow: 0 0 6px rgba(255, 213, 74, 0.45); box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.9); }
+.tc.piccolo { color: var(--verde); text-shadow: 0 0 5px rgba(93, 255, 180, 0.35); }
+.tc.grande { font-size: 19px; padding: 4px 10px; }
+.monitor:not(.sorgente) .tc.grande, .monitor.recorder:not(.sorgente) .tc.grande { color: var(--oro); text-shadow: 0 0 7px rgba(255, 213, 74, 0.5); }
+.monitor.sorgente .tc.grande { color: var(--cia); text-shadow: 0 0 7px rgba(53, 232, 255, 0.5); }
+.tc-inserimento { color: var(--oro); border-color: var(--cia-bordo); }
+.mon-sorgente { color: var(--etichetta); }
+.pos-barra { background: rgba(14, 13, 18, 0.88); border-color: var(--cia-bordo); border-radius: var(--raggio); }
+.pos-nome { color: var(--cia); }
+.pos-btn { height: 24px; border-radius: var(--raggio-piccolo); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); }
+.pos-btn.acceso { background: var(--cia); color: #06171b; border-color: var(--cia-bordo); }
+.pos-btn.ok { background: var(--verde); color: #06190f; border-color: rgba(93, 255, 180, 0.5); }
+.pos-btn.ok:disabled { background: var(--metallo-tasto); color: var(--testo3); border-color: var(--bordo); }
+.pos-mira-stato { color: var(--verde); }
+.mini-tl { border-radius: var(--raggio); }
+/* il trasporto: tasti metallo bassi 34 px, play verde che diventa rosso quando suona */
+.tasto-trasporto { width: 36px; height: var(--comando-denso); border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c; }
+.tasto-trasporto:hover { background: var(--metallo-chiaro); }
+.tasto-trasporto.play { width: 46px; }
+.tasto-trasporto.play.acceso { color: var(--rosso); background: linear-gradient(180deg, #3a2028, #22131a); border-color: rgba(255, 77, 109, 0.4); }
+.tasto-edit { height: var(--comando-denso); border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); color: var(--testo); font-size: 12px; letter-spacing: 1px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c; }
+.tasto-edit.rosso { background: linear-gradient(180deg, #4a2530, #33181f); color: #ffc0cc; border-color: rgba(255, 77, 109, 0.4); }
+.tasto-edit small { color: var(--oro); }
+.segno-via { background: var(--metallo-tasto); border: 1px solid var(--bordo-forte); }
+
+/* ——— MONTAGGIO: pulsantiera attaccata (i tasti 1 e 2 restano i più grandi) ——— */
+.pulsantiera { background: linear-gradient(180deg, #23222a, #17161d); border-top: 1px solid #000; }
+.gruppo-tasti { border-right: 1px solid #000; }
+.tasto-num {
+  height: 48px; border-radius: var(--raggio); border: 1px solid var(--bordo-forte); color: var(--testo);
+  background: var(--metallo-tasto); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 3px 0 #09080c, 0 4px 8px rgba(0, 0, 0, 0.4);
+}
+.tasto-num:hover { background: var(--metallo-chiaro); }
+.tasto-num .tasto-numero { font: 700 12px var(--tc); color: var(--oro); text-shadow: 0 0 6px rgba(255, 213, 74, 0.5); }
+.tasto-num .nome { font: 700 11px var(--ui); letter-spacing: 1.5px; text-transform: uppercase; }
+.tasto-num.rosso { background: linear-gradient(180deg, #5a2631, #3e171f); border-color: rgba(255, 77, 109, 0.35); }
+.tasto-modo, .tasto-piccolo {
+  height: var(--comando-denso); border-radius: var(--raggio); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto);
+  letter-spacing: 1px; text-transform: uppercase; font-size: 11.5px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c;
+}
+.tasto-modo:hover, .tasto-piccolo:hover { background: var(--metallo-chiaro); color: var(--testo); }
+.tasto-modo.acceso { color: var(--cia); border-color: var(--cia-bordo); }
+.tasto-modo.largo .led { background: radial-gradient(circle at 35% 35%, #e0fbff, var(--cia) 60%); box-shadow: 0 0 6px var(--cia); }
+.tasto-modo.largo.acceso .led { background: radial-gradient(circle at 35% 35%, #e0fbff, var(--cia) 60%); box-shadow: 0 0 8px var(--cia); }
+.tasto-piccolo { min-width: var(--comando-denso); }
+
+/* ——— MONTAGGIO: timeline (testate delle tracce, schede, barra di scorrimento) ——— */
+.timeline { background: #0d0c12; }
+.tl-schede { background: #17161d; }
+.tl-scheda { height: 24px; border-radius: var(--raggio) var(--raggio) 0 0; border-color: var(--bordo); background: #101015; font-size: 12.5px; }
+.tl-scheda.attiva { background: #1d1c25; color: var(--cia); border-color: var(--cia-bordo); box-shadow: inset 0 2px 0 var(--cia); }
+.tl-testate { background: #101015; }
+.tl-testate-righello { background: linear-gradient(180deg, #23222a, #15141a); }
+.tl-testata { background: linear-gradient(90deg, #1b1a22, #15141b); }
+.tl-testata.audio { background: linear-gradient(90deg, #172020, #131718); }
+.tl-testata.fx { background: linear-gradient(90deg, #211f2a, #17161d); }
+.tl-testata.fx .tt-nome { color: var(--testo2); }
+.tl-testata.accesa { background: linear-gradient(90deg, #12313a, #1b1a22 70%); box-shadow: inset 3px 0 0 var(--cia); }
+.tt-nome { background: var(--vetrino); border: 1px solid var(--bordo); border-radius: var(--raggio-piccolo); font: 700 11px var(--marchio); }
+.tt-nome:hover { border-color: var(--bordo-forte); }
+.tt-nome.accesa { background: var(--cia); color: #06171b; box-shadow: 0 0 10px rgba(53, 232, 255, 0.28); border-color: var(--cia-bordo); }
+.tt-nome.accesa .led { background: radial-gradient(circle at 35% 35%, #fff, #0b6a78 70%); }
+.tt-btn { border-radius: var(--raggio-piccolo); border: 1px solid var(--bordo-forte); background: var(--metallo-tasto); color: var(--testo2); }
+.tt-btn:hover { color: var(--testo); background: var(--metallo-chiaro); }
+.tt-btn.on-rosso { background: linear-gradient(180deg, #7a2d3c, #5a1f2b); color: #ffc0cc; border-color: rgba(255, 77, 109, 0.4); }
+.tt-btn.on-oro { background: linear-gradient(180deg, #4a3d12, #342a0b); color: var(--oro); border-color: rgba(255, 213, 74, 0.35); }
+.tt-misura { background: var(--vetrino); }
+.tl-vbar { background: var(--fondo); }
+.tl-vpollice { border: 1px solid var(--bordo-forte); background: linear-gradient(90deg, #3a3846, #2c2b34); }
+.tl-vbar:hover .tl-vpollice, .tl-vbar.preso .tl-vpollice { border-color: var(--cia); background: linear-gradient(90deg, #4a4858, #37363f); }
+.divisore { background: linear-gradient(180deg, #0b0a0f, #1a1920 50%, #0b0a0f); }
+.bordo { background: var(--fondo); }
+
+/* Scene: il formato del progetto resta uguale fra anteprima e keyframe. */
+.live-schermo, .tele-quadro { container-type: size; }
+.scene-stage { position: absolute; width: min(100cqw, calc(100cqh * var(--rapporto-scena, 1.7777778))); height: min(100cqh, calc(100cqw / var(--rapporto-scena, 1.7777778))); left: 50%; top: 50%; transform: translate(-50%, -50%); overflow: hidden; background: var(--vetrino); }
+#app .live .live-schermo .live-quadro { inset: 0; transform: none; width: 100%; height: 100%; }
+.scene-stage video { display: block; max-width: none; max-height: none; box-shadow: none; }
+.scene-titolo { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: var(--pann); color: var(--testo); opacity: 0; pointer-events: none; transition: opacity 320ms ease; font: 700 clamp(18px, 4cqw, 64px) var(--ui); letter-spacing: 3px; }
+.scene-titolo small { font-size: 12px; color: var(--etichetta); }
+.scene-titolo.acceso { opacity: 1; }
+.live-scene, .tele-scene { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.live-scene .scena-btn, .live-mini .scena-btn { min-height: 44px; height: 44px; padding: 0 6px; gap: 5px; min-width: 0; font: 700 13px var(--ui); }
+.scena-btn kbd { font: 12px var(--tc); opacity: .7; }
+.live .scena-btn.attiva, .live-mini .scena-btn.attiva { background: var(--cia-fondo); border-color: var(--cia); color: var(--cia); box-shadow: inset 0 -2px var(--cia); }
+
+/* Telecomando Banco: tutti i comandi restano nella finestra, anche con anteprima spenta. */
+.live-mini.su { overflow: hidden; gap: 6px; padding: 8px; background: var(--fondo); }
+.live-mini .tele-testa { flex: none; padding: 0 6px; gap: 6px; min-height: 44px; background: var(--vetrino); }
+.live-mini .tele-torna { min-height: 44px; height: 44px; }
+.live-mini .tele-quadro { flex: 1 1 auto; min-height: 64px; border-radius: var(--raggio); background: var(--vetrino); }
+.live-mini .tele-tasti { flex: none; grid-template-columns: 1.4fr 1.1fr 1fr; gap: 6px; }
+.live-mini .live-btn { min-height: 44px; height: 44px; padding: 0 6px; background: var(--metallo-tasto); border: 1px solid var(--bordo-forte); color: var(--testo); box-shadow: inset 0 1px rgba(255,255,255,.08); font: 700 14px var(--ui); }
+.live-mini .tele-rec { font-size: 18px; }
+.live-mini.in-onda .live-btn.ferma { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.sta-registrando .tele-rec { border-color: var(--rosso); color: var(--rosso); background: var(--metallo-tasto); }
+.live-mini .live-mini-punto { background: var(--verde); }
+.live-mini.in-pausa .live-mini-punto { background: var(--etichetta); box-shadow: none; }
+.live-mini.in-pausa .tele-spia, .live-mini.in-pausa .tele-tempo { color: var(--etichetta); }
+.live-mini .tele-tempo { font: 26px var(--tc); }
+.live-mini .tele-livelli { position: static; flex: none; width: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; pointer-events: auto; }
+.live-mini .tele-liv { display: flex; flex-direction: column; gap: 3px; min-width: 0; filter: none; }
+.live-mini .tele-liv > span { flex: none; width: 100%; height: 5px; background: var(--vetrino); }
+.live-mini .tele-muto { width: 100%; font-size: 12px; letter-spacing: 1px; }
+.live-mini .tele-piede { flex: none; font: 12px var(--ui); color: var(--etichetta); }
+.live-mini .tele-spia { font: 700 12px var(--ui); letter-spacing: 3px; }
+.live-mini .tele-pausa-scritta { color: var(--etichetta); border-color: var(--bordo-forte); }
+.live-mini .tele-scene { flex: none; }
+.live .live-schermo .scene-stage .live-cam { display: none; }
+.live.con-cam .live-schermo .scene-stage .live-cam { display: block; }
+.live .live-vuoto:not(.via) { z-index: 2; pointer-events: none; }
+.live-mini.sta-registrando .live-mini-punto { background: var(--rosso); }
+.live-mini:not(.sta-registrando):not(.in-pausa) .live-mini-punto { background: var(--verde); animation: none; box-shadow: none; }
+.live-mini:not(.sta-registrando) .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+/* I caratteri del telecomando e di LIVE sono quelli del Banco, anche per i numeri. */
+.live, .live-mini { --tc: 'Share Tech Mono', monospace; }
+.live-mini.su .live-btn { min-height: 44px; height: 44px; font-family: var(--ui); background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.su .live-btn.acceso, .live-mini.su .scena-btn.attiva { color: var(--cia); border-color: var(--cia); }
+.live-mini.su.in-onda .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
+.live-mini.su.sta-registrando .tele-rec { color: var(--rosso); border-color: var(--rosso); }
+.live-mini.su .tele-piede kbd { font: 12px 'Share Tech Mono', monospace; }
+.live-mini.su .tele-torna { height: 44px; min-height: 44px; }
+.live-mini.su.in-onda .live-btn.tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); font-size: 18px; }
+.live-mini.su.sta-registrando .live-btn.tele-rec { color: var(--rosso); border-color: var(--rosso); }
+.live.con-presentazione .scene-stage { background: var(--live-sfondo); }
+
+.live-mini .tele-quadro.spenta .scene-stage { visibility: hidden; }
+/* Sulla finestra 1280×720 le sei scene stanno su una riga: le due corsie restano tutte a vista. */
+@media (min-width: 1181px) and (max-width: 1400px) {
+  .live-scene { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+  .live-scene .scena-btn { padding: 0 2px; font-size: 12px; line-height: 12px; letter-spacing: 0; white-space: normal; }
+  .live-scene .scena-btn kbd { display: none; }
+}
+.live-mini.su .live-btn.tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); font-size: 18px; }

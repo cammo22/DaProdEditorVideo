@@ -23,7 +23,7 @@ import { Disposizione } from './disposizione';
 import { installaTastiera } from './tastiera';
 import { attivaRotella } from './rotella';
 import { finestraEsporta, finestraInfo, finestraProgetto, finestraTasti, esportaEdl, esportaFotogramma, VERSIONE } from './dialoghi';
-import { apri, apriFile, salvaPacchetto, autosalva, importaDaDrop, importaDialogo, importaFile, nuovo, ricollega, riprendi, salva } from '../progetti';
+import { apri, apriFile, apriSpazio, apriVersioni, salvaPacchetto, autosalva, importaDaDrop, importaDialogo, importaFile, nuovo, ricollega, riprendi, salva } from '../progetti';
 import { invoke, isAndroid, isTauri, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
 import { finestraNovita, novitaDopoAggiornamento, tastoAggiornamenti } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
@@ -76,6 +76,13 @@ export function avvia(radice: HTMLElement) {
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');
   });
+  // «Apri il mixer» dalla scheda AUDIO delle Proprietà
+  document.addEventListener('dpv:lato', (e) => {
+    const s = (e as CustomEvent).detail as Lato;
+    if (!(s in lato)) return;
+    if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
+    mostraLato(s);
+  });
   document.addEventListener('dpv:ispettore', () => {
     pagina('montaggio');
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
@@ -85,8 +92,8 @@ export function avvia(radice: HTMLElement) {
   // "porta dove si fa" (guida, ricerca, Centro AI): una sezione delle proprietà della clip scelta
   document.addEventListener('dpv:sezione', (e) => {
     const id = (e as CustomEvent).detail as string;
-    // le sezioni che nel pannello a destra non ci sono più stanno nell'editor della clip (doppio clic)
-    if (['fxv', 'durata', 'trclip', 'ritaglio'].includes(id) && store.sel.size) { apriEditorClip([...store.sel][0], id); return; }
+    // gli effetti con le anteprime stanno nell'editor della clip (doppio clic); tutto il resto è nel pannello a destra
+    if (id === 'fxv' && store.sel.size) { apriEditorClip([...store.sel][0], id); return; }
     pagina('montaggio');
     if (radice.classList.contains('senza-lato')) disp.alterna('senza-lato', false);
     mostraLato('clip');
@@ -179,7 +186,7 @@ export function avvia(radice: HTMLElement) {
   const linguetta = h('button', { class: 'linguetta-lato', title: 'Riapri il pannello delle proprietà', on: { click: () => disp.alterna('senza-lato', false) } }, '‹ Proprietà');
   radice.dataset.pagina = 'montaggio';
   radice.before(barra);
-  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, live.el, montage.el, home.el, divisore, puls.el, tl.el, statoBar, barraTel, linguetta);
+  radice.append(testa, bin.el, bordoBin, monitor.el, bordoLato, pannelloLato, finale.el, finale.misure, live.el, montage.el, home.el, divisore, puls.el, tl.el, statoBar, barraTel, linguetta);
 
   const rimettiBanco = () => { disp.rimetti(); setTimeout(() => { monitor.adatta(); tl.adattaTutto(); }, 60); };
   disp.ripristina();
@@ -227,7 +234,9 @@ export function avvia(radice: HTMLElement) {
     { id: 'nuovo', nome: 'Nuovo progetto', gruppo: 'File', tasti: ['Ctrl+N'], fn: () => void nuovo() },
     { id: 'progetti', nome: 'Pagina iniziale (i progetti recenti)', gruppo: 'File', fn: () => home.mostra() },
     { id: 'pacchetto', nome: 'Salva il pacchetto .daprod (con tutti i file)…', gruppo: 'File', info: 'Il progetto e tutti i suoi file in un file solo, da aprire identico su un altro computer.', fn: () => void salvaPacchetto() },
-    { id: 'ricollega', nome: 'Ricollega i file mancanti…', gruppo: 'File', fn: () => void ricollega() },
+    { id: 'ricollega', nome: 'Ricollega i file mancanti…', gruppo: 'File', info: 'Scegli la cartella dove hai spostato i file: li cerco io per nome e grandezza e li ricollego tutti.', fn: () => void ricollega() },
+    { id: 'versioni', nome: 'Versioni del progetto…', gruppo: 'File', info: 'Le ultime versioni, una a ogni salvataggio: si torna indietro con un clic (quella di adesso resta nell\'elenco).', fn: () => void apriVersioni() },
+    { id: 'spazio', nome: 'Spazio: pulisci copie leggere e memoria vecchia…', gruppo: 'File', info: 'Cosa pesa (copie leggere, misure, versioni, il file .dap) e cosa si può togliere, sempre con la conferma.', fn: () => void apriSpazio() },
     { id: 'esporta', nome: 'Esporta il video (master)…', gruppo: 'File', tasti: ['Ctrl+M'], info: 'MP4, MOV, WebM o WAV; tutto il montaggio o solo fra attacco e stacco.', fn: () => finestraEsporta() },
     { id: 'esportaEdl', nome: 'Esporta la EDL (CMX3600)…', gruppo: 'File', fn: () => esportaEdl() },
     { id: 'esportaFotogramma', nome: 'Esporta il fotogramma in PNG', gruppo: 'File', fn: () => esportaFotogramma() },
@@ -293,6 +302,7 @@ export function avvia(radice: HTMLElement) {
   }
 
   document.addEventListener('dpv:demo', () => montaggioDimostrativo());
+  document.addEventListener('dpv:spazio', () => void apriSpazio());
   document.addEventListener('dpv:cerca', () => apriCerca());
   document.addEventListener('dpv:guida', (e) => finestraGuida((e as CustomEvent).detail as string | undefined));
   document.addEventListener('dpv:tasti', () => finestraTasti());
