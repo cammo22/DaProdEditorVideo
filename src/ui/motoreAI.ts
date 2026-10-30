@@ -29,7 +29,7 @@ export function schedaMotoreLocale(): HTMLElement {
         const m = (await motoreAI.modelli())[0];
         modello.textContent = `${m.nome} · ${m.licenza} · circa ${(m.byte / 1e9).toFixed(1)} GB · ${m.scaricato ? 'Sul computer' : 'Da scaricare'}`;
       }
-    } catch (e) { stato.textContent = String(e); }
+    } catch (e) { stato.textContent = String(e); stato.dataset.spia = 'rosso'; }
   };
   const fai = (azione: AzioneLocale | 'scarica') => {
     if (occupato) return;
@@ -47,7 +47,7 @@ export function schedaMotoreLocale(): HTMLElement {
     }).finally(() => { occupato = false; void aggiorna(); });
   };
   for (const [a, nome] of [['installa', 'Installa motore e torch CUDA'], ['accendi', 'Accendi'], ['spegni', 'Spegni'], ['disinstalla', 'Disinstalla motore e modelli'], ['scarica', 'Scarica Qwen3-TTS']] as const) {
-    const b = h('button', { class: 'btn', 'data-azione': a, 'data-sch': a === 'installa' ? 'principale' : 'normale', disabled: true, on: { click: () => fai(a) } }, nome);
+    const b = h('button', { class: 'btn', 'data-azione': a, disabled: true, on: { click: () => fai(a) } }, nome);
     pulsanti.push(b);
   }
   void aggiorna();
