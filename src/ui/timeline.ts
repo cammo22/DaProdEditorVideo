@@ -1422,7 +1422,9 @@ export class Timeline {
       let mx = 0;
       for (let i = i0; i < i1 && i < peaks.length; i++) if (peaks[i] > mx) mx = peaks[i];
       if (!orig && c.gainKeys.length) gain = dbToGain(keyValue(c.gainKeys, f0 - c.start, c.gain));
-      const v = Math.min(1, mx * gain) * hh * 0.48;
+      // in decibel (da −60 a 0): anche una voce bassa o l'audio del computer piano si vedono, come nei banchi di montaggio
+      const a = Math.min(1, mx * gain);
+      const v = (a > 0.001 ? Math.max(0, 1 + Math.log10(a) / 3) : 0) * hh * 0.48;
       if (v > 0.3) ctx.fillRect(px, mid - v, 1, v * 2);
     }
     ctx.fillStyle = 'rgba(0,0,0,.25)';

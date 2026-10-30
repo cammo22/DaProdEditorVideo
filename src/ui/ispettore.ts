@@ -13,7 +13,7 @@ import { frameToTc, fps } from '../core/timecode';
 import { avviso, conferma, dialogo, menuContesto, h, evidenzia } from './dom';
 import { SCHEDE, copiaScheda, dbTesto, destinatarieDellaCopia, etichettaStato, funzioniAIPerSelezione, haProprieta, lufsStimati, lufsTesto, pesoEVram, posizioniChiavi, ripristinaScheda, schedaDaMostrare, schedaDiSezione, schedeUsabili, zoomSuiClic, zoomTesto, type Scheda } from '../core/proprieta';
 import { mediaRT, PEAKS_PER_SEC, quandoPicchi } from '../media/libreria';
-import { applicaZoomCursore } from '../core/zoomCursore';
+import { applicaZoomCursore, togliZoomCursore } from '../core/zoomCursore';
 import * as M from '../core/montaggio';
 import { esegui, modi, mettiBlocco } from '../azioni';
 import { DIREZIONALI, EFFETTI, TENDINE } from '../render/transizioni';
@@ -1083,7 +1083,7 @@ export class Ispettore {
         if (x && mm) applicaZoomCursore(pp, x, mm);
       });
     });
-    const togli = btn('Togli', 'Toglie il movimento della clip', () => store.edit('Toglie lo zoom sui clic', (pp) => { const x = clipById(pp, id); if (x) movimentoPronto(pp, x, 'fermo'); }));
+    const togli = btn('Togli', 'Toglie lo zoom che segue il cursore', () => store.edit('Toglie lo zoom sul cursore', (pp) => { const x = clipById(pp, id); if (x && !togliZoomCursore(x)) movimentoPronto(pp, x, 'fermo'); }));
     return h('div', { class: 'pp-blocco' },
       h('div', { class: 'pp-inciso' }, 'ZOOM SUI CLIC'),
       h('div', { class: 'pp-riga-piena' },

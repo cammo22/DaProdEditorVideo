@@ -14,6 +14,8 @@ export class SceltaSchermoLive {
   constructor() {
     this.select.append(h('option', { value: '' }, 'Scegli lo schermo…'));
     this.select.addEventListener('focus', () => void this.carica());
+    // lo schermo scelto a mano si ricorda per le volte dopo
+    this.select.addEventListener('change', () => { try { localStorage.setItem('dpv-live-schermo', this.select.value); } catch { /* niente */ } });
     void this.carica();
   }
 
@@ -23,7 +25,11 @@ export class SceltaSchermoLive {
       const prima = this.select.value;
       this.select.replaceChildren(h('option', { value: '' }, 'Scegli lo schermo…'), ...this.schermi.map((s, i) =>
         h('option', { value: s.id }, `Schermo ${i + 1} · ${s.width}×${s.height} (${s.left}, ${s.top})`)));
-      this.select.value = prima;
+      // di partenza: quello scelto l'ultima volta, se c'è ancora, se no il primo schermo
+      let ricordato = '';
+      try { ricordato = localStorage.getItem('dpv-live-schermo') ?? ''; } catch { /* niente */ }
+      const ids = this.schermi.map((s) => s.id);
+      this.select.value = ids.includes(prima) ? prima : ids.includes(ricordato) ? ricordato : ids[0] ?? '';
     } catch { this.select.disabled = true; }
   }
 

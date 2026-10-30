@@ -84,12 +84,45 @@ mod win {
         fn GetCursorInfo(p: *mut Info) -> i32;
         fn GetAsyncKeyState(key: i32) -> i16;
         fn SetThreadDpiAwarenessContext(ctx: isize) -> isize;
+        fn WindowFromPoint(p: Punto) -> *mut c_void;
+        fn GetAncestor(hwnd: *mut c_void, flags: u32) -> *mut c_void;
+        fn GetWindowRect(hwnd: *mut c_void, r: *mut Rett) -> i32;
+        fn GetShellWindow() -> *mut c_void;
+        fn GetDesktopWindow() -> *mut c_void;
         fn EnumDisplayMonitors(
             dc: *mut c_void,
             clip: *const Rett,
             callback: unsafe extern "system" fn(*mut c_void, *mut c_void, *mut Rett, isize) -> i32,
             data: isize,
         ) -> i32;
+    }
+
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmGetWindowAttribute(hwnd: *mut c_void, attr: u32, out: *mut c_void, size: u32) -> i32;
+    }
+
+    /// La finestra principale sotto il punto, in pixel fisici (senza l'ombra di Windows). None per desktop e barra.
+    fn finestra_sotto(p: &Punto) -> Option<Rett> {
+        unsafe {
+            let h = WindowFromPoint(Punto { x: p.x, y: p.y });
+            if h.is_null() {
+                return None;
+            }
+            let radice = GetAncestor(h, 2); // GA_ROOT
+            let radice = if radice.is_null() { h } else { radice };
+            if radice == GetShellWindow() || radice == GetDesktopWindow() {
+                return None;
+            }
+            let mut r = Rett { left: 0, top: 0, right: 0, bottom: 0 };
+            // DWMWA_EXTENDED_FRAME_BOUNDS: il bordo vero, senza i margini invisibili
+            let ok = DwmGetWindowAttribute(radice, 9, &mut r as *mut Rett as *mut c_void, std::mem::size_of::<Rett>() as u32) == 0
+                || GetWindowRect(radice, &mut r) != 0;
+            if !ok || r.right <= r.left || r.bottom <= r.top {
+                return None;
+            }
+            Some(r)
+        }
     }
 
     unsafe extern "system" fn monitor(
@@ -141,6 +174,9 @@ mod win {
         visible: bool,
         // Ogni bit in salita è un clic fisico: sinistro, destro, centrale.
         clicks: u8,
+        // La finestra sotto il cursore (sinistra, alto, destra, basso) in frazioni dello schermo, ogni 100 ms circa.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        win: Option<[f64; 4]>,
     }
 
     pub fn avvia(stato: &Cursore, schermo: String) -> Result<Avviato, String> {
@@ -184,7 +220,9 @@ mod win {
                     let mut prima = tasti(); // un pulsante già premuto all'avvio non è un clic
                     let mut controllo = Instant::now();
                     let mut geometria_valida = true;
+                    let mut giro: u32 = 0;
                     loop {
+                        giro = giro.wrapping_add(1);
                         if controllo.elapsed() >= Duration::from_secs(1) {
                             // Se il monitor cambia risoluzione o viene scollegato, non inventiamo coordinate.
                             geometria_valida = schermi()
@@ -209,12 +247,22 @@ mod win {
                             && ci.flags & 1 != 0
                             && (0.0..1.0).contains(&x)
                             && (0.0..1.0).contains(&y);
+                        let win = if visible && giro % 6 == 0 {
+                            finestra_sotto(&p).map(|r| {
+                                let fx = |v: i32| ((v - b.left) as f64 / b.width as f64).clamp(0.0, 1.0);
+                                let fy = |v: i32| ((v - b.top) as f64 / b.height as f64).clamp(0.0, 1.0);
+                                [fx(r.left), fy(r.top), fx(r.right), fy(r.bottom)]
+                            })
+                        } else {
+                            None
+                        };
                         let s = Campione {
                             t_ms: t0.elapsed().as_secs_f64() * 1000.0,
                             cx: x,
                             cy: y,
                             visible,
                             clicks: if visible { ora & !prima } else { 0 },
+                            win,
                         };
                         prima = ora;
                         serde_json::to_writer(&mut out, &s).map_err(|e| e.to_string())?;

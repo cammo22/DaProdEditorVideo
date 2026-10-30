@@ -12,6 +12,14 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.6] — 2026-10-30 · Stabile: niente più RAM e VRAM piene, zoom sul cursore rifatto
+
+- **RAM e VRAM non si riempiono più** dopo una registrazione LIVE: il monitor e la striscia di miniature della timeline aprivano decine di decoder al secondo quando chiedevano un istante prima del primo fotogramma. Corretto, e in più una **sentinella** mette in attesa i lavori di sfondo se i decoder aperti diventano troppi.
+- **Zoom che segue il cursore rifatto**: segue dolcemente, con il mouse veloce resta largo e non insegue, se ti fermi su una finestra la inquadra centrata e grande, sui clic si avvicina, poi torna indietro piano. Funziona anche con le scene LIVE (prima le scene lo cancellavano) e diventa keyframe ritoccabili; «Togli» rimette com'era.
+- **Lo schermo per lo zoom si sceglie da solo**: il primo, poi quello che hai scelto l'ultima volta.
+- **Microfono**: se quello scelto non risponde si usa quello predefinito di Windows; se non si apre proprio, un avviso chiaro dice che la voce non viene registrata.
+- **Forma d'onda in decibel**: si vedono anche l'audio basso e la voce piano.
+
 ## [1.8.5] — 2026-10-30 · Revisione finale: tutto in ordine
 
 - **Montaggio più pulito**: barra del contenitore con le sole voci principali, lettere dei tasti leggibili (la S non sembra più un 5), Esc chiude il menu del tasto destro, velocità scritte ×0,25 / ×0,5.

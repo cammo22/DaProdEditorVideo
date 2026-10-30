@@ -56,23 +56,38 @@ test('il focus usa fit, scala e rotazione; ai bordi non scopre il fondo della ri
   assert.deepEqual(Z.trasformazioneFocus(base, .8, .2, 1, 1000, 500), base);
 });
 
-test('zoom a tappe modificabili: segue il cursore, riparte a quadro intero, è deterministico e non sovrascrive il lavoro manuale', () => {
+test('lo zoom segue il cursore con keyframe morbidi, è deterministico, rifatto non si somma e si toglie', () => {
   const { p, c, m } = scena();
   const gemella = structuredClone(c);
   assert.equal(Z.applicaZoomCursore(p, c, m), true);
   assert.equal(Z.applicaZoomCursore(p, gemella, m), true);
   assert.deepEqual(c, gemella);
-  assert.ok(c.via.length > 4);
-  assert.equal(c.tf.scale, 1); assert.equal(c.tfFine.scale, 1);
-  assert.ok(c.via.some(v => v.tf.scale > 1.6));
-  const spostamenti = c.via.filter(v => v.tf.scale > 1.6).map(v => v.tf.x);
-  assert.ok(Math.max(...spostamenti) - Math.min(...spostamenti) > 3);
-  assert.ok(c.via.every((v, i, a) => v.t > 0 && v.t < 1 && (!i || v.t > a[i - 1].t)));
-  const prima = structuredClone(c);
-  assert.equal(Z.applicaZoomCursore(p, c, m), false);
-  assert.deepEqual(c, prima);
-  const a = P.tfAl(c, 75), b = P.tfAl(c, 200);
-  assert.deepEqual(P.tfAl(c, 75), a); assert.deepEqual(P.tfAl(c, 200), b);
+  const sc = c.anim['tf.scale'];
+  assert.ok(sc.length > 4);
+  assert.equal(sc[0].f, 0); assert.ok(Math.abs(sc[0].v - 1) < 0.05);
+  assert.ok(sc.some(k => k.v > 1.6), 'sui clic si avvicina');
+  assert.ok(sc.every((k, i, a) => !i || k.f > a[i - 1].f));
+  // fra un fotogramma e il successivo la scala non salta mai (camera morbida)
+  for (let i = 1; i < sc.length; i++) assert.ok(Math.abs(sc[i].v - sc[i - 1].v) / Math.max(1, sc[i].f - sc[i - 1].f) < 0.08);
+  const una = structuredClone(c);
+  assert.equal(Z.applicaZoomCursore(p, c, m), true);
+  assert.deepEqual(c.anim, una.anim, 'rifatto parte dalle chiavi di prima: niente zoom doppio');
+  assert.equal(Z.togliZoomCursore(c), true);
+  assert.equal(c.anim['tf.scale'], undefined);
+  assert.equal(c.zoomLive, undefined);
+});
+
+test('cursore fermo su una finestra: la inquadra centrata; muovendosi torna indietro piano', () => {
+  const raw = [];
+  for (let i = 0; i < 360; i++) raw.push({ tMs: i * 1000 / 60, cx: .3, cy: .4, clicks: 0, visible: true, win: [.2, .3, .6, .7] });
+  for (let i = 360; i < 600; i++) raw.push({ tMs: i * 1000 / 60, cx: .3 + (i - 360) / 400, cy: .4, clicks: 0, visible: true });
+  const d = Z.rimappaCursore(raw, schermo, [{ da: 0, fine: 10000, videoMs: 0, durataMs: 10000 }], 10000);
+  const cam = Z.camminoCamera(d, 10000);
+  const fermo = cam.find(k => k.tMs === 5800);
+  assert.ok(Math.abs(fermo.z - .94 / .4) < .12, 'zoom adatto alla finestra: ' + fermo.z);
+  assert.ok(Math.abs(fermo.cx - .4) < .03 && Math.abs(fermo.cy - .5) < .03, 'centrata sulla finestra');
+  const dopo = cam.find(k => k.tMs === 6500), lontano = cam.find(k => k.tMs === 9000);
+  assert.ok(dopo.z > lontano.z && dopo.z < fermo.z, 'torna indietro gradualmente');
 });
 
 test('progetti senza telemetria e movimenti vecchi restano uguali; il roundtrip conserva dati, tappe e blocco', () => {
@@ -267,4 +282,13 @@ test('il compositore libera le immagini uscite dal quadro e le ricarica quando t
   assert.ok(cp.texs.get('img:foto')?.tex);
   assert.notEqual(cp.texs.get('img:foto').tex, prima);
   cp.distruggi();
+});
+
+test('mouse veloce: la camera non va nel panico (resta larga e si sposta piano)', () => {
+  const raw = [];
+  for (let i = 0; i < 600; i++) raw.push({ tMs: i * 1000 / 60, cx: (Math.floor(i / 6) % 2) ? .9 : .1, cy: (Math.floor(i / 9) % 2) ? .85 : .15, clicks: 0, visible: true });
+  const d = Z.rimappaCursore(raw, schermo, [{ da: 0, fine: 10000, videoMs: 0, durataMs: 10000 }], 10000);
+  const cam = Z.camminoCamera(d, 10000);
+  assert.ok(cam.every(k => k.z < 1.12), 'resta quasi a quadro intero');
+  for (let i = 1; i < cam.length; i++) assert.ok(Math.hypot(cam[i].cx - cam[i - 1].cx, cam[i].cy - cam[i - 1].cy) <= .0501, 'si sposta piano');
 });
