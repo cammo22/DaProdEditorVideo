@@ -82,7 +82,7 @@ export function creaControlloUscita(): ControlloUscita {
     return h(cliccabile ? 'button' : 'div', {
       class: `ctl-riga ${c.luce}${cliccabile ? ' ctl-vai' : ''}`, 'data-c': c.id, title: c.aiuto ?? '',
       ...(cliccabile ? { type: 'button', on: { click: vai } } : {}),
-    }, h('span', { class: 'ctl-spia' }), h('span', { class: 'ctl-nome' }, c.nome), h('span', { class: 'ctl-dett' }, c.dettaglio));
+    }, h('span', { class: 'ctl-spia', 'aria-hidden': 'true' }), h('span', { class: 'ctl-simbolo', 'aria-label': c.luce === 'verde' ? 'Pronto' : c.luce === 'rossa' ? 'Errore' : 'Da controllare' }, c.luce === 'verde' ? '✓' : '!'), h('span', { class: 'ctl-nome' }, c.nome), h('span', { class: 'ctl-dett' }, c.dettaglio));
   }
 
   function ridisegna() {

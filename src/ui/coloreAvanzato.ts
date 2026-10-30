@@ -9,6 +9,7 @@ import { LUT_DI_PARTENZA, applicaAScena, caricaLutDiPartenza, scenaDiProva } fro
 import { creaDuckingClip } from './duckingClip';
 import { CANALI_CURVA, identitaCurva, normalizzaCurva, valutaCurva } from '../render/curve';
 import { h } from './dom';
+import { schedeFinale } from './finaleSchede';
 
 const NOMI_CURVE: Record<CanaleCurva, string> = { master: 'RGB insieme', red: 'Rosso', green: 'Verde', blue: 'Blu', luma: 'Luma · Rec.709' };
 const errore = (e: unknown) => e instanceof Error ? e.message : String(e);
@@ -30,7 +31,8 @@ function disegnaScena(ctx: CanvasRenderingContext2D, px: number[][]) {
 export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: () => void } = {}) {
   const el = h('section', { class: 'colore-avanzato', 'aria-label': 'Colore avanzato' });
   let canale: CanaleCurva = 'master', trascina = false, morto = false;
-  let messaggio = '', selezionato = 'inizio';
+  let messaggio = '', selezionato = 'inizio', scheda = 0;
+  let osservaCurva: ResizeObserver | null = null;
   const stato = h('p', { class: 'ca-stato', role: 'status', 'aria-live': 'polite' });
   const dice = (s: string) => { messaggio = s; stato.textContent = s; };
   const modifica = (nome: string, fn: (p: Project, c: Clip) => void) => {
@@ -75,28 +77,34 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
     gruppo.append(disco, numero('Livello', medio, campo === 'lift' ? -1 : .1, campo === 'lift' ? 1 : 4, .01, (v) => cambiaColore((c) => {
       c[campo] = valori.map((x) => Math.max(campo === 'gamma' ? .1 : campo === 'gain' ? 0 : -1, Math.min(campo === 'lift' ? 1 : 4, x + v - medio))) as [number, number, number];
     })));
-    ['R', 'G', 'B'].forEach((n, i) => gruppo.append(numero(n, valori[i], campo === 'lift' ? -1 : campo === 'gain' ? 0 : .1, campo === 'lift' ? 1 : 4, .01, (v) => cambiaColore((c) => {
+    const rgb = h('details', { class: 'ca-avanzate' }, h('summary', null, 'Avanzate'));
+    gruppo.append(rgb);
+    ['R', 'G', 'B'].forEach((n, i) => rgb.append(numero(n, valori[i], campo === 'lift' ? -1 : campo === 'gain' ? 0 : .1, campo === 'lift' ? 1 : 4, .01, (v) => cambiaColore((c) => {
       const vv: [number, number, number] = [...valori]; vv[i] = v; c[campo] = vv;
     }))));
     return gruppo;
   }
 
   function editorCurve(col: ColoreAvanzato) {
-    const box = h('fieldset', null, h('legend', null, 'Curve'));
+    const box = h('fieldset', { class: 'ca-curve' }, h('legend', null, 'Curve'));
     const scelta = h('select', { 'aria-label': 'Canale della curva' }, CANALI_CURVA.map((c) => h('option', { value: c, selected: c === canale }, NOMI_CURVE[c])));
     scelta.onchange = () => { canale = scelta.value as CanaleCurva; selezionato = 'inizio'; aggiorna(); };
     const punti = normalizzaCurva(col.curve?.[canale]);
-    const tela = h('canvas', { width: 320, height: 200, class: 'ca-curva', 'aria-label': 'Curva: trascina i punti; doppio clic per aggiungerne uno' });
+    const tela = h('canvas', { width: 320, height: 320, class: 'ca-curva', 'aria-label': 'Curva: trascina i punti; doppio clic per aggiungerne uno' });
     const disegna = () => {
+      const lato = tela.clientWidth || 320;
+      const pixel = Math.round(lato * (window.devicePixelRatio || 1));
+      if (tela.width !== pixel || tela.height !== pixel) { tela.width = pixel; tela.height = pixel; }
       const ctx = tela.getContext('2d')!;
+      ctx.setTransform(pixel / 320, 0, 0, pixel / 320, 0, 0);
       const p = normalizzaCurva(clipDi(store.doc, clipId)?.fx.colore?.curve?.[canale]);
-      ctx.fillStyle = '#17171e'; ctx.fillRect(0, 0, 320, 200); ctx.strokeStyle = '#44444f'; ctx.lineWidth = 1;
-      for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(i * 80, 0); ctx.lineTo(i * 80, 200); ctx.moveTo(0, i * 50); ctx.lineTo(320, i * 50); ctx.stroke(); }
+      ctx.fillStyle = '#17171e'; ctx.fillRect(0, 0, 320, 320); ctx.strokeStyle = '#44444f'; ctx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.moveTo(i * 80, 0); ctx.lineTo(i * 80, 320); ctx.moveTo(0, i * 80); ctx.lineTo(320, i * 80); ctx.stroke(); }
       ctx.strokeStyle = canale === 'red' ? '#ff7777' : canale === 'green' ? '#88df98' : canale === 'blue' ? '#88baff' : '#ffe09a'; ctx.lineWidth = 2; ctx.beginPath();
-      for (let x = 0; x <= 320; x++) { const y = (1 - valutaCurva(p, x / 320)) * 200; if (x) ctx.lineTo(x, y); else ctx.moveTo(x, y); } ctx.stroke();
-      for (const pt of p) { ctx.beginPath(); ctx.arc(pt.x * 320, (1 - pt.y) * 200, pt.id === selezionato ? 6 : 4, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
+      for (let x = 0; x <= 320; x++) { const y = (1 - valutaCurva(p, x / 320)) * 320; if (x) ctx.lineTo(x, y); else ctx.moveTo(x, y); } ctx.stroke();
+      for (const pt of p) { ctx.beginPath(); ctx.arc(pt.x * 320, (1 - pt.y) * 320, pt.id === selezionato ? 6 : 4, 0, Math.PI * 2); ctx.fillStyle = '#fff'; ctx.fill(); }
     };
-    const coordinate = (e: MouseEvent) => { const r = tela.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), y: Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height)) }; };
+    const coordinate = (e: MouseEvent) => { const r = tela.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - r.left - tela.clientLeft) / tela.clientWidth)), y: Math.max(0, Math.min(1, 1 - (e.clientY - r.top - tela.clientTop) / tela.clientHeight)) }; };
     tela.ondblclick = (e) => {
       const q = coordinate(e); if (q.x <= .005 || q.x >= .995 || punti.some((p) => Math.abs(p.x - q.x) < .005)) return;
       selezionato = crypto.randomUUID();
@@ -119,7 +127,20 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
       tela.onpointercancel = () => { tela.onpointermove = null; trascina = false; store.cancelLive(); aggiorna(); };
       disegna();
     };
-    box.append(scelta, tela, h('p', { class: 'nota' }, 'Doppio clic: aggiungi un punto. Gli estremi restano ai bordi.'));
+    const sceltaPunto = h('select', { 'aria-label': 'Punto della curva' }, punti.map((p, i) => h('option', { value: p.id, selected: p.id === selezionato }, `Punto ${i + 1}`)));
+    sceltaPunto.onchange = () => { selezionato = sceltaPunto.value; aggiorna(); el.querySelector<HTMLSelectElement>('[aria-label="Punto della curva"]')?.focus({ preventScroll: true }); };
+    const strumenti = h('div', { class: 'ca-curve-strumenti' }, scelta, sceltaPunto,
+      bottone('Aggiungi', () => {
+        let x = .5, distanza = 0;
+        for (let i = 1; i < punti.length; i++) if (punti[i].x - punti[i - 1].x > distanza) { distanza = punti[i].x - punti[i - 1].x; x = (punti[i].x + punti[i - 1].x) / 2; }
+        selezionato = crypto.randomUUID();
+        cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = normalizzaCurva([...punti, { id: selezionato, x, y: valutaCurva(punti, x) }]); });
+      }),
+      bottone('Togli punto', () => cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = punti.filter((p, i) => i === 0 || i === punti.length - 1 || p.id !== selezionato); }), !punti.slice(1, -1).some((p) => p.id === selezionato)),
+      bottone('Ripristina', () => cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = identitaCurva(); })));
+    box.append(h('div', { class: 'ca-curve-banco' }, tela, strumenti));
+    const precise = h('details', { class: 'ca-avanzate' }, h('summary', null, 'Avanzate'));
+    box.append(precise);
     for (const [i, p] of punti.entries()) {
       const riga = h('div', { class: 'ca-punto-riga' }, numero(`Ingresso ${i + 1}`, p.x, i ? punti[i - 1].x + .001 : 0, i < punti.length - 1 ? punti[i + 1].x - .001 : 1, .001, (v) => {
         if (i === 0 || i === punti.length - 1) return;
@@ -127,9 +148,9 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
       }), numero(`Uscita ${i + 1}`, p.y, 0, 1, .001, (v) => cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = punti.map((q) => q.id === p.id ? { ...q, y: v } : q); })));
       if (i === 0 || i === punti.length - 1) riga.querySelector('input')!.readOnly = true;
       if (i > 0 && i < punti.length - 1) riga.append(bottone('Togli punto', () => cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = punti.filter((q) => q.id !== p.id); })));
-      box.append(riga);
+      precise.append(riga);
     }
-    box.append(bottone('Azzera questa curva', () => cambiaColore((c) => { c.curve ??= {}; c.curve[canale] = identitaCurva(); })));
+    osservaCurva = new ResizeObserver(disegna); osservaCurva.observe(tela);
     disegna(); return box;
   }
 
@@ -169,24 +190,28 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
 
   function aggiorna() {
     if (morto || trascina) return;
+    osservaCurva?.disconnect(); osservaCurva = null;
     el.replaceChildren(); const c = clipDi(store.doc, clipId);
     if (!c) { el.append(h('p', null, 'La clip non c’è più')); return; }
     const t = store.doc.tracks.find((t) => t.id === c.track);
     if (t?.kind === 'video' && c.kind !== 'fx') {
       const col = c.fx.colore ?? {};
-      el.append(h('h3', null, 'Colore della clip'), h('p', { class: 'nota' }, 'SDR · usa LUT pensate per lo spazio colore della ripresa. Nessuna conversione log automatica.'),
-        h('div', { class: 'ca-ruote' }, ruota(col, 'lift', 'Lift · ombre'), ruota(col, 'gamma', 'Gamma · mezzi toni'), ruota(col, 'gain', 'Gain · luci')), editorCurve(col));
+      const ruote = h('div', { class: 'ca-ruote' }, ruota(col, 'lift', 'Ombre'), ruota(col, 'gamma', 'Mezzi toni'), ruota(col, 'gain', 'Luci'));
+      const curve = editorCurve(col);
       const lut = store.doc.luts?.find((l) => l.id === col.lut?.id);
       const file = h('input', { type: 'file', accept: '.cube', 'aria-label': 'Carica il tuo file .cube' });
       file.onchange = async () => {
         const f = file.files?.[0]; if (!f) return;
         try { await mettiLut(await leggiLut(f), 'LUT caricata e incorporata nel progetto'); } catch (e) { dice(errore(e)); }
       };
-      el.append(h('fieldset', { class: 'ca-luts' }, h('legend', null, 'LUT 3D · look di partenza'), libreria(col.lut?.id),
+      const looks = h('fieldset', { class: 'ca-luts' }, h('legend', null, 'LUT 3D · look di partenza'), libreria(col.lut?.id),
         h('label', { class: 'ca-carica' }, h('span', null, 'Carica il tuo .cube'), file), h('p', null, lut?.nome ?? (col.lut ? 'LUT mancante: ricarica il file .cube' : 'Nessuna LUT')),
         numero('Intensità LUT (%)', (col.lut?.intensita ?? 0) * 100, 0, 100, 1, (v) => cambiaColore((c) => { if (c.lut) c.lut.intensita = v / 100; })),
-        bottone('Togli LUT', () => cambiaColore((c) => { delete c.lut; }))),
-        bottone('Azzera il colore avanzato', () => modifica('Azzera colore avanzato', (_, c) => { delete c.fx.colore; })));
+        bottone('Togli LUT', () => cambiaColore((c) => { delete c.lut; })));
+      el.append(schedeFinale([looks, ruote, curve], ['Look', 'Ruote', 'Curve'], scheda, (i) => { scheda = i; }),
+        h('details', { class: 'ca-avanzate' }, h('summary', null, 'Colore: avanzate'),
+          h('p', { class: 'nota' }, 'SDR · usa LUT adatte alla ripresa. Nessuna conversione log automatica.'),
+          bottone('Azzera tutto', () => modifica('Azzera colore avanzato', (_, c) => { delete c.fx.colore; }))));
     }
     const voce = creaDuckingClip(clipId, { ascolta: opzioni.ascolta });
     if (voce.el.childElementCount) el.append(h('fieldset', null, h('legend', null, 'Voce e musica'), voce.el));
@@ -194,7 +219,7 @@ export function creaPannelloColoreAvanzato(clipId: string, opzioni: { ascolta?: 
   }
   const off = store.on('doc', aggiorna);
   aggiorna();
-  return { el, aggiorna, distruggi() { morto = true; off(); if (trascina) { trascina = false; store.cancelLive(); } el.remove(); } };
+  return { el, aggiorna, distruggi() { morto = true; osservaCurva?.disconnect(); off(); if (trascina) { trascina = false; store.cancelLive(); } el.remove(); } };
 }
 
 /** Configurazione neutra per chi costruisce il pannello senza usare lo Store. */

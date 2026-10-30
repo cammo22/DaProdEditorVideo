@@ -204,7 +204,7 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
   await page.locator('.fin-pagina[data-s=lingue] select').nth(1).selectOption('en');
   await page.waitForTimeout(250);
   await conConfermeAI(page, async () => {
-    await page.locator('.fin-pagina[data-s=lingue] .ai-vai', { hasText: 'Traduci i sottotitoli' }).click();
+    await page.click('[data-ai=traduci]');
     await page.waitForFunction(() => window.__dpv.doc.sottotitoli.lingua === 'en', null, { timeout: 15000 });
   });
   const sott = await page.evaluate(() => ({ testi: window.__dpv.doc.sottotitoli.righe.map((r) => r.testo), tempi: window.__dpv.doc.sottotitoli.righe.map((r) => [r.da, r.a]) }));
