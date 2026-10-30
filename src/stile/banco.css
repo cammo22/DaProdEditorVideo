@@ -157,7 +157,7 @@ input[type='range']:focus-visible { outline-offset: 4px; }
 .bin-albero { background: #101015; }
 .bin-barra { background: #17161d; }
 .bin-cat { min-height: 30px; border-radius: var(--raggio-piccolo); font-size: 14px; font-weight: 600; }
-.bin-cat .conta { font: 700 12px var(--tc); color: var(--etichetta); }
+.bin-cat .conta { font: 700 12px var(--mono); color: var(--etichetta); }
 .pannello { background: var(--pann); }
 .schede { background: #101015; }
 
@@ -201,7 +201,7 @@ input[type='range']:focus-visible { outline-offset: 4px; }
   background: var(--metallo-tasto); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -2px 0 rgba(0, 0, 0, 0.35), 0 3px 0 #09080c, 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 .tasto-num:hover { background: var(--metallo-chiaro); }
-.tasto-num .tasto-numero { font: 700 12px var(--tc); color: var(--oro); text-shadow: 0 0 6px rgba(255, 213, 74, 0.5); }
+.tasto-num .tasto-numero { font: 700 12px var(--mono); color: var(--oro); text-shadow: 0 0 6px rgba(255, 213, 74, 0.5); }
 .tasto-num .nome { font: 700 11px var(--ui); letter-spacing: 1.5px; text-transform: uppercase; }
 .tasto-num.rosso { background: linear-gradient(180deg, #5a2631, #3e171f); border-color: rgba(255, 77, 109, 0.35); }
 .tasto-modo, .tasto-piccolo {
@@ -251,7 +251,7 @@ input[type='range']:focus-visible { outline-offset: 4px; }
 .scene-titolo.acceso { opacity: 1; }
 .live-scene, .tele-scene { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .live-scene .scena-btn, .live-mini .scena-btn { min-height: 44px; height: 44px; padding: 0 6px; gap: 5px; min-width: 0; font: 700 13px var(--ui); }
-.scena-btn kbd { font: 12px var(--tc); opacity: .7; }
+.scena-btn kbd { font: 12px var(--mono); opacity: .7; }
 .live .scena-btn.attiva, .live-mini .scena-btn.attiva { background: var(--cia-fondo); border-color: var(--cia); color: var(--cia); box-shadow: inset 0 -2px var(--cia); }
 
 /* Telecomando Banco: tutti i comandi restano nella finestra, anche con anteprima spenta. */
@@ -283,7 +283,7 @@ input[type='range']:focus-visible { outline-offset: 4px; }
 .live-mini:not(.sta-registrando):not(.in-pausa) .live-mini-punto { background: var(--verde); animation: none; box-shadow: none; }
 .live-mini:not(.sta-registrando) .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
 /* I caratteri del telecomando e di LIVE sono quelli del Banco, anche per i numeri. */
-.live, .live-mini { --tc: 'Share Tech Mono', monospace; }
+
 .live-mini.su .live-btn { min-height: 44px; height: 44px; font-family: var(--ui); background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }
 .live-mini.su .live-btn.acceso, .live-mini.su .scena-btn.attiva { color: var(--cia); border-color: var(--cia); }
 .live-mini.su.in-onda .tele-rec { background: var(--metallo-tasto); color: var(--testo); border-color: var(--bordo-forte); }

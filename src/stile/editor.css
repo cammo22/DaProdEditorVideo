@@ -53,7 +53,9 @@
   /* la timeline nella pagina Finale: piccola, perché lì conta la schermata dei ritocchi */
   --tlpag: clamp(110px, 17vh, 170px);
   --livecol: clamp(380px, 30vw, 600px);
-  --tc: 'DSEG7', 'Share Tech Mono', monospace;
+  --mono: 'Share Tech Mono', monospace;
+  --tc: 'DSEG7', monospace;
+  --riga: clamp(34px, 3.15vh, 36px);
   --ui: 'Rajdhani', 'Segoe UI', system-ui, sans-serif;
   --marchio: 'Orbitron', 'Arial Black', sans-serif;
   color-scheme: dark;
@@ -66,7 +68,7 @@
 html, body { margin: 0; height: 100%; background: var(--fondo); color: var(--testo); font: 600 14px/1.25 var(--ui); overflow: hidden; -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
-kbd { font: 700 11px var(--tc); background: var(--vetrino); border: 1px solid var(--bordo-forte); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--oro); }
+kbd { font: 700 12px var(--mono); background: var(--vetrino); border: 1px solid var(--bordo-forte); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; color: var(--oro); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: #34323d; border-radius: 6px; border: 2px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background: #4a4857; border: 2px solid transparent; background-clip: padding-box; }
@@ -546,7 +548,7 @@ button svg { pointer-events: none; }
 .tasto-edit.rosso { background: linear-gradient(180deg, #7a2d3c, #551d28); color: #ffd6de; }
 .tasto-edit small { color: var(--oro); font-size: 11px; }
 .shuttle-vel:empty { display: none; }
-.shuttle-vel { font: 700 12px var(--tc); color: var(--cia); min-width: 42px; text-shadow: 0 0 6px rgba(53, 232, 255, 0.6); }
+.shuttle-vel { font: 700 12px var(--mono); color: var(--cia); min-width: 42px; text-shadow: 0 0 6px rgba(53, 232, 255, 0.6); }
 .mon-segni { display: flex; align-items: center; gap: 6px; }
 .segno-io { display: flex; align-items: center; gap: 3px; }
 .segno-io label { font-size: 9.5px; color: var(--testo3); font-weight: 800; letter-spacing: 0.5px; }
@@ -640,7 +642,7 @@ button svg { pointer-events: none; }
 .isp-testa { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
 .isp-nome { background: #0e0d12; border: 1px solid #000; border-radius: 6px; padding: 5px 8px; font-weight: 700; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6); }
 .isp-info { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11.5px; color: var(--testo3); }
-.tc-testo { font: 10.5px var(--tc); color: var(--ambra); }
+.tc-testo { font: 12px var(--mono); color: var(--ambra); }
 .isp-sorgente { width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .isp-gruppo { border: 1px solid #000; border-radius: 8px; background: #1a1920; margin-bottom: 7px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); }
 .isp-gruppo summary { padding: 6px 9px; font: 800 11px var(--ui); letter-spacing: 1px; text-transform: uppercase; color: var(--oro); cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; }
@@ -810,7 +812,7 @@ button svg { pointer-events: none; }
 .avvio.via { opacity: 0; pointer-events: none; }
 .avvio-targa { background: #07060d; border: 3px solid var(--oro); border-radius: 14px; padding: 18px 30px; text-align: center; box-shadow: 0 0 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(255, 213, 74, 0.3); }
 .avvio-targa .marchio-grande { font-size: 34px; }
-.avvio-targa small { display: block; margin-top: 6px; font: 400 13px var(--tc); color: var(--ambra); letter-spacing: 2px; }
+.avvio-targa small { display: block; margin-top: 6px; font: 400 13px var(--mono); color: var(--ambra); letter-spacing: 2px; }
 
 /* ——— telefono e tablet stretto ——— */
 #app.stretto, #app.stretto[data-pagina='finale'] {

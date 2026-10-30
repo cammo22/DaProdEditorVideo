@@ -112,13 +112,12 @@ export async function proveAiuto({ page: paginaDi, prova }) {
       await page.click('.btn-ai');
       await page.waitForSelector('.dialogo.centro-ai');
       const righe = await page.$$eval('.hub-riga', (c) => c.map((x) => x.dataset.m));
-      prova('il Centro AI è l\'elenco dei modelli (sfondo, sottotitoli, rumori, voce e base), non più le schede delle funzioni', ['sam3', 'whisper-base', 'rumore', 'separa'].every((k) => righe.includes(k)) && !righe.some((k) => ['ben2', 'modnet', 'birefnet', 'sam2', 'slimsam'].includes(k)) && (await page.$$('.ai-carta')).length === 0, JSON.stringify(righe));
+      prova('il Centro AI conserva i modelli e mostra le funzioni', ['sam3', 'whisper-base', 'rumore', 'separa'].every((k) => righe.includes(k)) && !righe.some((k) => ['ben2', 'modnet', 'birefnet', 'sam2', 'slimsam'].includes(k)) && (await page.$$('.ai-carta')).length === 0, JSON.stringify(righe));
       prova('niente "Cosa vuoi fare" né "Clip esplicita"', (await page.$$('select[aria-label="Cosa vuoi fare"], select[aria-label="Clip su cui usare AI"]')).length === 0);
       await page.waitForFunction(() => [...document.querySelectorAll('.hub-riga')].every((x) => x.dataset.stato), null, { timeout: 15000 });
       const stati = await page.$$eval('.hub-riga', (c) => c.map((x) => x.dataset.stato));
       prova('ogni modello dice com\'è messo (pronto, da completare o da scaricare) e ha i suoi pulsanti', stati.length === righe.length && stati.every((x) => ['pronto', 'parziale', 'da-scaricare'].includes(x)) && (await page.$$('.hub-riga button')).length === righe.length * 2, JSON.stringify(stati));
-      await page.evaluate(() => { document.querySelector('.centro-ai details').open = true; });
-      await page.click('.ai-controlla');
+      await page.click('.ai-ripara');
       await page.waitForFunction(() => document.querySelectorAll('.ai-diag').length >= 4, null, { timeout: 90000 });
       const diag = await page.$$eval('.ai-diag', (d) => d.map((x) => ({ ok: x.className, t: x.textContent })));
       const motore = diag.find((x) => /Motore AI/.test(x.t));
