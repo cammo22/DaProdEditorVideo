@@ -36,6 +36,7 @@ import { tessere } from './tessere';
 import { cosaCiMetto } from './seguiMenu';
 import { righeAudioAI, faiTogliRumore } from './audioAI';
 import { possibilita as audioAIPossibile } from '../media/audioAI';
+import { clearAttivo } from '../media/clear';
 import { anteprimaScena } from './anteprimaScena';
 import { apriColoreAvanzato } from './coloreAvanzatoFinestra';
 import { creaDuckingClip } from './duckingClip';
@@ -346,7 +347,7 @@ export class Ispettore {
     const uniforme = [30, 55, 70, 45, 80, 60, 35, 75, 50, 65, 40, 55];
     const voci: { nome: string; info: string; profilo: number[]; ai?: boolean; clic: () => void; acceso?: () => boolean }[] = [
       { nome: 'Voce pulita', ai: true, info: 'AI: toglie solo fruscio, ventole e rumori di fondo, la voce resta com\'è (MossFormer2)', profilo: [40, 45, 42, 46, 44, 45, 43, 46, 44, 45, 42, 44], clic: () => void faiTogliRumore(id0(), 'pulita') },
-      { nome: 'Voce migliorata', ai: true, info: 'AI: toglie i rumori e rifà la voce da podcast, più piena e chiara, a volume giusto (Clear)', profilo: [55, 62, 70, 66, 72, 68, 74, 70, 66, 72, 64, 60], clic: () => void faiTogliRumore(id0(), 'podcast') },
+      ...(clearAttivo() ? [{ nome: 'Voce migliorata', ai: true, info: 'AI: toglie i rumori e rifà la voce da podcast, più piena e chiara, a volume giusto (Clear)', profilo: [55, 62, 70, 66, 72, 68, 74, 70, 66, 72, 64, 60], clic: () => void faiTogliRumore(id0(), 'podcast') }] : []),
       { nome: 'Voce isolata', ai: true, info: 'AI: tiene solo la voce (via musica, TV, gente) e poi toglie il rumore', profilo: [10, 20, 80, 90, 30, 15, 85, 95, 40, 10, 70, 60], clic: () => void faiTogliRumore(id0(), 'isolata') },
       ...EFFETTI_AUDIO.filter((e) => adatte(e, audio).length && !['fadeIn', 'fadeOut', 'incrocio', 'dissolviAudio'].includes(e.id)).map((e) => ({
         nome: e.nome, info: e.info,

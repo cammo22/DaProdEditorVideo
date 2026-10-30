@@ -70,7 +70,6 @@ globalThis.Worker = class {
 };
 
 for (const [nome, caricaModello] of [
-  ['traduzione', () => TD.caricaTraduttore(() => {})],
   ['voce', () => V.caricaModelloVoce('prova', () => {})],
   ['ritaglio', () => RT.segmentatoreAttuale().carica(RT.MODELLI_RITAGLIO[0], () => {})],
 ]) {

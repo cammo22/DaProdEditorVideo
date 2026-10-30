@@ -10,7 +10,7 @@ import { clipEsplicita } from '../core/flussiUI';
 import { sottotitoliDi } from '../core/sottotitoli';
 import { MODELLI } from '../media/voce';
 import { MODELLI_RITAGLIO } from '../media/ritaglio';
-import { MODELLI_TRADUZIONE } from '../media/traduci';
+import { MODELLO_TRADUZIONE } from '../media/traduci';
 import { MODELLO_RUMORE, MODELLO_SEPARAZIONE, installaRumore, installaSeparazione, possibilita, togliModelloRumore, togliSeparazione } from '../media/audioAI';
 import { disinstallaMotore, motoreNemo } from '../media/nemo';
 import { diagnosi, modelliScaricati, svuotaModelli, type Diagnosi } from '../media/diagnosiAI';
@@ -28,6 +28,7 @@ import '../stile/copieAI.css';
 import { schedaMotoreLocale } from './motoreAI';
 import { FUNZIONI_AI as REGISTRO_AI } from '../core/funzioniAI';
 import { etichettaStato, ordinaPerStato, pesoDaMb, pesoEVram } from '../core/schedaAI';
+import { faiRallentaFluido, faiSottotitoliParole, faiTrovaScene, faiVocePulitaMotore, faiVoceMusicaMotore, interruttoreClear, schedaFunzioniAI, schedaModelliMotore } from './funzioniMotoreUI';
 
 export interface FunzioneAI {
   id: string;
@@ -70,10 +71,10 @@ export const FUNZIONI_AI: FunzioneAI[] = [
     apri: () => { vaiFinale('sottotitoli'); evidenzia('[data-ai="sottotitoli"]'); },
   },
   {
-    id: 'traduci', nome: 'Traduci i sottotitoli', icona: '🌍', dove: 'tutto',
+    id: 'traduci', nome: 'Traduci i sottotitoli', icona: '🌍', dove: 'app',
     cosaFa: 'Traduce le righe in un\'altra lingua (nove lingue, anche cinese, giapponese, arabo); i tempi restano.',
     come: ['Prima servono i sottotitoli', 'Scegli la lingua d\'arrivo', 'Premi "Traduci i sottotitoli" (Ctrl+Z torna indietro)'],
-    modelli: [{ repo: MODELLI_TRADUZIONE[0], nome: 'NLLB-200 di Meta', mb: 600 }],
+    modelli: [{ repo: MODELLO_TRADUZIONE.repo, nome: 'Hy-MT2 1.8B (motore AI locale)', mb: MODELLO_TRADUZIONE.mb }],
     manca: () => (haSottotitoli() ? null : 'Prima servono i sottotitoli (scritti a mano o dall\'AI)'),
     apri: () => { vaiFinale('lingue'); evidenzia('[data-ai="traduci"]'); },
   },
@@ -112,6 +113,46 @@ export const FUNZIONI_AI: FunzioneAI[] = [
     apri: () => { clipAudioDaUsare(true); vaiSezione('audioai'); },
     installa: () => installaSeparazione(),
     togli: () => togliSeparazione(),
+  },
+  {
+    id: 'scene', nome: 'Trova i tagli automatici', icona: '🎬', dove: 'app',
+    cosaFa: 'Guarda una ripresa e mette dei marcatori dove cambia la scena (TransNetV2): li sposti o li cancelli, e «Taglia alle scene» li fa diventare tagli.',
+    come: ['Scegli la ripresa nella timeline', 'Menu AI → Trova i tagli automatici', 'Sposta o cancella i marcatori «Scena», poi Taglia la clip alle scene (Ctrl+Z torna indietro)'],
+    modelli: [{ repo: 'elya5/transnetv2', nome: 'TransNetV2 (motore AI locale)', mb: 31 }],
+    manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una ripresa video nella timeline'),
+    apri: () => { const c = clipVideoDaUsare(true); if (c) void faiTrovaScene(c.id); else avviso('Scegli una ripresa video nella timeline', 'info', 3000); },
+  },
+  {
+    id: 'voce-pulita', nome: 'Voce pulita (motore locale)', icona: '🎙', dove: 'app',
+    cosaFa: 'DeepFilterNet3 nel motore locale: toglie i rumori da un parlato e fa un audio nuovo; l\'originale si conserva.',
+    come: ['Scegli la clip audio', 'Menu AI → Voce pulita (motore locale)', 'Se non ti piace: «Audio originale» o Ctrl+Z'],
+    modelli: [{ repo: 'Rikorose/DeepFilterNet', nome: 'DeepFilterNet3 (motore AI locale)', mb: 8 }],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { const c = clipAudioDaUsare(true); if (c) void faiVocePulitaMotore(c.id); else avviso(MANCA_AUDIO, 'info', 3000); },
+  },
+  {
+    id: 'voce-musica', nome: 'Voce e musica (Kim Vocal 2)', icona: '🎤', dove: 'app',
+    cosaFa: 'Divide il cantato dalla musica su due tracce nuove con Kim Vocal 2 (motore locale). L\'originale resta in silenzio.',
+    come: ['Scegli la clip della canzone', 'Menu AI → Voce e musica (Kim Vocal 2)', 'Ctrl+Z rimette tutto'],
+    modelli: [{ repo: 'KimberleyJSN/melbandroformer', nome: 'Kim Vocal 2 (motore AI locale)', mb: 900 }],
+    manca: () => (clipAudioDaUsare(false) ? null : MANCA_AUDIO),
+    apri: () => { const c = clipAudioDaUsare(true); if (c) void faiVoceMusicaMotore(c.id); else avviso(MANCA_AUDIO, 'info', 3000); },
+  },
+  {
+    id: 'sottotitoli-parole', nome: 'Sottotitoli con parole e tempi', icona: '📝', dove: 'app',
+    cosaFa: 'Qwen3-ASR scrive i dialoghi e il ForcedAligner mette ogni parola al suo tempo: righe di sottotitolo modificabili (motore locale).',
+    come: ['Metti in timeline i video con i dialoghi', 'Menu AI → Sottotitoli con parole e tempi', 'Correggi le righe nella riga SOTT'],
+    modelli: [{ repo: 'Qwen/Qwen3-ASR-0.6B', nome: 'Qwen3-ASR + ForcedAligner (motore AI locale)', mb: 3700 }],
+    manca: () => (haAudio() ? null : 'Metti in timeline un video con l\'audio dei dialoghi'),
+    apri: () => { void faiSottotitoliParole(); },
+  },
+  {
+    id: 'rallenta', nome: 'Rallentatore fluido (sperimentale)', icona: '🐌', dove: 'app',
+    cosaFa: 'RIFE inventa i fotogrammi in mezzo e fa una clip nuova più lenta (fino a 12 secondi). SPERIMENTALE: non ancora collaudato col modello vero.',
+    come: ['Taglia la ripresa a meno di 12 secondi (tasto 1)', 'Menu AI → Rallentatore fluido', 'La clip nuova sta sopra l\'originale, che resta'],
+    modelli: [{ repo: 'Comfy-Org/Frame-Interpolation', nome: 'RIFE 4.25 (motore AI locale)', mb: 23 }],
+    manca: () => (clipVideoDaUsare(false) ? null : 'Scegli una ripresa video nella timeline'),
+    apri: () => { const c = clipVideoDaUsare(true); if (c) void faiRallentaFluido(c.id); else avviso('Scegli una ripresa video nella timeline', 'info', 3000); },
   },
   {
     id: 'segui', nome: 'Segui un oggetto', icona: '🎯', dove: 'locale',
@@ -304,8 +345,10 @@ export function finestraCentroAI(subito = false) {
     } } }, 'Togli motore e modelli')) : null;
 
   d.corpo.append(
+    schedaFunzioniAI(),
     schedaMotoreLocale(),
     schedeRegistro(),
+    schedaModelliMotore(),
     h('section', { class: 'ai-sezione' },
       h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
       h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),
@@ -313,6 +356,7 @@ export function finestraCentroAI(subito = false) {
     h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
       h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video quando c\'è'),
+      interruttoreClear(),
       h('div', { class: 'ai-imp' }, spazio, svuota),
       h('div', { class: 'ai-imp' }, h('span', null, 'Dopo un minuto e mezzo senza AI i modelli escono da soli dalla scheda video'), liberaMemoria),
       h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (se richiesto). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face'), chiaveHF, salvaChiave),

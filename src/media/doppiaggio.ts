@@ -10,7 +10,7 @@ import { sottotitoliDi } from '../core/sottotitoli';
 import * as M from '../core/montaggio';
 import { assicuraMotore, LINGUE_VOCE, motoreNemo, type Parlato } from './nemo';
 import { stiraTutto } from './stira';
-import { codiceNllb, sappiamoTradurre, traduciTesti } from './traduci';
+import { codiceLingua, sappiamoTradurre, traduciTesti } from './traduci';
 import { ricampiona } from './wav';
 import { motoreAI, type OpzioniVoceLocale } from './motoreAI';
 import { liberaVram } from './vram';
@@ -133,7 +133,7 @@ export async function doppia(p: Project, o: OpzioniDoppiaggio, stato: (testo: st
   // sottotitoli in una lingua e voce in un'altra: prima si traduce (solo per la voce, i sottotitoli restano), se no la voce
   // leggerebbe parole di una lingua con l'accento dell'altra
   const lingS = sottotitoliDi(p).lingua;
-  const serve = o.traduci !== false && !!lingS && lingS !== o.lingua && codiceNllb(lingS) !== codiceNllb(o.lingua);
+  const serve = o.traduci !== false && !!lingS && lingS !== o.lingua && codiceLingua(lingS) !== codiceLingua(o.lingua);
   if (serve && !sappiamoTradurre(lingS, o.lingua)) throw new Error('traduzione');
   let testi = enunc.map((e) => e.testo);
   if (serve) {

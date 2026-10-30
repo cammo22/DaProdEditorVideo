@@ -263,8 +263,14 @@ pub fn ai_locale_accendi() -> Result<(), String> {
     let mut segreto = [0u8; 32];
     getrandom::fill(&mut segreto).map_err(|e| e.to_string())?;
     m.token = segreto.iter().map(|b| format!("{b:02x}")).collect();
-    std::fs::write(r.join("server.py"), include_str!("../motore/server.py"))
-        .map_err(|e| e.to_string())?;
+    // Il server e i suoi due moduli (catalogo dei modelli, funzioni): stesse cartelle, sempre aggiornati con l'app.
+    for (nome, testo) in [
+        ("server.py", include_str!("../motore/server.py")),
+        ("motore_catalogo.py", include_str!("../motore/motore_catalogo.py")),
+        ("motore_lavoratori.py", include_str!("../motore/motore_lavoratori.py")),
+    ] {
+        std::fs::write(r.join(nome), testo).map_err(|e| e.to_string())?;
+    }
     let log = std::fs::File::create(r.join("server.log")).map_err(|e| e.to_string())?;
     let mut c = comando(
         r.join("venv/Scripts/python.exe")
@@ -332,7 +338,20 @@ fn ammessa(metodo: &str, percorso: &str) -> bool {
         ("GET", "/salute" | "/modelli")
             | (
                 "POST",
-                "/modelli/scarica" | "/voce/genera" | "/voce/clona" | "/libera"
+                "/modelli/scarica"
+                    | "/voce/genera"
+                    | "/voce/clona"
+                    | "/libera"
+                    | "/traduci"
+                    | "/voce/pulisci"
+                    | "/audio/separa"
+                    | "/scene"
+                    | "/rallenta"
+                    | "/trascrivi"
+                    | "/modelli/togli"
+                    | "/scambio/scrivi"
+                    | "/scambio/leggi"
+                    | "/scambio/pulisci"
             )
     ) || (metodo == "GET"
         && percorso.strip_prefix("/lavori/").is_some_and(|id| {
@@ -396,6 +415,26 @@ mod prove {
         drop(job);
         child.wait().unwrap();
         assert!(prima.elapsed() < Duration::from_secs(5));
+    }
+    #[test]
+    fn le_funzioni_nuove_sono_ammesse_e_il_resto_no() {
+        for p in [
+            "/traduci",
+            "/voce/pulisci",
+            "/audio/separa",
+            "/scene",
+            "/rallenta",
+            "/trascrivi",
+            "/scambio/scrivi",
+            "/scambio/leggi",
+            "/scambio/pulisci",
+            "/modelli/togli",
+        ] {
+            assert!(ammessa("POST", p), "{p}");
+            assert!(!ammessa("GET", p), "{p}");
+        }
+        assert!(!ammessa("POST", "/scambio/../server.py"));
+        assert!(!ammessa("POST", "/scambio"));
     }
     #[test]
     fn percorsi_chiusi() {

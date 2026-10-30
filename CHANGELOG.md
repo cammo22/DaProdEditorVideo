@@ -4,6 +4,14 @@ Tutte le versioni notevoli del banco di montaggio. Le date sono in formato AAAA-
 Ogni versione pubblicata ha la sua [release GitHub](https://github.com/cammo22/DaProdVideo/releases) con le app
 per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pages](https://cammo22.github.io/DaProdVideo/) come versione prova.
 
+## [Non rilasciato] · Funzioni AI facili nel motore locale
+
+- **Registro di tutte le funzioni AI** (`src/core/funzioniAI.ts`) con stato onesto PRONTA / OPZIONALE / SPERIMENTALE, peso e VRAM; si vede nel Centro AI.
+- **Traduzione con Hy-MT2 1.8B** (Apache-2.0) nel motore AI locale, al posto di NLLB-200 (CC-BY-NC, non commerciale). Senza il motore la traduzione dice cosa installare.
+- Nel motore locale, opzionali e scaricati solo su richiesta: voce pulita (DeepFilterNet3), voce e musica (Kim Vocal 2), tagli automatici (TransNetV2, marcatori «Scena N»), sottotitoli con parole e tempi (Qwen3-ASR + ForcedAligner), rallentatore fluido (RIFE 4.25, SPERIMENTALE). Ogni risultato è materiale modificabile, l'originale resta, Ctrl+Z annulla; passano dal Centro attività con avanzamento, Ferma e Riprova.
+- **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
+- **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
+
 ## [1.7.1] — 2026-10-29 · Motore AI locale facoltativo, voce realistica e ritaglio con SAM 2.1
 
 - **Motore AI locale — Opzionale** nel Centro AI: Python privato con uv, ambiente separato, torch CUDA installato solo su richiesta, accensione, spegnimento, rimozione e download separato dei pesi. Attività mostra avanzamento, annullamento e Riprova.

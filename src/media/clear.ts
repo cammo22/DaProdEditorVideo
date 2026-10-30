@@ -13,12 +13,27 @@ type ClearSdk = {
 
 let caricato: Promise<ClearSdk> | null = null;
 
+// ——— Clear si può spegnere ———
+// La licenza di Clear NON è permissiva (source-available): gratis sotto i 100.000 dispositivi al mese, con la scritta
+// "Powered by Desert Ant Labs", senza usarlo per addestrare un modello concorrente, con un conteggio d'uso anonimo.
+// Tutto il resto dell'AI del programma è Apache-2.0 / MIT / BSD. Chi non vuole quei vincoli lo spegne dal Centro AI:
+// "Voce migliorata" sparisce e le altre tre voci (pulita, isolata, motore locale) restano.
+const LS_CLEAR = 'dpv-clear';
+export const FRASE_CLEAR_SPENTO = 'Clear è spento nelle impostazioni del Centro AI (ha una licenza non permissiva). Riaccendilo da lì, oppure usa «Voce pulita».';
+/** di partenza acceso (com'è sempre stato); `dpv-clear = no` lo spegne */
+export function clearAttivo(): boolean { try { return localStorage.getItem(LS_CLEAR) !== 'no'; } catch { return true; } }
+export function impostaClearAttivo(si: boolean): void {
+  try { if (si) localStorage.removeItem(LS_CLEAR); else localStorage.setItem(LS_CLEAR, 'no'); } catch { /* niente: resta com'era */ }
+  if (!si) { caricato = null; }
+}
+
 /** per le prove: un Clear finto (le prove non scaricano il modello vero) */
 let finto: ClearSdk | null = null;
 export const impostaClearFinto = (c: ClearSdk | null) => { finto = c; caricato = null; };
 
 /** il motore, caricato una volta sola */
 export function caricaClear(): Promise<ClearSdk> {
+  if (!clearAttivo()) return Promise.reject(new Error(FRASE_CLEAR_SPENTO));
   if (finto) return Promise.resolve(finto);
   return caricato ??= (async () => {
     const { Clear } = await import('@desert-ant-labs/clear');

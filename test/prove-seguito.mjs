@@ -143,14 +143,14 @@ export async function proveSeguito({ page: paginaDi, prova, OUT }) {
     const prog = [];
     const out = await TD.traduciTesti(['Buongiorno', '', 'Come stai?'], 'it', 'en', (f, k) => prog.push(k));
     const stessa = await TD.traduciTesti(['ciao'], 'it', 'it', () => {});
-    const nap = TD.codiceNllb('nap');
+    const nap = TD.codiceLingua('nap');
     let errore = '';
     try { await TD.traduciTesti(['x'], 'it', 'xx', () => {}); } catch (e) { errore = e.message; }
     TD.impostaTraduttore(null);
-    return { out, stessa, chiamate, nap, errore, cresce: prog.every((x, i) => !i || x >= prog[i - 1] - 1e-9), ultimo: prog[prog.length - 1], zh: TD.codiceNllb('zh') };
+    return { out, stessa, chiamate, nap, errore, cresce: prog.every((x, i) => !i || x >= prog[i - 1] - 1e-9), ultimo: prog[prog.length - 1], zh: TD.codiceLingua('zh') };
   });
-  prova('la traduzione lascia vuote le righe vuote, non traduce se la lingua è la stessa e il napoletano si traduce come l\'italiano', tr.out.join('|') === '[en] Buongiorno||[en] Come stai?' && tr.stessa[0] === 'ciao' && tr.nap === 'ita_Latn' && /xx|coppia/.test(tr.errore) && tr.chiamate.includes('it>en:2'), JSON.stringify(tr));
-  prova('la barra della traduzione non torna indietro e arriva a 100%; il cinese è fra le lingue', tr.cresce && tr.ultimo === 1 && tr.zh === 'zho_Hans', JSON.stringify([tr.cresce, tr.ultimo, tr.zh]));
+  prova('la traduzione lascia vuote le righe vuote, non traduce se la lingua è la stessa e il napoletano si traduce come l\'italiano', tr.out.join('|') === '[en] Buongiorno||[en] Come stai?' && tr.stessa[0] === 'ciao' && tr.nap === 'it' && /xx|coppia/.test(tr.errore) && tr.chiamate.includes('it>en:2'), JSON.stringify(tr));
+  prova('la barra della traduzione non torna indietro e arriva a 100%; il cinese è fra le lingue', tr.cresce && tr.ultimo === 1 && tr.zh === 'zh', JSON.stringify([tr.cresce, tr.ultimo, tr.zh]));
 
   // la voce in un'altra lingua: i sottotitoli italiani si traducono (solo per la voce) prima di essere letti
   const vo = await page.evaluate(async () => {

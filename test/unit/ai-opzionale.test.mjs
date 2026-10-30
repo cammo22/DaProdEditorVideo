@@ -21,7 +21,8 @@ test('Ogni modello dichiara uso, peso e requisiti senza scaricare nulla', () => 
     assert.ok(m.mb > 0, m.id);
     assert.ok(m.ramGB > 0 && m.thread > 0, m.id);
   }
-  assert.equal(lista.find((m) => m.id === 'nllb').processore, true);
+  assert.equal(lista.find((m) => m.id === 'hymt2').processore, true);
+  assert.ok(!lista.some((m) => m.id === 'nllb' || /NLLB/i.test(m.nome)), 'NLLB (CC-BY-NC) non ci deve essere più');
 });
 
 test('WebGPU provata: scheda adatta, velocità e VRAM restano da verificare', () => {

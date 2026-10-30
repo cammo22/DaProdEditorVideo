@@ -5,6 +5,7 @@ import { confermaAvvioAI } from './aiPassi';
 import { store } from '../core/store';
 import type { Clip } from '../core/tipi';
 import { registra as reg } from '../azioni';
+import { clearAttivo } from '../media/clear';
 import { avviso, h } from './dom';
 import {
   avanzamentoAudioAI, haOriginale, installaSeparazione, lavoriAudioAI, modelloRumoreScelto, possibilita, separaVoceBase, statoAudioAI, tornaOriginale, togliRumore, type Forza,
@@ -139,7 +140,7 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
   if (!poss.rumore) righe.push(h('p', { class: 'nota avviso-rosso' }, poss.perche ?? 'Su questa clip non si può'));
   righe.push(
     scheda('rumore', '🎙', 'Togli i rumori', 'Una voce con fruscio, ventola o rumore di fondo: il rumore va via e la voce resta.',
-      FORZE.map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'pulita'))),
+      FORZE.filter(([f]) => f !== 'podcast' || clearAttivo()).map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'pulita'))),
     scheda('separa', '🎤', 'Separa voce e musica', 'Da una canzone: la voce da una parte e la base (lo strumentale) dall\'altra, su due tracce nuove.',
       [
         bottone('separa', 'separa:entrambe', 'Voce e base', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),
