@@ -4,6 +4,7 @@ import { store } from './core/store';
 import { fps, f2s } from './core/timecode';
 import { projectEnd } from './core/progetto';
 import { banco } from './media/audio';
+import { OrologioMonitor } from './media/orologioMonitor';
 import { fermaFlussi, fotogramma, prepara, pronto, pulisci, quandoFotogramma } from './media/fotogrammi';
 import { mediaRT, quandoAnalisi } from './media/libreria';
 import { pausaProxy } from './media/proxy';
@@ -25,6 +26,7 @@ class Motore {
   playerCanvas: HTMLCanvasElement | null = null;
   private clock0 = 0;
   private pos0 = 0;
+  private orologioMonitor = new OrologioMonitor();
   /** il play aspetta (al massimo un attimo) che i fotogrammi del punto di partenza siano pronti: così audio e
    *  video partono insieme anche dal mezzo di una ripresa coi fotogrammi chiave radi */
   private attesa = 0;
@@ -35,7 +37,7 @@ class Motore {
   private ultimoPulisci = 0;
   fpsMisurati = 0;
   private contaFps = 0;
-  private tFps = 0;
+  private tFps = performance.now();
   /** ultimo fotogramma disegnato nel Recorder (per la prova e per gli strumenti) */
   ultimoDisegnato = -1;
 
@@ -120,6 +122,7 @@ class Motore {
 
   /** l'orologio parte: da adesso contano il tempo e l'audio */
   private avvia(now: number) {
+    this.orologioMonitor.azzera();
     this.attesa = 0;
     this.clock0 = now;
     const d = store.doc;
@@ -160,6 +163,7 @@ class Motore {
   shuttleContinuo(s: number) {
     if (Math.abs(s) < 0.05) { this.stop(); return; }
     if (this.speed === s) return;
+    this.orologioMonitor.azzera();
     const wasAudio = this.speed === 1;
     this.speed = s;
     this.attesa = 0;
@@ -229,7 +233,7 @@ class Motore {
     if (this.speed !== 0 && !this.attesa) {
       if (this.attivo === 'recorder') {
         let f: number;
-        if (this.speed === 1 && banco.suonando) f = banco.ora() * r;
+        if (this.speed === 1 && banco.suonando) f = this.orologioMonitor.leggi(banco.ora(), now) * r;
         else f = this.pos0 + ((now - this.clock0) / 1000) * r * this.speed;
         const endF = projectEnd(d);
         const limit = this.stopAt ?? endF;
@@ -250,7 +254,7 @@ class Motore {
         const m = d.media.find((x) => x.id === this.playerMedia);
         if (m) {
           let t: number;
-          if (this.speed === 1 && banco.suonando) t = banco.ora();
+          if (this.speed === 1 && banco.suonando) t = this.orologioMonitor.leggi(banco.ora(), now);
           else t = this.pos0 + ((now - this.clock0) / 1000) * this.speed;
           const out = this.stopAt ?? m.markOut ?? this.fineCorrente();
           const inn = m.markIn ?? m.t0 ?? 0;
@@ -269,19 +273,25 @@ class Motore {
     const flusso = playing && this.speed > 0 && this.speed <= 2;
     if (this.rec && (this.sporcoRec || (playing && this.attivo === 'recorder'))) {
       this.sporcoRec = false;
-      const f = Math.floor(store.head + 1e-6);
+      // Nel play il monitor segue il tempo continuo dello schermo. Arrotondare prima
+      // al frame del progetto limita anche una sorgente 60p ai 25/30 fps del progetto
+      // e aggiunge un secondo arrotondamento ai timestamp WebM. Jog e fermo restano esatti.
+      const f = flusso && this.attivo === 'recorder' ? store.head : Math.floor(store.head + 1e-6);
       const w = this.rec.canvas as HTMLCanvasElement;
       if (w.width > 0 && w.height > 0) {
         this.rec.render(d, pianoVideo(d, f), flusso && this.attivo === 'recorder', f);
         this.ultimoDisegnato = f;
+        if (this.attivo === 'recorder') this.contaFps++;
       }
     }
     if (this.playerCanvas && (this.sporcoPlayer || (playing && this.attivo === 'player'))) {
       this.sporcoPlayer = false;
       this.disegnaPlayer(flusso && this.attivo === 'player');
+      if (this.attivo === 'player') this.contaFps++;
     }
-    this.contaFps++;
-    if (now - this.tFps > 1000) { this.fpsMisurati = this.contaFps; this.contaFps = 0; this.tFps = now; }
+    // Conta i disegni del monitor attivo e dividi per il tempo reale: i rAF a vuoto e
+    // una finestra durata più di un secondo non devono gonfiare il contatore.
+    if (now - this.tFps > 1000) { this.fpsMisurati = Math.round(this.contaFps * 1000 / (now - this.tFps)); this.contaFps = 0; this.tFps = now; }
     for (const g of this.giri) g(playing);
   }
 

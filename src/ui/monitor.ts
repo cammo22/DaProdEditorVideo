@@ -142,6 +142,19 @@ export class PannelloMonitor {
     // sposta, ingrandisci e fai muovere quello che vedi, direttamente sull'immagine
     this.pos = new Posiziona(this.schermo, this.sopra, () => this.disegnaSopra());
     motore.rec = new Compositore(this.canvas);
+    if (import.meta.env.DEV) {
+      const fps = h('small', { class: 'monitor-fps', style: 'position:absolute;top:8px;left:8px;pointer-events:none;background:#000b;color:#fff;padding:3px 6px', title: 'Disegni e immagini video nuove al secondo; tempi CPU, senza sincronizzare la GPU' });
+      this.schermo.append(fps);
+      let da = performance.now(), prima = { ...motore.rec.prestazioni };
+      motore.ogniGiro(() => {
+        const ora = performance.now();
+        if (ora - da < 1000 || !motore.rec) return;
+        const p = motore.rec.prestazioni, s = (ora - da) / 1000, n = p.disegni - prima.disegni;
+        fps.hidden = motore.attivo !== 'recorder' || !motore.playing;
+        fps.textContent = `${(n / s).toFixed(1)} fps · video ${((p.immagini - prima.immagini) / s).toFixed(1)} · CPU ${((p.renderMs - prima.renderMs) / Math.max(1, n)).toFixed(1)} ms`;
+        prima = { ...p }; da = ora;
+      });
+    }
     motore.playerCanvas = this.canvasSorgente;
     store.on('status', () => this.aggiorna());
     store.on('head', () => { this.aggiorna(); this.disegnaSopra(); });

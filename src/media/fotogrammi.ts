@@ -14,6 +14,11 @@ export type Fotogramma = VideoSample | ImageBitmap;
 type Qualita = 'p' | 'o';
 
 const CODA = 5;
+// WebM arrotonda i timestamp ai millisecondi: 1/60 diventa 0,017. Mezzo tick più
+// un margine numerico evita di ripetere il frame 0 e saltare il frame 1 (60 → 40 fps).
+const SCARTO_TIMESTAMP = 0.00051;
+/** Attesa del prossimo campione, inclusi demux e scheduling; non è il solo tempo hardware. */
+export const tempiDecodifica: number[] = [];
 const conti = { flussi: 0 };
 
 interface Lettore { vs: VideoSampleSink; ps: EncodedPacketSink }
@@ -53,7 +58,12 @@ class Flusso {
     this.pumping = true;
     try {
       while (!this.dead && this.queue.length < CODA) {
+        const inizio = import.meta.env.DEV ? performance.now() : 0;
         const r = await this.iter.next();
+        if (import.meta.env.DEV) {
+          if (tempiDecodifica.length >= 4096) tempiDecodifica.shift();
+          tempiDecodifica.push(performance.now() - inizio);
+        }
         if (this.dead) { r.value?.close(); break; }
         if (r.done) { this.done = true; break; }
         this.queue.push(r.value);
@@ -69,7 +79,7 @@ class Flusso {
   /** il fotogramma da mostrare al tempo t: butta quelli passati, tiene l'ultimo raggiunto */
   at(t: number): VideoSample | null {
     this.lastUse = performance.now();
-    while (this.queue.length && this.queue[0].timestamp <= t + 1e-4) {
+    while (this.queue.length && this.queue[0].timestamp <= t + SCARTO_TIMESTAMP) {
       // a disegno finito: nello stesso disegno qualcuno può avere ancora in mano quello di prima
       chiudiDopo(this.current);
       this.current = this.queue.shift()!;
@@ -121,7 +131,7 @@ function chiudiDopo(s: VideoSample | null | undefined) {
   if (s) queueMicrotask(() => s.close());
 }
 
-const copre = (c: VideoSample | null, t: number) => !!c && c.timestamp <= t + 1e-4 && t < c.timestamp + Math.max(c.duration, 1 / 120) - 1e-4;
+const copre = (c: VideoSample | null, t: number) => !!c && c.timestamp <= t + SCARTO_TIMESTAMP && t < c.timestamp + Math.max(c.duration, 1 / 120) - SCARTO_TIMESTAMP;
 
 class Ricerca {
   current: VideoSample | null = null;
@@ -154,7 +164,7 @@ class Ricerca {
   /** passa il cursore a un flusso che parte da t (il play da dove si è fermi), se è lì o poco prima e non sta lavorando */
   cedi(t: number): Cursore | null {
     const c0 = this.current;
-    if (this.busy || this.dead || !this.iter || !c0 || c0.timestamp > t + 1e-4 || t - c0.timestamp > 3) return null;
+    if (this.busy || this.dead || !this.iter || !c0 || c0.timestamp > t + SCARTO_TIMESTAMP || t - c0.timestamp > 3) return null;
     const c: Cursore = { iter: this.iter, current: c0.clone(), dopo: this.dopo };
     this.iter = null;
     this.dopo = null;
@@ -197,7 +207,7 @@ class Ricerca {
           const s = await this.prossimo();
           if (this.dead) { s?.close(); break; }
           if (!s) break;
-          if (s.timestamp > t + 1e-4 && this.current) { this.dopo = s; break; }
+          if (s.timestamp > t + SCARTO_TIMESTAMP && this.current) { this.dopo = s; break; }
           this.current?.close();
           this.current = s;
           if (copre(s, t)) { avvisa(); if (this.want !== null) break; }
@@ -446,3 +456,4 @@ export function dimenticaMedia(mediaId: string, soloProxy = false) {
 export function statoDecoder() {
   return { flussi: flussi.size, ricerche: ricerche.size, nati: conti.flussi };
 }
+
