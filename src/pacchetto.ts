@@ -169,7 +169,7 @@ DaProd Editor Video (File → Apri, o doppio clic) e ritrovi il montaggio identi
 un altro computer. Non serve scompattarlo.
 
 Dentro: progetto.json (il montaggio) e la cartella media/ (i video, le musiche, le immagini).
-https://github.com/cammo22/DaProdVideo
+https://github.com/cammo22/DaProdEditorVideo
 `;
 
 /** il progetto come sta dentro il pacchetto: i media puntano ai file di media/, niente percorsi di questo computer */
@@ -487,7 +487,7 @@ Questo file è un progetto di DaProd Editor Video con dentro TUTTO: il montaggio
 tutti i file (media/: video, musiche, immagini, registrazioni, audio lavorato) e le copie
 leggere per il monitor (proxy/). Aprilo con DaProd Editor Video (File → Apri, o doppio clic),
 anche su un altro computer: ritrovi tutto identico. Non serve scompattarlo.
-https://github.com/cammo22/DaProdVideo
+https://github.com/cammo22/DaProdEditorVideo
 `;
 
 /** il progetto come sta dentro il .dap: i media puntano ai loro file dentro, niente percorsi di questo computer */

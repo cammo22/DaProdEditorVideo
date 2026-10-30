@@ -7,7 +7,7 @@ import './home.css';
 import changelog from '../../CHANGELOG.md?raw';
 
 declare const __VERSIONE__: string;
-const REPO = 'cammo22/DaProdVideo';
+const REPO = 'cammo22/DaProdEditorVideo';
 const $ = (id: string) => document.getElementById(id)!;
 $('versione').textContent = __VERSIONE__;
 $('versionePiede').textContent = __VERSIONE__;

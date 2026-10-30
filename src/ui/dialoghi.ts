@@ -126,7 +126,7 @@ export function finestraInfo() {
     // la licenza di Clear chiede la scritta e il collegamento in un posto che si trova
     h('p', { class: 'nota info-crediti' }, 'Togli rumori "Podcast": Clear, ', h('a', { href: 'https://desertant.com', on: { click: (e: MouseEvent) => { e.preventDefault(); apriLink('https://desertant.com'); } } }, 'Powered by Desert Ant Labs'), ' (Desert Ant Labs Source-Available License 1.0).'));
   d.piede.append(
-    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdVideo') } }, 'Codice su GitHub'),
-    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdVideo/releases/latest') } }, 'Ultima versione'),
+    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdEditorVideo') } }, 'Codice su GitHub'),
+    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdEditorVideo/releases/latest') } }, 'Ultima versione'),
     h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'OK'));
 }

@@ -7,8 +7,8 @@ import { avviso, dialogo, h } from './dom';
 import { VERSIONE } from './dialoghi';
 import { apriLink, invoke, isAndroid, isTauri } from '../platform';
 
-const API = 'https://api.github.com/repos/cammo22/DaProdVideo/releases/latest';
-const PAGINA = 'https://github.com/cammo22/DaProdVideo/releases/latest';
+const API = 'https://api.github.com/repos/cammo22/DaProdEditorVideo/releases/latest';
+const PAGINA = 'https://github.com/cammo22/DaProdEditorVideo/releases/latest';
 const CONTROLLO_OGNI = 4 * 3600 * 1000;
 const DOPO_ERRORE = 20 * 60 * 1000;
 
@@ -99,7 +99,7 @@ export function finestraNovita(versione = VERSIONE) {
   if (n) d.corpo.append(h('div', { class: 'novita-titolo' }, n.titolo.replace(/^\[[^\]]+\]\s*—?\s*/, '')), markdown(n.note));
   else d.corpo.append(h('p', null, 'Le novità di questa versione sono nel CHANGELOG su GitHub.'));
   d.piede.append(
-    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdVideo/blob/main/CHANGELOG.md') } }, 'Tutte le versioni'),
+    h('button', { class: 'btn', on: { click: () => apriLink('https://github.com/cammo22/DaProdEditorVideo/blob/main/CHANGELOG.md') } }, 'Tutte le versioni'),
     h('button', { class: 'btn primario', on: { click: d.chiudi } }, 'Si parte'));
 }
 
