@@ -53,6 +53,10 @@ export interface OpzMontage {
   scarta: boolean;
   /** foto e video di un formato diverso dal progetto: "intero" (scheda con ombra su uno sfondo sfumato) o "riempi" (a tutto quadro, taglia i bordi) */
   adatta?: 'intero' | 'riempi';
+  /** quanto stare fermi su ogni cosa oltre il solito: 0 = come lo stile, 1..3 = sempre più lento (meno cose, ognuna più lunga) */
+  lentezza?: number;
+  /** file che l'utente ha rimesso a mano dopo che erano stati scartati (doppi, mossi, in più): non si toccano */
+  tieni?: string[];
 }
 
 /** una cosa sulla linea principale: quale file, quando comincia, quanto dura, da dove si prende (video) e come si muove */
@@ -117,11 +121,11 @@ export function ordina(v: EntrataMontage[], ordine: Ordine, seme: number): Entra
 }
 
 /** toglie le foto quasi uguali (tiene la più nitida di ogni gruppo di vicine nell'ordine) */
-export function senzaDoppioni(v: EntrataMontage[], soglia = 6): { tenute: EntrataMontage[]; tolte: EntrataMontage[] } {
+export function senzaDoppioni(v: EntrataMontage[], soglia = 6, protette?: ReadonlySet<string>): { tenute: EntrataMontage[]; tolte: EntrataMontage[] } {
   const tenute: EntrataMontage[] = [], tolte: EntrataMontage[] = [];
   for (const e of v) {
     const prec = tenute[tenute.length - 1];
-    if (prec && prec.tipo === 'image' && e.tipo === 'image' && distanzaFirme(prec.firma, e.firma) <= soglia) {
+    if (prec && prec.tipo === 'image' && e.tipo === 'image' && distanzaFirme(prec.firma, e.firma) <= soglia && !protette?.has(e.media) && !protette?.has(prec.media)) {
       if (e.punteggio > prec.punteggio) { tolte.push(prec); tenute[tenute.length - 1] = e; } else tolte.push(e);
     } else tenute.push(e);
   }
@@ -131,11 +135,16 @@ export function senzaDoppioni(v: EntrataMontage[], soglia = 6): { tenute: Entrat
 // ——— quanto sta ogni cosa ———
 interface Lim { min: number; tip: number; max: number }
 
-export function limiti(e: EntrataMontage, pr: PresetMontage): Lim {
-  if (e.tipo === 'image') return { min: pr.foto[0], tip: pr.foto[1], max: pr.foto[2] };
+export function limiti(e: EntrataMontage, pr: PresetMontage, lentezza = 0): Lim {
+  // lentezza 0 = esattamente come lo stile; ogni gradino allunga i tempi minimi e tipici di un terzo
+  const f = 1 + 0.35 * Math.max(0, Math.min(3, lentezza));
+  if (e.tipo === 'image') {
+    const min = pr.foto[0] * f, tip = Math.max(min, pr.foto[1] * f);
+    return { min, tip, max: lentezza > 0 ? Math.max(pr.foto[2], tip * 1.2) : pr.foto[2] };
+  }
   const max = Math.min(pr.video[1], Math.max(1, e.durata));
-  const tip = Math.min(pr.video[0], max);
-  return { min: Math.min(2.5, tip), tip, max };
+  const tip = Math.min(pr.video[0] * f, max);
+  return { min: Math.min(2.5 * f, tip), tip, max };
 }
 
 /** durate che sommano esattamente a "tot": ognuna fra il suo minimo e il suo massimo, in proporzione al valore tipico.
@@ -189,20 +198,22 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
   const note: string[] = [];
   const nIniziali = entrate.length;
   let lista = ordina(entrate, o.ordine, o.seme);
+  const protette = new Set(o.tieni ?? []);
   let tolte = 0;
   if (o.scarta) {
-    const d = senzaDoppioni(lista);
+    const d = senzaDoppioni(lista, 6, protette);
     if (d.tolte.length) { lista = d.tenute; tolte += d.tolte.length; note.push(`${d.tolte.length} foto quasi uguali tolte (tenuta la più nitida)`); }
   }
   // troppe per il tempo: via le peggiori, ma non la prima e l'ultima
-  const min = (e: EntrataMontage) => limiti(e, pr).min;
+  const lento = o.lentezza ?? 0;
+  const min = (e: EntrataMontage) => limiti(e, pr, lento).min;
   let sfoltite = 0;
   // il caso di questa generazione: stesse scelte, esito diverso (lo stesso seme dà sempre lo stesso montaggio)
   const rnd = casoSeme(Math.imul(o.seme | 0, 2654435761) ^ 0x5bd1e995);
   const rumore = new Map<EntrataMontage, number>(lista.map((e) => [e, (rnd() - 0.5) * 0.14]));
   while (lista.length > 2 && lista.reduce((a, e) => a + min(e), 0) > A) {
     let idx = -1, peggio = Infinity;
-    for (let i = 1; i < lista.length - 1; i++) { const v = lista[i].punteggio + (rumore.get(lista[i]) ?? 0); if (v <= peggio) { peggio = v; idx = i; } }
+    for (let i = 1; i < lista.length - 1; i++) { if (protette.has(lista[i].media)) continue; const v = lista[i].punteggio + (rumore.get(lista[i]) ?? 0); if (v <= peggio) { peggio = v; idx = i; } }
     if (idx < 0) break;
     lista.splice(idx, 1); sfoltite++;
   }
@@ -213,7 +224,7 @@ export function pianifica(entrate: EntrataMontage[], o: OpzMontage): PianoMontag
   let tutte = lista.map((e) => ({ e, ripetuta: false }));
   let ripetute = 0;
   // ogni foto sta un po' di più o un po' di meno: il ritmo non è mai uguale
-  const variata = (e: EntrataMontage): Lim => { const l = limiti(e, pr); return { ...l, tip: Math.min(l.max, Math.max(l.min, l.tip * (0.72 + rnd() * 0.56))) }; };
+  const variata = (e: EntrataMontage): Lim => { const l = limiti(e, pr, lento); return { ...l, tip: Math.min(l.max, Math.max(l.min, l.tip * (0.72 + rnd() * 0.56))) }; };
   let lim = tutte.map((x) => variata(x.e));
   const sommaMax = (l: Lim[]) => l.reduce((a, b) => a + b.max, 0);
   if (sommaMax(lim) < A) {

@@ -165,40 +165,7 @@
 .home .home-togli { width: 34px; height: 34px; }
 
 /* ——— DaProdMontage ——— */
-.montage .fin-testa { padding: 12px 16px; background: var(--sch-metallo); color: var(--testo, #ebe7f4); border-bottom: 1px solid var(--sch-bordo); }
-.montage .fin-testa b { font: 800 16px var(--marchio); letter-spacing: 2px; }
-.montage .fin-testa span { font: 500 14px var(--ui); color: #a19db0; }
-.montage .fin-testa .mt-m { color: var(--oro, #ffd54a); }
-.mt-azioni { padding: 10px 16px; background: var(--sch-pann); border-bottom: 1px solid var(--sch-bordo); }
-.mt-azioni .btn { padding: 0 20px; font-size: 16px; letter-spacing: 0.2px; }
-.mt-azioni .mt-importa { background: var(--oro, #ffd54a) !important; color: #14110a !important; border-color: rgba(255, 213, 74, 0.4) !important; }
-.mt-variante { border-radius: var(--sch-raggio); background: var(--sch-vetro); border: 1px solid var(--sch-bordo); color: var(--oro, #ffd54a); font: 400 14px var(--tc); letter-spacing: 1px; box-shadow: none; }
-.mt-dentro { gap: 12px; padding: 12px 16px; }
-.mt-col { background: var(--sch-pann); border: 1px solid var(--sch-bordo); border-radius: 8px; box-shadow: none; padding: 14px; gap: 10px; }
-.mt-col h3 { margin-bottom: 4px; }
-.mt-num { width: 26px; height: 26px; border-radius: 5px; background: var(--sch-vetro); border: 1px solid var(--sch-bordo-forte); color: var(--oro, #ffd54a); font: 400 14px var(--tc); }
-.montage .fin-sezione { background: var(--sch-vetro); border: 1px solid var(--sch-bordo); border-radius: var(--sch-raggio); box-shadow: none; padding: 12px; }
-.mt-conta { font: 400 13px var(--tc); color: #a19db0; }
-.mt-thumb { border-radius: 5px; border: 2px solid var(--sch-bordo); }
-.mt-thumb.scelta { border-color: var(--cia, #35e8ff); }
-.mt-spunta { background: var(--cia, #35e8ff); color: #06171b; }
-.mt-guarda { width: 28px; height: 28px; }
-.mt-guarda:hover { background: var(--cia, #35e8ff); color: #06171b; }
-.mt-linea { background: var(--cia, #35e8ff); }
-.mt-festa { border-radius: var(--sch-raggio); background: var(--sch-vetro); border: 2px solid var(--sch-bordo); min-height: 44px; }
-.mt-festa:hover { background: var(--sch-metallo); }
-.mt-festa.scelta { border-color: var(--cia, #35e8ff); box-shadow: none; }
-.mt-festa b { font: 700 15px var(--ui); }
-.mt-festa small { font: 500 12.5px var(--ui); color: #a19db0; }
-.mt-campo { font: 700 12.5px var(--ui); letter-spacing: 2px; text-transform: uppercase; color: var(--sch-incisa); }
-.mt-riepilogo { background: var(--sch-vetro); border: 1px solid var(--sch-bordo); border-radius: var(--sch-raggio); box-shadow: none; font: 500 14px var(--ui); }
-.mt-riepilogo b { font-family: var(--tc); font-weight: 400; }
-.mt-vuoto { border: 2px dashed var(--sch-bordo-forte); border-radius: var(--sch-raggio); }
-.mt-etapes button { min-height: 44px; }
-.mt-etapes button[aria-current='step'] { border-color: var(--cia, #35e8ff); color: var(--cia, #35e8ff); }
 .montage .fin-attento { color: var(--ambra, #ffb23d); }
-.mt-lavoro { min-width: 0; }
-@media (max-width: 1100px) { .montage .fin-testa span:not(.mt-m) { display: none; } }
 
 .home .hm-continua-tasto { color: var(--verde, #5dffb4); border-color: rgba(93, 255, 180, 0.5); }
 .montage .fin-testa .sch-cartellino { font: 700 12px var(--ui); letter-spacing: 3px; color: var(--sch-incisa); }
