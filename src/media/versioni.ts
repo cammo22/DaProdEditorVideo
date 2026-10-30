@@ -105,10 +105,23 @@ const P_TESTO = 'ver-testo:';
 /** il progetto a cui appartengono le versioni: il file se c'è, se no il nome */
 export const chiaveVersioni = (p: Pick<Project, 'name'>, percorso?: string | null) => percorso ?? 'b:' + (p.name || 'montaggio');
 
+/**
+ * Le chiavi sotto cui possono stare le versioni di questo progetto: il file (se salvato) e il nome. Prima del primo
+ * salvataggio le copie automatiche stanno sotto il nome; dopo, tutto va sotto il file. L'elenco le mette insieme.
+ */
+export const chiaviVersioni = (p: Pick<Project, 'name'>, percorso?: string | null): string[] => [...new Set([chiaveVersioni(p, percorso), chiaveVersioni(p, null)])];
+
 export async function elencoVersioni(chiave: string): Promise<VersioneMeta[]> {
   const t = await deposito.leggi(P_INDICE + chiave);
   if (!t) return [];
   try { const l = JSON.parse(t) as VersioneMeta[]; return Array.isArray(l) ? ordina(l) : []; } catch { return []; }
+}
+
+/** le versioni di tutte queste chiavi insieme, dalla più nuova (al massimo `max`) */
+export async function elencoVersioniDi(chiavi: readonly string[], max = VERSIONI_MAX + 1): Promise<VersioneMeta[]> {
+  const tutte = new Map<string, VersioneMeta>();
+  for (const k of chiavi) for (const v of await elencoVersioni(k)) tutte.set(v.id, v);
+  return ordina([...tutte.values()]).slice(0, max);
 }
 
 let seq = 0;
@@ -133,17 +146,22 @@ export async function registraVersione(p: Project, testo: string, chiave: string
 
 export const testoVersione = (id: string) => deposito.leggi(P_TESTO + id);
 
-export async function eliminaVersione(chiave: string, id: string): Promise<void> {
-  const indice = (await elencoVersioni(chiave)).filter((v) => v.id !== id);
-  await deposito.scrivi(P_INDICE + chiave, JSON.stringify(indice));
+export async function eliminaVersione(chiave: string | readonly string[], id: string): Promise<void> {
+  for (const k of typeof chiave === 'string' ? [chiave] : chiave) {
+    const indice = await elencoVersioni(k);
+    if (indice.some((v) => v.id === id)) await deposito.scrivi(P_INDICE + k, JSON.stringify(indice.filter((v) => v.id !== id)));
+  }
   await deposito.elimina(P_TESTO + id);
 }
 
-/** tutte le versioni di tutti i progetti: quante e quanto pesano (per «Spazio») */
-export async function pesoVersioni(): Promise<{ quante: number; byte: number }> {
+/**
+ * Le versioni di tutti i progetti che «Spazio» può togliere: quante e quanto pesano. L'ultima di ogni progetto resta
+ * sempre (`tieni`), quindi non si conta: la cifra che si promette è quella che si libera davvero.
+ */
+export async function pesoVersioni(tieni = 1): Promise<{ quante: number; byte: number }> {
   let quante = 0, byte = 0;
   for (const k of await deposito.chiavi(P_INDICE)) {
-    try { for (const v of JSON.parse((await deposito.leggi(k)) ?? '[]') as VersioneMeta[]) { quante++; byte += v.byte; } } catch { /* indice rovinato */ }
+    for (const v of (await elencoVersioni(k.slice(P_INDICE.length))).slice(tieni)) { quante++; byte += v.byte; }
   }
   return { quante, byte };
 }

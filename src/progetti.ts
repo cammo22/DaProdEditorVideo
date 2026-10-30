@@ -17,7 +17,7 @@ import { converti, esamina, normalizzaAttivo } from './media/normalizza';
 import { dialogoApri, dialogoSalva, ESTENSIONI_DI, invoke, isTauri, nomeDaPercorso, scegliFileBrowser, scegliMedia, type FileScelto, type TipoMedia } from './platform';
 import { dapAttuale, indicePacchetto, leggi as leggiPezzo, leggiPacchetto, pianoDap, pianoPacchetto, ricordaDap, scriviDapApp, scriviDapBrowser, scriviPacchetto, type PianoDap, type Sorgente, type VoceLetta } from './pacchetto';
 import { proxyDelProgetto, rimettiProxy } from './media/proxy';
-import { chiaveVersioni, elencoVersioni, eliminaVersione, emergenzaPulita, leggiEmergenza, registraVersione, scriviEmergenza, testoVersione, togliEmergenza } from './media/versioni';
+import { chiaveVersioni, chiaviVersioni, elencoVersioniDi, eliminaVersione, emergenzaPulita, leggiEmergenza, registraVersione, scriviEmergenza, testoVersione, togliEmergenza } from './media/versioni';
 import { cercaMancanti, puoCercareInCartella, scegliCartella, comeCercato, type RisultatoRicerca } from './media/ricollega';
 import { misuraSpazio, puliscoSpazio } from './media/spazio';
 import { frasiRecupero, sceltaCopia, serveRecupero } from './core/solido';
@@ -389,7 +389,7 @@ export async function salva(come = false) {
     }
     if (!r) return;
     store.dirty = false;
-    void dopoSalvataggio();
+    void dopoSalvataggio(JSON.stringify(store.doc));
     registraRecente(store.doc, isTauri ? r : undefined, isTauri ? undefined : serializza());
     const aggiunti = piano.byte > 1 << 20 ? ` (+${mb(piano.byte)})` : '';
     avviso(`💾 Salvato con tutti i file: ${nomeDaPercorso(r)}${aggiunti}`, 'ok', 3000);
@@ -406,11 +406,13 @@ export async function salva(come = false) {
 }
 
 /** salvato davvero: la copia di emergenza non ha più modifiche da tenere, e questa è una versione da ritrovare */
-async function dopoSalvataggio() {
+async function dopoSalvataggio(testo: string) {
   try {
+    // il testo e la chiave si prendono subito: mentre si aspetta, il montaggio può già essere cambiato
     const p = store.doc;
+    const chiave = chiaveVersioni(p, percorsoProgetto);
     await emergenzaPulita();
-    if (p.clips.length || p.media.length) await registraVersione(p, JSON.stringify(p), chiaveVersioni(p, percorsoProgetto), 'salvataggio');
+    if (p.clips.length || p.media.length) await registraVersione(p, testo, chiave, 'salvataggio');
   } catch { /* la rete di sicurezza non deve mai rompere il salvataggio */ }
 }
 
@@ -781,9 +783,20 @@ const K_SESSIONE = 'dpv-sessione';
  * Segna che il programma è aperto e ritorna se l'ultima volta NON si è chiuso come si deve (il segno era rimasto
  * «aperta»). Si rimette «chiusa» quando la pagina se ne va o la finestra si nasconde, e «aperta» quando torna.
  */
-function segnaAvvio(): boolean {
+async function segnaAvvio(): Promise<boolean> {
   let anomala = false;
   const metti = (v: 'aperta' | 'chiusa') => { try { localStorage.setItem(K_SESSIONE, v); } catch { /* niente memoria */ } };
+  // nel browser possono esserci due schede aperte insieme: se un'altra è viva il segno «aperta» è suo, non è un crash
+  // (e questa scheda non lo tocca: ci pensa l'altra quando se ne va)
+  let altraViva = false;
+  try {
+    const lk = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+    if (lk) {
+      altraViva = (await lk.query()).held?.some((x) => x.name === K_SESSIONE) ?? false;
+      void lk.request(K_SESSIONE, () => new Promise<void>(() => { /* si tiene finché la pagina vive */ })).catch(() => {});
+    }
+  } catch { /* niente Web Locks: si va col segno */ }
+  if (altraViva) return false;
   try { anomala = localStorage.getItem(K_SESSIONE) === 'aperta'; } catch { /* niente memoria */ }
   metti('aperta');
   addEventListener('pagehide', () => metti('chiusa'));
@@ -826,7 +839,7 @@ async function apriDaTesto(testo: string, dap: string | null): Promise<number | 
 
 /** all'avvio: riprende l'ultimo montaggio; dopo una chiusura anomala con lavoro non salvato propone «Recupera il lavoro» */
 export async function riprendi(): Promise<boolean> {
-  const anomala = segnaAvvio();
+  const anomala = await segnaAvvio();
   let testo: string | undefined;
   try {
     testo = isTauri ? await invoke<string>('autosalvataggio_leggi') : await idb<string>('kv', 'get', 'autosalvataggio');
@@ -868,9 +881,10 @@ export async function riprendi(): Promise<boolean> {
 /** apre la finestra delle ultime versioni: ognuna si ripristina (prima si tiene una copia di com'è adesso) o si toglie */
 export async function apriVersioni() {
   const chiave = () => chiaveVersioni(store.doc, percorsoProgetto);
+  const chiavi = () => chiaviVersioni(store.doc, percorsoProgetto);
   finestraVersioni({
     nome: store.doc.name || 'Montaggio senza nome',
-    elenco: () => elencoVersioni(chiave()),
+    elenco: () => elencoVersioniDi(chiavi()),
     ripristina: async (id) => {
       const testo = await testoVersione(id);
       if (!testo) { avviso('Questa versione non c\'è più', 'errore'); return false; }
@@ -884,7 +898,7 @@ export async function apriVersioni() {
       setTimeout(() => document.dispatchEvent(new CustomEvent('dpv:adatta')), 200);
       return true;
     },
-    elimina: (id) => eliminaVersione(chiave(), id),
+    elimina: (id) => eliminaVersione(chiavi(), id),
   });
 }
 

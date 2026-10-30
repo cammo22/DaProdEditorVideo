@@ -174,7 +174,8 @@ test('versioni nel deposito: registra, evita i doppioni, pota, ripristina il tes
     // le versioni tolte dall'elenco non restano nel deposito
     assert.equal([...dep.mappa.keys()].filter((k) => k.startsWith('ver-testo:')).length, 5);
     const peso = await VE.pesoVersioni();
-    assert.equal(peso.quante, 5);
+    assert.equal(peso.quante, 4, 'si contano solo quelle che Spazio può togliere (l ultima resta)');
+    assert.ok(peso.byte > 0);
     await VE.eliminaVersione(chiave, elenco[2].id);
     assert.equal((await VE.elencoVersioni(chiave)).length, 4);
     assert.equal(await VE.testoVersione(elenco[2].id), undefined);
@@ -304,4 +305,26 @@ test('spreco del .dap: segnala solo quando conviene riscriverlo', () => {
   assert.equal(SO.spreco(3000 * MB, 1000 * MB), 2000 * MB);
   assert.equal(SO.spreco(0, 100), 0);
   assert.equal(SO.spreco(500 * MB, 0), 0, 'se non si sa quanto serve, niente consigli');
+});
+
+test('versioni: prima e dopo il primo salvataggio stanno sotto chiavi diverse, ma l elenco le mette insieme', async () => {
+  const dep = VE.depositoInMemoria();
+  VE.impostaDeposito(dep);
+  try {
+    const p = { name: 'Corto', clips: [{ kind: 'media', start: 0, len: 25 }], media: [], rate: { num: 25, den: 1 } };
+    assert.deepEqual(VE.chiaviVersioni(p, null), ['b:Corto']);
+    assert.deepEqual(VE.chiaviVersioni(p, 'D:/corto.dap'), ['D:/corto.dap', 'b:Corto']);
+    const t = (n) => JSON.stringify({ ...p, n });
+    await VE.registraVersione(p, t(1), 'b:Corto', 'automatica', { ora: 1000 });
+    await VE.registraVersione(p, t(2), 'D:/corto.dap', 'salvataggio', { ora: 2000 });
+    const chiavi = VE.chiaviVersioni(p, 'D:/corto.dap');
+    const tutte = await VE.elencoVersioniDi(chiavi);
+    assert.equal(tutte.length, 2);
+    assert.ok(tutte[0].quando > tutte[1].quando);
+    // togliere una versione la toglie dalla chiave giusta
+    await VE.eliminaVersione(chiavi, tutte[1].id);
+    assert.equal((await VE.elencoVersioni('b:Corto')).length, 0);
+    assert.equal((await VE.elencoVersioni('D:/corto.dap')).length, 1);
+    assert.equal(await VE.testoVersione(tutte[1].id), undefined);
+  } finally { VE.impostaDeposito(null); }
 });
