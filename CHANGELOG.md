@@ -12,7 +12,18 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
-## [1.7.1] — 2026-10-29 · Motore AI locale facoltativo, voce realistica e ritaglio con SAM 2.1
+## [1.8.0] — 2026-10-30 · Grafica «Banco», LIVE con le scene, Montage che monta da solo, AI locali
+
+- **Grafica «Banco» ovunque**: metallo scuro, spie che si accendono solo quando serve (oro = azione, ciano = scelta, rosso = REC, verde = pronto), niente magenta nei comandi. Il Montaggio è solo rifinito.
+- **Proprietà rifatte da zero**: schede QUADRO · COLORE · AUDIO · AI, con Ripristina e Copia su tutte.
+- **Finale**: misura del volume (LUFS) e dei picchi, controllo prima dell'uscita, preset YouTube, Reel/TikTok, Archivio, Solo audio.
+- **LIVE**: impostazioni tutte a schermo senza scorrere, **scene in diretta** (tasti 1–6: schermo, bolla, webcam grande, affiancati, solo webcam, «Torno subito») che nel Montaggio diventano posizioni ritoccabili, **telecomando nuovo**. La registrazione va su disco a pezzi: niente più RAM che si riempie.
+- **Montage a tre passi** che **monta da solo**: momenti migliori dei video, frasi intere, musica che si abbassa quando parlano, chiusura sul battito, look e titoli animati per stile, verticale/quadrato.
+- **Timeline a 60 fps** anche con registrazioni 1440p60; copie leggere solo per i video davvero pesanti.
+- **Funzioni AI locali opzionali** nel motore AI: traduzione Hy-MT2, voce pulita, voce/musica separate, tagli sulle scene, sottotitoli con parole a tempo, rallenta fluido (sperimentale). Elenco unico con PRONTA / OPZIONALE / SPERIMENTALE.
+- **Più solido**: «Recupera il lavoro» dopo un crash, versioni del progetto, ricollega i file mancanti, SRT/VTT, pulizia dello spazio. Clear si può spegnere (licenza non libera).
+
+### Prima, nella 1.7.1 (mai uscita da sola)
 
 - **Motore AI locale — Opzionale** nel Centro AI: Python privato con uv, ambiente separato, torch CUDA installato solo su richiesta, accensione, spegnimento, rimozione e download separato dei pesi. Attività mostra avanzamento, annullamento e Riprova.
 - **Voce realistica** nel Finale: Qwen3-TTS 0.6B Base (Apache-2.0), campione WAV da 3 a 30 secondi, italiano e altre cinque lingue, testo libero o sottotitoli, GPU NVIDIA o processore. Magpie resta disponibile. Server locale autenticato, un lavoro alla volta, pesi verificati e inferenza offline.
