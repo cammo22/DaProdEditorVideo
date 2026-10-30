@@ -33,6 +33,10 @@ export type StatoMisura =
 let stato: StatoMisura = { tipo: 'nessuna' };
 let ultimaPronta: Extract<StatoMisura, { tipo: 'pronta' }> | null = null;
 let ferma: (() => void) | null = null;
+/** quale misura è in corso (una nuova ferma la vecchia: la vecchia, finendo, non deve toccare lo stato della nuova) */
+let generazione = 0;
+/** la firma della misura che l'utente ha fermato col tasto: la misura automatica non la rifà da sola */
+let fermataFirma: string | null = null;
 const ascoltatori = new Set<() => void>();
 const avvisa = () => { for (const f of ascoltatori) f(); };
 
@@ -44,11 +48,19 @@ export const firmaDi = (p: Project, t: Tratto) => firmaAudio({ ...p, saved: 0, c
 /** la misura finita vale per questo montaggio e questo tratto? */
 export const misuraValida = (p: Project, t: Tratto) => !!ultimaPronta && ultimaPronta.firma === firmaDi(p, t);
 
-export function fermaMisura() { ferma?.(); }
+/** il tasto «Ferma»: oltre a fermare, ricorda che per questo montaggio non si vuole la misura automatica */
+export function fermaMisura() {
+  if (stato.tipo === 'misuro') fermataFirma = stato.firma;
+  ferma?.();
+}
+/** l'utente ha fermato la misura di questo montaggio e non l'ha più chiesta? */
+export const misuraFermata = (p: Project, t: Tratto) => fermataFirma !== null && fermataFirma === firmaDi(p, t);
 
 /** misura il tratto; ritorna null se è stata fermata. Una sola alla volta: una nuova ferma la vecchia. */
 export async function misura(p0: Project, tratto: Tratto): Promise<RisultatoLoudness | null> {
-  fermaMisura();
+  ferma?.();
+  const mia = ++generazione;
+  fermataFirma = null;
   const p = structuredClone(p0);
   const firma = firmaDi(p0, tratto);
   if (tratto.a - tratto.da < 0.05 || !haAudio(p)) {
@@ -59,7 +71,7 @@ export async function misura(p0: Project, tratto: Tratto): Promise<RisultatoLoud
     return stato.r;
   }
   const ctrl = new AbortController();
-  const lav = nuova({ titolo: 'Misuro il volume del montaggio', categoria: 'analisi', alAnnulla: () => ctrl.abort() });
+  const lav = nuova({ titolo: 'Misuro il volume del montaggio', categoria: 'analisi', alAnnulla: () => { if (mia === generazione) fermataFirma = firma; ctrl.abort(); } });
   ferma = () => { ctrl.abort(); };
   stato = { tipo: 'misuro', k: 0, firma };
   avvisa();
@@ -93,6 +105,7 @@ export async function misura(p0: Project, tratto: Tratto): Promise<RisultatoLoud
     const fine = aspetta<{ r: RisultatoLoudness | null }>('risultato');
     w.postMessage({ tipo: 'fine' });
     const r = (await fine).r;
+    if (ctrl.signal.aborted) throw new Error('fermato');
     if (!r) throw new Error('nessun risultato');
     stato = { tipo: 'pronta', r, firma, tratto };
     ultimaPronta = stato;
@@ -101,12 +114,14 @@ export async function misura(p0: Project, tratto: Tratto): Promise<RisultatoLoud
     return r;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    // una misura più nuova ha preso il posto di questa: lo stato è suo, qui si chiude solo l'attività
+    if (mia !== generazione) { lav.annullata(); return null; }
     if (ctrl.signal.aborted || msg === 'fermato') { stato = { tipo: 'nessuna' }; lav.annullata(); }
     else { stato = { tipo: 'errore', msg }; lav.errore(msg); }
     avvisa();
     return null;
   } finally {
     w.terminate();
-    ferma = null;
+    if (mia === generazione) ferma = null;
   }
 }

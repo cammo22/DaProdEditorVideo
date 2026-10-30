@@ -6,7 +6,7 @@ import { store } from '../core/store';
 import { NOME_CONTENITORE } from '../core/esportazione';
 import { lucePicco, luceVolume, numeroDb, PICCO_TETTO, type Luce } from '../core/loudness';
 import {
-  AUTOMATICA_FINO_A, fermaMisura, haAudio, misura, misuraValida, quandoMisura, statoMisura, trattoDa, ultimaMisura,
+  AUTOMATICA_FINO_A, fermaMisura, haAudio, misura, misuraFermata, misuraValida, quandoMisura, statoMisura, trattoDa, ultimaMisura,
 } from '../media/loudness';
 import { h } from './dom';
 import { quandoScelte, trattoUscita, uscitaSubito } from './uscita';
@@ -111,7 +111,7 @@ export function creaMisureFinale(): MisureFinale {
     clearTimeout(attesa);
     if (!visibile) return;
     const p = store.doc, t = tratto();
-    if (misuraValida(p, t) || statoMisura().tipo === 'misuro' || !haAudio(p)) return;
+    if (misuraValida(p, t) || statoMisura().tipo === 'misuro' || !haAudio(p) || misuraFermata(p, t)) return;
     if (t.a - t.da > AUTOMATICA_FINO_A || t.a - t.da < 0.05) return;
     // un errore non si ripete all'infinito: se l'ultima misura di questo montaggio è fallita si aspetta il tasto
     const st = statoMisura();
