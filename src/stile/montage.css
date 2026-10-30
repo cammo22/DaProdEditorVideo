@@ -153,3 +153,29 @@
 .stretto .montage .mt-scheda { overflow: visible; }
 .stretto .montage .mt-colanteprima.attivo { width: auto; margin-left: 0; border-left: 0; }
 .stretto .montage .mt-piede { flex-wrap: wrap; }
+
+/* ——— schermi bassi (portatili 1280×720 e 1366×768): niente da scorrere nei passi 3 e 4 ———
+   Si stringono solo gli spazi vuoti (barra, margini, interlinee): i comandi restano alti 44 px o più. */
+@media (max-height: 800px) {
+  :root { --mt-barra: 60px; }
+  .montage .mt-passo { gap: 8px; padding: 12px 32px 8px; }
+  .montage .mt-titolo h2 { font-size: 28px; }
+  .montage .mt-piede { padding-top: 8px; }
+  .montage .mt-schede { gap: 10px; }
+  .montage .mt-scheda { gap: 8px; padding: 10px 12px; }
+  .montage .mt-scheda h4:not(:first-child) { margin-top: 2px; }
+  .montage .mt-colanteprima.attivo { padding: 14px 20px; gap: 8px; }
+  .montage .mt-tiPiace { font-size: 28px; }
+  .montage .mt-riassunto { font-size: 14px; margin: 0; }
+  .montage .mt-etic { margin-top: 4px; }
+}
+
+/* l'anteprima: «Fammene un'altra» e «Scarta» affiancati, i quattro ritocchi in due colonne (così il pannello sta tutto nello schermo) */
+.montage .mt-duebtn { flex: none; display: grid; grid-template-columns: 3fr 2fr; gap: 8px; }
+.montage .mt-ritocchi { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.montage .mt-ritocco { font-size: 15px; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stretto .montage .mt-ritocchi { grid-template-columns: 1fr; }
+
+/* comandi alti almeno 44 px anche per i tasti piccoli e i campi (schermate.css li farebbe di 34 e 40, con una specificità più alta della nostra: serve !important) */
+.montage .btn-mini { min-height: 44px !important; }
+.montage :is(input[type='text'], input[type='number'], select, .campo-testo, .mini-select, .num) { min-height: 44px !important; box-sizing: border-box; }

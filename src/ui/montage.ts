@@ -246,7 +246,7 @@ export class Montage {
     });
     const sopra = [
       h('h2', { class: 'mt-tiPiace' }, 'Ti piace?'), this.riassuntoEl,
-      this.bImporta, this.bRigenera, this.bScarta,
+      this.bImporta, h('div', { class: 'mt-duebtn' }, this.bRigenera, this.bScarta),
       h('h4', { class: 'mt-etic' }, 'Ritocchi veloci'), h('div', { class: 'mt-ritocchi' }, ritocchi),
     ];
     this.comandiAnteprima = sopra;
@@ -280,7 +280,8 @@ export class Montage {
   private mostraPasso(passo: number) {
     const prima = this.passo;
     this.passo = passo;
-    if (passo !== 0) this.guardando = false;
+    // lasciando il passo 1 con un video aperto nel monitor, il video si chiude (se no continua a suonare di nascosto)
+    if (passo !== 0 && this.guardando) { this.guardando = false; this.motoreFerma(); motore.setMonitor('recorder'); }
     if (prima === 3 && passo !== 3) this.motoreFerma();
     this.passi.forEach((e, i) => e.classList.toggle('attivo', i === passo));
     this.bPassi.forEach((b, i) => { const st = statoPasso(i, passo); b.dataset.stato = st; b.setAttribute('aria-current', st === 'attuale' ? 'step' : 'false'); });
@@ -326,7 +327,7 @@ export class Montage {
 
   mostrata(si: boolean) {
     this.visibile = si;
-    if (!si) { this.motoreFerma(); this.guardando = false; }
+    if (!si) { this.motoreFerma(); if (this.guardando) motore.setMonitor('recorder'); this.guardando = false; }
     this.applicaPagina();
     if (si) { this.rinfresca(); void caricaFontAnimazioni().then(() => { this.titoliStili.clear(); if (this.visibile && this.passo === 1) this.disegnaAnteprimeFeste(); }); }
   }

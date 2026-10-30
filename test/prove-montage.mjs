@@ -219,13 +219,13 @@ export async function proveMontage({ page, prova, OUT }) {
   await page.waitForSelector('.mt-colcome', { state: 'visible' });
   await page.waitForTimeout(200);
   // il passo 3 si vede tutto senza scorrere (sul portatile da 1366x768 come sullo schermo grande)
-  for (const [w, hh] of [[1600, 950], [1366, 768]]) {
+  for (const [w, hh] of [[1600, 950], [1366, 768], [1280, 720]]) {
     await page.setViewportSize({ width: w, height: hh });
     await page.waitForTimeout(250);
     const ness = await page.evaluate(() => {
       const c = document.querySelector('.mt-schede'), schede = [...document.querySelectorAll('.mt-scheda')];
       const comandi = [...document.querySelectorAll('.mt-colcome .mt-scheda button, .mt-colcome .mt-scheda input, .mt-colcome .mt-scheda select')];
-      const bassi = comandi.filter((e) => e.getBoundingClientRect().height < 40).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().height));
+      const bassi = comandi.filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().height));
       const fuori = comandi.filter((e) => { const r = e.getBoundingClientRect(), q = c.getBoundingClientRect(); return r.bottom > q.bottom + 1 || r.right > q.right + 1; }).length;
       return { schede: schede.length, tutteIntere: schede.every((e) => e.scrollHeight <= e.clientHeight + 1), pagina: c.scrollHeight <= c.clientHeight + 1, bassi, fuori, alto: Math.round(c.getBoundingClientRect().height) };
     });
@@ -257,7 +257,7 @@ export async function proveMontage({ page, prova, OUT }) {
     const fine = foto.length ? Math.max(...foto.map((c) => c.start + c.len)) : 0;
     const titoli = d.clips.filter((c) => c.kind === 'title');
     const nome = d.sequenze?.find((s) => s.id === d.seqAttiva)?.nome;
-    const vis = (q) => { const e = document.querySelector(q); return !!e && getComputedStyle(e).display !== 'none'; };
+    const vis = (q) => { const e = document.querySelector(q); const g = e?.closest('.mt-duebtn'); return !!e && getComputedStyle(e).display !== 'none' && (!g || getComputedStyle(g).display !== 'none'); };
     const box = (q) => { const e = document.querySelector(q); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), h: Math.round(r.height), w: Math.round(r.width) }; };
     const forma = JSON.stringify([
       foto.slice().sort((a, b) => a.start - b.start).map((c) => [c.media.slice(-5), c.len, Math.round((c.tfFine?.scale ?? 0) * 1000), Math.round(c.tf?.x ?? 0), Math.round(c.tfFine?.x ?? 0)]),
@@ -278,6 +278,21 @@ export async function proveMontage({ page, prova, OUT }) {
   prova('ci sono transizioni o effetti come blocchetti sopra le clip', dopo.blocchi >= 2, String(dopo.blocchi));
   prova('all\'anteprima il passo 4 è attuale, il monitor vero è grande a sinistra (anche col pannello Proprietà fissato), i comandi a destra, la timeline nascosta', dopo.passo === 'anteprima' && dopo.monitor && dopo.pannello && dopo.monitor.h > 400 && dopo.monitor.w > 900 && dopo.monitor.x + dopo.monitor.w <= dopo.pannello.x + 2 && dopo.pannello.h > 400 && !dopo.timeline, JSON.stringify([dopo.passo, dopo.monitor, dopo.pannello, dopo.timeline]));
   prova('«Ti piace?» dice stile, file, durata e musica; i quattro ritocchi veloci ci sono', /^Battesimo/.test(dopo.riassunto) && /20 s/.test(dopo.riassunto) && /senza musica/.test(dopo.riassunto) && (await page.locator('.mt-ritocco').count()) === 4, dopo.riassunto);
+  // anche sul portatile piccolo (1280×720) i comandi dell'anteprima stanno tutti nello schermo, senza scorrere il pannello
+  for (const [w, hh] of [[1366, 768], [1280, 720]]) {
+    await page.setViewportSize({ width: w, height: hh });
+    await page.waitForTimeout(300);
+    const st = await page.evaluate(() => {
+      const p = document.querySelector('.mt-colanteprima'), vh = window.innerHeight;
+      const c = [...p.querySelectorAll('button')].filter((e) => e.offsetParent !== null);
+      const fuori = c.filter((e) => { const r = e.getBoundingClientRect(); return r.bottom > vh + 1 || r.top < 0; }).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().bottom));
+      const bassi = c.filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className);
+      return { vh, fuori, bassi, scorre: p.scrollHeight > p.clientHeight + 1, n: c.length };
+    });
+    prova(`all'anteprima i comandi stanno tutti nello schermo senza scorrere (${w}×${hh})`, st.fuori.length === 0 && st.bassi.length === 0 && !st.scorre && st.n >= 7, JSON.stringify(st));
+  }
+  await page.setViewportSize({ width: 1600, height: 950 });
+  await page.waitForTimeout(300);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(OUT, 'montage-risultato.png') });
 
