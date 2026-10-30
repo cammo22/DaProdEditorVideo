@@ -84,3 +84,11 @@ test('Pagina iniziale e Montaggio dal testo: al massimo un pulsante oro alla vol
   assert.match(testo, /toggle\('primario', !!parole\.length\)/);
   assert.equal((testo.match(/class: 'btn primario'/g) ?? []).length, 0, 'i due pulsanti nascono di metallo: l\'oro lo sceglie aggiorna()');
 });
+
+test('Gli stili delle schermate non toccano la finestra di esportazione (è del blocco Finale) e il puntino aggiornamenti non è magenta', () => {
+  const css = leggi('src/stile/schermate.css');
+  const righe = css.split('\n').filter((r) => /\.dialogo:not\(\.editor-clip\)/.test(r));
+  assert.ok(righe.length > 10);
+  for (const r of righe) assert.match(r, /\.dialogo:not\(\.editor-clip\):not\(\.dlg-esporta\)/, 'ogni regola sui dialoghi lascia fuori .dlg-esporta: ' + r.slice(0, 80));
+  assert.match(css, /\.tasto-aggiorna \.aggiorna-punto \{ background: var\(--cia/);
+});

@@ -22,61 +22,61 @@
 }
 
 /* ——— i comandi: metallo, 44 px, raggio 6; l'oro è uno solo ——— */
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn {
   min-height: 44px; padding: 0 20px; border-radius: var(--sch-raggio); font: 600 16px var(--ui); letter-spacing: 0.2px; color: var(--testo, #ebe7f4);
   background: var(--sch-metallo); border: 1px solid var(--sch-bordo-forte); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08); justify-content: center;
 }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn:hover:not(:disabled) { filter: brightness(1.12); }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn.primario {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn:hover:not(:disabled) { filter: brightness(1.12); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn.primario {
   background: var(--oro, #ffd54a); color: #14110a; font-weight: 700; border-color: rgba(255, 213, 74, 0.4);
   box-shadow: 0 0 0 1px rgba(255, 213, 74, 0.4), 0 6px 18px rgba(255, 171, 0, 0.25);
 }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn.primario:hover:not(:disabled) { filter: brightness(1.06); }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra) .btn:disabled { opacity: 0.45; filter: none; box-shadow: none; }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .live-mini, .ca-finestra) .btn-mini {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra, .non-supportato) .btn.primario:hover:not(:disabled) { filter: brightness(1.06); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra) .btn:disabled { opacity: 0.45; filter: none; box-shadow: none; }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .live-mini, .ca-finestra) .btn-mini {
   min-height: 34px; padding: 0 12px; border-radius: 5px; font: 600 14px var(--ui); color: var(--testo, #ebe7f4);
   background: var(--sch-metallo); border: 1px solid var(--sch-bordo-forte); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .btn-mini.oro { background: var(--sch-metallo); color: var(--oro, #ffd54a); border-color: rgba(255, 213, 74, 0.45); }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca) .btn-mini:disabled { opacity: 0.45; }
-:is(.home, .montage, .dialogo:not(.editor-clip), .cerca, .ca-finestra) .btn-icona { min-width: 44px; min-height: 44px; border-radius: var(--sch-raggio); }
-:is(.dialogo:not(.editor-clip), .home) .btn-icona:hover { background: rgba(255, 255, 255, 0.07); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .btn-mini.oro { background: var(--sch-metallo); color: var(--oro, #ffd54a); border-color: rgba(255, 213, 74, 0.45); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca) .btn-mini:disabled { opacity: 0.45; }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .cerca, .ca-finestra) .btn-icona { min-width: 44px; min-height: 44px; border-radius: var(--sch-raggio); }
+:is(.dialogo:not(.editor-clip):not(.dlg-esporta), .home) .btn-icona:hover { background: rgba(255, 255, 255, 0.07); }
 
 /* gruppi di scelta: una fila di tasti uniti; quello scelto è ciano (selezione), mai magenta né oro */
-:is(.home, .montage, .dialogo:not(.editor-clip)) .chip {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .chip {
   min-height: 44px; padding: 0 16px; border-radius: var(--sch-raggio); font: 600 15px var(--ui); color: #cfcadb;
   background: var(--sch-pann); border: 1px solid var(--sch-bordo-forte); box-shadow: none;
 }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .chip:hover { color: var(--testo, #ebe7f4); background: var(--sch-metallo); }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .chip.acceso { background: var(--cia, #35e8ff); color: #06171b; font-weight: 700; border-color: var(--cia, #35e8ff); box-shadow: none; }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .isp-chips { gap: 6px; }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .chip:hover { color: var(--testo, #ebe7f4); background: var(--sch-metallo); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .chip.acceso { background: var(--cia, #35e8ff); color: #06171b; font-weight: 700; border-color: var(--cia, #35e8ff); box-shadow: none; }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .isp-chips { gap: 6px; }
 
 /* campi, tendine, interruttori */
-:is(.home, .montage, .dialogo:not(.editor-clip), .ca-finestra) :is(input[type='text'], input[type='number'], input[type='search'], input[type='password'], select, textarea, .campo-testo, .mini-select) {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .ca-finestra) :is(input[type='text'], input[type='number'], input[type='search'], input[type='password'], select, textarea, .campo-testo, .mini-select) {
   min-height: 40px; border-radius: 5px; background: var(--sch-vetro); border: 1px solid var(--sch-bordo-forte); color: var(--testo, #ebe7f4); padding: 0 10px; font: 500 15px var(--ui);
 }
-:is(.home, .montage, .dialogo:not(.editor-clip), .ca-finestra) textarea { padding: 8px 10px; }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .num { font-family: var(--tc); }
-:is(.montage, .dialogo:not(.editor-clip)) .fin-interruttore {
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta), .ca-finestra) textarea { padding: 8px 10px; }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .num { font-family: var(--tc); }
+:is(.montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .fin-interruttore {
   min-height: 44px; border-radius: var(--sch-raggio); background: var(--sch-metallo); border: 1px solid var(--sch-bordo-forte); font: 600 15px var(--ui); color: var(--testo, #ebe7f4);
 }
-:is(.montage, .dialogo:not(.editor-clip)) .fin-interruttore.acceso { box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.5); }
-:is(.montage, .dialogo:not(.editor-clip)) .fin-interruttore .led.acceso { background: var(--verde, #5dffb4); box-shadow: 0 0 8px var(--verde, #5dffb4); }
-:is(.home, .montage, .dialogo:not(.editor-clip)) .nota { color: #a19db0; font: 500 14px/1.4 var(--ui); }
-:is(.home, .montage, .dialogo:not(.editor-clip)) kbd { background: var(--sch-metallo); border: 1px solid var(--sch-bordo-forte); border-bottom-width: 2px; border-radius: 4px; color: var(--testo, #ebe7f4); font: 600 12px var(--tc); }
-:is(.home, .montage, .dialogo:not(.editor-clip)) :focus-visible { outline: 2px solid var(--cia, #35e8ff); outline-offset: 2px; }
+:is(.montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .fin-interruttore.acceso { box-shadow: inset 0 0 0 1px rgba(93, 255, 180, 0.5); }
+:is(.montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .fin-interruttore .led.acceso { background: var(--verde, #5dffb4); box-shadow: 0 0 8px var(--verde, #5dffb4); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) .nota { color: #a19db0; font: 500 14px/1.4 var(--ui); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) kbd { background: var(--sch-metallo); border: 1px solid var(--sch-bordo-forte); border-bottom-width: 2px; border-radius: 4px; color: var(--testo, #ebe7f4); font: 600 12px var(--tc); }
+:is(.home, .montage, .dialogo:not(.editor-clip):not(.dlg-esporta)) :focus-visible { outline: 2px solid var(--cia, #35e8ff); outline-offset: 2px; }
 
 /* la barra di avanzamento: una spia che si riempie, oro, senza sfumatura rosa */
 .ai-barra i, .barra-avanz i, .att-pista i { background: var(--oro, #ffd54a); box-shadow: none; }
 .ai-barra, .barra-avanz { background: var(--sch-vetro); border: 1px solid var(--sch-bordo); }
 
 /* ——— dialoghi, velo, avvisi ——— */
-.dialogo:not(.editor-clip) { background: var(--sch-pann); border: 1px solid var(--sch-bordo-forte); border-radius: 8px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); backdrop-filter: none; -webkit-backdrop-filter: none; }
-.dialogo:not(.editor-clip) .dlg-testa { padding: 12px 16px; background: var(--sch-metallo); border-bottom: 1px solid var(--sch-bordo); box-shadow: none; border-radius: 8px 8px 0 0; }
-.dialogo:not(.editor-clip) .dlg-testa b { font: 700 20px var(--ui); letter-spacing: 0.3px; color: var(--testo, #ebe7f4); }
-.dialogo:not(.editor-clip) .dlg-testa .led { width: 10px; height: 10px; background: var(--verde, #5dffb4); box-shadow: 0 0 8px var(--verde, #5dffb4); }
-.dialogo:not(.editor-clip) .dlg-corpo { padding: 16px; font: 500 16px/1.45 var(--ui); }
-.dialogo:not(.editor-clip) .dlg-piede { padding: 12px 16px; gap: 10px; background: rgba(0, 0, 0, 0.18); border-top: 1px solid var(--sch-bordo); border-radius: 0 0 8px 8px; }
+.dialogo:not(.editor-clip):not(.dlg-esporta) { background: var(--sch-pann); border: 1px solid var(--sch-bordo-forte); border-radius: 8px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-testa { padding: 12px 16px; background: var(--sch-metallo); border-bottom: 1px solid var(--sch-bordo); box-shadow: none; border-radius: 8px 8px 0 0; }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-testa b { font: 700 20px var(--ui); letter-spacing: 0.3px; color: var(--testo, #ebe7f4); }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-testa .led { width: 10px; height: 10px; background: var(--verde, #5dffb4); box-shadow: 0 0 8px var(--verde, #5dffb4); }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-corpo { padding: 16px; font: 500 16px/1.45 var(--ui); }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-piede { padding: 12px 16px; gap: 10px; background: rgba(0, 0, 0, 0.18); border-top: 1px solid var(--sch-bordo); border-radius: 0 0 8px 8px; }
 .velo:not(:has(.editor-clip)) { background: rgba(5, 4, 7, 0.62); }
 .avviso { border-radius: var(--sch-raggio); background: var(--sch-pann); border: 1px solid var(--sch-bordo-forte); font: 600 15px var(--ui); backdrop-filter: none; -webkit-backdrop-filter: none; }
 .avviso.errore { background: var(--sch-pann); color: #ffb1c0; border-color: rgba(255, 77, 109, 0.55); }
@@ -321,7 +321,10 @@ body.pip-live { background: var(--fondo, #0b0a0f); }
 @media (max-height: 560px) { :root .ca-finestra { top: calc(var(--bt-alto, 34px) + 8px); max-height: calc(100vh - var(--bt-alto, 34px) - 16px); } }
 
 /* ——— sulle finestre strette niente esce dallo schermo ——— */
-.dialogo:not(.editor-clip) { max-width: calc(100vw - 24px); max-height: calc(100vh - var(--bt-alto, 34px) - 24px); }
-.dialogo:not(.editor-clip) .dlg-corpo { overflow-x: hidden; overflow-wrap: anywhere; min-height: 0; }
-.dialogo:not(.editor-clip) .dlg-piede .btn { flex: 0 1 auto; max-width: 100%; }
-@media (max-width: 560px) { .dialogo:not(.editor-clip) .dlg-piede .btn { flex: 1 1 auto; } .form { grid-template-columns: minmax(0, 1fr); } }
+.dialogo:not(.editor-clip):not(.dlg-esporta) { max-width: calc(100vw - 24px); max-height: calc(100vh - var(--bt-alto, 34px) - 24px); }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-corpo { overflow-x: hidden; overflow-wrap: anywhere; min-height: 0; }
+.dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-piede .btn { flex: 0 1 auto; max-width: 100%; }
+@media (max-width: 560px) { .dialogo:not(.editor-clip):not(.dlg-esporta) .dlg-piede .btn { flex: 1 1 auto; } .form { grid-template-columns: minmax(0, 1fr); } }
+
+/* il puntino «c'è una versione nuova» sul tasto aggiornamenti: ciano (selezione/avviso), mai magenta */
+.tasto-aggiorna .aggiorna-punto { background: var(--cia, #35e8ff); box-shadow: 0 0 8px var(--cia, #35e8ff); }
