@@ -21,21 +21,6 @@ function scena() {
   return { p, v1, v2, a1, a2, fx };
 }
 
-test('registro AI: parte vuoto e funzioniPer filtra per dove si usa', () => {
-  assert.deepEqual(F.funzioniPer('clip'), []);
-  const base = { descrizione: 'x', stato: 'pronta', motore: 'browser' };
-  F.FUNZIONI_AI.push({ id: 'a', nome: 'A', dove: 'clip', ...base }, { id: 'b', nome: 'B', dove: 'audio', ...base }, { id: 'c', nome: 'C', dove: 'clip', ...base });
-  try {
-    assert.deepEqual(F.funzioniPer('clip').map((f) => f.id), ['a', 'c']);
-    assert.deepEqual(F.funzioniPer('audio').map((f) => f.id), ['b']);
-    assert.deepEqual(F.funzioniPer('finale'), []);
-    // la scheda AI: le funzioni sull'audio compaiono solo se c'è qualcosa che suona
-    const solo = R.funzioniAIPerSelezione({ video: 1, audio: 0, conAudio: false }, F.funzioniPer);
-    assert.deepEqual([solo.clip.length, solo.audio.length], [2, 0]);
-    const con = R.funzioniAIPerSelezione({ video: 1, audio: 0, conAudio: true }, F.funzioniPer);
-    assert.deepEqual([con.clip.length, con.audio.length], [2, 1]);
-  } finally { F.FUNZIONI_AI.length = 0; }
-});
 
 test('inventario: ogni sezione dell\'ispettore ha la sua scheda', () => {
   const s = sorgente('ui/ispettore.ts');

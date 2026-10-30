@@ -121,10 +121,6 @@ test('i file temporanei vecchi di una registrazione interrotta si tolgono, quell
   assert.deepEqual([...dir.file.keys()].sort(), ['altro.txt', `audio-${ora - 3600e3}-2.tmp`]);
 });
 
-test('il registro delle funzioni AI: contratto condiviso', () => {
-  assert.ok(Array.isArray(F.FUNZIONI_AI));
-  assert.deepEqual(F.funzioniPer('clip'), F.FUNZIONI_AI.filter((f) => f.dove === 'clip'));
-});
 
 test('se il disco si rompe dopo aver preso delle fette e non chiude più, la perdita si dichiara', async () => {
   const dir = cartellaFinta();

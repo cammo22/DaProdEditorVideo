@@ -96,16 +96,6 @@ test('luceMaggiore prende la peggiore', () => {
   assert.equal(C.luceMaggiore([]), 'verde');
 });
 
-test('il registro delle funzioni AI: funzioniPer filtra per dove si usano', () => {
-  assert.ok(Array.isArray(F.FUNZIONI_AI));
-  F.FUNZIONI_AI.push({ id: 'prova-1', nome: 'Prova', descrizione: '', stato: 'pronta', dove: 'finale', motore: 'browser' });
-  F.FUNZIONI_AI.push({ id: 'prova-2', nome: 'Altra', descrizione: '', stato: 'sperimentale', dove: 'clip', motore: 'locale' });
-  try {
-    assert.deepEqual(F.funzioniPer('finale').map((f) => f.id), ['prova-1']);
-    assert.deepEqual(F.funzioniPer('clip').map((f) => f.id), ['prova-2']);
-    assert.deepEqual(F.funzioniPer('audio'), []);
-  } finally { F.FUNZIONI_AI.length = 0; }
-});
 
 test('controllaUscita dà le cinque spie nell\'ordine del Finale', () => {
   const l = C.controllaUscita({

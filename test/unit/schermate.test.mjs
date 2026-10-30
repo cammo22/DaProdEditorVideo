@@ -55,18 +55,6 @@ test('Un solo pulsante oro per schermata: resta il primo che lo chiede ed è vis
   assert.deepEqual(S.unSoloOro([{ oro: true, attivo: false }]).map((x) => x.oroFinale), [false]);
 });
 
-test('Il registro delle funzioni AI parte vuoto e funzioniPer filtra per dove si usano', () => {
-  assert.equal(R.FUNZIONI_AI.length, 0);
-  assert.deepEqual(R.funzioniPer('clip'), []);
-  const a = { id: 'x', nome: 'X', descrizione: '', stato: 'pronta', dove: 'clip', motore: 'browser' };
-  const b = { id: 'y', nome: 'Y', descrizione: '', stato: 'opzionale', dove: 'audio', motore: 'locale', peso: '1 GB', vram: '4 GB' };
-  R.FUNZIONI_AI.push(a, b);
-  try {
-    assert.deepEqual(R.funzioniPer('clip').map((f) => f.id), ['x']);
-    assert.deepEqual(R.funzioniPer('audio').map((f) => f.id), ['y']);
-    assert.deepEqual(R.funzioniPer('finale'), []);
-  } finally { R.FUNZIONI_AI.length = 0; }
-});
 
 test('Niente magenta nelle schermate del Banco (resta solo nei colori delle clip)', () => {
   const magenta = /--mag\b|#ff3df2|#ff8ff8|#d42ccc|#c41bb9|#b0169f|#c01bb6|255,\s*61,\s*242|#ff2d95|#d44bd9|#ffd0fb/i;

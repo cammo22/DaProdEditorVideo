@@ -211,35 +211,6 @@ async fn registrazione_percorso(app: AppHandle, name: String) -> Esito<String> {
     Ok(p.to_string_lossy().into_owned())
 }
 
-/// Quanto spazio libero c'è sul disco dove vanno le registrazioni (Video/DaProd Video), in byte. Solo Windows: sugli
-/// altri sistemi risponde con un errore e la pagina LIVE ripiega sulla stima del browser.
-#[tauri::command]
-async fn spazio_libero(app: AppHandle) -> Esito<u64> {
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        #[link(name = "kernel32")]
-        extern "system" {
-            fn GetDiskFreeSpaceExW(dir: *const u16, liberi_utente: *mut u64, totali: *mut u64, liberi: *mut u64) -> i32;
-        }
-        let base = app.path().video_dir().or_else(|_| app.path().app_data_dir()).map_err(|e| e.to_string())?;
-        // la cartella può non esistere ancora: si risale fino a una che c'è
-        let mut dir = base.join("DaProd Video");
-        while !dir.exists() {
-            if !dir.pop() { return Err("cartella non trovata".to_string()); }
-        }
-        let wide: Vec<u16> = dir.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
-        let (mut utente, mut totali, mut liberi) = (0u64, 0u64, 0u64);
-        let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut utente, &mut totali, &mut liberi) };
-        if ok == 0 { return Err("non riesco a leggere lo spazio del disco".to_string()); }
-        Ok(utente)
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = app;
-        Err("non disponibile su questo sistema".to_string())
-    }
-}
 
 /// Le cartelle di lavoro: Video/DaProd Video e, dentro, Registrazioni. Le crea se mancano ("Aggiusta tutto" della pagina
 /// iniziale). Ritorna per ognuna il percorso e se l'ha dovuta creare adesso.
@@ -633,7 +604,6 @@ pub fn run() {
             registrazione_percorso,
             spazio_libero,
             cartelle_lavoro,
-            spazio_libero,
             associazioni::associa_file,
             cursore::cursore_schermi,
             cursore::cursore_avvia,
