@@ -31,18 +31,26 @@ export class LivelloStereo {
   misura = new MisuraPicco();
   private dpr = 1;
   private visto = '';
+  private osservatore: ResizeObserver;
 
   constructor(classe: string, titolo: string, private segmenti = 36) {
     this.el = h('canvas', { class: 'la-misura ' + classe, title: titolo, 'data-livello': '-60', 'data-clip': '0' });
     this.el.addEventListener('click', () => { this.misura.azzera(); this.visto = ''; });
-    new ResizeObserver(() => this.adatta()).observe(this.el);
+    this.osservatore = new ResizeObserver(() => this.adatta());
+    this.osservatore.observe(this.el);
   }
+
+  /** smette di guardare la misura (la tela non si ridisegna più) */
+  distruggi() { this.osservatore.disconnect(); this.el.width = 0; this.el.height = 0; }
 
   private adatta() {
     this.dpr = Math.min(2, devicePixelRatio || 1);
     const r = this.el.getBoundingClientRect();
-    this.el.width = Math.round(r.width * this.dpr);
-    this.el.height = Math.round(r.height * this.dpr);
+    const w = Math.round(r.width * this.dpr), hh = Math.round(r.height * this.dpr);
+    // la tela si rifà solo se la misura è cambiata davvero (cambiare width/height svuota il disegno e butta il buffer sulla scheda video)
+    if (w === this.el.width && hh === this.el.height) return;
+    this.el.width = w;
+    this.el.height = hh;
     this.visto = '';
     // ridimensionare svuota il disegno: a riposo nessuno lo rifà, quindi i LED spenti si ridisegnano subito
     this.disegna(this.misura.clip(performance.now()));

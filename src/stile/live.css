@@ -1,0 +1,144 @@
+/* La pagina LIVE, nello stile «Banco» (design/Live.dc.html): barra in alto con REC, tempo, fonti con le spie e la misura;
+   anteprima grande senza riquadri rossi; colonna destra stretta con «cosa registro» e la posizione della webcam.
+   Si carica DOPO editor.css e flussi.css e li copre per la pagina LIVE: i colori vengono dalle variabili di editor.css
+   (--pann, --metallo-chiaro, --verde, --rosso, --cia, …), qui non se ne ridefinisce nessuna.
+   Regole del Banco: il rosso è solo la spia di REC (o un errore), il verde è «pronto», il ciano è la selezione, l'oro non
+   compare (qui l'azione principale è il tasto REC, che è metallo con la spia); le etichette sono incise, in maiuscolo. */
+
+/* ——— la pagina: barra, anteprima e colonna. Niente timeline: quando fermi si va dritti al Montaggio ——— */
+#app[data-pagina='live'], #app[data-pagina='live']:not(.stretto) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 44px minmax(0, 1fr) 22px;
+  grid-template-areas: 'testa' 'live' 'stato';
+}
+#app[data-pagina='live'] .timeline, #app[data-pagina='live'] .divisore { display: none !important; }
+#app[data-pagina='live'] .live, #app[data-pagina='live']:not(.stretto) .live { display: flex; flex-direction: column; min-height: 0; min-width: 0; background: var(--fondo); }
+#app[data-pagina='live'] .live-dentro, #app[data-pagina='live']:not(.stretto) .live-dentro {
+  flex: 1; min-height: 0; display: grid; gap: 0; padding: 0;
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 340px);
+}
+#app[data-pagina='live']:not(.stretto) .live-schermo { grid-area: auto; margin: 20px; }
+#app[data-pagina='live']:not(.stretto) .live-comandi { grid-area: auto; padding: 20px; }
+/* finestra stretta: l'anteprima sopra, la colonna sotto */
+.stretto .live-dentro { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(200px, 38vh) auto; overflow: auto; }
+.stretto .live-schermo { margin: 12px; }
+
+/* ——— la barra in alto ——— */
+#app .live .live-barra {
+  position: relative; flex: none; display: flex; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px 16px;
+  min-height: 64px; padding: 10px 20px; background: var(--pann); border-bottom: 1px solid var(--bordo);
+}
+.live-barra .live-fonti-stato { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* REC: un tasto metallo con la spia; rossa soltanto mentre registra (in pausa ambra) */
+#app .live .live-btn.reg {
+  height: 44px; min-width: 150px; padding: 0 20px 0 16px; border-radius: 22px; gap: 10px; justify-content: flex-start;
+  border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: var(--testo);
+  font: 700 17px var(--ui); letter-spacing: 1px; box-shadow: none;
+}
+#app .live .live-btn.reg .live-punto { width: 14px; height: 14px; border-radius: 50%; flex: none; background: #4d4650; box-shadow: none; transition: background 0.15s, border-radius 0.15s; }
+#app .live.in-onda .live-btn.reg { border-color: var(--rosso); background: rgba(255, 77, 109, 0.15); }
+#app .live.in-onda .live-btn.reg .live-punto { border-radius: 2px; background: var(--rosso); box-shadow: 0 0 12px var(--rosso); animation: live-pulsa 1s ease-in-out infinite; }
+#app .live.in-pausa .live-btn.reg { border-color: var(--ambra); background: rgba(255, 178, 61, 0.12); }
+#app .live.in-pausa .live-btn.reg .live-punto { background: var(--ambra); box-shadow: 0 0 10px var(--ambra); animation: none; }
+#app .live .live-btn.reg:disabled { opacity: 0.45; }
+
+/* il tempo: un vetrino con il timecode (grigio da fermo, rosso mentre registra) */
+.live-barra .live-display { position: static; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 4px 14px 5px; border-radius: 6px; background: #050407; border: 1px solid var(--bordo); box-shadow: none; min-width: 168px; }
+.live-barra .live-tempo { font: 400 30px/1.1 var(--tc); letter-spacing: 2px; color: var(--etichetta, #8d889c); text-align: left; text-shadow: none; }
+.live.in-onda .live-barra .live-tempo { color: var(--rosso); text-shadow: 0 0 10px rgba(255, 77, 109, 0.35); }
+.live.in-pausa .live-barra .live-tempo { color: var(--ambra); text-shadow: none; }
+.live-barra .live-display .live-fase-certa {
+  position: static; display: block; margin: 0; padding: 0; border: 0; background: none; max-width: 100%;
+  font: 700 10px var(--ui); letter-spacing: 2.5px; text-align: left; color: var(--etichetta, #8d889c); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.live-barra .live-display .live-fase-certa[data-fase='registra'] { color: var(--rosso); }
+.live-barra .live-display .live-fase-certa[data-fase='pausa'] { color: var(--ambra); }
+
+.live-barra .live-stato { flex: 1 1 120px; min-width: 0; text-align: left; font: 600 14px var(--ui); color: var(--testo2); }
+
+/* le fonti: spia, nome e misura a LED */
+.live-barra .live-sorgenti { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.live-sorg { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo); min-width: 0; }
+.live-sorg-nome { font: 600 15px var(--ui); color: var(--testo); white-space: nowrap; }
+.live-sorg .spia { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #3a3844; box-shadow: none; transition: background 0.15s, box-shadow 0.15s; }
+.live-sorg .spia[data-stato='pronta'] { background: var(--verde); box-shadow: 0 0 6px var(--verde); }
+.live-sorg .spia[data-stato='rec'] { background: var(--rosso); box-shadow: 0 0 8px var(--rosso); }
+.live-sorg .live-sorg-misura { display: flex; align-items: center; width: 64px; height: 18px; padding: 0 2px; border-radius: 3px; background: #050407; box-shadow: none; }
+.live-sorg .live-sorg-misura.spenta { opacity: 0.3; }
+.live-sorg .la-misura.piccolo { height: 12px; }
+.live-sorg .la-stato { display: none; font: 700 11px var(--ui); color: var(--testo3); white-space: nowrap; }
+.live-sorg .la-stato.avviso { display: inline; color: var(--rosso); }
+.live-sorg .la-prova-mini { width: 30px; height: 30px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); font-size: 11px; }
+.live-sorg .la-prova-mini.acceso { color: var(--cia); background: var(--metallo-chiaro); border-color: var(--cia); }
+.live-barra .live-info { font: 400 14px ui-monospace, 'Share Tech Mono', Consolas, monospace; color: var(--etichetta, #8d889c); white-space: nowrap; margin: 0; text-align: right; }
+.live-barra .live-info:empty { display: none; }
+.live-dev { font: 600 11px ui-monospace, Consolas, monospace; color: var(--cia); padding: 3px 8px; border-radius: 4px; border: 1px dashed var(--cia); white-space: nowrap; }
+
+/* ——— l'anteprima: grande, senza riquadri rossi ——— */
+#app .live .live-schermo, #app .live.in-onda .live-schermo, #app .live.in-pausa .live-schermo {
+  border-radius: 8px; background: #050407; border: 1px solid var(--bordo); box-shadow: none;
+}
+#app .live.con-presentazione .live-schermo { background: var(--live-sfondo, #111); }
+.live .live-etichetta { position: absolute; left: 16px; top: 16px; z-index: 4; padding: 6px 10px; border-radius: 4px; background: rgba(5, 4, 7, 0.8); font: 700 12px var(--ui); letter-spacing: 3px; color: var(--etichetta, #8d889c); pointer-events: none; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* il segno (M): un lampo chiaro, non un riquadro rosso */
+.live.lampo .live-schermo::after { animation: live-lampo-banco 0.6s ease-out; }
+@keyframes live-lampo-banco { 0% { box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.55); } 100% { box-shadow: inset 0 0 0 0 transparent; } }
+
+/* ——— la colonna a destra ——— */
+#app .live .live-comandi { display: flex; flex-direction: column; gap: 18px; overflow-x: hidden; overflow-y: auto; background: var(--pann); border-left: 1px solid var(--bordo); box-shadow: none; min-height: 0; }
+.live-comandi .live-sez { margin: 0 0 8px; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--etichetta, #8d889c); }
+.live-comandi .live-blocco { display: flex; flex-direction: column; gap: 8px; }
+.live-comandi .live-blocco > .live-sez { margin-bottom: 0; }
+
+/* i comandi della registrazione */
+.live-azioni { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.live-azioni .live-btn { height: 44px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: var(--testo); font: 700 14px var(--ui); letter-spacing: 1px; box-shadow: none; padding: 0 8px; }
+.live-azioni .live-btn:disabled { opacity: 0.4; }
+.live-azioni .live-btn.ferma, .live-azioni .live-btn.segna:not(:disabled) { color: var(--testo); }
+.live-azioni .live-btn.cam.acceso { color: var(--testo); border-color: rgba(93, 255, 180, 0.45); background: var(--metallo-chiaro); }
+.live-azioni .live-btn.tele { grid-column: 1 / -1; }
+.live-comandi .live-fonti { gap: 6px; }
+
+/* «cosa registro»: righe da 44 px, il testo a sinistra e la spunta a destra */
+.live-comandi .fin-interruttore.live-cosa {
+  flex-direction: row-reverse; justify-content: space-between; min-height: 44px; padding: 0 12px; border-radius: 5px;
+  background: var(--pann2); border: 1px solid var(--bordo); box-shadow: none; color: var(--testo); font: 600 16px var(--ui);
+}
+.live-comandi .fin-interruttore.live-cosa .led { width: 20px; height: 20px; border-radius: 5px; background: #050407; border: 1px solid var(--bordo-forte); box-shadow: none; position: relative; }
+.live-comandi .fin-interruttore.live-cosa .led.acceso { background: var(--verde); border-color: var(--verde); box-shadow: 0 0 8px rgba(93, 255, 180, 0.4); }
+.live-comandi .fin-interruttore.live-cosa .led.acceso::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #06150e; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.live-comandi .fin-interruttore.live-cosa.acceso { box-shadow: none; border-color: rgba(93, 255, 180, 0.35); }
+
+/* la posizione della webcam: quattro angoli e la forma */
+.live-angoli, .live-forme { display: grid; gap: 6px; }
+.live-angoli { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.live-forme { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.live-angoli .chip, .live-forme .chip { height: 44px; padding: 0; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: #cfcadb; font: 700 22px var(--ui); box-shadow: none; }
+.live-forme .chip { font-size: 15px; letter-spacing: 1px; }
+.live-angoli .chip.acceso, .live-forme .chip.acceso { background: var(--cia); border-color: transparent; color: #06171b; box-shadow: none; }
+.live:not(.con-cam) .live-angoli, .live:not(.con-cam) .live-forme { opacity: 0.6; }
+
+/* altre opzioni e registrazioni pronte: raccolte, con l'etichetta incisa (niente oro) */
+.live-comandi .live-configurazione, .live-comandi .live-archivio { padding: 0; border-top: 1px solid var(--bordo); }
+.live-comandi .live-configurazione summary, .live-comandi .live-archivio summary { padding: 12px 2px; min-height: 44px; display: flex; align-items: center; font: 700 12px var(--ui); letter-spacing: 3px; color: var(--etichetta, #8d889c); }
+.live-comandi .live-configurazione[open] > summary, .live-comandi .live-archivio[open] > summary { color: var(--testo); }
+.live-configurazione .live-sez { margin: 14px 2px 6px; }
+.live-configurazione .fin-interruptor, .live-configurazione .fin-interruttore { height: 34px; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo); box-shadow: none; font: 600 13px var(--ui); color: var(--testo); }
+.live-configurazione .fin-interruttore.acceso { box-shadow: none; border-color: rgba(93, 255, 180, 0.35); }
+.live-configurazione .live-btn { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); box-shadow: none; font: 700 12px var(--ui); }
+.live-configurazione .live-sel, .live-comandi .live-sel { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: #050407; font: 600 13px var(--ui); max-width: none; }
+.live-configurazione .live-chips .chip { height: 34px; padding: 0 12px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); color: #cfcadb; font: 700 13px var(--ui); box-shadow: none; }
+.live-configurazione .live-chips .chip.acceso, .live-comandi .live-chips .chip.acceso { background: var(--cia); border-color: transparent; color: #06171b; box-shadow: none; }
+.live-dispositivi { display: flex; flex-direction: column; gap: 8px; }
+.live-dispositivi label { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 8px; font: 600 13px var(--ui); color: var(--testo2); }
+.live-dispositivi .live-sel { width: 100%; }
+.live-configurazione .live-sfondo.acceso { box-shadow: 0 0 0 2px var(--cia); }
+.live-nota-fine { margin: auto 0 0; font: 500 14px/1.4 var(--ui); color: var(--etichetta, #8d889c); }
+.live-tasti-nota { margin: 0; font: 500 12px var(--ui); color: var(--testo3); }
+.live-tasti-nota kbd { color: var(--testo2); }
+
+/* più stretto: la barra si ricompone, le fonti vanno a capo */
+@media (max-width: 1180px) {
+  .live-barra .live-info { order: 9; flex: 1 0 100%; text-align: left; }
+}
