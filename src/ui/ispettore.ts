@@ -1295,8 +1295,8 @@ export class Ispettore {
         scelte.append(h('button', { class: 'pp-mini-btn', 'data-gruppo': g.dataset.g, on: { click: () => apri(g) } }, g.querySelector('summary')?.childNodes[0]?.textContent ?? 'Controlli'));
         contenuto.append(g);
       }
-      const avanzate = h('button', { class: 'pp-mini-btn', on: { click: () => mostra('avanzate') } }, '⚙ Avanzate');
-      area.replaceChildren(h('div', { class: 'ec-titolo' }, h('h2', null, cat[2]), ...(id !== 'avanzate' && disponibili.some(([k]) => k === 'avanzate') ? [avanzate] : [])), ...(gruppi.length > 1 ? [scelte] : []), contenuto);
+      // «Avanzate» sta già nella colonna a sinistra: niente secondo pulsante uguale in alto
+      area.replaceChildren(h('div', { class: 'ec-titolo' }, h('h2', null, cat[2])), ...(gruppi.length > 1 ? [scelte] : []), contenuto);
       apri(gruppi.find((g) => g.dataset.g === this.editorGruppo) ?? gruppi[0]);
     };
     for (const [id, ico, nome] of disponibili) nav.append(h('button', { type: 'button', 'data-sezione': id, on: { click: () => mostra(id) } }, h('span', { 'aria-hidden': 'true' }, ico), nome));

@@ -11,7 +11,7 @@ export class Pulsantiera {
 
   constructor(tl: Timeline) {
     const tasto = (num: string, ic: string, nome: string, az: string, title: string, cls = '') =>
-      h('button', { class: 'tasto-num ' + cls, title, on: { click: () => esegui(az) } }, h('span', { class: 'tasto-numero' }, num), icona(ic, 16), h('span', { class: 'nome' }, nome));
+      h('button', { class: 'tasto-num ' + cls, title, on: { click: () => esegui(az) } }, h('span', { class: 'tasto-numero' + (/\d/.test(num) ? '' : ' lettera') }, num), icona(ic, 16), h('span', { class: 'nome' }, nome));
     const modo = (nome: string, az: string, on: () => boolean, title: string, ic?: string) => {
       const el = h('button', { class: 'tasto-modo', title, on: { click: () => esegui(az) } }, h('span', { class: 'led' }), ic ? icona(ic, 14) : null, h('span', null, nome));
       this.spie.push({ el, on });

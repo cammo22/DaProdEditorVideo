@@ -146,7 +146,7 @@ export class Mixer {
     const mf = h('input', { type: 'range', class: 'fader-v', min: 0, max: 150, step: 1, value: String(Math.round(banco.volumeMaster * 100)), orient: 'vertical' }) as HTMLInputElement;
     const mv = h('span', { class: 'striscia-val' }, Math.round(banco.volumeMaster * 100) + '%');
     mf.addEventListener('input', () => { banco.volumeMaster = Number(mf.value) / 100; mv.textContent = mf.value + '%'; banco.aggiornaTracce(store.doc); });
-    strisce.push(h('div', { class: 'striscia master' }, h('b', { class: 'striscia-nome' }, 'ASCOLTO'), h('span', { class: 'striscia-tipo' }, 'CUFFIA'), h('div', { class: 'striscia-fader' }, mf), mv, h('div', { class: 'striscia-btn' })));
+    strisce.push(h('div', { class: 'striscia master' }, h('b', { class: 'striscia-nome' }, 'CUFFIA'), h('span', { class: 'striscia-tipo' }, 'ASCOLTO'), h('div', { class: 'striscia-fader' }, mf), mv, h('div', { class: 'striscia-btn' })));
     this.el.replaceChildren(h('p', { class: 'nota' }, 'Doppio clic su un fader = torna a zero. I livelli video sono la trasparenza di tutta la traccia.'), h('div', { class: 'strisce' }, strisce));
   }
 

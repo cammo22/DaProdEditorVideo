@@ -1,0 +1,55 @@
+/* Revisione 1.8.5 — Montaggio, colonna destra, Modifica clip, Cerca, Centro AI, finestre.
+   Solo correzioni di ordine (cose tagliate, schiacciate, duplicate): le regole grandi stanno nei file «Banco».
+   Va DOPO tutti gli altri stili. */
+
+/* ——— la colonna destra cresce con lo schermo (a 2560 era sempre stretta e il resto restava vuoto) ——— */
+@media (min-width: 1800px) { :root { --lato: clamp(300px, 15.6vw, 420px); } }
+
+/* ——— contenitore stretto (barretta di icone): solo le voci principali, senza il solco di puntini delle sottovoci ——— */
+@container (max-width: 430px) {
+  .bin-cat.sotto { display: none; }
+  .bin-albero-titolo { display: block; font-size: 0; height: 1px; padding: 0; margin: 6px 6px; background: var(--bordo); }
+}
+
+/* ——— Mixer: le strisce dividono la colonna (cinque non stavano e «ASCOLTO» usciva dal bordo) ——— */
+.strisce { gap: 4px; }
+.striscia { flex: 1 1 0; width: auto; min-width: 0; }
+.striscia-nome, .striscia-tipo { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.striscia.master .striscia-nome { font-size: 9px; letter-spacing: 0; }
+
+/* ——— Strumenti: forma d'onda e vettorscopio stanno tutti e due nella colonna, senza scorrere ——— */
+.lato-corpo:has(> .scopi) { overflow: hidden; }
+.scopi { display: flex; flex-direction: column; height: 100%; min-height: 0; box-sizing: border-box; gap: 6px; }
+.scopi figure { margin: 0; display: flex; flex-direction: column; min-height: 0; }
+.scopi figure:first-of-type { flex: 0 0 34%; }
+.scopi figure:nth-of-type(2) { flex: 1 1 0; }
+.scopi canvas, .scopi figure:nth-child(2) canvas { flex: 1 1 0; min-height: 0; width: 100%; height: 100%; object-fit: contain; margin: 0; }
+.scopi figcaption { flex: none; padding-top: 2px; }
+.scopi .nota { flex: none; margin: 0; font-size: 12px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ——— Cerca (Ctrl+K): le righe non escono dal riquadro, il testo lungo ha i puntini ——— */
+.cerca-voce { grid-template-columns: 118px minmax(0, 1fr) auto; }
+.cerca-testo { min-width: 0; }
+.cerca-testo b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cerca-cat { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ——— Tasti della centralina: i tasti restano piccoli (si allungavano quanto la riga della spiegazione) ——— */
+.tasto-riga { align-items: start; }
+.tasto-riga .tasti { align-self: start; align-items: flex-start; }
+.tasto-riga kbd { align-self: flex-start; height: auto; line-height: 1.5; }
+
+/* ——— Centro AI: titoli e frasi lunghe con i puntini, niente tagli a metà parola ——— */
+.centro-ai .sch-funzione p { min-width: 0; }
+
+/* ——— Modifica clip ——— */
+.editor-clip .tessere { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.editor-clip .ec-campi { min-width: 0; }
+.scopi figure:first-of-type canvas { object-fit: fill; }
+
+/* ——— pulsantiera: la «S» nel carattere a spaziatura fissa sembrava un 5 (SEPARA e MIX avevano lo stesso numero): le lettere vanno nel carattere normale ——— */
+.tasto-num .tasto-numero.lettera { font: 800 12px var(--ui); }
+.menu-contesto .voce .tasto.lettera, .voce .tasto.lettera { font: 700 13px var(--ui); }
+
+/* Modifica clip: la sezione principale non ha più il filo giallo (vecchio stile) che toccava i campi */
+.editor-clip .isp-gruppo.principale { box-shadow: none; border: 0; }
+.editor-clip .isp-riga { grid-template-columns: minmax(96px, 150px) minmax(0, 1fr) auto; }

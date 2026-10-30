@@ -300,3 +300,10 @@ body.pip-live { background: var(--fondo, #0b0a0f); }
 .home .hm-quando { font-family: var(--mono) !important; font-size: 12px !important; }
 .home .hm-targa .hm-seg { font-family: var(--mono); }
 .dialogo.centro-ai { width: min(1120px, calc(100vw - 48px)); max-height: calc(100dvh - 80px); }
+
+/* guida: l'icona dell'argomento sta staccata dal titolo e l'elenco usa l'altezza che c'è */
+.dialogo.guida .guida-corpo h3 { display: flex; gap: 10px; align-items: center; }
+.dialogo.guida .guida-elenco { max-height: 70vh; }
+
+/* novità: il titolo della versione è testo, non oro (l'oro è dell'azione) */
+.novita-titolo { color: var(--testo, #ebe7f4); font-size: 18px; }

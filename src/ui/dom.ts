@@ -233,8 +233,16 @@ export function menuContesto(x: number, y: number, voci: VoceMenu[]) {
   dentroLoSchermo(m, x, y);
   menuAperto = m;
   setTimeout(() => {
-    const via = (e: Event) => { if (!m.contains(e.target as Node)) { chiudiMenu(); document.removeEventListener('pointerdown', via, true); } };
+    const via = (e: Event) => { if (!m.contains(e.target as Node)) { chiudiMenu(); document.removeEventListener('pointerdown', via, true); document.removeEventListener('keydown', esc, true); } };
+    // Esc chiude il menu (e basta: non deve anche togliere la scelta alla clip)
+    const esc = (e: KeyboardEvent) => {
+      if (!m.isConnected) { document.removeEventListener('keydown', esc, true); document.removeEventListener('pointerdown', via, true); return; }
+      if (e.key !== 'Escape') return;
+      e.stopPropagation(); e.preventDefault(); chiudiMenu();
+      document.removeEventListener('keydown', esc, true); document.removeEventListener('pointerdown', via, true);
+    };
     document.addEventListener('pointerdown', via, true);
+    document.addEventListener('keydown', esc, true);
   });
 }
 
@@ -245,7 +253,7 @@ export function costruisciMenu(voci: VoceMenu[]): HTMLElement {
     const riga = h('button', {
       class: 'voce' + (v.disattiva ? ' spenta' : '') + (v.sotto ? ' ha-sotto' : ''), role: 'menuitem', disabled: !!v.disattiva,
       on: { click: (e: Event) => { if (v.sotto) { e.stopPropagation(); return; } chiudiMenu(); v.fn?.(); } },
-    }, h('span', { class: 'spunta' }, v.spunta ? '●' : ''), h('span', { class: 'nome' }, v.nome ?? ''), h('span', { class: 'tasto' }, v.tasto ?? (v.sotto ? '▸' : '')));
+    }, h('span', { class: 'spunta' }, v.spunta ? '●' : ''), h('span', { class: 'nome' }, v.nome ?? ''), h('span', { class: 'tasto' + (/^[A-Za-z]$/.test(v.tasto ?? '') ? ' lettera' : '') }, v.tasto ?? (v.sotto ? '▸' : '')));
     if (v.sotto) {
       const sub = costruisciMenu(v.sotto);
       sub.classList.add('sotto');

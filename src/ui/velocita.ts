@@ -74,7 +74,7 @@ export function finestraVelocita(ids?: Iterable<string>) {
   };
   const preset = [0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 4, 8];
   const bottoni = h('div', { class: 'vel-preset' }, preset.map((x) => h('button', { class: 'btn', title: `Velocità ${x * 100}%`, on: { click: () => { v = x; aggiorna(); } } },
-    x === 1 ? '1×' : x < 1 ? '÷' + Math.round(1 / x * 100) / 100 : '×' + x)));
+    '×' + String(x).replace('.', ','))));
   num.addEventListener('input', () => { const x = Number(num.value) / 100; if (x > 0) { v = x; aggiorna(); } });
   cursore.addEventListener('input', () => { v = daCursore(Number(cursore.value)); aggiorna(); });
   fluido.addEventListener('change', () => { fluidoTocco = true; });

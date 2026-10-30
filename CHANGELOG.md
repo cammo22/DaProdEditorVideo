@@ -12,6 +12,15 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.5] — 2026-10-30 · Revisione finale: tutto in ordine
+
+- **Montaggio più pulito**: barra del contenitore con le sole voci principali, lettere dei tasti leggibili (la S non sembra più un 5), Esc chiude il menu del tasto destro, velocità scritte ×0,25 / ×0,5.
+- **Mixer e Strumenti** stanno nella colonna senza tagli; la colonna destra si allarga sugli schermi grandi.
+- **Modifica clip**: tessere degli effetti più piccole (sei per riga), niente doppioni, etichette intere.
+- **Finale** senza titoli ripetuti; **LIVE** con REGISTRA unico pulsante oro; **Montage** con tutti i 28 stili a schermo.
+- **Guida, Novità, Cerca, Centro AI e finestre di sicurezza** rifinite; testi lunghi con i puntini e il testo intero al passaggio.
+- **README nuovo** come pagina prodotto, con i download in alto.
+
 ## [1.8.2] — 2026-10-30 · Meno scritte, tutto leggibile e a schermo
 
 - **Scritte leggibili**: il carattere a 7 segmenti resta solo sui numeri (timecode); pesi, VRAM e dati usano un carattere mono pulito.
