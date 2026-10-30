@@ -1,6 +1,6 @@
 [package]
 name = "daprod-video"
-version = "1.8.8"
+version = "1.8.9"
 description = "DaProd Video: il montaggio vecchio stile, moderno dentro"
 authors = ["DaProd"]
 license = "MIT"
@@ -32,6 +32,7 @@ tauri-plugin-single-instance = "2"
 # solo Windows: l'apertura dei .dap/.daprod/.dpv col programma si scrive nel registro dell'utente (come un'installazione "per utente")
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+cpal = "0.15"
 windows-sys = { version = "0.61", features = ["Win32_UI_Shell", "Win32_System_JobObjects", "Win32_Security", "Win32_Storage_FileSystem"] }
 
 # Mac, Linux e Android: lo spazio libero sul disco (statvfs) per il controllo prima dell'uscita nel Finale

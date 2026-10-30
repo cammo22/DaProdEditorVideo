@@ -32,8 +32,9 @@ import type { MediaItem } from '../core/tipi';
 import { importaFile } from '../progetti';
 import { invoke, isAndroid, isTauri, salvaMediaSulDisco, spazioLibero } from '../platform';
 import { CursoreLive } from '../media/cursoreLive';
+import { AudioComputer, audioComputerNativo, livelloAudioComputer, usciteAudio } from '../media/audioComputer';
 import { SceltaSchermoLive } from './liveCursore';
-import { applicaZoomCursore, bloccoClicLive, CameraCursore, cssCamera } from '../core/zoomCursore';
+import { applicaZoomCursore, bloccoClicLive, CameraCursore, cssCamera, type PuntoCamera } from '../core/zoomCursore';
 import { motore } from '../motore';
 import { avviso, h, icona } from './dom';
 import { Telecomando, type StatoTelecomando } from './telecomando';
@@ -304,6 +305,8 @@ interface Opzioni {
   clicAnimati: boolean;
   mic: boolean;
   micId: string;
+  /** l'uscita audio da cui prendere l'audio del computer ('' = la predefinita di Windows) */
+  uscitaPc: string;
   /** microfono e audio del computer in due file (e due tracce), così dopo si livellano i volumi */
   separato: boolean;
   sistema: boolean;
@@ -327,7 +330,7 @@ interface Opzioni {
 }
 const OPZ0: Opzioni = {
   zoomCursore: false, clicAnimati: false,
-  mic: true, micId: '', separato: true, sistema: true, cam: false, camId: '', camAngolo: 'bd', camTonda: true,
+  mic: true, micId: '', uscitaPc: '', separato: true, sistema: true, cam: false, camId: '', camAngolo: 'bd', camTonda: true,
   qualita: 1080, fps: 30, cursore: true, conto: true, timeline: true, presentazione: false, sfondo: 'notte', finestre: false, layout: 'solo',
   audio: copiaImpostazioni(IMPOSTAZIONI0),
 };
@@ -440,6 +443,7 @@ export class Live {
   /** i livelli, il mixer e i filtri dell'audio (src/ui/liveAudio.ts) */
   private audio: PannelloAudio;
   private selMic: HTMLSelectElement;
+  private selPc: HTMLSelectElement;
   private selCam: HTMLSelectElement;
   /** il telecomando: anteprima, tempo, pausa, segno, ferma (src/ui/telecomando.ts) */
   private tele: Telecomando;
@@ -494,6 +498,11 @@ export class Live {
   /** il microfono registrato a parte (audio separato) */
   private pezziMic: Promise<Tratto>[] = [];
   private micSep: MediaStream | null = null;
+  /** l'audio del computer che si registra (dallo schermo), per il suo tasto muto */
+  private tracceComputer: MediaStreamTrack[] = [];
+  /** l'audio del computer preso da Windows (la traccia di WebView2 è finta e muta) */
+  private audioPcLive: AudioComputer | null = null;
+  private giroLivelloPc = 0;
   /** millisecondi registrati (senza le pause) e da quando si sta registrando adesso */
   private fatto = 0;
   private da = 0;
@@ -527,10 +536,9 @@ export class Live {
   private muto(chi: 'voce' | 'computer') {
     this.opz.audio[chi].muto = !this.opz.audio[chi].muto;
     this.mixer?.imposta(this.opz.audio);
-    if (!this.mixer) {
-      const sorgente = chi === 'voce' ? this.micReg : this.flussi[0];
-      sorgente?.getAudioTracks().forEach(t => { t.enabled = !this.opz.audio[chi].muto; });
-    }
+    // ogni tasto spegne solo la sua traccia: la voce il microfono, il computer l'audio dello schermo
+    const tracce = chi === 'voce' ? this.micReg?.getAudioTracks() ?? [] : this.tracceComputer;
+    tracce.forEach(t => { t.enabled = !this.opz.audio[chi].muto; });
     this.audio.aggiorna(); this.salvaOpzioni(); this.aggiornaTempo();
   }
   private annullaConto: (() => void) | null = null;
@@ -578,7 +586,7 @@ export class Live {
 
     // ——— le scelte ———
     const salva = () => this.salvaOpzioni();
-    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'qualita', 'fps', 'cursore', 'micId', 'camId', 'finestre', 'zoomCursore', 'clicAnimati']);
+    const fisse = new Set<keyof Opzioni>(['mic', 'sistema', 'separato', 'qualita', 'fps', 'cursore', 'micId', 'uscitaPc', 'camId', 'finestre', 'zoomCursore', 'clicAnimati']);
     const cambia = <K extends keyof Opzioni>(k: K, v: Opzioni[K]) => {
       if (this.fase !== 'fermo' && fisse.has(k)) { avviso('Questo si cambia prima di registrare', 'info'); this.sinc.forEach((f) => f()); return false; }
       this.opz[k] = v;
@@ -601,6 +609,7 @@ export class Live {
       });
       return h('div', { class: 'live-chips' }, bb);
     };
+    this.selPc = h('select', { class: 'live-sel', title: 'Da quale uscita prendere l’audio del computer (casse, cuffie…)', on: { change: () => cambia('uscitaPc', this.selPc.value) } }, h('option', { value: '' }, 'Uscita predefinita di Windows')) as HTMLSelectElement;
     this.selMic = h('select', { class: 'live-sel', title: 'Quale microfono', on: { change: () => { cambia('micId', this.selMic.value); if (this.micProva) { this.fermaProvaMic(); void this.provaMic(); } } } }, h('option', { value: '' }, 'Predefinito')) as HTMLSelectElement;
     this.selCam = h('select', { class: 'live-sel live-sel-cam', title: 'Quale webcam', on: { change: () => { if (cambia('camId', this.selCam.value) && this.opz.cam) { this.chiudiCam(); void this.apriCam(); } } } }, h('option', { value: '' }, 'Predefinita')) as HTMLSelectElement;
     const sfondi = h('div', { class: 'live-sfondi' }, SFONDI.map((x) => {
@@ -695,6 +704,7 @@ export class Live {
           sezione('Audio e dispositivi'),
           h('div', { class: 'live-dispositivi' },
             h('label', null, h('span', null, 'Microfono'), this.selMic),
+            audioComputerNativo ? h('label', null, h('span', null, 'Audio PC'), this.selPc) : null,
             h('label', null, h('span', null, 'Webcam'), this.selCam))),
           h('section', { class: 'live-configurazione', 'aria-label': 'Altre opzioni' }, sezione('Altre opzioni'),
             sezione('Cursore e zoom'),
@@ -851,6 +861,10 @@ export class Live {
         sel.value = lista.some((x) => x.deviceId === scelto) ? scelto : '';
       };
       riempi(this.selMic, 'audioinput', this.opz.micId, 'Microfono', 'Predefinito');
+      if (audioComputerNativo) void usciteAudio().then((u) => {
+        this.selPc.replaceChildren(h('option', { value: '' }, 'Uscita predefinita di Windows'), ...u.map((x) => h('option', { value: x.nome }, x.nome + (x.predefinita ? ' · predefinita' : ''))));
+        this.selPc.value = u.some((x) => x.nome === this.opz.uscitaPc) ? this.opz.uscitaPc : '';
+      }).catch(() => {});
       riempi(this.selCam, 'videoinput', this.opz.camId, 'Webcam', 'Predefinita');
     } catch { /* niente elenco: resta il predefinito */ }
   }
@@ -964,12 +978,20 @@ export class Live {
         if (ora?.win) win = ora.win;
         if (ora?.visible && ora.clicks) clic = { cx: ora.cx, cy: ora.cy, t };
         if (clic && t - clic.t > 1900) clic = null;
-        const css = cssCamera(cam.passo(t, ora?.visible ? [ora.cx, ora.cy] : null, clic ?? undefined, () => win));
-        v.style.transform = css;
-        this.tele.zoom(css);
+        prima = dopo; dopo = { ...cam.passo(t, ora?.visible ? [ora.cx, ora.cy] : null, clic ?? undefined, () => win) }; arrivato = performance.now();
       } finally { occupato = false; }
     }, 100);
-    this.zoomDiretta = { ferma: () => { clearInterval(giro); v.srcObject = null; box.remove(); this.tele.zoom(''); } };
+    // fra un passo della camera e l'altro (100 ms) la posizione si mescola a ogni fotogramma dello schermo: niente scatti
+    let prima: PuntoCamera = { tMs: 0, cx: .5, cy: .5, z: 1 }, dopo = prima, arrivato = performance.now(), raf = 0;
+    const disegna = () => {
+      const k = Math.min(1, (performance.now() - arrivato) / 100);
+      const css = cssCamera({ tMs: 0, cx: prima.cx + (dopo.cx - prima.cx) * k, cy: prima.cy + (dopo.cy - prima.cy) * k, z: prima.z + (dopo.z - prima.z) * k });
+      v.style.transform = css;
+      this.tele.zoom(css);
+      raf = requestAnimationFrame(disegna);
+    };
+    raf = requestAnimationFrame(disegna);
+    this.zoomDiretta = { ferma: () => { clearInterval(giro); cancelAnimationFrame(raf); v.srcObject = null; box.remove(); this.tele.zoom(''); } };
   }
   private fermaAnteprimaZoom() { this.zoomDiretta?.ferma(); this.zoomDiretta = null; }
 
@@ -1130,6 +1152,7 @@ export class Live {
     const t0 = performance.now();
     const n = nastro(this.flusso!, this.tipo, bitrate(this.opz.qualita, this.opz.fps));
     this.cursoreLive?.pezzo(t0);
+    this.audioPcLive?.pezzo(t0);
     this.pezzi.push(n.fatto);
     // la webcam parte con lo schermo solo se è accesa; dopo una pausa riprende nel suo segmento
     if (this.cam && this.opz.cam) this.avviaNastroCam(this.fase === 'pausa' ? this.fatto / 1000 : 0);
@@ -1140,7 +1163,7 @@ export class Live {
         this.pezziMic.push(mc.fatto);
       } catch { /* il microfono a parte no: resta muto, lo schermo va lo stesso */ }
     }
-    this.pezzo = { chiudi: () => { const adesso = performance.now(); const t = (adesso - t0) / 1000; this.cursoreLive?.pausa(adesso); n.ferma(t); this.fermaNastroCam(); mc?.ferma(t); } };
+    this.pezzo = { chiudi: () => { const adesso = performance.now(); const t = (adesso - t0) / 1000; this.cursoreLive?.pausa(adesso); this.audioPcLive?.pausa(adesso); n.ferma(t); this.fermaNastroCam(); mc?.ferma(t); } };
   }
 
   /** la webcam registra da adesso (`da` = a che punto della registrazione, in secondi): un segmento nuovo, o quello aperto */
@@ -1282,7 +1305,19 @@ export class Live {
     } else tracce = [...schermo.getVideoTracks()];
     // l'audio: il microfono e quello del computer passano dal mixer (livelli, volumi, filtri); a seconda delle scelte
     // escono in una traccia mescolata, oppure in due file (la voce a parte) o in uno solo se c'è una sola sorgente
-    const audioPc = schermo.getAudioTracks();
+    let audioPc = schermo.getAudioTracks();
+    if (audioComputerNativo && o.sistema) {
+      // nell'app su Windows l'audio del computer lo prende Windows: la traccia dello schermo non si registra
+      audioPc.forEach((t) => t.stop());
+      audioPc = [];
+      await this.audioPcLive?.ferma().catch(() => null);
+      this.audioPcLive = null;
+      try {
+        this.audioPcLive = await AudioComputer.avvia(o.uscitaPc);
+        clearInterval(this.giroLivelloPc);
+        this.giroLivelloPc = window.setInterval(async () => { const l = await livelloAudioComputer(); if (this.mixer) this.mixer.livelloComputer = l; }, 80);
+      } catch (e) { avviso('⚠ Non riesco a prendere l’audio del computer: ' + String(e).slice(0, 90), 'errore', 7000); }
+    }
     let mic: MediaStream | null = null;
     this.micReg = null;
     if (o.mic) {
@@ -1293,22 +1328,22 @@ export class Live {
       } catch (e) { avviso('⚠ Il microfono non si apre, la voce NON viene registrata. Controlla in Windows → Privacy → Microfono. (' + String(e).slice(0, 80) + ')', 'errore', 9000); }
     }
     await mix.pronto;
+    // il contesto audio può essere nato senza un clic diretto (telecomando, conto alla rovescia): si sveglia qui
+    void mix.ctx?.resume().catch(() => {});
     this.micSep = null;
     const haPc = audioPc.length > 0;
+    this.tracceComputer = audioPc;
+    // le barre dei livelli: il mixer ascolta le sorgenti, ognuna sulla sua barra
     if (mix.ok) {
       mix.imposta(o.audio);
       if (haPc) mix.collegaComputer(new MediaStream(audioPc));
       if (mic) mix.collegaVoce(mic);
-      if (o.separato && haPc && mic) {
-        tracce.push(...mix.flussoComputer().getAudioTracks());
-        this.micSep = mix.flussoVoce();
-      } else if (haPc && mic) tracce.push(...mix.flussoMix().getAudioTracks());
-      else if (haPc) tracce.push(...mix.flussoComputer().getAudioTracks());
-      else if (mic) tracce.push(...mix.flussoVoce().getAudioTracks());
-    } else {
-      // niente audio elaborato (il browser non ha il mixer): si registra com'è, la voce a parte
-      audioPc.forEach(t => { t.enabled = !o.audio.computer.muto; });
-      mic?.getAudioTracks().forEach(t => { t.enabled = !o.audio.voce.muto; });
+    }
+    // si registrano le tracce vere, non le uscite del mixer: se il contesto audio restava in pausa i file venivano muti
+    audioPc.forEach(t => { t.enabled = !o.audio.computer.muto; });
+    mic?.getAudioTracks().forEach(t => { t.enabled = !o.audio.voce.muto; });
+    if (haPc && mic && !o.separato && mix.ok) tracce.push(...mix.flussoMix().getAudioTracks()); // una traccia sola: serve il mescolatore
+    else {
       tracce.push(...audioPc);
       if (mic) {
         if (haPc) this.micSep = new MediaStream(mic.getAudioTracks());
@@ -1383,6 +1418,8 @@ export class Live {
     this.da = performance.now();
     this.aggiornaTasti();
     this.stato.textContent = '● Sto registrando';
+    // premuto REC, il telecomando si apre da solo (e Windows lo tiene fuori dalla registrazione)
+    if (!this.tele.aperto) void this.apriTelecomando()?.catch?.(() => {});
     this.fermaGiro();
     this.giro = window.setInterval(() => this.aggiornaTempo(), 250);
     this.chiudiGiro = risorseLive.apri('intervallo');
@@ -1507,6 +1544,10 @@ export class Live {
     }) ?? Promise.resolve(null);
     const scelteCursore = { ...this.scelteCursore };
     const scene = structuredClone(this.scene);
+    const audioPc = this.audioPcLive;
+    this.audioPcLive = null;
+    clearInterval(this.giroLivelloPc);
+    if (this.mixer) this.mixer.livelloComputer = null;
     this.cursoreLive = null;
     this.fermaAnteprimaZoom();
     this.fase = 'fermo';
@@ -1551,7 +1592,7 @@ export class Live {
       // la webcam resta accesa per l'anteprima solo se si è ancora su LIVE
       if (!this.visibile) this.chiudiCam();
       await this.consegna(tratti.filter((x) => x.blob.size), segmentiCam.map((g) => ({ da: g.da, tratti: g.tratti.filter((x) => x.blob.size) })).filter((g) => g.tratti.length), trattiMic.filter((x) => x.blob.size), durata, segni, foto,
-        await cursore, scelteCursore, tratti.flatMap((x, i) => x.blob.size ? [i] : []), cuciti, scene);
+        await cursore, scelteCursore, tratti.flatMap((x, i) => x.blob.size ? [i] : []), cuciti, scene, audioPc);
     })().catch((e) => {
       // anche su errore tutto quello che era aperto si chiude
       try { regia?.ferma(); this.chiudiFlussi(flussi, mix); } catch { /* già chiusi */ }
@@ -1576,8 +1617,9 @@ export class Live {
   /** la registrazione finita: cucita, sul disco (nell'app), nel contenitore e in fondo alla timeline */
   private async consegna(tratti: Tratto[], segmentiCam: { da: number; tratti: Tratto[] }[], trattiMic: Tratto[], durata: number, segni: number[], foto: string,
     cursore: Awaited<ReturnType<CursoreLive['ferma']>> | null = null, scelteCursore = { zoom: false, clic: false }, indici: number[] = tratti.map((_, i) => i),
-    /** i file cuciti sul disco temporaneo: chi chiama li toglie sempre, anche se qualcosa va storto */ cuciti: Blob[] = [], scene: CambioScena[] = []) {
-    if (!tratti.length) { this.stato.textContent = 'La registrazione è vuota'; return; }
+    /** i file cuciti sul disco temporaneo: chi chiama li toglie sempre, anche se qualcosa va storto */ cuciti: Blob[] = [], scene: CambioScena[] = [],
+    audioPc: AudioComputer | null = null) {
+    if (!tratti.length) { void audioPc?.ferma().catch(() => null); this.stato.textContent = 'La registrazione è vuota'; return; }
     const mp4 = /mp4/.test(tratti[0].blob.type);
     // di solito un file solo; se la cucitura non riesce, i pezzi vanno uno dopo l'altro (sempre senza buchi)
     const tempi: { indice: number; daMs: number; durataMs: number }[] = [];
@@ -1604,6 +1646,18 @@ export class Live {
     const ora = new Date();
     const radice = `Registrazione ${ora.getFullYear()}-${due(ora.getMonth() + 1)}-${due(ora.getDate())} ${due(ora.getHours())}.${due(ora.getMinutes())}.${due(ora.getSeconds())}`;
     const cartella = this.cartellaRegistrazioni();
+    // l'audio del computer preso da Windows: un file WAV accanto al video, con gli stessi pezzi
+    let pcAudio: MediaItem | null = null;
+    if (audioPc) {
+      try {
+        const percorso = await audioPc.ferma(`${radice} computer.wav`);
+        if (percorso) {
+          const nome = percorso.split(/[\\/]/).pop() ?? `${radice} computer.wav`;
+          const [m] = await importaFile([{ name: nome, path: percorso }], { chiediFormato: false, cartella, controlla: false });
+          pcAudio = (m as MediaItem | undefined) ?? null;
+        }
+      } catch (e) { avviso('La registrazione resta, ma non l’audio del computer: ' + String(e).slice(0, 90), 'info', 6000); }
+    }
     const importa = async (nome: string, blob: Blob) => {
       const path = await salvaSulDisco(nome, blob);
       // senza un percorso sul disco (browser) il file vive in memoria: non può restare legato al file temporaneo, che si cancella
@@ -1654,11 +1708,11 @@ export class Live {
       catch (e) { avviso('Le scene restano nel progetto, ma non riesco a salvare i dati accanto al video: ' + String(e), 'info', 5000); }
     }
     const mCam = cams[0]?.m;
-    let ids = this.opz.timeline ? this.inTimeline(schermi, cams, segni, mics, scelteCursore, scene) : [];
+    let ids = this.opz.timeline ? this.inTimeline(schermi, cams, segni, mics, scelteCursore, scene, pcAudio) : [];
     if (ids.length) store.select(ids);
     const { id, name: nome } = schermi[0];
     this.stato.textContent = `Fatto: ${nome}`;
-    const riga = h('button', { class: 'live-voce', title: 'Apri le scene nel montaggio', on: { click: () => { if (!ids.length) ids = this.inTimeline(schermi, cams, segni, mics, scelteCursore, scene); store.select(ids); this.vaiAlMontaggio(id, ids); } } },
+    const riga = h('button', { class: 'live-voce', title: 'Apri le scene nel montaggio', on: { click: () => { if (!ids.length) ids = this.inTimeline(schermi, cams, segni, mics, scelteCursore, scene, pcAudio); store.select(ids); this.vaiAlMontaggio(id, ids); } } },
       foto ? h('img', { class: 'live-voce-foto', src: foto, alt: '' }) : icona('video', 14),
       h('span', { class: 'live-voce-testo' }, h('b', null, nome.replace(/\.(webm|mp4)$/, '')),
         h('small', null, [orologio(durata), mCam ? 'webcam' : '', mics.length ? 'voce a parte' : '', segni.length ? `${segni.length} segni` : ''].filter(Boolean).join(' · '))));
@@ -1685,7 +1739,7 @@ export class Live {
    * In fondo alla timeline, dal basso: lo sfondo (stile presentazione), lo schermo, la webcam sopra. Se le tracce
    * video non bastano se ne aggiungono. Tutto legato insieme, così si sposta in un colpo; i segni diventano marcatori.
    */
-  private inTimeline(schermi: MediaItem[], cams: { m: MediaItem; da: number }[], segni: number[], mics: MediaItem[] = [], cursore = { zoom: false, clic: false }, scene: CambioScena[] = []): string[] {
+  private inTimeline(schermi: MediaItem[], cams: { m: MediaItem; da: number }[], segni: number[], mics: MediaItem[] = [], cursore = { zoom: false, clic: false }, scene: CambioScena[] = [], pcAudio: MediaItem | null = null): string[] {
     const o = { ...this.opz, presentazione: scene[0]?.presentazione ?? this.opz.presentazione };
     return store.edit('Registrazione in timeline', (p) => {
       const inizio = projectEnd(p);
@@ -1722,6 +1776,12 @@ export class Live {
         if (o.presentazione) v.tf = presentazione();
         link ??= v.link ?? (v.link = uid('l'));
         for (const c of p.clips) if (nuovi.includes(c.id)) { c.link = link; if (tMic && c.track !== tSchermo) c.name = 'Audio del computer'; }
+        // l'audio del computer preso da Windows: sulla prima traccia audio, legato alla ripresa
+        if (pcAudio && i === 0 && a) {
+          const pc = M.placeSource(p, { mediaId: pcAudio.id, srcIn: pcAudio.t0 || 0, srcOut: pcAudio.duration }, v.start, null, { video: null, audio: [a] }, 'libero');
+          for (const c of p.clips) if (pc.includes(c.id)) { c.link = link; c.name = 'Audio del computer'; c.len = Math.min(c.len, v.len); }
+          ids.push(...pc);
+        }
         if (cursore.clic && m.cursoreLive?.clic.length) {
           const blocco = bloccoClicLive(v);
           p.clips.push(blocco); ids.push(blocco.id);

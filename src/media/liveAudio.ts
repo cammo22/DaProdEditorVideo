@@ -285,10 +285,14 @@ export class MixerLive {
   flussoMix(): MediaStream { return this.destMix!.stream; }
 
   // ——— i livelli per le barre ———
+  /** il livello dell'audio del computer preso da Windows (null = quello del grafo) */
+  livelloComputer: number | null = null;
   livelli(): { voce: Picchi; computer: Picchi; mix: Picchi } {
     const zero: Picchi = [0, 0];
-    if (!this.ok || !this.ctx || this.ctx.state === 'closed') return { voce: zero, computer: zero, mix: zero };
-    return { voce: this.voce!.misura.picchi(), computer: this.computer!.misura.picchi(), mix: this.misuraMix!.picchi() };
+    const pc = this.livelloComputer;
+    const esterno: Picchi | null = pc === null ? null : [pc, pc];
+    if (!this.ok || !this.ctx || this.ctx.state === 'closed') return { voce: zero, computer: esterno ?? zero, mix: zero };
+    return { voce: this.voce!.misura.picchi(), computer: esterno ?? this.computer!.misura.picchi(), mix: this.misuraMix!.picchi() };
   }
 
   /** quanto stanno abbassando i vari pezzi (dB, zero o meno) */
