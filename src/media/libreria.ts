@@ -616,6 +616,9 @@ const LIMITE_MINIATURE = 1800;
 const cache = new Map<string, CanvasImageSource>();
 const inCoda = new Map<string, Set<number>>();
 const lavorando = new Set<string>();
+/** istanti senza fotogramma (prima del primo fotogramma del file, per esempio): non si chiedono più, se no ogni
+ *  disegno della timeline li rimetteva in coda e ogni giro apriva un decoder nuovo (nell'app riempiva RAM e VRAM) */
+const vuote = new Set<string>();
 const onMiniatura = new Set<() => void>();
 export const quandoMiniature = (fn: () => void) => { onMiniatura.add(fn); return () => onMiniatura.delete(fn); };
 
@@ -631,7 +634,7 @@ export function miniatura(id: string, t: number): CanvasImageSource | null {
     cache.set(k, c); // LRU: torna in fondo
     return c;
   }
-  if (!r.v || !r.vDecodable) return null;
+  if (!r.v || !r.vDecodable || vuote.has(k)) return null;
   if (!inCoda.has(id)) inCoda.set(id, new Set());
   inCoda.get(id)!.add(t);
   if (!lavorando.has(id)) void lavoraMiniature(id);
@@ -654,10 +657,14 @@ async function lavoraMiniature(id: string) {
       const ts = [...inCoda.get(id)!].sort((a, b) => a - b).slice(0, 8);
       for (const t of ts) inCoda.get(id)!.delete(t);
       let i = 0;
+      const senza: string[] = [];
+      let buona: CanvasImageSource | null = null;
       for await (const w of sink.canvasesAtTimestamps(ts)) {
-        const t = ts[i++];
-        if (w) cache.set(id + '@' + t.toFixed(3), w.canvas);
+        const k = id + '@' + ts[i++].toFixed(3);
+        if (w) { cache.set(k, w.canvas); buona ??= w.canvas; } else senza.push(k);
       }
+      // senza fotogramma: si mostra il primo buono di questo giro, o non si chiede più
+      for (const k of senza) if (buona) cache.set(k, buona); else vuote.add(k);
       while (cache.size > LIMITE_MINIATURE) cache.delete(cache.keys().next().value!);
       for (const fn of onMiniatura) fn();
     }
@@ -667,4 +674,5 @@ async function lavoraMiniature(id: string) {
 
 export function svuotaMiniature(id?: string) {
   for (const k of [...cache.keys()]) if (!id || k.startsWith(id + '@')) cache.delete(k);
+  for (const k of [...vuote]) if (!id || k.startsWith(id + '@')) vuote.delete(k);
 }
