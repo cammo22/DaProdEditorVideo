@@ -38,6 +38,19 @@ export async function salvaMediaSulDisco(nome: string, blob: Blob): Promise<stri
   }
 }
 
+/** lo spazio libero dove vanno le registrazioni, in byte (null se non si sa). Nell'app è il disco vero della cartella
+ *  Video/DaProd Video; nel browser è la stima di quanto spazio lascia il browser al sito. */
+export async function spazioLibero(): Promise<number | null> {
+  if (isTauri) {
+    try { const n = await invoke<number>('spazio_libero'); if (Number.isFinite(n) && n >= 0) return n; } catch { /* comando non disponibile su questo sistema */ }
+  }
+  try {
+    const e = await navigator.storage?.estimate?.();
+    if (e && typeof e.quota === 'number' && typeof e.usage === 'number') return Math.max(0, e.quota - e.usage);
+  } catch { /* niente stima */ }
+  return null;
+}
+
 export interface FileScelto { name: string; path?: string; file?: File }
 
 const ESTENSIONI = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'mts', 'm2ts', 'ts', 'mpg', 'mp3', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'flac', 'ac3', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif'];

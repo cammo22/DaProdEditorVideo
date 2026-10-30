@@ -39,9 +39,9 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(400);
 
-    // la colonna dei comandi è larga (e non scorre di lato)
+    // la colonna dei comandi è stretta e compatta (300-340 px) e non scorre di lato
     const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1 }; });
-    prova('la colonna dei comandi di LIVE è larga (almeno 440 px a 1600 di larghezza) e non scorre di lato', col.w >= 440 && !col.scrollX, JSON.stringify(col));
+    prova('la colonna dei comandi di LIVE è compatta (300-340 px a 1600 di larghezza) e non scorre di lato', col.w >= 300 && col.w <= 341 && !col.scrollX, JSON.stringify(col));
 
     // prima di registrare: il tasto WEBCAM e il tasto C accendono e spengono
     const stato = () => page.evaluate(() => ({ opz: window.__dpvTest.ui().live.opz.cam, anteprima: document.querySelector('.live').classList.contains('con-cam'), tasto: document.querySelector('.live-btn.cam').classList.contains('acceso'), interruttore: [...document.querySelectorAll('.live .fin-interruttore')].find((e) => /Webcam/.test(e.textContent))?.classList.contains('acceso') }));
@@ -72,6 +72,11 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.waitForTimeout(500);
+    // finita la registrazione si va dritti al Montaggio (e a fine registrazione le risorse tornano a zero)
+    const dopo = await page.evaluate(() => ({ pagina: document.getElementById('app').dataset.pagina, reg: document.querySelector('.live-btn.reg')?.textContent }));
+    prova('a fine registrazione si va dritti al Montaggio', dopo.pagina === 'montaggio', JSON.stringify(dopo));
+    await page.click('.pagina-btn[data-p=live]');
+    await page.waitForTimeout(300);
     const r = await page.evaluate(() => {
       const d = window.__dpv.doc;
       const cams = d.media.filter((m) => /webcam/.test(m.name));
@@ -93,6 +98,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     await page.keyboard.press('f');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
     await page.waitForFunction(() => window.__dpv.doc.media.filter((m) => /webcam/.test(m.name)).length >= 3, null, { timeout: 15000 }).catch(() => {});
+    await page.click('.pagina-btn[data-p=live]');
     await page.waitForTimeout(300);
     const una = await page.evaluate(() => {
       const d = window.__dpv.doc;
@@ -144,13 +150,20 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
     prova('nella pagina LIVE non ci sono più i filtri audio (restano le barre dei livelli)', senzaFiltri.filtri === 0 && senzaFiltri.barre === 2, JSON.stringify(senzaFiltri));
     await page.evaluate(() => { for (const i of window.__giri ?? []) clearInterval(i); });
 
-    // la pagina LIVE: i comandi stanno sempre in vista, a tutta altezza accanto alla timeline
+    // la pagina LIVE: barra in alto, anteprima grande a sinistra, colonna stretta a destra, niente timeline
+    await page.click('.pagina-btn[data-p=live]');
+    await page.waitForTimeout(300);
     const lay = await page.evaluate(() => {
       const r = (s) => document.querySelector(s)?.getBoundingClientRect();
-      const c = r('.live-comandi'), t = r('.timeline'), sc = r('.live-schermo'), st = r('.stato');
-      return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left), w: Math.round(c.width) }, tl: t && { right: Math.round(t.right), bottom: Math.round(t.bottom) }, schermo: sc && { right: Math.round(sc.right) }, stato: st && Math.round(st.top) };
+      const c = r('.live-comandi'), sc = r('.live-schermo'), st = r('.stato'), ba = r('.live-barra'), tl = document.querySelector('.timeline');
+      const rec = document.querySelector('.live-btn.reg');
+      return { comandi: c && { top: Math.round(c.top), bottom: Math.round(c.bottom), left: Math.round(c.left) }, schermo: sc && { right: Math.round(sc.right), w: Math.round(sc.width), h: Math.round(sc.height) }, barra: ba && { top: Math.round(ba.top), h: Math.round(ba.height) }, stato: st && Math.round(st.top), tl: tl ? getComputedStyle(tl).display : 'assente', rec: rec && { h: Math.round(rec.getBoundingClientRect().height), sfondo: getComputedStyle(rec).backgroundColor }, ombra: getComputedStyle(document.querySelector('.live-schermo')).boxShadow };
     });
-    prova('LIVE: i comandi scendono fino in fondo, accanto alla timeline (che resta a sinistra), come il pannello fisso del montaggio', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.tl.right - 1 && lay.comandi.left >= lay.schermo.right && lay.comandi.top < 200, JSON.stringify(lay));
+    prova('LIVE: barra in alto, anteprima grande, colonna a destra fino in fondo, niente timeline, REC da 44 px, nessun riquadro rosso', lay.comandi.bottom >= lay.stato - 2 && lay.comandi.left >= lay.schermo.right && lay.schermo.w > 900 && lay.barra.h >= 60 && lay.tl === 'none' && lay.rec.h >= 44 && lay.ombra === 'none', JSON.stringify(lay));
+    const fonti = await page.evaluate(() => [...document.querySelectorAll('.live-barra .live-sorg')].map((e) => ({ chi: e.dataset.chi, stato: e.querySelector('.spia')?.dataset.stato })));
+    prova('la barra ha tre fonti (schermo, webcam, microfono) con la spia', fonti.length === 3 && fonti.every((f) => ['spenta', 'pronta', 'rec'].includes(f.stato)), JSON.stringify(fonti));
+    const risorse = await page.evaluate(() => { const r = globalThis.__dpvRisorse; return r ? r.perdite({ video: 99 }) : null; });
+    prova('a registrazione finita LIVE non lascia aperti registratori, contesti audio o intervalli (solo in sviluppo: con il build di produzione il contatore non è attivo)', risorse === null || risorse.filter((x) => /registratore|audio|intervallo|worker|tela/.test(x)).length === 0, JSON.stringify(risorse));
 
     // ——— il banco ———
     console.log('▶ Banco: barra sul monitor sottile, zoom della timeline');
