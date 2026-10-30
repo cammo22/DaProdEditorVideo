@@ -12,6 +12,10 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 - **Clear** (licenza source-available, non permissiva) si può spegnere dal Centro AI.
 - **Nota onesta**: i modelli veri non sono stati scaricati né eseguiti; prove con motori finti (`test/unit/funzioni-ai.test.mjs`, `test/unit/motore_ai_server*.py`).
 
+## [1.8.1] — 2026-10-30 · Aggiornamenti di nuovo funzionanti
+
+- **Aggiorna** non diceva più «indirizzo non valido»: il progetto su GitHub ora si chiama DaProdEditorVideo e l'app accetta il nome nuovo (e anche quello vecchio). Anche i link a GitHub dentro l'app puntano al nome nuovo.
+
 ## [1.8.0] — 2026-10-30 · Grafica «Banco», LIVE con le scene, Montage che monta da solo, AI locali
 
 - **Grafica «Banco» ovunque**: metallo scuro, spie che si accendono solo quando serve (oro = azione, ciano = scelta, rosso = REC, verde = pronto), niente magenta nei comandi. Il Montaggio è solo rifinito.

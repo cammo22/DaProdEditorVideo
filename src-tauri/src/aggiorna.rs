@@ -13,9 +13,11 @@ use tauri::{AppHandle, Manager};
 
 type Esito<T> = Result<T, String>;
 
-const RELEASE: &str = "https://github.com/cammo22/DaProdVideo/releases/download/";
-const API: &str = "https://api.github.com/repos/cammo22/DaProdVideo/releases/latest";
-const FEED: &str = "https://github.com/cammo22/DaProdVideo/releases/latest/download/aggiornamento.json";
+// Il repository si chiama DaProdEditorVideo dal 30/10/2026; il vecchio nome resta accettato (GitHub reindirizza).
+const RELEASE: &str = "https://github.com/cammo22/DaProdEditorVideo/releases/download/";
+const RELEASE_VECCHIO: &str = "https://github.com/cammo22/DaProdVideo/releases/download/";
+const API: &str = "https://api.github.com/repos/cammo22/DaProdEditorVideo/releases/latest";
+const FEED: &str = "https://github.com/cammo22/DaProdEditorVideo/releases/latest/download/aggiornamento.json";
 
 fn leggi_release(url: &str) -> Esito<serde_json::Value> {
     let mut c = Command::new("curl");
@@ -120,7 +122,7 @@ fn senza_finestra(c: &mut Command) -> &mut Command {
 /// Scarica la versione nuova. Ritorna il percorso del file (a download finito).
 #[tauri::command]
 pub async fn aggiornamento_scarica(app: AppHandle, url: String, nome: String, accanto: bool) -> Esito<String> {
-    if !url.starts_with(RELEASE) || nome.contains('/') || nome.contains('\\') || nome.contains("..") {
+    if !(url.starts_with(RELEASE) || url.starts_with(RELEASE_VECCHIO)) || nome.contains('/') || nome.contains('\\') || nome.contains("..") {
         return Err("indirizzo non valido".into());
     }
     let dest = destinazione(&app, &nome, accanto)?;

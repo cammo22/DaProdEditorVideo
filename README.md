@@ -8,7 +8,7 @@
 [![▶ PROVA ORA](https://img.shields.io/badge/%E2%96%B6_PROVA_ORA-DaProd_Video-ffd54a?style=for-the-badge&labelColor=1a1428)](https://cammo22.github.io/DaProdVideo/app/)
 
 [![Home](https://img.shields.io/badge/GitHub_Pages-la_home-success?style=flat-square)](https://cammo22.github.io/DaProdVideo/)
-[![Release](https://img.shields.io/github/v/release/cammo22/DaProdVideo?style=flat-square&label=release&color=ff3df2)](https://github.com/cammo22/DaProdVideo/releases/latest)
+[![Release](https://img.shields.io/github/v/release/cammo22/DaProdEditorVideo?style=flat-square&label=release&color=ff3df2)](https://github.com/cammo22/DaProdEditorVideo/releases/latest)
 [![Changelog](https://img.shields.io/badge/📅_Changelog-mantenuto-ffab00?style=flat-square)](CHANGELOG.md)
 [![Tauri 2](https://img.shields.io/badge/Tauri_2-Rust-24c8db?style=flat-square&logo=tauri)](https://tauri.app/)
 [![Licenza MIT](https://img.shields.io/badge/Licenza-MIT-blue?style=flat-square)](LICENSE)
@@ -110,7 +110,7 @@ Sul telefono: tocco = cursore, **tieni premuto** e trascina per spostare, **due 
 
 ## 📥 App: Windows, poi Linux e Mac
 
-I file delle [release](https://github.com/cammo22/DaProdVideo/releases/latest):
+I file delle [release](https://github.com/cammo22/DaProdEditorVideo/releases/latest):
 
 | | File | Come si usa |
 | --- | --- | --- |

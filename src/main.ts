@@ -57,7 +57,7 @@ if (problema) {
       h('span', { class: 'marchio-grande' }, 'Da', h('b', null, 'Prod'), ' Video'),
       h('p', null, problema),
       h('p', null, 'Usa Chrome, Edge, Brave, Opera (anche su Android) o Safari 26, oppure scarica l\'app per Windows, Mac o Android.'),
-      h('a', { class: 'btn primario', href: 'https://github.com/cammo22/DaProdVideo/releases/latest' }, 'Scarica l\'app'))));
+      h('a', { class: 'btn primario', href: 'https://github.com/cammo22/DaProdEditorVideo/releases/latest' }, 'Scarica l\'app'))));
 } else {
   // le barre colore all'accensione, come le macchine della sala
   const avvio = h('div', { class: 'avvio' }, h('div', { class: 'avvio-targa' }, h('span', { class: 'marchio-grande' }, 'Da', h('b', null, 'Prod'), ' Video'), h('small', null, '00:00:00:00')));
