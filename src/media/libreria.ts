@@ -4,6 +4,7 @@
 // leggeri e si leggono dalla memoria delle misure, cache.ts, se già fatti). All'import le copie leggere dei video
 // pesanti partono in fondo alla coda; il controllo della velocità resta a richiesta nel Centro attività.
 // Le miniature della timeline restano «a richiesta»: si leggono solo i fotogrammi delle clip che si vedono.
+import { aspettaSentinella } from './sentinella';
 import {
   ALL_FORMATS, AudioBufferSink, BlobSource, CanvasSink, Input, StreamSource,
   type InputAudioTrack, type InputVideoTrack,
@@ -654,6 +655,7 @@ async function lavoraMiniature(id: string) {
     while (inCoda.get(id)?.size) {
       // prima il fotogramma del monitor e la riproduzione, poi le miniature
       for (let attese = 0; decoderOccupato() && attese < 100; attese++) await new Promise((ok) => setTimeout(ok, 40));
+      await aspettaSentinella();
       const ts = [...inCoda.get(id)!].sort((a, b) => a - b).slice(0, 8);
       for (const t of ts) inCoda.get(id)!.delete(t);
       let i = 0;

@@ -6,6 +6,7 @@
 // Se la ripresa ha il suo proxy (src/media/proxy.ts) si legge quello: leggero e con un fotogramma chiave ogni
 // mezzo secondo, così si parte da qualunque punto all'istante. Da fermo, se il monitor è più grande del proxy,
 // dopo un attimo arriva il fotogramma nitido dell'originale.
+import { aspettaSentinella } from './sentinella';
 import { EncodedPacketSink, VideoSampleSink, type VideoSample } from 'mediabunny';
 import { mediaRT, quandoDecoderOccupato, type MediaRT } from './libreria';
 import { modoProxy, quandoProxy } from './proxy';
@@ -203,6 +204,7 @@ class Ricerca {
         const c = this.current;
         const avanti = !!this.iter && !!c && t >= c.timestamp && t - c.timestamp < 3;
         if (!avanti) {
+          await aspettaSentinella();
           this.chiudiCursore();
           this.iter = this.sink.samples(Math.max(0, t));
         }

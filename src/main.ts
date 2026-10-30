@@ -1,4 +1,6 @@
 // Punto d'ingresso del banco di montaggio.
+import { installaSentinella } from './media/sentinella';
+installaSentinella();
 import '@fontsource/orbitron/latin-700.css';
 import '@fontsource/orbitron/latin-900.css';
 import '@fontsource/rajdhani/latin-500.css';
