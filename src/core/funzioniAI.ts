@@ -93,7 +93,7 @@ export const FUNZIONI_AI: FunzioneAI[] = [
   },
   {
     id: 'sottotitoli-parole', nome: 'Parole con i tempi (Qwen3-ASR)', dove: 'finale', motore: 'locale', stato: 'opzionale', peso: '3,7 GB (due modelli, più l\'ambiente Python, circa 6 GB)', vram: '2–4 GB, un modello alla volta',
-    descrizione: 'Qwen3-ASR 0.6B e Qwen3-ForcedAligner 0.6B (Apache-2.0) scrivono ogni parola con il suo tempo: righe di sottotitolo modificabili, con la trascrizione intera conservata.',
+    descrizione: 'Qwen3-ASR 0.6B e Qwen3-ForcedAligner 0.6B (Apache-2.0) scrivono ogni parola con il suo tempo: righe di sottotitolo modificabili nella riga SOTT (sostituiscono quelle che ci sono; Ctrl+Z le rimette).',
   },
   {
     id: 'traduci', nome: 'Traduci i sottotitoli (Hy-MT2)', dove: 'finale', motore: 'locale', stato: 'opzionale', peso: '3,6 GB (più l\'ambiente Python, circa 6 GB)', vram: '2–4 GB',

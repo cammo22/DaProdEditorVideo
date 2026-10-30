@@ -515,6 +515,8 @@ if __name__ == '__main__':
         raise ValueError('Manca il token di sessione')
     os.environ['HF_HUB_OFFLINE'] = '1'
     os.environ['TRANSFORMERS_OFFLINE'] = '1'
+    # Cosa è rimasto nella cartella di scambio da un lavoro interrotto (audio, fotogrammi) non serve a nessuno: via, all'accensione.
+    shutil.rmtree(Path(os.environ['DAPROD_RADICE']) / 'scambio', ignore_errors=True)
     server = crea_server(os.environ['DAPROD_RADICE'], token)
 
     # La pipe appartiene a Rust: chiudendosi l'app sparisce anche Python, persino dopo un crash.

@@ -20,7 +20,7 @@ import motore_catalogo as C
 
 NOME = re.compile(r'^[A-Za-z0-9._-]{1,80}$')
 ESTENSIONI_VIDEO = ('.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v', '.mts', '.m2ts', '.wmv')
-MAX_TESTI = 300
+MAX_TESTI = 3000
 MAX_CARATTERI = 2000
 MAX_SECONDI_RALLENTA = 12
 MAX_PAROLE = 50000

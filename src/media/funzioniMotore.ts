@@ -16,7 +16,7 @@ import { store } from '../core/store';
 import { togliAnimazione } from '../core/automazioni';
 import { f2s } from '../core/timecode';
 import { SOTTO0, sottotitoliDi } from '../core/sottotitoli';
-import { dividiInTratti, mettiMarcatoriScena, pianoRallenta, righeDaParole, type ParolaTempo, type TaglioScena } from '../core/materialeAI';
+import { mettiMarcatoriScena, pianoRallenta, righeDaParole, trattiDaPunti, type ParolaTempo, type TaglioScena } from '../core/materialeAI';
 import { avviso } from '../ui/dom';
 import { codificaWav } from './wav';
 import { inCoda, progettoAttuale, type Lavoro } from './attivita';
@@ -27,7 +27,7 @@ import { motoreAI, motoreLocaleDisponibile, type MotoreAI, type PercorsoLavoro }
 import {
   ClipCambiata, ancoraValida, cartellaAudioLavorato, clipAudioDi, gemelle, inCorso, inLavoro, leggiAudio, nomeBase, possibilita, sorgenteDi, tratto, type Tratto,
 } from './audioAI';
-import { audioPerVoce } from './voce';
+import { audioPerVoce, puntiDiTaglio } from './voce';
 import { salvaMediaSulDisco } from '../platform';
 
 export type FunzioneMotore = 'traduci' | 'pulisci' | 'separa' | 'scene' | 'rallenta' | 'trascrivi';
@@ -212,6 +212,7 @@ export async function separaMotore(clipId: string, m: MotoreAI = motoreAI): Prom
       l.imposta(0, 'Accendo il motore AI…');
       await preparaMotore(m, 'separa', (k, x) => l.imposta((k ?? 0) * 0.05, x), l.segnale);
       const importati: MediaItem[] = [];
+      let applicato = false;
       try {
         const wav = await wavDelTratto(t, l, 0.05, 0.15);
         const dentro = nomeScambio('canzone');
@@ -226,7 +227,7 @@ export async function separaMotore(clipId: string, m: MotoreAI = motoreAI): Prom
         }
         l.imposta(0.95, 'Metto le due tracce nel progetto…');
         const perche = ancoraValida(a, t, s0, true);
-        if (perche || progetto !== progettoAttuale()) { for (const it of importati) chiudiMedia(it.id); throw new ClipCambiata((perche ?? 'Il progetto è cambiato') + ': non l\'ho applicato'); }
+        if (perche || progetto !== progettoAttuale()) throw new ClipCambiata((perche ?? 'Il progetto è cambiato') + ': non l\'ho applicato');
         const nuove = store.edit('Voce e musica (motore AI)', (p) => {
           const x = p.clips.find((c) => c.id === a.id)!;
           const cartella = cartellaAudioLavorato(p);
@@ -255,9 +256,14 @@ export async function separaMotore(clipId: string, m: MotoreAI = motoreAI): Prom
           for (const c of nuoveClip) c.afx!.separata!.con = [x.id, ...ids.filter((i) => i !== c.id)];
           return ids;
         });
+        applicato = true;
         store.select(nuove);
         l.imposta(1, 'Fatto');
         avviso(`🎤 Voce e musica separate (motore AI): ${s0.m.name}. L'originale è in silenzio (Ctrl+Z annulla tutto)`, 'ok', 4800);
+      } catch (e) {
+        // fermato o fallito dopo aver già preso la voce: i file importati non servono a nessuno, non restano nel contenitore
+        if (!applicato) for (const it of importati) chiudiMedia(it.id);
+        throw e;
       } finally { await m.pulisciScambio(); }
     }, a.id);
   } finally { inCorso.delete(a.id); }
@@ -332,7 +338,8 @@ export async function sottotitoliQwen(lingua = 'auto', m: MotoreAI = motoreAI): 
     for (let i = 0; i < audio.length; i += 64) picco = Math.max(picco, Math.abs(audio[i]));
     if (picco < 0.003) throw new Error('Nei dialoghi del montaggio non si sente niente da scrivere');
     const SR = 16000;
-    const tratti = dividiInTratti(audio.length / SR, TRATTO_ASR);
+    // i tratti si tagliano nel punto più silenzioso vicino ai 10 minuti: una parola non resta spezzata fra due lavori
+    const tratti = trattiDaPunti(puntiDiTaglio(audio, TRATTO_ASR, 15));
     const parole: ParolaTempo[] = [];
     let rilevata = '';
     let senzaTempi = false;

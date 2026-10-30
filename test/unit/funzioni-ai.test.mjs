@@ -315,6 +315,22 @@ test('dividiInTratti: tratti pari che coprono tutto; niente tratti se la durata 
   assert.deepEqual(MA.dividiInTratti(10, 600), [[0, 10]]);
 });
 
+test('trattiDaPunti: i punti di taglio nel silenzio diventano coppie senza buchi', () => {
+  assert.deepEqual(MA.trattiDaPunti([0, 598.5, 1203, 1300]), [[0, 598.5], [598.5, 1203], [1203, 1300]]);
+  assert.deepEqual(MA.trattiDaPunti([0, 10]), [[0, 10]]);
+  assert.deepEqual(MA.trattiDaPunti([0]), []);
+  assert.deepEqual(MA.trattiDaPunti([0, 5, 5, Number.NaN, 9]), [[0, 5], [5, 9]]);
+});
+
+test('i marcatori «Scena del bacio» fatti a mano non si toccano e non diventano tagli', () => {
+  const { p, c } = progettoConRipresa({ srcIn: 0, len: 250 });
+  p.markers.push({ id: 'mio', f: 130, name: 'Scena del bacio', color: '#fff' });
+  MA.mettiMarcatoriScena(p, c.id, [{ t: 2, p: 0.9 }]);
+  MA.mettiMarcatoriScena(p, c.id, [{ t: 6, p: 0.9 }]);
+  assert.ok(p.markers.some((m) => m.id === 'mio'), 'il tuo segno resta anche rifacendo le scene');
+  assert.equal(MA.tagliaAlleScene(p, c.id), 1, 'solo il marcatore «Scena 2» diventa un taglio');
+});
+
 test('pianoRallenta: fotogrammi e durata della clip nuova', () => {
   const p = MA.pianoRallenta(2, 2, 25, { num: 25, den: 1 });
   assert.equal(p.origine, 51);

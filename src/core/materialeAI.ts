@@ -58,12 +58,18 @@ export function righeDaParole(parole: ParolaTempo[], p: Pick<Project, 'rate'> & 
   return sistemaRighe(righe.map((x) => ({ id: uid('s'), da: Math.round((x.da + offset) * r), a: Math.max(Math.round((x.da + offset) * r) + 1, Math.round((x.a + offset) * r)), testo: x.testo })), fine);
 }
 
-/** un audio lungo in tratti da al massimo `max` secondi, tagliati dove c'è il silenzio più vicino alla misura (se si dà `energia`) */
+/** un audio lungo in tratti pari da al massimo `max` secondi (tagli a metà strada, senza guardare l'audio: per tagliare nel silenzio si usano i punti di `trattiDaPunti`) */
 export function dividiInTratti(durata: number, max: number): [number, number][] {
   if (!(durata > 0) || !(max > 0)) return [];
   const n = Math.ceil(durata / max);
   const passo = durata / n;
   return Array.from({ length: n }, (_, i) => [i * passo, i === n - 1 ? durata : (i + 1) * passo] as [number, number]);
+}
+
+/** i punti di taglio (secondi, il primo 0 e l'ultimo la fine, come li dà `puntiDiTaglio`) diventano coppie [da, a] */
+export function trattiDaPunti(punti: number[]): [number, number][] {
+  const buoni = punti.filter((x) => Number.isFinite(x) && x >= 0);
+  return buoni.slice(1).map((a, i) => [buoni[i], a] as [number, number]).filter(([a, b]) => b > a);
 }
 
 // ——— scene → marcatori ———
@@ -73,6 +79,8 @@ export interface TaglioScena { t: number; p: number }
 export interface ClipGuardata { start: number; len: number; srcIn: number; speed: number }
 
 export const PREFISSO_SCENA = 'Scena ';
+/** il nome preciso dei marcatori fatti qui: un tuo marcatore «Scena del bacio» non si tocca e non diventa un taglio */
+const NOME_SCENA = /^Scena \d+$/;
 export const COLORE_SCENA = '#35e8ff';
 
 /**
@@ -91,7 +99,7 @@ export function sceneInMarcatori(tagli: TaglioScena[], c: ClipGuardata, rate: Pr
 
 /** i marcatori delle scene che stanno dentro una clip */
 export const marcatoriScena = (p: Pick<Project, 'markers'>, c: Pick<Clip, 'start' | 'len'>) =>
-  p.markers.filter((m) => m.name.startsWith(PREFISSO_SCENA) && m.f > c.start && m.f < c.start + c.len);
+  p.markers.filter((m) => NOME_SCENA.test(m.name) && m.f > c.start && m.f < c.start + c.len);
 
 /**
  * Mette i marcatori delle scene di una clip (togliendo quelli di una prova precedente nello stesso tratto: i marcatori

@@ -103,7 +103,7 @@ class Funzioni(Base):
         # risposta vuota del modello: resta il testo originale
         self.assertEqual(L.lavora_traduci({'testi': ['x'], 'da': 'it', 'a': 'en'}, self.ctx, Registro(traduci=''))['testi'], ['x'])
         for male in ({'testi': [], 'da': 'it', 'a': 'en'}, {'testi': ['x'], 'da': 'it', 'a': 'xx'}, {'testi': [1], 'da': 'it', 'a': 'en'},
-                     {'testi': ['x' * 2001], 'da': 'it', 'a': 'en'}, {'testi': ['x'] * 301, 'da': 'it', 'a': 'en'}, {'da': 'it', 'a': 'en'}):
+                     {'testi': ['x' * 2001], 'da': 'it', 'a': 'en'}, {'testi': ['x'] * 3001, 'da': 'it', 'a': 'en'}, {'da': 'it', 'a': 'en'}):
             with self.assertRaises(ValueError, msg=str(male)[:40]):
                 L.lavora_traduci(male, self.ctx, Registro())
 
