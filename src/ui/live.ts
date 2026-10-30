@@ -105,7 +105,7 @@ const liberaDi = new WeakMap<Blob, () => Promise<void>>();
 /** i pezzi fra una pausa e l'altra, cuciti uno dopo l'altro in un file solo, senza ricodificare, ognuno tagliato
  *  dove si è premuto PAUSA o FERMA (null se non si riesce: allora si prova pezzo per pezzo). Nell'app il file cucito
  *  si scrive sul disco un pezzetto alla volta (`sulDisco`): se non va, si rifà in memoria come una volta. */
-async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { indice: number; daMs: number; durataMs: number }[], sulDisco = false): Promise<Blob | null> {
+async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { indice: number; daMs: number; durataMs: number }[], sulDisco = false, cuciti?: Blob[]): Promise<Blob | null> {
   const ingressi = tratti.map((x) => new Input({ source: new BlobSource(x.blob), formats: ALL_FORMATS }));
   // il WebM si scrive di seguito, l'MP4 veloce vuole tutto in memoria fino alla fine
   const disco = sulDisco && !mp4 ? await uscitaSuDisco('cucito', 'video/webm') : null;
@@ -166,6 +166,7 @@ async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { in
     if (disco) {
       const blob = new Blob([await disco.finito()], { type: tipo });
       liberaDi.set(blob, disco.scarta);
+      cuciti?.push(blob);
       return blob;
     }
     const buf = (output.target as BufferTarget).buffer;
@@ -174,7 +175,7 @@ async function cuci(tratti: Tratto[], mp4: boolean, note: string[], tempi?: { in
     try { await output?.cancel(); } catch { /* già chiuso */ }
     await disco?.scarta();
     // sul disco non è andata: una seconda volta in memoria (come prima)
-    if (disco) { note.length = note0; if (tempi) tempi.length = tempi0; return cuci(tratti, mp4, note, tempi, false); }
+    if (disco) { note.length = note0; if (tempi) tempi.length = tempi0; return cuci(tratti, mp4, note, tempi, false, cuciti); }
     return null;
   } finally {
     for (const i of ingressi) i.dispose();
@@ -368,7 +369,8 @@ function nastro(flusso: MediaStream, tipo: string, vbps: number): Nastro {
     chiudiRec();
     void spool.then(async (s) => {
       const blob = await s.chiudi();
-      consegna({ blob, taglio, nota: `${s.fette} fette${s.su === 'memoria' ? ' (in memoria)' : ''}, ${tardivi} dopo lo stop`, libera: () => s.scarta() });
+      if (s.perse) avviso('Il disco temporaneo ha smesso di rispondere durante la registrazione: potrebbe mancare la parte iniziale di un pezzo', 'errore', 9000);
+      consegna({ blob, taglio, nota: `${s.fette} fette${s.perse ? ' (PERSE dal disco)' : s.su === 'memoria' ? ' (in memoria)' : ''}, ${tardivi} dopo lo stop`, libera: () => s.scarta() });
     });
   };
   // finito lo stop si aspetta ancora un attimo: qualche Chromium consegna gli ultimi dati dopo
@@ -1125,6 +1127,9 @@ export class Live {
     void this.cursoreLive?.ferma().catch(() => {});
     this.cursoreLive = null;
     this.chiudiFlussi();
+    // i registratori già partiti finiscono da soli: i loro file temporanei si tolgono appena sono chiusi
+    const orfani = [...this.pezzi, ...this.segCam.flatMap((g) => g.pezzi), ...this.pezziMic];
+    void Promise.allSettled(orfani).then((rs) => { for (const r of rs) if (r.status === 'fulfilled') void r.value.libera?.(); });
     this.pezzi = []; this.segCam = []; this.segCamAperto = null; this.nastroCam = null; this.pezziMic = []; this.micSep = null;
     this.aggiornaTasti();
     this.stato.textContent = 'Non riesco a registrare';
@@ -1301,7 +1306,8 @@ export class Live {
 
   /** dopo qualche secondo guarda se quello che arriva dallo schermo è un'immagine vera: tutta bianca o tutta nera vuol dire che la cattura non funziona */
   private controllaImmagine() {
-    if (this.fase === 'fermo') return;
+    // con LIVE nascosto l'anteprima è staccata (niente decodifica): non c'è un'immagine da guardare e non è un errore
+    if (this.fase === 'fermo' || !this.visibile) return;
     const v = this.video;
     if (!v.videoWidth) { avviso('Dallo schermo non arriva nessuna immagine: ferma e riprova, scegliendo una finestra o lo schermo', 'errore', 8000); return; }
     try {
@@ -1377,7 +1383,8 @@ export class Live {
       const x = c.getContext('2d')!;
       x.fillStyle = '#000';
       x.fillRect(0, 0, 192, 108);
-      const v = this.video;
+      // con LIVE nascosto l'anteprima è staccata: si prende l'immagine dalla regia, se c'è
+      const v = this.video.videoWidth ? this.video : this.regia?.fonti[0]?.video ?? this.video;
       if (v.videoWidth) {
         const k = Math.min(192 / v.videoWidth, 108 / v.videoHeight);
         const w = v.videoWidth * k, hh = v.videoHeight * k;
@@ -1444,6 +1451,7 @@ export class Live {
     this.flusso = null;
     // i file temporanei dei pezzi (e quelli cuciti) si tolgono dal disco a lavoro finito, anche se qualcosa va storto
     const daLiberare: Tratto[] = [];
+    const cuciti: Blob[] = [];
     this.ultima = (async () => {
       // i flussi si spengono solo quando l'ultimo pezzo ha dato tutto
       const [tratti, segmentiCam, trattiMic] = await Promise.all([Promise.all(pezzi), Promise.all(segCam.map(async (g) => ({ da: g.da, tratti: await Promise.all(g.pezzi) }))), Promise.all(pezziMic)]);
@@ -1455,14 +1463,14 @@ export class Live {
       // la webcam resta accesa per l'anteprima solo se si è ancora su LIVE
       if (!this.visibile) this.chiudiCam();
       await this.consegna(tratti.filter((x) => x.blob.size), segmentiCam.map((g) => ({ da: g.da, tratti: g.tratti.filter((x) => x.blob.size) })).filter((g) => g.tratti.length), trattiMic.filter((x) => x.blob.size), durata, segni, foto,
-        await cursore, scelteCursore, tratti.flatMap((x, i) => x.blob.size ? [i] : []));
+        await cursore, scelteCursore, tratti.flatMap((x, i) => x.blob.size ? [i] : []), cuciti);
     })().catch((e) => {
       // anche su errore tutto quello che era aperto si chiude
       try { regia?.ferma(); this.chiudiFlussi(flussi, mix); } catch { /* già chiusi */ }
       this.stato.textContent = 'Non sono riuscito a mettere via la registrazione';
       avviso('La registrazione non si salva: ' + String(e), 'errore', 4000);
     }).finally(async () => {
-      await Promise.allSettled(daLiberare.map((t) => t.libera?.()));
+      await Promise.allSettled([...daLiberare.map((t) => t.libera?.()), ...cuciti.map((b) => liberaDi.get(b)?.())]);
       this.aggiornaRisorse();
       void this.aggiornaSpazio();
     });
@@ -1479,19 +1487,20 @@ export class Live {
 
   /** la registrazione finita: cucita, sul disco (nell'app), nel contenitore e in fondo alla timeline */
   private async consegna(tratti: Tratto[], segmentiCam: { da: number; tratti: Tratto[] }[], trattiMic: Tratto[], durata: number, segni: number[], foto: string,
-    cursore: Awaited<ReturnType<CursoreLive['ferma']>> | null = null, scelteCursore = { zoom: false, clic: false }, indici: number[] = tratti.map((_, i) => i)) {
+    cursore: Awaited<ReturnType<CursoreLive['ferma']>> | null = null, scelteCursore = { zoom: false, clic: false }, indici: number[] = tratti.map((_, i) => i),
+    /** i file cuciti sul disco temporaneo: chi chiama li toglie sempre, anche se qualcosa va storto */ cuciti: Blob[] = []) {
     if (!tratti.length) { this.stato.textContent = 'La registrazione è vuota'; return; }
     const mp4 = /mp4/.test(tratti[0].blob.type);
     // di solito un file solo; se la cucitura non riesce, i pezzi vanno uno dopo l'altro (sempre senza buchi)
     const tempi: { indice: number; daMs: number; durataMs: number }[] = [];
-    const cucito = await cuci(tratti, mp4, this.diagnosi, tempi, isTauri);
+    const cucito = await cuci(tratti, mp4, this.diagnosi, tempi, isTauri, cuciti);
     const files = cucito ? [cucito] : await Promise.all(tratti.map((x) => rimetteInOrdine(x.blob, mp4)));
     // la webcam: un file per ogni segmento (se l'hai accesa e spenta più volte), ognuno con il punto da cui parte
     const camBlob: { blob: Blob; da: number }[] = [];
     for (const g of segmentiCam) {
       const note: string[] = [];
       const camMp4 = /mp4/.test(g.tratti[0].blob.type);
-      const b = await cuci(g.tratti, camMp4, note, undefined, isTauri) ?? (g.tratti.length === 1 ? await rimetteInOrdine(g.tratti[0].blob, camMp4) : null);
+      const b = await cuci(g.tratti, camMp4, note, undefined, isTauri, cuciti) ?? (g.tratti.length === 1 ? await rimetteInOrdine(g.tratti[0].blob, camMp4) : null);
       if (b) camBlob.push({ blob: b, da: g.da });
       this.diagnosi.push(...note.map((x) => 'webcam ' + x));
     }
@@ -1500,7 +1509,7 @@ export class Live {
     if (trattiMic.length) {
       const note: string[] = [];
       const micMp4 = /mp4/.test(trattiMic[0].blob.type);
-      const cucitoMic = await cuci(trattiMic, micMp4, note, undefined, isTauri);
+      const cucitoMic = await cuci(trattiMic, micMp4, note, undefined, isTauri, cuciti);
       micFiles = cucitoMic ? [cucitoMic] : trattiMic.map((x) => x.blob);
       this.diagnosi.push(...note.map((x) => 'microfono ' + x));
     }

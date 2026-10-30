@@ -61,6 +61,8 @@ export class Spool {
   /** le fette che il disco non ha preso (se tutto va bene, nessuna) */
   private memoria: Blob[] = [];
   private guasto = false;
+  /** vero se il file sul disco si è rotto dopo aver preso delle fette: quelle non si recuperano più */
+  perse = false;
   private chiuso = false;
   private chiudiRisorsa: () => void = () => {};
   dimensione = 0;
@@ -113,7 +115,7 @@ export class Spool {
     let sulDisco: Blob | null = null;
     if (this.scrivibile) {
       try { await this.scrivibile.close(); sulDisco = this.handle ? await this.handle.getFile() : null; }
-      catch { this.guasto = true; sulDisco = null; }
+      catch { this.guasto = true; sulDisco = null; if (this.fette > this.memoria.length) this.perse = true; }
       this.scrivibile = null;
       this.chiudiRisorsa();
     }

@@ -124,7 +124,7 @@
 .live-comandi .live-configurazione summary, .live-comandi .live-archivio summary { padding: 12px 2px; min-height: 44px; display: flex; align-items: center; font: 700 12px var(--ui); letter-spacing: 3px; color: var(--etichetta, #8d889c); }
 .live-comandi .live-configurazione[open] > summary, .live-comandi .live-archivio[open] > summary { color: var(--testo); }
 .live-configurazione .live-sez { margin: 14px 2px 6px; }
-.live-configurazione .fin-interruptor, .live-configurazione .fin-interruttore { height: 34px; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo); box-shadow: none; font: 600 13px var(--ui); color: var(--testo); }
+.live-configurazione .fin-interruttore { height: 34px; border-radius: 5px; background: var(--pann2); border: 1px solid var(--bordo); box-shadow: none; font: 600 13px var(--ui); color: var(--testo); }
 .live-configurazione .fin-interruttore.acceso { box-shadow: none; border-color: rgba(93, 255, 180, 0.35); }
 .live-configurazione .live-btn { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: var(--metallo-chiaro); box-shadow: none; font: 700 12px var(--ui); }
 .live-configurazione .live-sel, .live-comandi .live-sel { height: 34px; border-radius: 5px; border: 1px solid var(--bordo-forte); background: #050407; font: 600 13px var(--ui); max-width: none; }
@@ -142,3 +142,6 @@
 @media (max-width: 1180px) {
   .live-barra .live-info { order: 9; flex: 1 0 100%; text-align: left; }
 }
+
+/* la finestra in onda fra le miniature è una selezione: ciano, non rosso (il rosso è solo REC) */
+.live-fonte.in-onda { border-color: var(--cia); box-shadow: 0 0 0 1px var(--cia), 0 0 10px rgba(53, 232, 255, 0.35); }

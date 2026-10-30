@@ -125,3 +125,21 @@ test('il registro delle funzioni AI: contratto condiviso', () => {
   assert.ok(Array.isArray(F.FUNZIONI_AI));
   assert.deepEqual(F.funzioniPer('clip'), F.FUNZIONI_AI.filter((f) => f.dove === 'clip'));
 });
+
+test('se il disco si rompe dopo aver preso delle fette e non chiude più, la perdita si dichiara', async () => {
+  const dir = cartellaFinta();
+  const sp = await S.Spool.apri('video', 'video/webm', dir);
+  sp.aggiungi(new Blob(['a'])); sp.aggiungi(new Blob(['b']));
+  // il file sul disco non si chiude più (disco sparito)
+  sp.scrivibile.close = async () => { throw new Error('disco sparito'); };
+  const blob = await sp.chiudi();
+  assert.equal(sp.perse, true);
+  assert.equal(blob.size, 0);
+});
+
+test('senza guasti la perdita non si dichiara', async () => {
+  const sp = await S.Spool.apri('video', 'video/webm', cartellaFinta());
+  sp.aggiungi(new Blob(['a']));
+  await sp.chiudi();
+  assert.equal(sp.perse, false);
+});
