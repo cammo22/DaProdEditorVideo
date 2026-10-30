@@ -227,7 +227,7 @@ export async function proveMontage({ page, prova, OUT }) {
       const comandi = [...document.querySelectorAll('.mt-colcome .mt-scheda button, .mt-colcome .mt-scheda input, .mt-colcome .mt-scheda select')];
       const bassi = comandi.filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className + ':' + Math.round(e.getBoundingClientRect().height));
       const fuori = comandi.filter((e) => { const r = e.getBoundingClientRect(), q = c.getBoundingClientRect(); return r.bottom > q.bottom + 1 || r.right > q.right + 1; }).length;
-      return { schede: schede.length, tutteIntere: schede.every((e) => e.scrollHeight <= e.clientHeight + 1), pagina: c.scrollHeight <= c.clientHeight + 1, bassi, fuori, alto: Math.round(c.getBoundingClientRect().height) };
+      return { misure: schede.map((e) => [e.querySelector('h4')?.textContent, e.scrollHeight, e.clientHeight]), schede: schede.length, tutteIntere: schede.every((e) => e.scrollHeight <= e.clientHeight + 1), pagina: c.scrollHeight <= c.clientHeight + 1, bassi, fuori, alto: Math.round(c.getBoundingClientRect().height) };
     });
     prova(`al passo 3 durata, musica, titoli e formato si vedono tutti senza scorrere (${w}×${hh})`, ness.schede === 5 && ness.tutteIntere && ness.pagina && ness.fuori === 0 && ness.bassi.length === 0, JSON.stringify(ness));
     if (w === 1366) await page.screenshot({ path: path.join(OUT, 'montage-durata-1366.png') });
@@ -265,7 +265,7 @@ export async function proveMontage({ page, prova, OUT }) {
       titoli.map((c) => c.gen?.anim?.id + ':' + c.start),
     ]);
     return {
-      pagina: document.getElementById('app').dataset.pagina, nome, fine, atteso: Math.round(20 * fps), nFoto: foto.length, titoli: titoli.length, testo: JSON.stringify(titoli.map((c) => c.gen?.anim)),
+      pagina: document.getElementById('app').dataset.pagina, nome, fine, atteso: Math.round(20 * fps), nFoto: foto.length, titoli: titoli.length, testo: JSON.stringify(titoli.map((c) => c.gen)),
       blocchi: d.clips.filter((c) => c.kind === 'fx').length, seq: (d.sequenze ?? []).length, undo: window.__dpv.undoLabel(), forma,
       crea: vis('.mt-crea'), rigenera: vis('.mt-rigenera'), importa: vis('.mt-importa'), scarta: vis('.mt-scarta'), variante: document.querySelector('.mt-variante')?.textContent ?? '',
       monitor: box('.monitor'), pannello: box('.mt-colanteprima'), timeline: vis('.timeline'), passo: document.querySelector('.mt-etapes .mt-vai[aria-current=step]')?.dataset.passo,
@@ -277,7 +277,7 @@ export async function proveMontage({ page, prova, OUT }) {
   prova('le foto riempiono esattamente 20 secondi e il nome inserito sta nel titolo', dopo.fine === dopo.atteso && /Leonardo/.test(dopo.testo) && dopo.titoli >= 1, JSON.stringify([dopo.fine, dopo.atteso]));
   prova('ci sono transizioni o effetti come blocchetti sopra le clip', dopo.blocchi >= 2, String(dopo.blocchi));
   prova('all\'anteprima il passo 4 è attuale, il monitor vero è grande a sinistra (anche col pannello Proprietà fissato), i comandi a destra, la timeline nascosta', dopo.passo === 'anteprima' && dopo.monitor && dopo.pannello && dopo.monitor.h > 400 && dopo.monitor.w > 900 && dopo.monitor.x + dopo.monitor.w <= dopo.pannello.x + 2 && dopo.pannello.h > 400 && !dopo.timeline, JSON.stringify([dopo.passo, dopo.monitor, dopo.pannello, dopo.timeline]));
-  prova('«Ti piace?» dice stile, file, durata e musica; i quattro ritocchi veloci ci sono', /^Battesimo/.test(dopo.riassunto) && /20 s/.test(dopo.riassunto) && /senza musica/.test(dopo.riassunto) && (await page.locator('.mt-ritocco').count()) === 4, dopo.riassunto);
+  prova('«Ti piace?» dice stile, file, durata e musica; i sette ritocchi veloci ci sono', /^Battesimo/.test(dopo.riassunto) && /20 s/.test(dopo.riassunto) && /senza musica/.test(dopo.riassunto) && (await page.locator('.mt-ritocco').count()) === 7, dopo.riassunto);
   // anche sul portatile piccolo (1280×720) i comandi dell'anteprima stanno tutti nello schermo, senza scorrere il pannello
   for (const [w, hh] of [[1366, 768], [1280, 720]]) {
     await page.setViewportSize({ width: w, height: hh });
@@ -375,7 +375,7 @@ export async function proveMontage({ page, prova, OUT }) {
   const fpsDoc = await page.evaluate(() => window.__dpv.doc.rate.num / window.__dpv.doc.rate.den);
   const seme0 = await page.evaluate(() => document.querySelector('.mt-variante').textContent);
   const lunghezza = () => page.evaluate(() => { const d = window.__dpv.doc; const f = d.clips.filter((c) => c.kind === 'media'); return f.length ? Math.max(...f.map((c) => c.start + c.len)) : 0; });
-  const nomeNeiTitoli = () => page.evaluate(() => /Leonardo/.test(JSON.stringify(window.__dpv.doc.clips.filter((c) => c.kind === 'title').map((c) => c.gen?.anim))));
+  const nomeNeiTitoli = () => page.evaluate(() => /Leonardo/.test(JSON.stringify(window.__dpv.doc.clips.filter((c) => c.kind === 'title').map((c) => c.gen))));
   const titoliPrima = await nomeNeiTitoli();
   await page.click('.mt-ritocco[data-ritocco=piuCorto]');
   await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
@@ -399,7 +399,7 @@ export async function proveMontage({ page, prova, OUT }) {
   await page.waitForTimeout(300);
   await page.evaluate(async () => {
     const ok = [...document.querySelectorAll('.mt-colcome .mt-scheda')];
-    [...ok[0].querySelectorAll('.chip')].find((c) => c.textContent === 'Come lo stile').click();
+    const ritmo = ok[0].querySelector('select'); ritmo.value = '0'; ritmo.dispatchEvent(new Event('change', { bubbles: true }));
     [...document.querySelectorAll('.mt-colcome .fin-interruttore')].find((b) => /Titoli/.test(b.textContent)).click();
     const [mm, ss] = document.querySelectorAll('.mt-mmss input');
     mm.value = '0'; mm.dispatchEvent(new Event('change', { bubbles: true })); ss.value = '20'; ss.dispatchEvent(new Event('change', { bubbles: true }));
@@ -456,6 +456,37 @@ export async function proveMontage({ page, prova, OUT }) {
   });
   prova('con tre sole foto e 20 secondi il riepilogo lo dice e il tasto resta acceso', /^3 foto · 0 video/.test(poche.conta) && poche.riep.length > 20, JSON.stringify(poche));
   await page.screenshot({ path: path.join(OUT, 'montage-poche.png') });
+  // Le opzioni locali restano visibili nel browser, senza avviare motori o download.
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:pagina', { detail: 'montage' })));
+  await page.waitForSelector('.montage', { state: 'visible' });
+  await page.locator('.mt-vai[data-passo=durata]').click();
+  const ai = await page.evaluate(() => [...document.querySelectorAll('.mt-auto-ai')].map((e) => ({
+    spento: e.querySelector('button').disabled, testo: e.textContent,
+  })));
+  prova('gli aiuti AI sono visibili, opzionali e spenti nel browser, con le istruzioni', ai.length === 2 && ai.every((a) => a.spento && /OPZIONALE/.test(a.testo) && /Centro AI/.test(a.testo)), JSON.stringify(ai));
+  await page.click('.mt-crea');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(250);
+  const misurePrima = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h, seq: window.__dpv.doc.sequenze.length }));
+  await page.click('.mt-ritocco[data-ritocco=verticale]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(250);
+  const verticale = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h, seq: window.__dpv.doc.sequenze.length,
+    key: window.__dpv.doc.clips.some((c) => c.anim?.['tf.scale']?.length), lut: window.__dpv.doc.clips.find((c) => c.fx?.colore?.lut)?.fx.colore.lut.id }));
+  prova('Rendi verticale funziona anche con sequenze esistenti, con keyframe e LUT', verticale.w === 1080 && verticale.h === 1920 && verticale.seq === misurePrima.seq && verticale.key && !!verticale.lut, JSON.stringify(verticale));
+  await page.click('.mt-ritocco[data-ritocco=look]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(200);
+  const lutDopo = await page.evaluate(() => window.__dpv.doc.clips.find((c) => c.fx?.colore?.lut)?.fx.colore.lut.id);
+  prova('Cambia look applica un’altra LUT alle clip vere', !!lutDopo && lutDopo !== verticale.lut, String(lutDopo));
+  await page.click('.mt-ritocco[data-ritocco=bilancia]');
+  await page.evaluate(() => window.__dpvTest.ui().montage.ultimo);
+  await page.waitForTimeout(200);
+  const voce = await page.evaluate(() => JSON.parse(localStorage.getItem('dpv-montage')).audioVideo);
+  prova('Più musica / più voce cambia il bilanciamento salvato', voce === -3, String(voce));
+  await page.click('.mt-scarta');
+  const tornato = await page.evaluate(() => ({ w: window.__dpv.doc.w, h: window.__dpv.doc.h }));
+  prova('Scarta annulla insieme sequenza, look e formato', tornato.w === misurePrima.w && tornato.h === misurePrima.h, JSON.stringify(tornato));
   await page.keyboard.press('F8');
   await page.waitForTimeout(300);
 }

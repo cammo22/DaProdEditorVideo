@@ -179,3 +179,48 @@
 /* comandi alti almeno 44 px anche per i tasti piccoli e i campi (schermate.css li farebbe di 34 e 40, con una specificità più alta della nostra: serve !important) */
 .montage .btn-mini { min-height: 44px !important; }
 .montage :is(input[type='text'], input[type='number'], select, .campo-testo, .mini-select, .num) { min-height: 44px !important; box-sizing: border-box; }
+
+/* Gli aiuti fanno parte delle cinque schede: una spia, stato dal registro e metallo. */
+.montage .mt-auto { display: flex; align-items: center; gap: 6px; text-align: left; padding: 4px 8px; min-height: 44px !important; }
+.montage .mt-auto > span:nth-child(2) { flex: 1; font: 600 14px/1.1 var(--ui); }
+.montage .mt-auto small { font: 700 10px var(--ui); letter-spacing: 1px; color: var(--etichetta); }
+.montage .mt-auto.acceso { border-color: var(--cia); background: var(--metallo); color: var(--testo); }
+.montage .mt-auto.acceso .led { background: var(--cia); }
+.montage .mt-auto-ai { min-width: 0; }
+.montage .mt-ai-motivo { margin: 3px 0 0; font: 500 12px/1.15 var(--ui); color: var(--etichetta); }
+.montage .mt-vai[data-stato='attuale'] { background: var(--metallo); border-color: var(--cia); color: var(--cia); }
+.montage .mt-ritocco { background: var(--metallo); }
+.montage .mt-marchio .mt-m { color: var(--etichetta); }
+.montage .mt-auto:disabled { opacity: .65; }
+@media (min-width: 1000px) {
+  .montage .mt-colcome .mt-schede { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .montage .mt-colcome .mt-scheda { gap: 6px; padding: 10px; }
+  .montage .mt-colcome .mt-scheda h4:not(:first-child) { margin-top: 0; }
+  .montage .mt-colanteprima.attivo { gap: 6px; }
+  .montage .mt-note { max-height: 40px; overflow: auto; }
+  .montage .mt-riassunto { font-size: 14px; }
+}
+
+.montage .mt-testi { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.montage .mt-campo { min-width: 0; gap: 2px; }
+.montage .mt-campo > span { font-size: 12px; letter-spacing: 1px; }
+.montage .mt-auto small { font-size: 12px; letter-spacing: 1px; }
+.montage .mt-minsec { flex-wrap: wrap; }
+.montage .mt-mmss { margin-left: auto; }
+@media (max-height: 800px) and (min-width: 1000px) {
+  .montage .mt-colcome .mt-titolo p { display: none; }
+  .montage .mt-colcome .mt-titolo h2 { font-size: 24px; }
+  .montage .mt-colcome .mt-scheda { padding: 8px; gap: 4px; }
+  .montage .mt-colcome .mt-piede { padding-top: 4px; }
+  .montage .mt-colanteprima.attivo { padding-top: 10px; padding-bottom: 10px; gap: 4px; }
+  .montage .mt-ritocchi { gap: 4px; }
+  .montage .mt-importa { min-height: 48px; }
+  .montage .mt-ritmo { font-size: 12px; line-height: 1.15; margin: 0; }
+  .montage .mt-minsec label { font-size: 12px; }
+}
+
+#app[data-pagina='montage'] .testata-destra .btn.primario {
+  background: var(--metallo); color: var(--testo); border-color: var(--bordo-forte); box-shadow: none;
+}
+.montage .fin-interruttore.acceso { border-color: var(--cia); }
+.montage .fin-interruttore.acceso .led.acceso { background: var(--cia); box-shadow: 0 0 6px var(--cia); }

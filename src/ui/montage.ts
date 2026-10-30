@@ -9,6 +9,15 @@
 // cuori e petali, musica a tempo. Il risultato è una timeline vera (una scheda nuova) che poi ritocchi come vuoi.
 // Il motore sta in src/core/montage.ts, i passi e i ritocchi (puri, provati da Node) in src/core/montagePassi.ts.
 import { inCoda } from '../media/attivita';
+import { newClip, newTrack } from '../core/progetto';
+import { funzioneAI, ETICHETTA_STATO } from '../core/funzioniAI';
+import { lookPerStile, distanzaFirme } from '../core/montage';
+import { righeDaParole, type ParolaTempo } from '../core/materialeAI';
+import { SOTTO0 } from '../core/sottotitoli';
+import { caricaLutDiPartenza, LUT_DI_PARTENZA } from '../render/libreriLut';
+import { preparaDucking } from '../media/ducking';
+import { motoreAI, motoreLocaleDisponibile } from '../media/motoreAI';
+import { scenePerMontage, parolePerMontage } from '../media/funzioniMotore';
 import { store } from '../core/store';
 import type { MediaItem } from '../core/tipi';
 import { CATEGORIE_MONTAGE, PRESET_MONTAGE, presetMontage, type PresetMontage, type TestiMontage } from '../core/montagePreset';
@@ -33,6 +42,9 @@ import { BarraLavoro } from './lavoro';
 
 type Formato = 'auto' | 'progetto' | '16:9' | '9:16' | '1:1';
 interface Scelte {
+  migliori: boolean; sceneAI: boolean; sottotitoli: boolean; ducking: boolean; battiti: boolean;
+  look: boolean; titoliHtml: boolean; movimento: boolean; lookScelto: string;
+
   preset: string;
   durata: number;
   ordine: Ordine;
@@ -55,7 +67,6 @@ const nuovoSeme = () => (Math.random() * 0x7fffffff) >>> 0;
 /** il seme in breve, da far vedere ("Variante K7F2Q") e da scriversi se un montaggio piace */
 const codiceSeme = (n: number) => n.toString(36).toUpperCase().padStart(5, '0').slice(-5);
 
-const DURATE = [30, 60, 90, 120, 180, 300, 600];
 const MISURE: Record<Exclude<Formato, 'auto' | 'progetto'>, [number, number]> = { '16:9': [1920, 1080], '9:16': [1080, 1920], '1:1': [1080, 1080] };
 const RITMI_LENTI = ['Come lo stile', 'Più lento', 'Molto lento', 'Lentissimo'];
 const RITOCCHI: { r: Ritocco; info: string }[] = [
@@ -127,6 +138,10 @@ export class Montage {
   private scorrendo: { m: MediaItem; cv: HTMLCanvasElement; t: number } | null = null;
   /** quello che si è già misurato (qualità, pezzo migliore, battiti): rigenerare è subito */
   private analisi = new Map<string, { punteggio: number; firma?: string; inizioMigliore?: number }>();
+  private sceneCache = new Map<string, EntrataMontage['momenti']>();
+  private paroleCache = new Map<string, ParolaTempo[]>();
+  private aiPronto = false;
+  private aiControlli: { b: HTMLButtonElement; motivo: HTMLElement; funzione: 'scene' | 'trascrivi' }[] = [];
   private ritmi = new Map<string, { battiti?: number[]; bpm?: number }>();
   /** finisce quando il montaggio è pronto (per le prove) */
   ultimo: Promise<unknown> = Promise.resolve();
@@ -134,6 +149,9 @@ export class Montage {
   constructor() {
     const salvate = leggi();
     this.s = {
+      migliori: salvate.migliori ?? true, sceneAI: false, sottotitoli: false,
+      ducking: salvate.ducking ?? true, battiti: salvate.battiti ?? true, look: salvate.look ?? true,
+      titoliHtml: salvate.titoliHtml ?? true, movimento: salvate.movimento ?? true, lookScelto: '', 
       preset: salvate.preset && presetMontage(salvate.preset) ? salvate.preset : 'matrimonio', durata: salvate.durata ?? 120, ordine: salvate.ordine ?? 'data',
       titoli: salvate.titoli ?? true, effetti: salvate.effetti ?? true, scarta: salvate.scarta ?? true, audioVideo: salvate.audioVideo ?? -14, formato: salvate.formato ?? 'auto', adatta: salvate.adatta ?? 'intero',
       testi: salvate.testi ?? { titolo: '', sottotitolo: '', nomi: '', data: '' }, musica: '', lentezza: Math.max(0, Math.min(3, Math.round(salvate.lentezza ?? 0))),
@@ -167,11 +185,25 @@ export class Montage {
       this.sinc.push(() => { b.classList.toggle('acceso', this.s[k]); led.classList.toggle('acceso', this.s[k]); });
       return b;
     };
+    const automatico = (testo: string, k: 'migliori' | 'sceneAI' | 'sottotitoli' | 'ducking' | 'battiti' | 'look' | 'titoliHtml' | 'movimento', registro = 'montage') => {
+      const f = funzioneAI(registro)!;
+      const b = h('button', { class: 'fin-interruttore mt-auto', type: 'button', on: { click: () => {
+        this.s[k] = !this.s[k]; this.cambiato(); this.salva(); this.sincronizza(); this.aggiorna();
+      } } }, h('span', { class: 'led' }), h('span', null, testo), h('small', null, ETICHETTA_STATO[f.stato])) as HTMLButtonElement;
+      this.sinc.push(() => { b.classList.toggle('acceso', this.s[k]); b.setAttribute('aria-pressed', String(this.s[k])); });
+      if (k === 'sceneAI' || k === 'sottotitoli') {
+        b.disabled = true;
+        const motivo = h('p', { class: 'mt-ai-motivo' }, `Nell’app Windows: Centro AI → Motore AI locale → Installa, poi scarica ${k === 'sceneAI' ? 'TransNetV2' : 'Qwen3-ASR'}.`);
+        this.aiControlli.push({ b, motivo, funzione: k === 'sceneAI' ? 'scene' : 'trascrivi' });
+        return h('div', { class: 'mt-auto-ai' }, b, motivo);
+      }
+      return b;
+    };
     const intesta = (titolo: string, sotto: string, ...extra: (Node | string)[]) =>
       h('div', { class: 'mt-titolo' }, h('h2', null, titolo), h('p', null, sotto), ...extra);
     const piede = (...figli: (Node | null)[]) => h('div', { class: 'mt-piede' }, ...figli);
-    const avanti = (a: number, testo: string) => h('button', { class: 'btn mt-avanti', on: { click: () => this.vai(a) } }, testo);
-    const indietro = (a: number) => h('button', { class: 'btn mt-indietro', on: { click: () => this.vai(a) } }, '‹ Indietro');
+    const avanti = (a: number, testo: string) => h('button', { class: 'btn mt-avanti', on: { click: () => { void this.controllaMotore(); this.vai(a); } } }, testo);
+    const indietro = (a: number) => h('button', { class: 'btn mt-indietro', on: { click: () => { void this.controllaMotore(); this.vai(a); } } }, '‹ Indietro');
 
     // ——— 1 · foto e video ———
     const passoFile = h('section', { class: 'mt-passo mt-colfile' },
@@ -202,39 +234,40 @@ export class Montage {
     const daNumeri = () => { this.s.durata = Math.max(10, Math.min(3600, (Number(mm.value) || 0) * 60 + (Number(ss.value) || 0))); this.cambiato(); this.salva(); this.sinc.forEach((f) => f()); this.aggiorna(); };
     mm.addEventListener('change', daNumeri); ss.addEventListener('change', daNumeri);
     this.sinc.push(() => { if (document.activeElement !== mm) mm.value = String(Math.floor(this.s.durata / 60)); if (document.activeElement !== ss) ss.value = String(this.s.durata % 60); });
+    const scelta = <T extends string | number>(nome: string, valori: [T, string][], leggi: () => T, cambia: (v: T) => void) => {
+      const el = h('select', { class: 'mini-select largo', 'aria-label': nome }) as HTMLSelectElement;
+      el.append(...valori.map(([v, t]) => h('option', { value: String(v) }, t)));
+      el.addEventListener('change', () => { const v = valori.find(([v]) => String(v) === el.value)![0]; cambia(v); this.cambiato(); this.salva(); this.sincronizza(); this.aggiorna(); });
+      this.sinc.push(() => { el.value = String(leggi()); });
+      return el;
+    };
     const scheda = (titolo: string, ...figli: (Node | null)[]) => h('div', { class: 'mt-scheda' }, h('h4', null, titolo), ...figli);
     const passoCome = h('section', { class: 'mt-passo mt-colcome' },
-      intesta('Quanto dura, con che musica?', 'Tutto qui, senza scorrere: l\'anteprima la vedi dopo'),
+      intesta('Quanto dura, con che musica?', 'Monta da solo · scegli gli aiuti, poi crea l’anteprima'),
       h('div', { class: 'mt-schede' },
-        scheda('Quanto dura',
-          h('div', { class: 'isp-chips' }, DURATE.map((d) => chip(fmtDur(d), () => this.s.durata === d, () => { this.s.durata = d; }))),
-          h('div', { class: 'isp-riga mt-minsec' }, h('label', null, 'Durata esatta'), h('span', { class: 'mt-mmss' }, mm, ':', ss)),
-          h('h4', null, 'Ritmo'),
-          h('div', { class: 'isp-chips' }, RITMI_LENTI.map((t, k) => chip(t, () => this.s.lentezza === k, () => { this.s.lentezza = k; }, k ? 'Meno cose, ognuna resta più a lungo' : 'Il ritmo che ha scelto lo stile')))),
-        scheda('Musica',
-          this.selMusica,
+        scheda('Durata e ritmo',
+          h('div', { class: 'isp-riga mt-minsec' }, h('label', null, 'Minuti : secondi'), h('span', { class: 'mt-mmss' }, mm, ':', ss)),
+          scelta('Ritmo', RITMI_LENTI.map((t, k) => [k, t]), () => this.s.lentezza, (v) => { this.s.lentezza = v; }),
+          automatico('Tagli e finale sui battiti', 'battiti'),
+          automatico('Parole a tempo e frasi intere', 'sottotitoli', 'sottotitoli-parole')),
+        scheda('Musica e voce', this.selMusica,
           h('button', { class: 'btn', on: { click: () => void this.aggiungiBrano() } }, '＋ Aggiungi un brano'),
           this.infoRitmo,
-          h('h4', null, 'Audio dei video'),
-          h('div', { class: 'isp-chips' },
-            chip('Muto', () => this.s.audioVideo <= -50, () => { this.s.audioVideo = -60; }),
-            chip('Basso', () => this.s.audioVideo === -14, () => { this.s.audioVideo = -14; }),
-            chip('Normale', () => this.s.audioVideo === -3, () => { this.s.audioVideo = -3; }))),
-        scheda('Titoli e testi', this.campiTesto, interruttore('Titoli di apertura e chiusura', 'Il titolo all\'inizio e quello in fondo, come li prevede lo stile', 'titoli')),
+          scelta('Audio dei video', [[-60, 'Audio video: muto'], [-14, 'Audio video: basso'], [-3, 'Audio video: normale']], () => this.s.audioVideo, (v) => { this.s.audioVideo = v; }),
+          automatico('Abbassa sotto la voce', 'ducking')),
+        scheda('Titoli e testi', this.campiTesto,
+          interruttore('Titoli di apertura e chiusura', 'Il titolo all’inizio e quello in fondo', 'titoli'),
+          automatico('Titoli animati HTML', 'titoliHtml')),
         scheda('Ordine e tagli',
-          h('div', { class: 'isp-chips' },
-            chip('Per data', () => this.s.ordine === 'data', () => { this.s.ordine = 'data'; }, 'Dalla data di scatto (EXIF) o del file'),
-            chip('A caso', () => this.s.ordine === 'caso', () => { this.s.ordine = 'caso'; }, 'Mescolate: lo stesso mazzo dà sempre lo stesso risultato'),
-            chip('Come le ho messe', () => this.s.ordine === 'dato', () => { this.s.ordine = 'dato'; }, 'Nell\'ordine del contenitore')),
-          interruttore('Scarta mosse e doppie', 'Se sono più di quelle che servono tiene le migliori; toglie le raffiche quasi uguali', 'scarta'),
-          interruttore('Cuori, petali ed effetti', 'Quello che cade sopra e gli effetti a tempo sui tagli', 'effetti')),
-        scheda('Formato',
-          h('div', { class: 'isp-chips' }, ([['auto', 'Come lo stile'], ['progetto', 'Come il progetto'], ['16:9', 'Orizzontale'], ['9:16', 'Verticale'], ['1:1', 'Quadrato']] as [Formato, string][])
-            .map(([f, t]) => chip(t, () => this.s.formato === f, () => { this.s.formato = f; }, 'Il formato si cambia solo se il progetto è ancora vuoto: se no resta quello che c\'è'))),
-          h('h4', null, 'Foto di un altro formato'),
-          h('div', { class: 'isp-chips' },
-            chip('Intere, con lo sfondo', () => this.s.adatta === 'intero', () => { this.s.adatta = 'intero'; }, 'Nessun pezzo tagliato: la foto sta intera su uno sfondo sfumato, con l\'ombra'),
-            chip('Riempi il quadro', () => this.s.adatta === 'riempi', () => { this.s.adatta = 'riempi'; }, 'A tutto quadro, senza bande: i bordi che non entrano si tagliano (mai stirate)')))),
+          scelta<Ordine>('Ordine dei file', [['data', 'Per data'], ['caso', 'A caso'], ['dato', 'Come le ho messe']], () => this.s.ordine, (v) => { this.s.ordine = v; }),
+          interruttore('Scarta mosse e doppie', 'Tiene le migliori quando sono troppe', 'scarta'),
+          automatico('I momenti migliori', 'migliori'),
+          automatico('Scene con TransNetV2', 'sceneAI', 'scene')),
+        scheda('Formato e look',
+          scelta<Formato>('Formato condiviso dalle sequenze del progetto', [['auto', 'Formato dello stile'], ['progetto', 'Formato del progetto'], ['16:9', '16:9 · Orizzontale'], ['9:16', '9:16 · Reel / TikTok'], ['1:1', '1:1 · Quadrato']], () => this.s.formato, (v) => { this.s.formato = v; }),
+          scelta<'intero' | 'riempi'>('Adatta foto e video', [['intero', 'Interi, con lo sfondo'], ['riempi', 'Riempi il quadro']], () => this.s.adatta, (v) => { this.s.adatta = v; }),
+          automatico('Look dello stile', 'look'), automatico('Movimento con keyframe', 'movimento'),
+          interruttore('Cuori, petali ed effetti', 'Gli effetti a tempo previsti dallo stile', 'effetti'))),
       piede(indietro(1), this.riepilogo, this.bVedi, this.bCrea));
 
     // ——— 4 · l'anteprima: il monitor vero sta a sinistra (lo mette il CSS), qui i comandi ———
@@ -244,6 +277,16 @@ export class Montage {
       this.ritocchi.push({ r: x.r, el });
       return el;
     });
+    for (const [testo, azione] of [['Rendi verticale', 'verticale'], ['Più musica / più voce', 'bilancia'], ['Cambia look', 'look']] as const) {
+      ritocchi.push(h('button', { class: 'btn mt-ritocco', 'data-ritocco': azione, on: { click: () => {
+        if (this.occupato || !this.anteprima) return;
+        const seme = this.anteprima.seme;
+        if (azione === 'verticale') { this.s.formato = '9:16'; this.s.adatta = 'riempi'; }
+        if (azione === 'bilancia') this.s.audioVideo = this.s.audioVideo === -3 ? -14 : -3;
+        if (azione === 'look') { const id = this.s.lookScelto || lookPerStile(this.s.preset); this.s.lookScelto = LUT_DI_PARTENZA[(LUT_DI_PARTENZA.findIndex((l) => l.id === id) + 1) % LUT_DI_PARTENZA.length].id; this.s.look = true; }
+        this.cambiato(); this.salva(); this.sincronizza(); void this.crea(seme).catch(() => undefined);
+      } } }, testo) as HTMLButtonElement);
+    }
     const sopra = [
       h('h2', { class: 'mt-tiPiace' }, 'Ti piace?'), this.riassuntoEl,
       this.bImporta, h('div', { class: 'mt-duebtn' }, this.bRigenera, this.bScarta),
@@ -257,7 +300,7 @@ export class Montage {
       h('button', { class: 'btn mt-ritorna', on: { click: () => this.vai(2) } }, '‹ Cambia le scelte'));
 
     this.passi = [passoFile, passoStile, passoCome, passoAnteprima];
-    this.bPassi = PASSI.map((p, i) => h('button', { class: 'mt-vai', 'data-passo': p.id, on: { click: () => this.vai(i) } }, h('span', { class: 'mt-n' }, String(i + 1)), p.nome) as HTMLButtonElement);
+    this.bPassi = PASSI.map((p, i) => h('button', { class: 'mt-vai', 'data-passo': p.id, on: { click: () => { void this.controllaMotore(); this.vai(i); } } }, h('span', { class: 'mt-n' }, String(i + 1)), p.nome) as HTMLButtonElement);
 
     this.el = h('section', { class: 'montage' },
       h('nav', { class: 'mt-etapes', 'aria-label': 'Preparazione del montaggio' },
@@ -329,7 +372,7 @@ export class Montage {
     this.visibile = si;
     if (!si) { this.motoreFerma(); if (this.guardando) motore.setMonitor('recorder'); this.guardando = false; }
     this.applicaPagina();
-    if (si) { this.rinfresca(); void caricaFontAnimazioni().then(() => { this.titoliStili.clear(); if (this.visibile && this.passo === 1) this.disegnaAnteprimeFeste(); }); }
+    if (si) { void this.controllaMotore(); this.rinfresca(); void caricaFontAnimazioni().then(() => { this.titoliStili.clear(); if (this.visibile && this.passo === 1) this.disegnaAnteprimeFeste(); }); }
   }
 
   private disegnaScorre() {
@@ -496,7 +539,7 @@ export class Montage {
     // il ritmo del brano, se si è già ascoltato
     const r = this.s.musica ? this.ritmi.get(this.s.musica) : undefined;
     const bpm = r?.bpm ?? bpmDaBattiti(r?.battiti);
-    this.infoRitmo.textContent = !this.s.musica ? 'Senza musica il montaggio resta muto: la aggiungi dopo.'
+    this.infoRitmo.textContent = !this.s.musica ? 'La voce dei video resta. Se vuoi, aggiungi una musica.'
       : !r ? 'Il ritmo lo ascolto quando crei l\'anteprima: con un brano ritmato i tagli cadono sui battiti.'
         : r.battiti ? `♪ ${bpm ? bpm + ' battiti al minuto' : 'Ritmo trovato'}: i tagli cadono sui battiti.` : 'Nel brano non c\'è un ritmo chiaro: i tagli non lo seguono.';
   }
@@ -534,16 +577,28 @@ export class Montage {
     }
   }
 
+  private async controllaMotore() {
+    const s = motoreLocaleDisponibile() ? await motoreAI.stato().catch(() => null) : null;
+    this.aiPronto = !!s && ['pronto', 'acceso'].includes(s.stato);
+    for (const c of this.aiControlli) {
+      c.b.disabled = !this.aiPronto;
+      c.motivo.textContent = this.aiPronto ? 'Serve il modello dal Centro AI; parte solo con Crea anteprima.' : `Nell’app Windows: Centro AI → Motore AI locale → Installa, poi scarica ${c.funzione === 'scene' ? 'TransNetV2' : 'Qwen3-ASR'}.`;
+    }
+  }
+
   private entrate(): EntrataMontage[] {
     return this.disponibili().filter((m) => this.incluse.has(m.id)).map((m) => ({
       media: m.id, nome: m.name, tipo: m.type as 'image' | 'video', durata: m.type === 'video' ? m.duration : 0, ...misure(m),
-      data: m.lastModified || 0, audio: m.hasAudio, punteggio: 0.5, ...(this.s.scarta ? this.analisi.get(m.id) : undefined),
+      data: m.lastModified || 0, audio: m.hasAudio, punteggio: 0.5, ...(this.s.scarta || this.s.migliori ? this.analisi.get(m.id) : undefined),
     }));
   }
 
   private opzioni(musica?: OpzMontage['musica'], seme = 12345): OpzMontage {
     return {
       preset: this.s.preset, durata: this.s.durata, ordine: this.s.ordine, titoli: this.s.titoli, effetti: this.s.effetti, audioVideo: this.s.audioVideo, testi: this.s.testi, seme,
+      migliori: this.s.migliori, frasi: this.s.sottotitoli && this.aiPronto, sottotitoli: this.s.sottotitoli && this.aiPronto,
+      ducking: this.s.ducking, battiti: this.s.battiti, look: this.s.look, titoliHtml: this.s.titoliHtml, movimento: this.s.movimento,
+      verticale: this.s.formato === '9:16', musicaGain: this.s.audioVideo === -3 ? -8 : -2,
       scarta: this.s.scarta, adatta: this.s.adatta, musica, lentezza: this.s.lentezza, tieni: [...this.tieniId],
     };
   }
@@ -685,6 +740,7 @@ export class Montage {
         fine: (t: string) => this.lavoro.fine(t),
         ferma: (t: string) => this.lavoro.ferma(t),
       };
+      const revisionePartenza = store.revisione;
       lav.avvia('Guardo i file…');
       try {
         this.motoreFerma();
@@ -701,28 +757,68 @@ export class Montage {
             const d = b ? await dataDiScatto(b) : null;
             if (d) e.data = d;
           }
-          if (this.s.scarta) {
+          if (this.s.scarta || this.s.migliori) {
             const gia = this.analisi.get(m.id);
-            if (gia) { Object.assign(e, gia); continue; }
+            if (gia) Object.assign(e, gia);
             try {
-              if (m.type === 'image') { const px = await pixelAl(m.id, 0, 128); if (px) { const q = misuraQualita(px); e.punteggio = q.punteggio; e.firma = q.firma; } }
-              else if (m.duration > 4) {
-                // il pezzo più bello: si guardano sei istanti e si parte da quello migliore
-                let best = -1, tb = 0;
-                for (let k = 1; k <= 6; k++) { const t = (m.duration * k) / 7; const px = await pixelAl(m.id, t, 96); if (!px) continue; const q = misuraQualita(px); if (q.punteggio > best) { best = q.punteggio; tb = t; } }
+              if (!gia && m.type === 'image') { const px = await pixelAl(m.id, 0, 128); if (px) { const q = misuraQualita(px); e.punteggio = q.punteggio; e.firma = q.firma; } }
+              else if (!gia && m.duration > 4) {
+                // Stesse misure di qualità e firme del banco, campionamento limitato per le riprese lunghe.
+                let best = -1, tb = 0, prima: string | undefined;
+                const n = Math.min(90, Math.max(6, Math.ceil(m.duration / 3)));
+                const punti = [0]; const campioni: { t: number; q: number }[] = [];
+                for (let k = 0; k < n; k++) {
+                  await job.checkpoint();
+                  const t = m.duration * (k + .5) / n, px = await pixelAl(m.id, t + (m.t0 || 0), 96);
+                  if (!px) continue;
+                  const q = misuraQualita(px);
+                  if (prima && distanzaFirme(prima, q.firma) > 24) punti.push(t);
+                  prima = q.firma; campioni.push({ t, q: q.punteggio });
+                  if (q.punteggio > best) { best = q.punteggio; tb = t; }
+                }
+                punti.push(m.duration);
+                this.sceneCache.set('semplice:' + m.id, punti.slice(1).map((a, i) => ({ da: punti[i], a,
+                  punteggio: Math.max(.1, ...campioni.filter((c) => c.t >= punti[i] && c.t < a).map((c) => c.q)) })));
                 if (best >= 0) { e.punteggio = best; e.inizioMigliore = Math.max(0, tb - 1); }
               }
               if (!job.valido) throw new Error('fermato');
               this.analisi.set(m.id, { punteggio: e.punteggio, firma: e.firma, inizioMigliore: e.inizioMigliore });
             } catch (e) { if (!job.valido) throw e; /* resta il valore di mezzo */ }
           }
+          if (m.type === 'video' && this.s.migliori) {
+            const chiave = (this.s.sceneAI && this.aiPronto ? 'ai:' : 'semplice:') + m.id;
+            if (this.s.sceneAI && this.aiPronto && !this.sceneCache.has(chiave)) {
+              if (!m.path || m.dentro) throw new Error('Per TransNetV2 apri il video originale dal disco, oppure spegni Scene con TransNetV2');
+              const tagli = await scenePerMontage(m.path, m.duration, job.segnale);
+              const punti = [0, ...tagli.map((x) => x.t).filter((t) => t > 0 && t < m.duration).sort((a, b) => a - b), m.duration];
+              const momenti = [];
+              for (let k = 1; k < punti.length; k++) {
+                const px = await pixelAl(m.id, (punti[k - 1] + punti[k]) / 2 + (m.t0 || 0), 96);
+                momenti.push({ da: punti[k - 1], a: punti[k], punteggio: px ? misuraQualita(px).punteggio : .5 });
+              }
+              this.sceneCache.set(chiave, momenti);
+            }
+            e.momenti = this.sceneCache.get(chiave);
+          }
+          if (m.type === 'video' && m.hasAudio && this.s.sottotitoli && this.aiPronto) {
+            if (!this.paroleCache.has(m.id)) {
+              const p = structuredClone(store.doc), tr = newTrack('audio', 'Voce');
+              p.tracks = [tr]; p.clips = [newClip('media', tr.id, 0, Math.round(m.duration * p.rate.num / p.rate.den), { media: m.id, srcIn: m.t0 || 0 })];
+              this.paroleCache.set(m.id, await parolePerMontage(p, job.segnale));
+            }
+            e.parole = this.paroleCache.get(m.id);
+          }
+          // Un centro già indicato nel ritaglio si può riusare senza accendere la GPU.
+          const originale = store.doc.clips.find((c) => c.media === m.id && c.ritaglio?.punti?.length);
+          const punto = originale?.ritaglio?.punti?.find((p) => p.dentro);
+          if (punto) e.soggetto = { x: punto.x, y: punto.y };
         }
         await job.checkpoint();
         if (!job.valido) throw new Error('fermato');
         // La musica è un nuovo pezzo: non parte durante pausa o annullamento.
         let musica: OpzMontage['musica'];
         const mus = this.s.musica ? this.brani().find((m) => m.id === this.s.musica) : undefined;
-        if (mus) {
+        if (mus && this.s.battiti) {
           if (!this.ritmi.has(mus.id)) {
             lav.imposta('Ascolto il ritmo del brano…', 0.65);
             const rit = await battitiDi(mus.id, (k) => lav.imposta('Ascolto il ritmo del brano…', 0.65 + k * 0.2)).catch(() => null);
@@ -735,24 +831,41 @@ export class Montage {
           const battiti = this.ritmi.get(mus.id)?.battiti;
           musica = { media: mus.id, durata: mus.duration, nome: mus.name, battiti };
         }
+        if (mus && !musica) musica = { media: mus.id, durata: mus.duration, nome: mus.name };
         await job.checkpoint();
         if (!job.valido) throw new Error('fermato');
         lav.imposta('Monto…', 0.9);
         const usato = seme ?? nuovoSeme();
         const opz = this.opzioni(musica, usato);
+        if (this.s.look) opz.lut = await caricaLutDiPartenza(this.s.lookScelto || lookPerStile(this.s.preset));
         const piano = pianifica(entrate, opz);
         if (!piano.voci.length) throw new Error('Non c\'è niente da montare');
         const pr = presetMontage(this.s.preset)!;
         // la scorsa anteprima si toglie (un annulla), poi si fa la nuova
+        if (store.revisione !== revisionePartenza) throw new Error('Il progetto è cambiato durante l’analisi: ricrea l’anteprima');
         this.togliAnteprima();
-        // il formato, solo se il progetto è ancora vuoto
+        // Il formato è condiviso dalle sequenze del progetto; Annulla ripristina anche quello.
         const vuoto = store.doc.clips.length === 0 && !(store.doc.sequenze ?? []).some((q) => q.clips?.length);
         const f = this.s.formato === 'auto' ? (pr.formato === 'verticale' ? '9:16' : pr.formato === 'quadrato' ? '1:1' : 'progetto') : this.s.formato;
+        const documento = store.doc, revisione = store.revisione;
+        const bozza = structuredClone(documento);
         const etichetta = `${ETICHETTA} · variante ${codiceSeme(usato)}`;
-        store.edit(etichetta, (pp) => {
-          if (vuoto && f !== 'progetto') { const [w, hh] = MISURE[f]; pp.w = w; pp.h = hh; }
-          return costruisciSequenza(pp, piano, opz);
-        });
+        if (f !== 'progetto' && (vuoto || this.s.formato !== 'auto')) { const [w, hh] = MISURE[f]; bozza.w = w; bozza.h = hh; }
+        opz.verticale = bozza.h > bozza.w;
+        costruisciSequenza(bozza, piano, opz);
+        if (opz.sottotitoli) {
+          const parole = piano.voci.flatMap((v) => (v.entrata.parole ?? [])
+            .filter((w) => w.da >= v.srcIn - .001 && w.a <= v.srcIn + v.len + .001)
+            .map((w) => ({ ...w, da: w.da - v.srcIn + v.start, a: w.a - v.srcIn + v.start })));
+          bozza.sottotitoli = { ...structuredClone(SOTTO0), righe: righeDaParole(parole, bozza) };
+        }
+        if (opz.ducking && musica && bozza.clips.some((c) => c.link)) {
+          const risultati = await preparaDucking(bozza, undefined, job.segnale);
+          for (const r of risultati) { const c = bozza.clips.find((c) => c.id === r.id)!; c.duckKeys = r.keys; c.duckFirma = r.firma; }
+        }
+        await job.checkpoint();
+        if (!job.valido || store.doc !== documento || store.revisione !== revisione) throw new Error('Il progetto è cambiato: ricrea l’anteprima');
+        store.edit(etichetta, (pp) => Object.assign(pp, bozza));
         this.anteprima = { seme: usato, etichetta };
         this.datata = false;
         // gli scarti veri di questa variante (per i bordi grigi del passo 1)
