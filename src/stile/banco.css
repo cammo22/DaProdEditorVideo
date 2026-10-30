@@ -42,6 +42,9 @@
 }
 .btn.primario:hover { background: #ffe07a; border-color: rgba(255, 224, 122, 0.6); }
 .btn.primario:active { transform: translateY(1px); }
+/* nel Montaggio l'oro è di «Esporta» (barra in alto): «Importa» nel contenitore resta tasto metallo, con il bordo oro sottile a dirlo */
+.bin-testa .btn.primario { background: var(--metallo-tasto); color: var(--oro); border-color: rgba(255, 213, 74, 0.4); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 0 #09080c; }
+.bin-testa .btn.primario:hover { background: var(--metallo-chiaro); }
 /* le barre dense (pulsantiera, testate, contenitore) stanno a 34 px */
 .btn.piccolo, .bin-testa .btn, .dlg-piede .btn.piccolo, .vel-preset .btn { min-height: var(--comando-denso); padding: 0 12px; font-size: 13px; }
 .btn-icona { border-radius: var(--raggio); min-width: var(--comando-denso); min-height: var(--comando-denso); }

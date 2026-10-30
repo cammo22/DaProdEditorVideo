@@ -90,3 +90,18 @@ test('stile: un solo oro per schermata, la selezione è ciano', () => {
   }
   assert.match(b, /\.btn\.primario \{[^}]*var\(--oro\)/, 'l\'oro è il pulsante principale');
 });
+
+test('stile: la barra del titolo è definita una volta sola e scura (nessun blocco bianco vecchio più sotto)', () => {
+  const ed = css('editor.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.equal((ed.match(/^\.barra-titolo \{/gm) || []).length, 1, 'una sola regola .barra-titolo');
+  assert.equal((ed.match(/^\.bt-tasto \{/gm) || []).length, 1, 'una sola regola .bt-tasto');
+  assert.doesNotMatch(ed, /color-scheme:\s*light/i);
+  assert.doesNotMatch(ed, /\.barra-titolo[^{]*\{[^}]*background:\s*#fff/i);
+});
+
+test('stile: nel Montaggio l\'oro è uno solo («Importa» nel contenitore non è oro pieno)', () => {
+  const b = css('banco.css');
+  const i = b.indexOf('.bin-testa .btn.primario {');
+  assert.ok(i >= 0);
+  assert.doesNotMatch(b.slice(i, b.indexOf('}', i)), /background:\s*var\(--oro\)/);
+});

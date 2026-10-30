@@ -1333,46 +1333,6 @@ html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo
 @media (max-width: 1080px) { .barra-titolo .scritta, .barra-titolo .btn-progetti span { display: none; } .barra-titolo .btn-cerca span { display: none; } }
 @media (max-width: 900px) { .barra-titolo .nome-progetto { max-width: 46vw; } }
 
-.cerca-velo { top: var(--bt-alto); }
-#app { flex: 1; min-height: 0; height: auto; }
-.barra-titolo { flex: none; height: var(--bt-alto); display: flex; align-items: center; gap: 10px; padding: 0 0 0 10px;
-  background: #ffffff; color: #24212c; border-bottom: 1px solid #dcd8e3; position: relative; z-index: 6; font: 700 12.5px var(--ui); color-scheme: light; }
-html[data-finestra='mac'] .barra-titolo { padding-left: 80px; }
-html[data-finestra='web'] .barra-titolo, html[data-finestra='mac'] .barra-titolo { padding-right: 10px; }
-.barra-titolo .marchio { padding: 0; }
-.barra-titolo .moneta { width: 22px; height: 22px; font-size: 12px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08); }
-.barra-titolo .scritta { color: #1c1726; font-size: 13px; }
-.barra-titolo .scritta b { color: #c88d00; }
-.barra-titolo .scritta i { color: #c41bb9; }
-.bt-rapidi { display: flex; align-items: center; gap: 2px; }
-.bt-sep { width: 1px; height: 18px; background: #e2dfe8; margin: 0 4px; }
-.bt-icona { display: grid; place-items: center; width: 30px; height: 26px; border: 0; border-radius: 6px; background: none; color: #4a4655; }
-.bt-icona:hover:not(:disabled) { background: #efedf3; color: #15121c; }
-.bt-icona:disabled { opacity: 0.35; cursor: default; }
-.barra-titolo .btn-progetti { border: 1px solid #e2dfe8; background: #f6f5f9; color: #3a3644; box-shadow: none; margin-right: 4px; }
-.barra-titolo .btn-progetti:hover { background: #fff6d6; color: #6b4d00; border-color: #f0d88a; }
-.bt-centro { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.barra-titolo .nome-progetto { color: #1c1726; font-size: 13px; max-width: 36vw; padding: 3px 8px; border-radius: 6px; }
-.barra-titolo .nome-progetto:hover { background: #efedf3; }
-.barra-titolo .badge { background: #f3f1f6; color: #6a6676; border-color: #e2dfe8; }
-.barra-titolo .badge.edizione { color: #0b8a55; border-color: #b8ebd3; background: #effbf5; }
-.barra-titolo .badge.edizione.prova { color: #b0169f; border-color: #f2c4ec; background: #fdf0fb; }
-.bt-destra { display: flex; align-items: center; gap: 6px; }
-.barra-titolo .btn-cerca { min-width: 190px; height: 26px; padding: 3px 10px; border: 1px solid #e2dfe8; background: #f6f5f9; color: #6a6676; box-shadow: none; }
-.barra-titolo .btn-cerca:hover { border-color: #f0d88a; color: #3a3644; background: #fffdf3; }
-.barra-titolo .btn-cerca kbd { display: inline; background: #fff; border-color: #dcd8e3; color: #8b8696; }
-.barra-titolo .btn-icona { color: #4a4655; }
-.barra-titolo .btn-icona:hover { background: #efedf3; color: #15121c; }
-.bt-finestra { display: flex; align-self: stretch; margin-left: 4px; }
-.bt-tasto { width: 46px; border: 0; border-radius: 0; background: none; color: #1f1c26; display: grid; place-items: center; }
-.bt-tasto:hover { background: #e9e7ee; }
-.bt-tasto.chiudi:hover { background: #e81123; color: #fff; }
-.bt-glifo { display: grid; place-items: center; }
-@media (max-width: 1500px) { .barra-titolo .badge.edizione { display: none; } }
-@media (max-width: 1280px) { .barra-titolo .badge.formato, .barra-titolo .scritta i { display: none; } .barra-titolo .btn-cerca { min-width: 0; } .barra-titolo .btn-cerca kbd { display: none; } }
-@media (max-width: 1080px) { .barra-titolo .scritta, .barra-titolo .btn-progetti span { display: none; } .barra-titolo .btn-cerca span { display: none; } }
-@media (max-width: 900px) { .barra-titolo .nome-progetto { max-width: 46vw; } }
-
 .cerca-velo { position: fixed; inset: 0; z-index: 950; background: rgba(5, 4, 10, 0.55); backdrop-filter: blur(3px); display: flex; justify-content: center; align-items: flex-start; padding-top: 11vh; animation: appare 0.12s; }
 .cerca { width: min(700px, calc(100vw - 24px)); max-height: 72vh; display: flex; flex-direction: column; background: linear-gradient(180deg, #221f2b, #17161d); border: 1px solid #000; border-radius: 14px; box-shadow: var(--ombra), inset 0 0 0 1px var(--bordo-forte), 0 0 40px rgba(255, 213, 74, 0.08); overflow: hidden; animation: sale 0.15s; }
 .cerca-riga { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #000; box-shadow: 0 1px 0 var(--bordo); }
