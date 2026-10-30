@@ -1,0 +1,1 @@
+import{u as e}from"./platform-CpuyJnu4.js";export{e as invoke};

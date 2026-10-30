@@ -1,0 +1,1 @@
+var e=new URL(`DSEG7Classic-Bold-jUCkPCxO.woff2`,import.meta.url).href;export{e as default};

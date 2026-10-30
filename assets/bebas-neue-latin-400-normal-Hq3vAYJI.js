@@ -1,0 +1,1 @@
+var e=new URL(`bebas-neue-latin-400-normal-9mHNbWWO.woff2`,import.meta.url).href;export{e as default};

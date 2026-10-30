@@ -1,0 +1,1 @@
+var e=new URL(`space-mono-latin-700-normal-mWgeinG7.woff2`,import.meta.url).href;export{e as default};

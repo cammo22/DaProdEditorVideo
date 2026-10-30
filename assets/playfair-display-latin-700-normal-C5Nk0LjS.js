@@ -1,0 +1,1 @@
+var e=new URL(`playfair-display-latin-700-normal-CuDiGg7c.woff2`,import.meta.url).href;export{e as default};

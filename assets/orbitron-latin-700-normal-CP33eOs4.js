@@ -1,0 +1,1 @@
+var e=new URL(`orbitron-latin-700-normal-4jsRXGGJ.woff2`,import.meta.url).href;export{e as default};

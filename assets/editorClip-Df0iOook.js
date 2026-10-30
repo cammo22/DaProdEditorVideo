@@ -1,0 +1,1 @@
+import{t as e}from"./editorClip-Ea0WNEfk.js";export{e as apriEditorClip};

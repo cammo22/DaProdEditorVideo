@@ -1,0 +1,1 @@
+var e=new URL(`rajdhani-latin-500-normal-ByNUCHrt.woff2`,import.meta.url).href;export{e as default};

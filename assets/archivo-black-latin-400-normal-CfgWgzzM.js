@@ -1,0 +1,1 @@
+var e=new URL(`archivo-black-latin-400-normal-BTVu2TQR.woff2`,import.meta.url).href;export{e as default};

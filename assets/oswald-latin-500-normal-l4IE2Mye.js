@@ -1,0 +1,1 @@
+var e=new URL(`oswald-latin-500-normal-B-eyT0Dw.woff2`,import.meta.url).href;export{e as default};
