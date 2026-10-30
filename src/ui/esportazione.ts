@@ -5,6 +5,7 @@
 // I conti stanno in `src/core/esportazione.ts`, la coda in `src/export/coda.ts`, i codec in `src/export/codec.ts`,
 // le scelte condivise in `src/ui/uscita.ts`, la misura del volume in `src/media/loudness.ts`.
 import '../stile/esportazione.css';
+import { schedeFinale } from './finaleSchede';
 import { store } from '../core/store';
 import { projectEnd } from '../core/progetto';
 import { durataUmana, f2s, frameToTc } from '../core/timecode';
@@ -66,16 +67,18 @@ export function pannelloEsporta(preset?: string, opz: { banco?: boolean } = {}):
   const controllo = banco ? creaControlloUscita() : null;
   const sez = (titolo: string, ic: string, ...figli: HTMLElement[]) => h('div', { class: 'fin-sezione es-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli);
   const altreDest = h('details', { class: 'es-dettagli es-altre' }, h('summary', null, 'Altre destinazioni'), altre) as HTMLDetailsElement;
-  const dettagli = h('details', { class: 'es-dettagli' }, h('summary', null, 'Come esce, nei dettagli'), anteprima, regole) as HTMLDetailsElement;
   const codaSez = sez('Coda', 'esporta', h('div', { class: 'es-coda-testa' }, testaCoda, h('button', { class: 'btn piccolo', title: 'Toglie dalla lista quelle già finite', on: { click: () => pulisciFinite() } }, 'Svuota le finite')), lista);
   const fondo = h('div', { class: 'es-fondo' }, piede, azioni);
   if (banco) {
     el.append(
-      sez('Controllo prima dell\'uscita', 'info', controllo!.el),
-      sez('Destinazione', 'video', pre, altreDest),
-      sez('Volume', 'altoparlante', volume),
-      dettagli,
-      codaSez);
+      sez('Controllo', 'info', controllo!.el),
+      schedeFinale([
+        sez('Destinazione', 'video', pre, altreDest),
+        sez('Volume', 'altoparlante', volume),
+        sez('Formato', 'info', anteprima),
+        sez('Opzioni', 'ingranaggio', regole),
+        codaSez,
+      ]));
   } else {
     el.append(
       sez('Dove lo porti', 'video', pre, altreDest),

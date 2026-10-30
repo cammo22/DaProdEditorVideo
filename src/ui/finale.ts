@@ -29,6 +29,7 @@ import '../stile/finale.css';
 import { pannelloEsporta, type PannelloEsporta } from './esportazione';
 import { creaMisureFinale, type MisureFinale } from './misureFinale';
 import { avviso, clamp, conferma, h, icona } from './dom';
+import { aiutoFinale, schedeFinale } from './finaleSchede';
 import { creaPannelloColoreAvanzato } from './coloreAvanzato';
 import { faiParlareLocale, pannelloVoceLocale } from './motoreAI';
 import { motoreLocaleDisponibile } from '../media/motoreAI';
@@ -109,7 +110,7 @@ export class Finale {
     }, icona(z.icona, 19), h('span', null, z.nome))));
     this.el = h('section', { class: 'pannello finale' },
       h('header', { class: 'fin-testa' }, icona('finale', 18),
-        h('div', { class: 'fin-testa-testi' }, h('span', { class: 'fin-etichetta' }, 'FINALE · CONTROLLO PRIMA DELL\'USCITA'), this.titoloProgetto), this.tcFine),
+        h('div', { class: 'fin-testa-testi' }, h('span', { class: 'fin-etichetta' }, 'FINALE'), this.titoloProgetto), this.tcFine),
       h('div', { class: 'fin-dentro' }, h('div', { class: 'fin-colonna' }, this.corpo, this.piede), this.menu));
     this.mostra('esporta');
     this.aggiornaTesta();
@@ -154,9 +155,9 @@ export class Finale {
     this.menu.querySelectorAll('.fin-voce').forEach((b) => b.classList.toggle('attiva', (b as HTMLElement).dataset.s === z));
     let pg = this.pagine.get(z);
     if (!pg) { pg = this.costruisci(z); this.pagine.set(z, pg); }
-    const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
     // nella pagina Uscita il riepilogo (buchi neri, file da ricollegare) sta sotto: sopra c'è il controllo
-    this.corpo.replaceChildren(...(z === 'esporta' ? [pg, sez('Riepilogo del montaggio', 'info', this.riepilogo)] : [sez('Riepilogo', 'info', this.riepilogo), pg]));
+    const riepilogo = h('details', { class: 'fin-riepilogo-dettagli' }, h('summary', null, 'Riepilogo'), this.riepilogo);
+    this.corpo.replaceChildren(pg, riepilogo);
     this.corpo.scrollTop = 0;
     this.pannelloUscita?.mostrata(this.visibile && z === 'esporta');
     this.piede.replaceChildren(...(z === 'esporta' && this.pannelloUscita ? [this.pannelloUscita.fondo] : []));
@@ -172,8 +173,7 @@ export class Finale {
     scelta.onchange = () => { this.clipColore = scelta.value || null; this.sincronizzaClipColore(false); const c = this.clipColore ? store.doc.clips.find((x) => x.id === this.clipColore) : null; if (c) motore.vaiA(c.start); };
     this.sceltaClip = scelta; this.postoClip = h('div', { class: 'ca-fin-host' }); this.firmaClip = '';
     return h('div', { class: 'ca-fin' },
-      h('label', { class: 'ca-fin-scelta' }, h('span', null, 'Clip'), scelta),
-      h('p', { class: 'nota' }, 'LUT .cube con intensità, ruote lift/gamma/gain e curve, solo sulla clip scelta. Il monitor mostra il risultato; Ctrl+Z torna indietro. Sceglierla nella timeline cambia anche qui.'),
+      h('label', { class: 'ca-fin-scelta' }, h('span', null, 'Clip scelta'), scelta),
       this.postoClip);
   }
 
@@ -210,11 +210,17 @@ export class Finale {
 
   private costruisci(z: Sezione): HTMLElement {
     const sez = (titolo: string, ic: string, ...figli: (HTMLElement | null)[]) => h('div', { class: 'fin-sezione' }, h('h4', null, icona(ic, 14), titolo), ...figli.filter(Boolean) as HTMLElement[]);
-    const pagina = (...figli: HTMLElement[]) => h('div', { class: 'fin-pagina', 'data-s': z }, ...figli);
+    const pagina = (...figli: HTMLElement[]) => {
+      const el = h('div', { class: 'fin-pagina', 'data-s': z });
+      const pannelli = figli.filter((f) => f.classList.contains('fin-sezione'));
+      const aiuti = figli.filter((f) => !f.classList.contains('fin-sezione'));
+      el.append(...(pannelli.length > 1 ? [schedeFinale(pannelli)] : pannelli), ...aiuti);
+      return el;
+    };
     if (z === 'colore') {
       // colore automatico: un interruttore grande e la forza
       const auto = h('button', { class: 'fin-interruttore', on: { click: () => this.cambia(this.m().auto ? 'Colore automatico spento' : 'Colore automatico acceso', (m) => { m.auto = !m.auto; }) } },
-        h('span', { class: 'led' }), h('span', { class: 'fin-int-testo' }, 'Colore automatico su tutte le riprese'));
+        h('span', { class: 'led' }), h('span', { class: 'fin-int-testo' }, 'Colore automatico'));
       this.campi.push({ aggiorna: () => { auto.classList.toggle('acceso', this.m().auto); auto.querySelector('.led')!.classList.toggle('acceso', this.m().auto); } });
       const looks = h('div', { class: 'fin-looks' }, LOOKS.map((l) => {
         const b = h('button', { class: 'fin-look', title: l.info, on: { click: () => this.cambia(`Look ${l.nome}`, (m) => { m.look = l.id as LookFinale; if (!m.intensita) m.intensita = 1; }) } },
@@ -223,11 +229,11 @@ export class Finale {
         this.campi.push({ aggiorna: () => b.classList.toggle('acceso', this.m().look === l.id) });
         return b;
       }));
-      return pagina(
-        sez('Colore automatico', 'effetti', auto,
+      const montaggio = schedeFinale([
+        sez('Automatico', 'effetti', auto,
           this.cursore('Forza', 0, 100, (m) => Math.round(m.autoK * 100), (m, v) => { m.autoK = v / 100; }, '%'),
-          h('button', { class: 'btn', on: { click: async () => { await preparaOra(senzaColoreMisurato(store.doc), 'colore'); this.aggiornaRiepilogo(); } } }, 'Misura ora le riprese'), h('p', { class: 'nota' }, 'Accendere il colore non avvia analisi. Senza misure la ripresa resta neutra. Misura ora è una richiesta esplicita: avanzamento e annullamento in Attività.')),
-        sez('Look di tutto il montaggio', 'immagine', looks,
+          h('button', { class: 'btn', on: { click: async () => { await preparaOra(senzaColoreMisurato(store.doc), 'colore'); this.aggiornaRiepilogo(); } } }, 'Misura ora'), aiutoFinale('Accendere il colore non avvia analisi. Senza misure la ripresa resta neutra. Misura ora è una richiesta esplicita: avanzamento e annullamento in Attività.')),
+        sez('Look', 'immagine', looks,
           this.cursore('Intensità', 0, 100, (m) => Math.round(m.intensita * 100), (m, v) => { m.intensita = v / 100; }, '%')),
         sez('Ritocchi', 'ingranaggio',
           this.cursore('Luce', -100, 100, (m) => Math.round(m.bright * 100), (m, v) => { m.bright = v / 100; }, ''),
@@ -238,17 +244,20 @@ export class Finale {
           this.cursore('Vignetta', 0, 100, (m) => Math.round(m.vignette * 100), (m, v) => { m.vignette = v / 100; }, ''),
           this.cursore('Grana', 0, 100, (m) => Math.round(m.grain * 100), (m, v) => { m.grain = v / 100; }, ''),
           h('div', { class: 'isp-pulsanti' },
-            h('button', { class: 'btn-mini', on: { click: () => this.cambia('Azzera ritocchi', (m) => { Object.assign(m, { look: 'nessuno', intensita: 1, bright: 0, contrast: 1, sat: 1, temp: 0, tint: 0, vignette: 0, grain: 0 }); }) } }, 'Azzera look e ritocchi'),
-            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo'))),
-        sez('Colore avanzato di una clip', 'immagine', this.coloreAvanzatoClip()));
+            h('button', { class: 'btn-mini', on: { click: () => this.cambia('Azzera ritocchi', (m) => { Object.assign(m, { look: 'nessuno', intensita: 1, bright: 0, contrast: 1, sat: 1, temp: 0, tint: 0, vignette: 0, grain: 0 }); }) } }, 'Ripristina'),
+            h('button', { class: 'btn-mini prima-dopo-fin', on: { click: () => (document.querySelector('.monitor .prima-dopo') as HTMLElement | null)?.click() } }, 'Prima | dopo')))
+      ]);
+      return pagina(
+        sez('Montaggio', 'effetti', montaggio),
+        sez('Clip scelta', 'immagine', this.coloreAvanzatoClip()));
     }
     if (z === 'audio') {
       return pagina(sez('Audio finale', 'altoparlante',
         this.cursore('Volume finale', -24, 12, (m) => m.volume, (m, v) => { m.volume = v; }, 'dB', 0.5),
         this.spunta('Limitatore (niente distorsione)', (m) => m.limiter, (m, v) => { m.limiter = v; }),
         h('div', { class: 'isp-pulsanti' },
-          h('button', { class: 'btn-mini', title: 'Porta ogni clip audio a un livello simile (si annulla con Ctrl+Z)', on: { click: () => this.livellaTutto() } }, 'Livella il volume di tutte le clip')),
-        h('p', { class: 'nota' }, 'Il fade in e il fade out delle singole clip: trascinali dal contenitore (Effetti → Audio) o tira i quadratini in alto sulle clip.')));
+          h('button', { class: 'btn-mini', title: 'Porta ogni clip audio a un livello simile (si annulla con Ctrl+Z)', on: { click: () => this.livellaTutto() } }, 'Livella tutto')),
+        aiutoFinale('Il fade in e il fade out delle singole clip: trascinali dal contenitore (Effetti → Audio) o tira i quadratini in alto sulle clip.')));
     }
     if (z === 'sottotitoli') return pagina(...this.paginaSottotitoli(sez));
     if (z === 'logo') return pagina(this.paginaLogo(sez));
@@ -259,13 +268,13 @@ export class Finale {
     this.pannelloUscita.mostrata(this.visibile && this.sezione === 'esporta');
     const esporta = h('div', { class: 'fin-esporta' },
       this.pannelloUscita.el,
-      sez('Altri file', 'cartella',
+      h('details', { class: 'fin-altri-file' }, h('summary', null, 'Altri file'),
         h('div', { class: 'fin-altri' },
           h('button', { class: 'btn piccolo', title: 'La lista di montaggio per Resolve, Avid, Premiere, EDIUS', on: { click: () => esportaEdl() } }, 'EDL CMX3600'),
           h('button', { class: 'btn piccolo', title: 'Il fotogramma sotto il cursore, con il colore finale', on: { click: () => esportaFotogramma() } }, 'Fotogramma PNG'),
           h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte', on: { click: () => void this.esportaSrt() } }, 'Sottotitoli .srt'),
           h('button', { class: 'btn piccolo', title: 'I sottotitoli in un file a parte, per il web (WebVTT)', on: { click: () => void this.esportaSrt('vtt') } }, 'Sottotitoli .vtt')),
-        h('p', { class: 'nota' }, 'Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.')));
+        aiutoFinale('Nel master escono anche il logo e i sottotitoli (se sono "scritti nel video"), gli FX sulle clip (coi loro suoni) e il colore finale.')));
     return pagina(esporta);
   }
 
@@ -306,7 +315,7 @@ export class Finale {
         stile('Dove', [['basso', 'In basso'], ['alto', 'In alto']], () => (s().alto ? 'alto' : 'basso'), (x, v) => { x.alto = v === 'alto'; }),
         stile('Fascia', [['si', 'Con la fascia'], ['no', 'Solo il testo']], () => (s().fascia ? 'si' : 'no'), (x, v) => { x.fascia = v === 'si'; })),
       sez('Le righe', 'titolo', this.listaSott,
-        h('p', { class: 'nota' }, 'Clic sul tempo per andarci. Le righe vuote non si vedono. La riga sotto il cursore è evidenziata.')),
+        aiutoFinale('Clic sul tempo per andarci. Le righe vuote non si vedono. La riga sotto il cursore è evidenziata.')),
     ];
   }
 
@@ -323,7 +332,7 @@ export class Finale {
     }
     this.firmaSott = firma;
     if (!righe.length) {
-      this.listaSott.replaceChildren(h('p', { class: 'nota' }, 'Nessuna riga. Premi "Prepara i tempi dai dialoghi": le righe vuote compaiono dove si parla. Oppure "+ Riga al cursore", o importa un .srt.'));
+      this.listaSott.replaceChildren(h('p', { class: 'nota' }, 'Nessuna riga. Aggiungi una riga o importa i sottotitoli.'));
       return;
     }
     const r = fps(p.rate);
@@ -378,7 +387,7 @@ export class Finale {
       return h('div', { class: 'fin-scelte' }, h('span', null, nome), h('div', { class: 'isp-chips' }, bott));
     };
     const lavoro = new BarraLavoro('Sottotitoli con l\'AI', 'ai', () => { this.lavoroAI?.abort(); fermaVoce(); });
-    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'sottotitoli', on: { click: () => void this.scriviConAI(lavoro, vai, ferma) } }, '✨ Scrivi i sottotitoli con l\'AI');
+    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'sottotitoli', on: { click: () => void this.scriviConAI(lavoro, vai, ferma) } }, '✨ Trascrivi');
     const ferma = h('button', { class: 'btn-mini', style: 'display:none', on: { click: () => { this.lavoroAI?.abort(); fermaVoce(); } } }, '■ Ferma');
     const nemotron = () => this.motoreAI() === 'nemotron';
     const motore = scelta('Ascolta con', [
@@ -417,7 +426,7 @@ export class Finale {
       h('div', { class: 'isp-pulsanti' }, vai, ferma),
       ...lavoro.elementi,
       avanzate,
-      nota,
+      h('details', { class: 'fin-aiuto' }, h('summary', { 'aria-label': 'Informazioni' }, 'i'), nota),
     ];
     salva();
     return out;
@@ -487,7 +496,7 @@ export class Finale {
     };
     const lavoro = new BarraLavoro('Voce AI dai sottotitoli', 'ai', () => this.lavoroVoce?.abort());
     const ferma = h('button', { class: 'btn-mini', style: 'display:none', on: { click: () => this.lavoroVoce?.abort() } }, '■ Ferma');
-    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'voce', title: 'Legge i sottotitoli con la voce scelta e mette il risultato su una traccia audio nuova', on: { click: () => void this.faiParlare(lavoro, vai, ferma) } }, '🗣 Fai parlare i sottotitoli');
+    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'voce', title: 'Legge i sottotitoli con la voce scelta e mette il risultato su una traccia audio nuova', on: { click: () => void this.faiParlare(lavoro, vai, ferma) } }, '🗣 Crea voce');
     const silenzia = h('input', { type: 'checkbox' }) as HTMLInputElement;
     silenzia.addEventListener('change', () => { this.voce.silenzia = silenzia.checked; salva(); });
     sinc.push(() => { silenzia.checked = this.voce.silenzia; });
@@ -620,7 +629,7 @@ export class Finale {
       h('div', { class: 'fin-scelte' }, h('span', null, 'Angolo'), h('div', { class: 'isp-chips' }, bott)),
       this.cursore('Grandezza', 4, 40, (m) => Math.round((m.logo?.scala ?? 0.12) * 100), (m, v) => { if (m.logo) m.logo.scala = v / 100; }, '%'),
       this.cursore('Opacità', 10, 100, (m) => Math.round((m.logo?.opacita ?? 0.85) * 100), (m, v) => { if (m.logo) m.logo.opacita = v / 100; }, '%'),
-      h('p', { class: 'nota' }, 'Un PNG con lo sfondo trasparente è l\'ideale. Il logo sta sopra a tutto, non prende il colore finale ed esce nel master.'));
+      aiutoFinale('Un PNG con lo sfondo trasparente è l\'ideale. Il logo sta sopra a tutto, non prende il colore finale ed esce nel master.'));
   }
 
   // ——— apertura e chiusura ———
@@ -636,21 +645,21 @@ export class Finale {
     const r = () => fps(store.doc.rate);
     return [
       sez('Una clip all\'inizio o alla fine', 'apertura',
-        h('div', { class: 'fin-scelte' }, h('span', null, 'Clip'), scelta),
+        h('div', { class: 'fin-scelte' }, h('span', null, 'Clip scelta'), scelta),
         h('div', { class: 'isp-pulsanti' },
           h('button', { class: 'btn-mini', title: 'Entra all\'inizio e sposta avanti tutto il montaggio', on: { click: () => this.clipAgliEstremi(scelta.value, 'inizio') } }, '⇤ Metti all\'inizio'),
           h('button', { class: 'btn-mini', on: { click: () => this.clipAgliEstremi(scelta.value, 'fine') } }, 'Metti alla fine ⇥')),
-        h('p', { class: 'nota' }, 'La sigla, il logo animato, lo sponsor: una piccola clip prima o dopo. Se ha segnati attacco e stacco, entra solo quel pezzo.')),
+        aiutoFinale('La sigla, il logo animato, lo sponsor: una piccola clip prima o dopo. Se ha segnati attacco e stacco, entra solo quel pezzo.')),
       sez('Titoli', 'titolo',
         h('div', { class: 'isp-pulsanti' },
           h('button', { class: 'btn-mini', title: 'Tre secondi col nome del progetto, all\'inizio (il resto scorre avanti)', on: { click: () => this.titoloApertura() } }, 'Titolo d\'apertura'),
           h('button', { class: 'btn-mini', title: 'Il rullo dei titoli di coda alla fine', on: { click: () => this.titoliCoda() } }, 'Titoli di coda')),
-        h('p', { class: 'nota' }, 'Il testo si cambia dalle proprietà del titolo (pagina Montaggio).')),
+        aiutoFinale('Il testo si cambia dalle proprietà del titolo (pagina Montaggio).')),
       sez('Dal nero e al nero', 'effetti',
         h('div', { class: 'isp-pulsanti' },
           h('button', { class: 'btn-mini', title: 'Un secondo: l\'immagine esce dal nero e l\'audio sale', on: { click: () => this.estremiNero('inizio', Math.round(r())) } }, 'Entra dal nero'),
           h('button', { class: 'btn-mini', title: 'Un secondo e mezzo: l\'immagine va nel nero e l\'audio scende', on: { click: () => this.estremiNero('fine', Math.round(r() * 1.5)) } }, 'Chiudi nel nero')),
-        h('p', { class: 'nota' }, 'Mette i blocchetti "Dal nero" e "Al nero" sulla traccia video più in alto e sfuma l\'audio: li puoi allungare dalla timeline.')),
+        aiutoFinale('Mette i blocchetti "Dal nero" e "Al nero" sulla traccia video più in alto e sfuma l\'audio: li puoi allungare dalla timeline.')),
     ];
   }
 
@@ -732,7 +741,7 @@ export class Finale {
     aTrad.addEventListener('change', () => { this.trad.a = aTrad.value; try { localStorage.setItem('dpv-trad', JSON.stringify(this.trad)); } catch { /* niente */ } this.campi.forEach((c) => c.aggiorna()); });
     const lavoro = new BarraLavoro('Traduzione dei sottotitoli', 'ai', () => { this.lavoroTrad?.abort(); fermaTraduzione(); });
     const ferma = h('button', { class: 'btn-mini', style: 'display:none', on: { click: () => { this.lavoroTrad?.abort(); fermaTraduzione(); } } }, '■ Ferma');
-    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'traduci', on: { click: () => void this.traduciSottotitoli(lavoro, vai, ferma) } }, '🌍 Traduci i sottotitoli');
+    const vai = h('button', { class: 'btn primario ai-vai', 'data-ai': 'traduci', on: { click: () => void this.traduciSottotitoli(lavoro, vai, ferma) } }, '🌍 Traduci');
     const nota = h('p', { class: 'nota' });
     this.campi.push({ aggiorna: () => {
       const s = sottotitoliDi(store.doc);
@@ -754,7 +763,7 @@ export class Finale {
         ...lavoro.elementi,
         nota),
       sez('2 · Voce', 'altoparlante', ...this.pannelloVoce()),
-      h('p', { class: 'nota' }, 'Tutto gira sul tuo computer: i testi e l\'audio non vanno da nessuna parte e i modelli si scaricano una volta sola. I sottotitoli e la voce possono essere in lingue diverse: se la voce parla un\'altra lingua, i testi si traducono da soli prima di leggerli.'),
+      aiutoFinale('Tutto gira sul tuo computer: i testi e l\'audio non vanno da nessuna parte e i modelli si scaricano una volta sola. I sottotitoli e la voce possono essere in lingue diverse: se la voce parla un\'altra lingua, i testi si traducono da soli prima di leggerli.'),
     ];
   }
 

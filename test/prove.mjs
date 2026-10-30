@@ -273,7 +273,7 @@ try {
     // la durata sta nell'editor della clip (doppio clic): si apre da lì
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
     await page.waitForSelector('.editor-clip');
-    await page.evaluate(() => document.querySelectorAll('.editor-clip .isp-gruppo:not([open]) > summary').forEach((x) => x.click()));
+    await page.click('.editor-clip .ec-nav [data-sezione=tempo]');
     await page.waitForTimeout(150);
     await page.click('.editor-clip .isp-pulsanti button:has-text("+5 s")');
     await page.keyboard.press('Escape');
@@ -708,8 +708,10 @@ try {
   {
     await page.click('.pagina-btn[data-p=finale]');
     await page.waitForTimeout(500);
-    prova('la pagina Finale si apre col riepilogo', await page.isVisible('.finale .fin-riepilogo') && (await page.textContent('.fin-riepilogo')).includes('durata'));
+    await page.click('.fin-riepilogo-dettagli > summary');
+    prova('la pagina Finale espone il riepilogo su richiesta', await page.isVisible('.finale .fin-riepilogo') && (await page.textContent('.fin-riepilogo')).includes('durata'));
     await page.click('.fin-voce[data-s=colore]');
+    await page.locator('.fin-pagina[data-s=colore] .fin-schede-nav').getByRole('button', { name: 'Look', exact: true }).first().click();
     await page.locator('.fin-look', { hasText: 'Cinema' }).click();
     let dd = await doc();
     prova('il look Cinema vale per tutto il montaggio', dd.master?.look === 'cinema');
@@ -729,8 +731,10 @@ try {
     await page.click('.fin-voce[data-s=sottotitoli]');
     await page.waitForTimeout(200);
     await page.evaluate(() => window.__motore.vaiA(40));
+    await page.locator('.fin-pagina[data-s=sottotitoli] > .fin-schede > .fin-schede-nav').getByRole('button', { name: 'Sottotitoli', exact: true }).click();
     await page.click('text=+ Riga al cursore');
     await page.waitForTimeout(200);
+    await page.locator('.fin-pagina[data-s=sottotitoli] .fin-schede-nav').getByRole('button', { name: 'Le righe', exact: true }).click();
     await page.locator('.sott-testo').first().fill('Ciao da Napoli');
     await page.waitForTimeout(600);
     dd = await doc();
@@ -746,6 +750,7 @@ try {
       return ids.some((id) => !!mediaRT(id)?.peaks);
     });
     prova('la preparazione manuale produce la forma d\'onda per i dialoghi', forme);
+    await page.locator('.fin-pagina[data-s=sottotitoli] .fin-schede-nav').getByRole('button', { name: 'Sottotitoli', exact: true }).click();
     await page.click('text=Prepara i tempi dai dialoghi');
     await page.waitForTimeout(300);
     dd = await doc();
@@ -769,7 +774,8 @@ try {
         },
       });
     });
-    await page.click('text=Scrivi i sottotitoli con l\'AI');
+    await page.locator('.fin-pagina[data-s=sottotitoli] .fin-schede-nav').getByRole('button', { name: "Scritti dall'AI", exact: true }).click();
+    await page.click('[data-ai=sottotitoli]');
     await page.waitForTimeout(300);
     if (await page.getByRole('button', { name: 'Rifalle', exact: true }).isVisible()) await page.getByRole('button', { name: 'Rifalle', exact: true }).click();
     await page.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();
@@ -801,6 +807,7 @@ try {
     // apertura: il titolo d'apertura sposta avanti tutto di tre secondi
     await page.click('.fin-voce[data-s=apertura]');
     const fine0 = await page.evaluate(() => window.__dpvTest.P.projectEnd(window.__dpv.doc));
+    await page.locator('.fin-pagina[data-s=apertura] .fin-schede-nav').getByRole('button', { name: 'Titoli', exact: true }).click();
     await page.click('text=Titolo d\'apertura');
     const fine1 = await page.evaluate(() => window.__dpvTest.P.projectEnd(window.__dpv.doc));
     dd = await doc();
@@ -1328,10 +1335,11 @@ try {
     await pa.waitForTimeout(400);
     await pa.click('.fin-voce[data-s=lingue]');
     await pa.waitForTimeout(300);
-    prova('nella pagina Lingue c\'è la Voce AI, con le cinque voci di NVIDIA e il tasto', (await pa.locator('.fin-pagina[data-s=lingue] .chip', { hasText: 'Sofia' }).count()) === 1 && await pa.isVisible('text=Fai parlare i sottotitoli'));
+    await pa.locator('.fin-pagina[data-s=lingue] .fin-schede-nav').getByRole('button', { name: '2 · Voce', exact: true }).click();
+    prova('nella pagina Lingue c\'è la Voce AI, con le cinque voci di NVIDIA e il tasto', (await pa.locator('.fin-pagina[data-s=lingue] .chip', { hasText: 'Sofia' }).count()) === 1 && await pa.isVisible('[data-ai=voce]'));
     await pa.locator('.fin-pagina[data-s=lingue] .chip', { hasText: 'Sofia' }).click();
     const prima = await pa.evaluate(() => structuredClone(window.__dpv.doc));
-    await pa.click('text=Fai parlare i sottotitoli');
+    await pa.click('[data-ai=voce]');
     await pa.waitForSelector('.ai-passi', { state: 'visible' });
     prova('Voce AI aspetta il consenso prima di chiamare il motore', await pa.evaluate(() => window.__voceChiamate.length === 0));
     await pa.getByRole('button', { name: 'Consenti download e avvia', exact: true }).click();

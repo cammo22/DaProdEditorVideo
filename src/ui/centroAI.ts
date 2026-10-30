@@ -28,7 +28,7 @@ import '../stile/copieAI.css';
 import { schedaMotoreLocale } from './motoreAI';
 import { FUNZIONI_AI as REGISTRO_AI } from '../core/funzioniAI';
 import { etichettaStato, ordinaPerStato, pesoDaMb, pesoEVram } from '../core/schedaAI';
-import { faiRallentaFluido, faiSottotitoliParole, faiTrovaScene, faiVocePulitaMotore, faiVoceMusicaMotore, interruttoreClear, schedaFunzioniAI, schedaModelliMotore } from './funzioniMotoreUI';
+import { faiRallentaFluido, faiSottotitoliParole, faiTrovaScene, faiVocePulitaMotore, faiVoceMusicaMotore, interruttoreClear, schedaModelliMotore } from './funzioniMotoreUI';
 
 export interface FunzioneAI {
   id: string;
@@ -285,7 +285,8 @@ export function finestraCentroAI(subito = false) {
       const attuale = () => lista.find((x) => x.id === m.id)!;
       const bScarica = h('button', { class: 'btn-mini', disabled: true, on: { click: async () => { bloccaTutto(true); await scarica(attuale()); bloccaTutto(false); await disegna(); void aggSpazio(); } } }, 'Scarica') as HTMLButtonElement;
       const bTogli = h('button', { class: 'btn-mini', disabled: true, title: 'Toglie il modello dal computer (potrai scaricarlo di nuovo)', on: { click: async () => { bloccaTutto(true); try { await attuale().togli(); } finally { bloccaTutto(false); await disegna(); void aggSpazio(); } } } }, 'Togli') as HTMLButtonElement;
-      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome, h('span', { class: 'hub-opzionale' }, etichettaStato('opzionale'))), h('small', null, m.uso), h('small', null, m.info), peso, macchina, msg), stato, bScarica, bTogli);
+      const dettagli = h('details', { class: 'hub-dettagli' }, h('summary', { title: 'Dettagli e altre azioni', 'aria-label': `Dettagli ${m.nome}` }, '⋯'), h('div', { class: 'hub-dettagli-corpo' }, h('p', null, m.uso), h('p', null, m.info), peso, macchina, bTogli));
+      const el = h('div', { class: 'hub-riga', 'data-m': m.id }, h('div', { class: 'hub-nome' }, h('b', null, m.nome), msg), stato, bScarica, dettagli);
       righe.set(m.id, { el, stato, msg, peso, macchina, scarica: bScarica, togli: bTogli });
       return el;
     }),
@@ -304,7 +305,7 @@ export function finestraCentroAI(subito = false) {
   // ——— controlla: nessun modello viene scaricato da questo tasto, nemmeno con subito=true
   const esito = h('div', { class: 'ai-diagnosi' });
   const progresso = h('p', { class: 'nota hub-progresso' });
-  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: () => void fai() } }, '🔍 Controlla l’AI') as HTMLButtonElement;
+  const ripara = h('button', { class: 'btn primario ai-ripara', on: { click: () => { (d.el.querySelectorAll('.ai-schede button')[2] as HTMLButtonElement)?.click(); const dettagli = impostazioni.querySelector('details'); if (dettagli) dettagli.open = true; void fai(); } } }, 'Controlla AI') as HTMLButtonElement;
   async function fai() {
     if (occupato) return;
     ripara.disabled = true;
@@ -344,41 +345,72 @@ export function finestraCentroAI(subito = false) {
       await aggSpazio();
     } } }, 'Togli motore e modelli')) : null;
 
-  d.corpo.append(
-    schedaFunzioniAI(),
+  const funzioni = schedeRegistro(d.chiudi, () => void fai());
+  const modelli = h('div', { class: 'ai-pagina', hidden: true }, schedaModelliMotore(), tabella);
+  const impostazioni = h('div', { class: 'ai-pagina', hidden: true },
     schedaMotoreLocale(),
-    schedeRegistro(),
-    schedaModelliMotore(),
-    h('section', { class: 'ai-sezione' },
-      h('p', { class: 'nota' }, 'Tutti i modelli sono opzionali. Montaggio ed export funzionano anche senza. Scegli «Scarica» solo per quelli che vuoi, oppure avvia tu la funzione che li usa. I tuoi video restano sul computer.'),
-      h('div', { class: 'ai-riga' }, ripara, h('span', { class: 'nota' }, 'Controlla motore, scheda video e connessione senza scaricare modelli. I pesi sono indicativi; le prestazioni vanno provate sul modello.')),
-      progresso, tabella),
-    h('details', { class: 'ai-sezione' }, h('summary', null, 'Se qualcosa non va'), h('div', { class: 'ai-riga' }, h('button', { class: 'btn ai-controlla', on: { click: () => void fai() } }, '🔍 Controlla l\'AI'), h('span', { class: 'nota' }, 'Prova il motore AI, la scheda video e la connessione, e ti dice cosa fare.')), esito),
+    h('details', { class: 'ai-sezione' }, h('summary', null, 'Diagnosi'), progresso, esito),
     h('section', { class: 'ai-sezione' }, h('h4', null, 'Impostazioni'),
-      h('label', { class: 'ai-imp spunta-riga', title: 'Su alcuni computer la scheda video c\'è ma sbaglia: spenta, l\'AI usa il processore (più lento ma sicuro)' }, scheda, ' Usa la scheda video quando c\'è'),
-      interruttoreClear(),
+      h('label', { class: 'ai-imp spunta-riga' }, scheda, ' Usa la scheda video'), interruttoreClear(),
       h('div', { class: 'ai-imp' }, spazio, svuota),
-      h('div', { class: 'ai-imp' }, h('span', null, 'Dopo un minuto e mezzo senza AI i modelli escono da soli dalla scheda video'), liberaMemoria),
-      h('div', { class: 'ai-imp ai-chiave', title: 'Per i modelli che Hugging Face concede solo con una chiave (se richiesto). Resta sul tuo computer e viaggia solo verso huggingface.co' }, h('span', null, 'Chiave Hugging Face'), chiaveHF, salvaChiave),
-      nvidia));
-  d.piede.append(h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn chiudi', on: { click: d.chiudi } }, 'Chiudi'));
-  if (subito) void fai();
+      h('div', { class: 'ai-imp' }, liberaMemoria),
+      h('div', { class: 'ai-imp ai-chiave' }, h('span', null, 'Chiave Hugging Face'), chiaveHF, salvaChiave), nvidia));
+  const pagine = [funzioni, modelli, impostazioni];
+  const schede = h('nav', { class: 'ai-schede', 'aria-label': 'Centro AI' });
+  ['Funzioni', 'Modelli', 'Impostazioni'].forEach((nome, i) => {
+    const b = h('button', { class: 'btn-mini', 'aria-pressed': i === 0 ? 'true' : 'false', on: { click: () => {
+      pagine.forEach((p, j) => { p.hidden = i !== j; });
+      schede.querySelectorAll('button').forEach((t, j) => t.setAttribute('aria-pressed', String(i === j)));
+    } } }, nome);
+    schede.append(b);
+  });
+  d.corpo.append(schede, ...pagine);
+  d.piede.append(ripara, h('button', { class: 'btn', on: { click: () => { d.chiudi(); document.dispatchEvent(new CustomEvent('dpv:guida', { detail: 'problemi-ai' })); } } }, '❓ Se un\'AI non parte'), h('span', { class: 'spazio' }), h('button', { class: 'btn chiudi', on: { click: d.chiudi } }, 'Chiudi'));
+  if (subito) ripara.click();
   return d;
 }
 
 /** le funzioni del registro AI (src/core/funzioniAI.ts), una scheda per ognuna: cartellino, peso, VRAM e il tasto per usarla */
-function schedeRegistro(): HTMLElement {
-  const sez = h('section', { class: 'ai-sezione', 'data-ai': 'registro' });
-  if (!REGISTRO_AI.length) { sez.hidden = true; return sez; }
-  sez.append(h('h4', null, 'Funzioni AI'), h('div', { class: 'sch-funzioni' }, ordinaPerStato(REGISTRO_AI).map((f) => {
-    const pv = pesoEVram(f);
-    return h('div', { class: 'sch-funzione', 'data-funzione': f.id },
-      h('span', { class: 'sch-cartellino', 'data-stato': f.stato }, etichettaStato(f.stato)),
-      h('b', null, f.nome), h('p', null, f.descrizione),
-      h('small', { class: 'sch-pesovram' }, pv.riga + ' · ' + (f.motore === 'locale' ? 'motore locale' : 'nel browser')),
-      f.esegui ? h('button', { class: 'btn-mini', on: { click: () => { void f.esegui!({ clipIds: [...store.sel] }).catch((e) => avviso(spiegaErroreAI(e), 'errore', 6000)); } } }, 'Usa') : null);
-  })));
-  return sez;
+function schedeRegistro(chiudi: () => void, controlla: () => void): HTMLElement {
+  const sez = h('section', { class: 'ai-pagina', 'data-ai': 'registro' });
+  const ricerca = h('input', { class: 'campo-testo', type: 'search', placeholder: 'Cerca una funzione', 'aria-label': 'Cerca una funzione AI' }) as HTMLInputElement;
+  const filtri = h('div', { class: 'ai-filtri', 'aria-label': 'Filtra funzioni' });
+  const griglia = h('div', { class: 'sch-funzioni' });
+  const pagina = h('span', { class: 'ai-pagina-num', 'aria-live': 'polite' });
+  let filtro = 'Tutte', indice = 0;
+  const precedente = h('button', { class: 'btn-mini', on: { click: () => { indice--; disegna(); } } }, '‹') as HTMLButtonElement;
+  const successiva = h('button', { class: 'btn-mini', on: { click: () => { indice++; disegna(); } } }, '›') as HTMLButtonElement;
+  precedente.setAttribute('aria-label', 'Pagina precedente'); successiva.setAttribute('aria-label', 'Pagina successiva');
+  const categoria = (f: typeof REGISTRO_AI[number]) => f.dove === 'audio' ? 'Audio' : f.dove === 'finale' ? 'Testo' : 'Video';
+  function disegna() {
+    const q = ricerca.value.trim().toLocaleLowerCase('it');
+    const lista = ordinaPerStato(REGISTRO_AI).filter((f) => (filtro === 'Tutte' || categoria(f) === filtro) && (f.nome + ' ' + f.descrizione).toLocaleLowerCase('it').includes(q));
+    const pagine = Math.max(1, Math.ceil(lista.length / 12)); indice = Math.max(0, Math.min(indice, pagine - 1));
+    precedente.disabled = indice === 0; successiva.disabled = indice === pagine - 1; pagina.textContent = `${indice + 1} / ${pagine}`;
+    griglia.replaceChildren(...lista.slice(indice * 12, indice * 12 + 12).map((f) => {
+      const guida = FUNZIONI_AI.find((x) => x.id === f.id);
+      const nome = f.nome.replace(/ \(.*$/, '').slice(0, 24);
+      const manca = guida?.manca();
+      const descrizione = manca ? '⚠ ' + manca.slice(0, 52) : f.descrizione.split(/[.;(]/)[0].slice(0, 55);
+      const peso = !f.peso || /nessun modello/i.test(f.peso) ? 'Integrata' : f.id === 'rumore' ? 'da 9 MB' : f.id === 'sottotitoli' ? 'da 40 MB' : (f.peso.match(/[\d,.]+(?:–[\d,.]+)?\s*(?:MB|GB)/i)?.[0] ?? 'Peso da verificare');
+      const info = h('button', { class: 'btn-mini ai-info', 'aria-label': `Informazioni su ${f.nome}`, title: 'Dettagli e requisiti', on: { click: () => {
+        const d = dialogo(f.nome); d.corpo.append(h('p', null, f.descrizione), h('p', { class: 'sch-pesovram' }, pesoEVram(f).riga)); if (guida) d.corpo.append(h('p', null, guida.come.join(' · ')));
+        d.piede.append(h('button', { class: 'btn', on: { click: d.chiudi } }, 'Chiudi'));
+      } } }, 'i');
+      const azione = h('button', { class: 'btn-mini', on: { click: () => {
+        if (f.id === 'aggiusta') { controlla(); return; }
+        if (guida) { chiudi(); guida.apri(); } else if (f.esegui) void f.esegui({ clipIds: [...store.sel] }).catch((e) => avviso(spiegaErroreAI(e), 'errore', 6000)); else { chiudi(); if (f.id === 'clear') vaiSezione('audioai'); else vaiFinale(f.id === 'sottotitoli-nemotron' ? 'sottotitoli' : 'lingue'); }
+      } } }, f.id === 'aggiusta' ? 'Controlla' : 'Apri');
+      return h('article', { class: 'sch-funzione', 'data-funzione': f.id },
+        h('div', { class: 'sch-funzione-testa' }, h('b', { title: f.nome }, guida?.icona ? guida.icona + ' ' + nome : nome), h('span', { class: 'sch-cartellino', 'data-stato': f.stato }, etichettaStato(f.stato))),
+        h('p', { title: manca || f.descrizione, class: manca ? 'ai-manca' : '' }, descrizione), h('div', { class: 'sch-funzione-azioni' }, h('span', { class: 'ai-chip' }, peso), info, azione));
+    }));
+  }
+  for (const nome of ['Tutte', 'Video', 'Audio', 'Testo']) {
+    const b = h('button', { class: 'btn-mini', 'aria-pressed': String(nome === filtro), on: { click: () => { filtro = nome; indice = 0; filtri.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); disegna(); } } }, nome); filtri.append(b);
+  }
+  ricerca.addEventListener('input', () => { indice = 0; disegna(); });
+  sez.append(h('div', { class: 'ai-ricerca' }, ricerca, filtri), griglia, h('div', { class: 'ai-paginazione' }, precedente, pagina, successiva)); disegna(); return sez;
 }
 
 function disegnaDiagnosi(el: HTMLElement, g: Diagnosi) {

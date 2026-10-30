@@ -161,7 +161,7 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.select([c.id]); window.__motore.vaiA(10); });
   await page.waitForTimeout(300);
   // nel pannello «Banco» lo sfondo sta nella scheda AI
-  await page.evaluate(() => document.querySelector('.pp-scheda[data-scheda=ai]')?.click());
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'sfondo' })));
   await page.waitForTimeout(200);
   await apriGruppi(page);
   prova('nelle proprietà c\'è "Togli lo sfondo" con i quadratini dei modi (Off, Colore, Luce, AI)', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo]').count()) >= 4);

@@ -88,3 +88,26 @@
 
 @media (max-width: 1000px) { .hm-corpo { grid-template-columns: 1fr; } .hm-passo { grid-template-columns: 22px 1fr; } .hm-passo-testo { grid-column: 2; } }
 @media (prefers-reduced-motion: reduce) { .hm-aggiusta-tasto.lavora .hm-led, .hm-passo.corre .hm-segno { animation: none; } }
+
+/* Più spazio per i progetti, senza ingrandire i testi con la risoluzione. */
+.home.hm .hm-dentro { padding: 12px; gap: 12px; }
+.home.hm .hm-col { padding: 12px; gap: 8px; border-radius: 6px; }
+.hm-corpo, .hm-destra { gap: 12px; min-height: 0; }
+.hm-intesta, .hm-titolo { font: 700 12px/1.3 var(--ui); letter-spacing: 1px; }
+.hm-etichetta-doppia b { font: 700 16px/1.3 var(--ui); }
+.hm-etichetta-doppia small, .hm-conta { font-size: 12px; line-height: 1.3; }
+.home.hm .hm-quando { font: 400 13px/1.3 var(--mono, 'Share Tech Mono', monospace) !important; }
+.hm-sotto, .hm-aggiusta-riga { font-size: 15px; line-height: 1.3; }
+
+@media (min-width: 1400px) {
+  .hm-corpo { grid-template-columns: minmax(480px, 1fr) minmax(0, 1.2fr); }
+  .home.hm .hm-inizio { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+  .hm-inizio > :is(.hm-intesta, .home-continua, .hm-nuovo) { grid-column: 1 / -1; }
+  .home.hm .home-obiettivi { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .home.hm .home-obiettivo { padding: 6px; gap: 4px; min-height: 48px; }
+  .home.hm .home-obiettivo small { font-size: 12px; }
+  .home.hm .hm-strade, .home.hm .home-impara { margin: 0; align-self: start; }
+  .home.hm .hm-strada, .home.hm .home-grande { min-height: 44px; padding: 8px; }
+  .home.hm .home-impara .btn { min-height: 44px; padding: 8px; font-size: 15px; }
+  .home.hm .home-formato-riga b { font: 400 13px var(--mono, 'Share Tech Mono', monospace); }
+}

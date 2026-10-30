@@ -6,7 +6,7 @@ import { store } from '../core/store';
 import type { Clip } from '../core/tipi';
 import { registra as reg } from '../azioni';
 import { clearAttivo } from '../media/clear';
-import { avviso, h } from './dom';
+import { avviso, dialogo, h } from './dom';
 import {
   avanzamentoAudioAI, haOriginale, installaSeparazione, lavoriAudioAI, modelloRumoreScelto, possibilita, separaVoceBase, statoAudioAI, tornaOriginale, togliRumore, type Forza,
 } from '../media/audioAI';
@@ -92,7 +92,7 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
     const stato = h('div', { class: 'aai-stato', hidden: true }) as HTMLElement;
     stati.push({ el: stato, tipo });
     return h('div', { class: 'aai-scheda', 'data-aai': tipo },
-      h('div', { class: 'aai-testa' }, h('i', null, icona), h('div', null, h('b', null, titolo), h('span', null, sotto))),
+      h('div', { class: 'aai-testa' }, h('i', null, icona), h('div', null, h('b', null, titolo), h('button', { type: 'button', class: 'pp-mini-btn', title: sotto, 'aria-label': 'Informazioni: ' + titolo, on: { click: () => { const d = dialogo(titolo); d.corpo.append(h('p', null, sotto)); d.piede.append(h('button', { class: 'btn', on: { click: () => d.chiudi() } }, 'Chiudi')); } } }, 'i'))),
       h('div', { class: 'aai-bottoni' }, voci), stato);
   };
   const bottone = (tipo: 'rumore' | 'separa', chiave: string, testo: string, info: string, fn: () => void, primario = false) => {
@@ -121,7 +121,7 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
       st.el.replaceChildren(
         h('div', { class: 'aai-testo' }, l.inCoda ? 'Aspetto il mio turno… (altri lavori pesanti sono prima)' : (l.testo || 'Sto lavorando…')),
         h('div', { class: 'aai-barra' + (k === null ? ' indeterminata' : '') }, h('i', { style: k === null ? '' : `width:${k}%` })),
-        h('div', { class: 'aai-nota' }, 'Puoi continuare a montare: il lavoro va avanti dietro le quinte (Centro attività, in basso a destra).'));
+        h('div', { class: 'aai-nota' }, 'Avanzamento nel Centro attività.'));
     }
   };
   // finché c'è un lavoro la sezione si aggiorna da sola; quando il lavoro finisce (o la sezione sparisce) il controllo si ferma
@@ -140,10 +140,10 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
   if (!poss.rumore) righe.push(h('p', { class: 'nota avviso-rosso' }, poss.perche ?? 'Su questa clip non si può'));
   righe.push(
     scheda('rumore', '🎙', 'Togli i rumori', 'Una voce con fruscio, ventola o rumore di fondo: il rumore va via e la voce resta.',
-      FORZE.filter(([f]) => f !== 'podcast' || clearAttivo()).map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, nome, info, () => void faiTogliRumore(c.id, f), f === 'pulita'))),
+      FORZE.filter(([f]) => f !== 'podcast' || clearAttivo()).map(([f, nome, info]) => bottone('rumore', 'rumore:' + f, ({ pulita: '✦ Pulisci', podcast: '✦ Migliora', isolata: '✦ Isola' } as Partial<Record<Forza, string>>)[f] ?? nome, info, () => void faiTogliRumore(c.id, f), f === 'pulita'))),
     scheda('separa', '🎤', 'Separa voce e musica', 'Da una canzone: la voce da una parte e la base (lo strumentale) dall\'altra, su due tracce nuove.',
       [
-        bottone('separa', 'separa:entrambe', 'Voce e base', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),
+        bottone('separa', 'separa:entrambe', '⑂ Separa', 'Due tracce nuove: "Voce" e "Base"', () => void faiSeparaVoce(c.id, 'entrambe'), true),
         bottone('separa', 'separa:voce', 'Solo voce', 'Tiene solo la voce (acapella)', () => void faiSeparaVoce(c.id, 'voce')),
         bottone('separa', 'separa:base', 'Solo base', 'Tiene solo lo strumentale', () => void faiSeparaVoce(c.id, 'base')),
       ]));
@@ -157,9 +157,9 @@ export function righeAudioAI(c: Clip): HTMLElement[] {
     const sep = s.separa.stato === 'pronto' ? 'pronto' : s.separa.stato === 'in-uso' ? 'sta lavorando' : s.separa.stato === 'errore' ? 'ha dato un errore (si userà la separazione rapida)' : `da scaricare (${s.separa.peso})`;
     stato.textContent = `Togli i rumori: ${s.rumore.stato === 'pronto' ? 'pronto' : s.rumore.stato === 'in-uso' ? 'sta lavorando' : 'si scarica la prima volta'} · Voce e base: ${sep}. Lavora sul tuo computer, niente esce.`;
   }).catch(() => { stato.textContent = ''; });
-  const scarica = h('button', { class: 'btn-mini', title: 'Scarica adesso il modello per separare voce e base (una volta sola)', on: { click: () => { void installaSeparazione().then(() => avviso('Modello scaricato', 'ok', 2200)).catch(dopoErrore); } } }, 'Scarica il modello per separare');
+  const scarica = h('button', { class: 'btn-mini', title: 'Scarica adesso il modello per separare voce e base (una volta sola)', on: { click: () => { void installaSeparazione().then(() => avviso('Modello scaricato', 'ok', 2200)).catch(dopoErrore); } } }, 'Scarica');
   const rapido = h('input', { type: 'checkbox', checked: separazioneRapida(), on: { change: (e: Event) => impostaRapida((e.target as HTMLInputElement).checked) } }) as HTMLInputElement;
-  righe.push(stato, h('details', { class: 'pp-piu' }, h('summary', null, 'Avanzate'),
+  righe.push(h('details', { class: 'pp-piu' }, h('summary', null, 'Avanzate'), stato,
     h('label', { class: 'isp-riga spunta-riga' }, rapido, h('span', null, 'Separazione rapida, senza AI (meno precisa, non scarica niente)')),
     h('div', { class: 'isp-azioni' }, scarica),
     h('p', { class: 'nota' }, 'Si lavora solo sulla parte della clip che usi (più un secondo per lato). Il risultato è un file nuovo nel contenitore, cartella "Audio lavorato".')));
