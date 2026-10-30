@@ -1,0 +1,62 @@
+/* Le finestre delle cose solide (recupero, versioni, ricollega, spazio) nello stile «Banco»:
+   etichette incise, vetrino per i numeri, spie colorate; colore pieno solo come spia (oro = azione, ciano = scelta,
+   rosso = problema, verde = pronto). Usa solo le variabili del banco, non ne definisce. */
+.dialogo.solido { width: min(640px, calc(100vw - 24px)); }
+.dialogo.solido.sol-recupero { width: min(480px, calc(100vw - 24px)); }
+
+/* etichetta incisa */
+.sol-etichetta { font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--testo2); margin: 2px 0 8px; }
+
+.sol-testo { margin: 0 0 10px; font: 600 15px/1.4 var(--ui); color: var(--testo); }
+
+/* il vetrino: numeri e nomi di file su fondo scuro, come un piccolo display */
+.sol-vetrino {
+  background: #050407; border: 1px solid #000; border-radius: 6px; padding: 9px 12px; margin: 0 0 10px;
+  font: 400 13px/1.35 'Share Tech Mono', var(--tc); color: var(--testo); letter-spacing: 0.5px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85), inset 0 0 0 1px var(--bordo);
+  overflow-wrap: anywhere; user-select: text;
+}
+
+/* comandi alti almeno 44 px */
+.btn.sol-alto { min-height: 44px; padding: 0 18px; border-radius: 6px; font-size: 14px; font-weight: 700; }
+.btn.sol-leggero { color: var(--testo2); }
+.btn.sol-leggero:hover { color: var(--testo); }
+.btn.sol-alto:disabled { opacity: 0.45; cursor: default; }
+
+/* l'elenco: righe da 52 px, la scelta si vede col ciano */
+.sol-lista { display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; }
+.sol-riga {
+  display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border-radius: 6px;
+  background: var(--pann2); border: 1px solid var(--bordo); cursor: default;
+}
+label.sol-riga { cursor: pointer; }
+.sol-riga:hover { border-color: var(--bordo-forte); }
+.sol-riga:has(input:checked) { border-color: var(--cia); box-shadow: inset 0 0 0 1px rgba(53, 232, 255, 0.25); }
+.sol-riga input[type='checkbox'] { width: 20px; height: 20px; accent-color: var(--cia); flex: 0 0 auto; }
+.sol-riga-testo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sol-riga-testo b { font: 700 14px var(--ui); color: var(--testo); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sol-dett { font: 500 12px var(--ui); color: var(--testo3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sol-manca .sol-riga-testo b { color: var(--testo2); }
+.sol-peso { font: 400 13px 'Share Tech Mono', var(--tc); color: var(--testo2); flex: 0 0 auto; }
+.sol-vuoto { margin: 6px 2px 10px; color: var(--testo3); font-weight: 500; line-height: 1.4; }
+
+/* spie: PRONTO (verde), da guardare (bordo), manca (rosso) */
+.sol-chip {
+  flex: 0 0 auto; font: 700 11px var(--ui); letter-spacing: 2px; padding: 3px 8px; border-radius: 5px;
+  background: #050407; border: 1px solid var(--bordo-forte); color: var(--testo2);
+}
+.sol-chip.pronto { color: var(--verde); border-color: rgba(93, 255, 180, 0.45); }
+.sol-chip.dubbio { color: var(--testo); }
+.sol-chip.manca { color: var(--rosso); border-color: rgba(255, 77, 109, 0.45); }
+
+.sol-somma { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--testo2); }
+.sol-somma .sol-vetrino { margin: 0; min-width: 110px; text-align: right; }
+.sol-totale { font-weight: 400; font-size: 16px; }
+
+.sol-avviso { border: 1px solid var(--bordo-forte); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; background: var(--pann2); }
+.sol-avviso .sol-testo { font-size: 13.5px; margin: 0; }
+
+@media (max-width: 520px) {
+  .sol-riga { flex-wrap: wrap; }
+  .btn.sol-alto { flex: 1 1 auto; }
+}

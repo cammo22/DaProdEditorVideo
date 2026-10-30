@@ -8,6 +8,7 @@
 mod aggiorna;
 mod audio_riserva;
 mod associazioni;
+mod cartelle;
 mod conversioni;
 mod cursore;
 mod motori;
@@ -536,6 +537,7 @@ pub fn run() {
             progetto_scrivi,
             autosalva,
             autosalvataggio_leggi,
+            cartelle::cartella_elenca,
             export_apri,
             export_scrivi,
             export_chiudi,

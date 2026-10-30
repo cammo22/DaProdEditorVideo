@@ -110,7 +110,7 @@ const righeScritte = (p: Project) => sottotitoliDi(p).righe.filter((x) => x.test
 export function creaSrt(p: Project): string {
   const r = fps(p.rate);
   return righeScritte(p)
-    .map((x, i) => `${i + 1}\n${tcSrt(x.da / r)} --> ${tcSrt(x.a / r)}\n${x.testo.trim()}\n`).join('\n');
+    .map((x, i) => `${i + 1}\n${tcSrt(x.da / r)} --> ${tcSrt(x.a / r)}\n${x.testo.trim().replace(/\n\s*\n+/g, '\n')}\n`).join('\n');
 }
 
 /** il file .vtt (WebVTT, quello dei video sul web): stessi tempi, il punto al posto della virgola e il testo senza < > & */
@@ -121,21 +121,55 @@ export function creaVtt(p: Project): string {
     .map((x, i) => `${i + 1}\n${tcSrt(x.da / r, '.')} --> ${tcSrt(x.a / r, '.')}\n${pulito(x.testo)}\n`).join('\n');
 }
 
-/** legge un .srt (o un .vtt): ritorna le righe in fotogrammi */
+/** SRT o VTT? Si guarda l'inizio del file (WEBVTT) e, se manca, i tempi (virgola = SRT, punto = VTT) */
+export function formatoSottotitoli(testo: string): 'srt' | 'vtt' | null {
+  const t = testo.replace(/^﻿/, '').trimStart();
+  if (/^WEBVTT/.test(t)) return 'vtt';
+  const m = /\d{1,2}:\d{2}(?::\d{2})?([.,])\d{1,3}\s*-->\s*\d{1,2}:\d{2}/.exec(t);
+  return m ? (m[1] === ',' ? 'srt' : 'vtt') : null;
+}
+
+const ENTITA: Record<string, string> = { amp: '&', lt: '<', gt: '>', nbsp: ' ', quot: '"', apos: "'", lrm: '', rlm: '' };
+
+/**
+ * legge un .srt (o un .vtt): ritorna le righe in fotogrammi. Regge quello che fanno gli altri programmi: il segno
+ * all'inizio del file (BOM), gli a capo di Windows e del vecchio Mac, i numeri d'ordine che mancano o sono doppi,
+ * i tempi VTT senza le ore, le impostazioni dopo il tempo finale (`align:start`), i blocchi NOTE/STYLE/REGION,
+ * i tag (`<i>`, `<c.giallo>`, `{\an8}`). Nel VTT le entità (`&lt;`, `&amp;`) tornano caratteri, così quello che
+ * esporta `creaVtt` si rilegge identico.
+ */
 export function leggiSrt(testo: string, p: Project): Sottotitolo[] {
   const r = fps(p.rate);
-  const sec = (t: string) => { const m = t.trim().replace(',', '.').match(/(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)/); return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : NaN; };
+  const vtt = formatoSottotitoli(testo) === 'vtt';
+  const sec = (t: string) => { const m = t.trim().replace(',', '.').match(/^(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)$/); return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : NaN; };
+  const pulisci = (t: string) => {
+    const senza = t.replace(/\{\\[^}]*\}/g, '').replace(/<[^>]+>/g, '');
+    const dec = vtt ? senza.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (m, e: string) => {
+      if (e[0] === '#') { const n = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10); return Number.isFinite(n) && n > 0 && n < 0x110000 ? String.fromCodePoint(n) : m; }
+      return ENTITA[e.toLowerCase()] ?? m;
+    }) : senza;
+    return dec.split('\n').map((x) => x.trim()).filter(Boolean).join('\n');
+  };
   const out: Sottotitolo[] = [];
-  for (const blocco of testo.replace(/\r/g, '').split(/\n\s*\n/)) {
-    const righe = blocco.split('\n').filter((x) => x.trim() && x.trim() !== 'WEBVTT');
+  const pulito = testo.replace(/^﻿/, '').replace(/\r\n?/g, '\n');
+  for (const blocco of pulito.split(/\n[ \t]*\n/)) {
+    const righe = blocco.split('\n').filter((x) => x.trim());
     const i = righe.findIndex((x) => x.includes('-->'));
-    if (i < 0) continue;
-    const [a, b] = righe[i].split('-->');
-    const da = sec(a), fino = sec(b.split(' ').filter(Boolean)[0] ?? '');
+    if (i < 0 || /^(NOTE|STYLE|REGION)\b/.test(righe[0]?.trim() ?? '')) continue;
+    const [a, b = ''] = righe[i].split('-->');
+    const da = sec(a), fino = sec(b.trim().split(/\s+/)[0] ?? '');
     if (!Number.isFinite(da) || !Number.isFinite(fino) || fino <= da) continue;
-    out.push({ id: uid('s'), da: Math.round(da * r), a: Math.round(fino * r), testo: righe.slice(i + 1).join('\n').replace(/<[^>]+>/g, '') });
+    const testoRiga = pulisci(righe.slice(i + 1).join('\n'));
+    if (!testoRiga) continue;
+    const f0 = Math.round(da * r);
+    out.push({ id: uid('s'), da: f0, a: Math.max(f0 + 1, Math.round(fino * r)), testo: testoRiga });
   }
-  return out;
+  return out.sort((x, y) => x.da - y.da);
+}
+
+/** per i file scelti dall'utente: il formato riconosciuto e le righe (vuote se il file non è dei sottotitoli) */
+export function leggiSottotitoli(testo: string, p: Project): { formato: 'srt' | 'vtt' | null; righe: Sottotitolo[] } {
+  return { formato: formatoSottotitoli(testo), righe: leggiSrt(testo, p) };
 }
 
 // ——— sistemare i tempi: unire, dividere, attaccare al cursore ———

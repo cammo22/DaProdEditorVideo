@@ -410,3 +410,29 @@ export async function svuotaProxy() {
     await radice.removeEntry(CARTELLA, { recursive: true });
   } catch { /* niente da svuotare */ }
 }
+
+/** le copie leggere sul disco privato: nome, peso, quando sono state fatte (per il Centro attività → Spazio) */
+export async function elencaProxy(): Promise<{ nome: string; byte: number; quando: number }[]> {
+  const dir = await cartella();
+  const out: { nome: string; byte: number; quando: number }[] = [];
+  if (!dir) return out;
+  try {
+    for await (const [nome, voce] of (dir as unknown as { entries(): AsyncIterable<[string, FileSystemHandle]> }).entries()) {
+      if (voce.kind !== 'file' || !/^[0-9a-f]{16}$/.test(nome)) continue;
+      try { const f = await (voce as FileSystemFileHandle).getFile(); out.push({ nome, byte: f.size, quando: f.lastModified }); } catch { /* sparita nel frattempo */ }
+    }
+  } catch { /* disco illeggibile */ }
+  return out;
+}
+
+/** toglie le copie leggere indicate (chi le stava usando le rifà quando servono). Ritorna quante. */
+export async function togliProxy(nomi: string[]): Promise<number> {
+  const dir = await cartella();
+  if (!dir) return 0;
+  let tolte = 0;
+  for (const nome of nomi) {
+    if (!/^[0-9a-f]{16}$/.test(nome)) continue;
+    await esclusivaProxy(nome, async () => { try { await dir.removeEntry(nome); tolte++; } catch { /* c'era già più */ } });
+  }
+  return tolte;
+}

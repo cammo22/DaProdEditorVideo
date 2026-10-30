@@ -9,7 +9,7 @@ import { avviso, type VoceMenu } from './dom';
 import type { MenuBanco } from './barraMenu';
 import type { Disposizione } from './disposizione';
 import { finestraEsporta, finestraInfo, finestraProgetto, finestraTasti, esportaEdl, esportaFotogramma, VERSIONE } from './dialoghi';
-import { apri, salvaPacchetto, importaDialogo, nuovo, ricollega, salva } from '../progetti';
+import { apri, apriSpazio, apriVersioni, salvaPacchetto, importaDialogo, nuovo, ricollega, salva } from '../progetti';
 import { isTauri, apriLink, schermoIntero, GRANDEZZE_UI, grandezzaUI, impostaGrandezzaUI } from '../platform';
 import { finestraAggiornamenti, finestraNovita } from './aggiornamenti';
 import { montaggioDimostrativo } from '../demo';
@@ -47,9 +47,11 @@ export function menuBanco(b: ContestoMenu): MenuBanco[] {
       { nome: 'Salva', tasto: 'Ctrl+S', fn: () => salva() },
       { nome: 'Salva come…', tasto: 'Ctrl+Shift+S', fn: () => salva(true) },
       { nome: 'Salva il pacchetto .daprod (con tutti i file)…', fn: () => void salvaPacchetto() },
+      { nome: 'Versioni del progetto…', fn: () => void apriVersioni() },
       { sep: true },
       { nome: 'Importa video, audio, immagini…', tasto: 'Ctrl+I', fn: () => importaDialogo() },
       { nome: 'Ricollega media mancanti…', fn: () => ricollega() },
+      { nome: 'Spazio e pulizia…', fn: () => void apriSpazio() },
       { nome: 'Montaggio dimostrativo', fn: () => montaggioDimostrativo() },
       { sep: true },
       { nome: 'Esporta il master…', tasto: 'Ctrl+M', fn: () => finestraEsporta() },
