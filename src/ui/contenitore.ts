@@ -41,7 +41,7 @@ const TIPI: Ramo[] = [
 const LIBRERIA: Ramo[] = [
   { id: 'transizioni', nome: 'Transizioni', icona: 'transizione', figli: [['tr:dissolvenze', 'Dissolvenze'], ['tr:movimento', 'Movimento'], ['tr:3d', '3D e forme'], ['tr:luce', 'Luce'], ['tr:stile', 'Stile'], ['tr:tendine', 'Tendine SMPTE']] },
   { id: 'titoli', nome: 'Titoli', icona: 'titolo', figli: [['tit:titoli', 'Titoli'], ...GRUPPI_HTML.map((g): [string, string] => ['tit:html-' + g.id, 'Animati · ' + g.nome]), ['tit:sott', 'Sottotitoli'], ['tit:tv', 'TV e social'], ['tit:conto', 'Countdown'], ['tit:sala', 'Macchine della sala']] },
-  { id: 'animazioni', nome: 'Animazioni', icona: 'effetti', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
+  { id: 'animazioni', nome: 'Animazioni', icona: 'elastico', figli: GRUPPI_LIBRERIA.map((g): [string, string] => ['an:' + g.id, g.nome]) },
   { id: 'effetti', nome: 'Effetti', icona: 'effetti', figli: [['fx:rapidi', 'Rapidi'], ['fx:lunghi', 'Lunghi'], ['fx:luci', 'Luci'], ['fx:distorsioni', 'Distorsioni'], ['fx:colore', 'Colore'], ['fx:particelle', 'Particelle'], ['fx:clip', 'Stile della clip'], ['fx:audio', 'Audio']] },
 ];
 
@@ -247,7 +247,7 @@ export class Contenitore {
     const voce = (id: string, nome: string, ic: string, livello: number, extra: { figli?: boolean; n?: number } = {}) => {
       const chiuso = this.chiusi.has(id);
       const el = h('button', {
-        class: 'bin-cat' + (id === this.nodo ? ' attiva' : '') + (extra.figli ? ' con-figli' : '') + (chiuso ? ' chiuso' : ''), 'data-c': id, title: nome,
+        class: 'bin-cat' + (id === this.nodo ? ' attiva' : '') + (extra.figli ? ' con-figli' : '') + (chiuso ? ' chiuso' : '') + (livello > 0 ? ' sotto' : ''), 'data-c': id, title: nome,
         style: `--livello:${livello}`,
         on: {
           click: (e: MouseEvent) => {

@@ -389,9 +389,10 @@ function schedeRegistro(chiudi: () => void, controlla: () => void): HTMLElement 
     precedente.disabled = indice === 0; successiva.disabled = indice === pagine - 1; pagina.textContent = `${indice + 1} / ${pagine}`;
     griglia.replaceChildren(...lista.slice(indice * 12, indice * 12 + 12).map((f) => {
       const guida = FUNZIONI_AI.find((x) => x.id === f.id);
-      const nome = f.nome.replace(/ \(.*$/, '').slice(0, 24);
+      const nome = f.nome.replace(/ \(.*$/, '');
       const manca = guida?.manca();
-      const descrizione = manca ? '⚠ ' + manca.slice(0, 52) : f.descrizione.split(/[.;(]/)[0].slice(0, 55);
+      // niente tagli a mano: se non sta in una riga ci pensa il CSS (puntini), e il testo intero è nel suggerimento
+      const descrizione = manca ? '⚠ ' + manca : f.descrizione.split(/\.\s|[;(]/)[0].replace(/\.$/, '');
       const peso = !f.peso || /nessun modello/i.test(f.peso) ? 'Integrata' : f.id === 'rumore' ? 'da 9 MB' : f.id === 'sottotitoli' ? 'da 40 MB' : (f.peso.match(/[\d,.]+(?:–[\d,.]+)?\s*(?:MB|GB)/i)?.[0] ?? 'Peso da verificare');
       const info = h('button', { class: 'btn-mini ai-info', 'aria-label': `Informazioni su ${f.nome}`, title: 'Dettagli e requisiti', on: { click: () => {
         const d = dialogo(f.nome); d.corpo.append(h('p', null, f.descrizione), h('p', { class: 'sch-pesovram' }, pesoEVram(f).riga)); if (guida) d.corpo.append(h('p', null, guida.come.join(' · ')));
