@@ -67,6 +67,9 @@ export class Telecomando {
   private conAnteprima = true;
   private stato: StatoTelecomando | null = null;
 
+  /** lo zoom che segue il cursore, in diretta sull'anteprima (trasformazione CSS; '' = quadro intero) */
+  zoom(css: string) { this.video.style.transform = css; }
+
   constructor(private c: ComandiTelecomando) {
     try { this.conAnteprima = localStorage.getItem(CHIAVE) !== 'no'; } catch { /* niente */ }
     const video = (cls: string) => { const v = h('video', { class: cls, muted: true, autoplay: true, playsinline: true }) as HTMLVideoElement; v.muted = true; return v; };

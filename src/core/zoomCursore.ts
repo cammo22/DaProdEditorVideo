@@ -103,66 +103,87 @@ function finestraAl(campioni: CampioneCursore[], tMs: number): [number, number, 
  */
 export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[] {
   const out: PuntoCamera[] = [];
-  // due stadi per grandezza (molla «criticamente smorzata» alla buona): il secondo toglie gli strappi del primo
-  let cx1 = 0.5, cy1 = 0.5, z1 = 1, cx = 0.5, cy = 0.5, z = 1;
-  let tx = 0.5, ty = 0.5;
-  let ancora: [number, number] | null = null, fermoDa = 0;
-  // l'ultimo istante di movimento forte: lo zoom torna solo dopo un po' di calma
-  let agitatoA = -Infinity;
+  const cam = new CameraCursore();
   let ic = 0;
-  const storia: [number, number, number][] = [];
   for (let t = 0; t <= durataMs; t += PASSO_MS) {
-    const q = puntoCursoreAl(dati.campioni, t);
-    let tz = 1;
     while (ic < dati.clic.length && dati.clic[ic].tMs < t - 1900) ic++;
     const clic = dati.clic.slice(ic).find((c) => c.tMs <= t + 350);
+    out.push(cam.passo(t, puntoCursoreAl(dati.campioni, t), clic, () => finestraAl(dati.campioni, t)));
+  }
+  return out;
+}
+
+/**
+ * La camera, un passo da 100 ms alla volta: la usa `camminoCamera` a registrazione finita e l'anteprima in diretta
+ * (telecomando e LIVE) mentre si registra, così si vede lo stesso zoom che finirà nel montaggio.
+ */
+export class CameraCursore {
+  // due stadi per grandezza (molla «criticamente smorzata» alla buona): il secondo toglie gli strappi del primo
+  private cx1 = 0.5; private cy1 = 0.5; private z1 = 1;
+  cx = 0.5; cy = 0.5; z = 1;
+  private tx = 0.5; private ty = 0.5;
+  private ancora: [number, number] | null = null; private fermoDa = 0;
+  // l'ultimo istante di movimento forte: lo zoom torna solo dopo un po' di calma
+  private agitatoA = -Infinity;
+  private storia: [number, number, number][] = [];
+
+  /** `clic` = un clic recente (o imminente, a registrazione finita); `finestra` si chiede solo da fermi */
+  passo(t: number, q: [number, number] | null, clic: { cx: number; cy: number } | undefined, finestra: () => [number, number, number, number] | null): PuntoCamera {
+    let tz = 1;
     if (q) {
       // quanta strada ha fatto il cursore nell'ultimo secondo e mezzo, e quanto va veloce adesso
+      const storia = this.storia;
       storia.push([t, q[0], q[1]]);
       while (storia.length && t - storia[0][0] > 1500) storia.shift();
       let strada = 0;
       for (let i = 1; i < storia.length; i++) strada += Math.hypot(storia[i][1] - storia[i - 1][1], storia[i][2] - storia[i - 1][2]);
       const recenti = storia.filter((x) => t - x[0] <= 300);
       const v = recenti.length > 1 ? Math.hypot(q[0] - recenti[0][1], q[1] - recenti[0][2]) / Math.max(0.1, (t - recenti[0][0]) / 1000) : 0;
-      if (v > 0.45 || strada > 0.6) agitatoA = t;
-      const calmo = t - agitatoA >= CALMA_MS;
-      if (!ancora || Math.hypot(q[0] - ancora[0], q[1] - ancora[1]) > RAGGIO_FERMO) { ancora = q; fermoDa = t; }
-      const fermo = t - fermoDa >= FERMO_MS;
-      const w = fermo ? finestraAl(dati.campioni, t) : null;
+      if (v > 0.45 || strada > 0.6) this.agitatoA = t;
+      const calmo = t - this.agitatoA >= CALMA_MS;
+      if (!this.ancora || Math.hypot(q[0] - this.ancora[0], q[1] - this.ancora[1]) > RAGGIO_FERMO) { this.ancora = q; this.fermoDa = t; }
+      const fermo = t - this.fermoDa >= FERMO_MS;
+      const w = fermo ? finestra() : null;
       const ww = w ? w[2] - w[0] : 1, wh = w ? w[3] - w[1] : 1;
-      if (!calmo) { tx = 0.5; ty = 0.5; tz = 1; } // si muove tanto: tutto lo schermo
-      else if (clic) { tx = clic.cx; ty = clic.cy; tz = ZOOM_CLIC; }
+      if (!calmo) { this.tx = 0.5; this.ty = 0.5; tz = 1; } // si muove tanto: tutto lo schermo
+      else if (clic) { this.tx = clic.cx; this.ty = clic.cy; tz = ZOOM_CLIC; }
       else if (w && ww * wh < 0.8 && ww * wh > 0.01) {
-        tx = (w[0] + w[2]) / 2; ty = (w[1] + w[3]) / 2;
+        this.tx = (w[0] + w[2]) / 2; this.ty = (w[1] + w[3]) / 2;
         tz = clamp(0.94 / Math.max(ww, wh), 1, ZOOM_MAX);
-      } else if (fermo) { tx = q[0]; ty = q[1]; tz = ZOOM_FERMO; }
+      } else if (fermo) { this.tx = q[0]; this.ty = q[1]; tz = ZOOM_FERMO; }
       else {
         // movimenti lenti: si resta vicini e si segue con una zona morta piccola
         tz = ZOOM_LENTO;
-        const meta = 0.2 / Math.max(1, z);
-        if (q[0] < cx - meta) tx = q[0] + meta; else if (q[0] > cx + meta) tx = q[0] - meta; else tx = cx;
-        if (q[1] < cy - meta) ty = q[1] + meta; else if (q[1] > cy + meta) ty = q[1] - meta; else ty = cy;
+        const meta = 0.2 / Math.max(1, this.z);
+        if (q[0] < this.cx - meta) this.tx = q[0] + meta; else if (q[0] > this.cx + meta) this.tx = q[0] - meta; else this.tx = this.cx;
+        if (q[1] < this.cy - meta) this.ty = q[1] + meta; else if (q[1] > this.cy + meta) this.ty = q[1] - meta; else this.ty = this.cy;
       }
-    } else { ancora = null; storia.length = 0; tx = 0.5; ty = 0.5; }
+    } else { this.ancora = null; this.storia.length = 0; this.tx = 0.5; this.ty = 0.5; }
     // allontanarsi è svelto (si vede subito tutto), avvicinarsi è morbido
-    const kz = 1 - Math.exp(-PASSO_MS / (tz > z1 ? 550 : 260));
+    const kz = 1 - Math.exp(-PASSO_MS / (tz > this.z1 ? 550 : 260));
     const kc = 1 - Math.exp(-PASSO_MS / 160);
-    z1 += (tz - z1) * kz; z += (z1 - z) * kz;
-    cx1 += (tx - cx1) * kc; cy1 += (ty - cy1) * kc;
+    this.z1 += (tz - this.z1) * kz; this.z += (this.z1 - this.z) * kz;
+    this.cx1 += (this.tx - this.cx1) * kc; this.cy1 += (this.ty - this.cy1) * kc;
     // la camera non scatta: al massimo un quadro inquadrato e mezzo al secondo...
-    const passo = 0.15 / Math.max(1, z), dx = cx1 - cx, dy = cy1 - cy, d = Math.hypot(dx, dy);
+    const passo = 0.15 / Math.max(1, this.z), dx = this.cx1 - this.cx, dy = this.cy1 - this.cy, d = Math.hypot(dx, dy);
     const k = d > passo ? passo / d : 1;
-    cx += dx * k; cy += dy * k;
+    this.cx += dx * k; this.cy += dy * k;
     // ...ma il cursore non esce mai dall'inquadratura: se è vicino al bordo la camera lo raggiunge subito
-    if (q && z > 1.01) {
-      const bordo = 0.5 / z - 0.06 / z;
-      if (q[0] < cx - bordo) cx = q[0] + bordo; else if (q[0] > cx + bordo) cx = q[0] - bordo;
-      if (q[1] < cy - bordo) cy = q[1] + bordo; else if (q[1] > cy + bordo) cy = q[1] - bordo;
-      cx1 = cx; cy1 = cy;
+    if (q && this.z > 1.01) {
+      const bordo = 0.5 / this.z - 0.06 / this.z;
+      if (q[0] < this.cx - bordo) this.cx = q[0] + bordo; else if (q[0] > this.cx + bordo) this.cx = q[0] - bordo;
+      if (q[1] < this.cy - bordo) this.cy = q[1] + bordo; else if (q[1] > this.cy + bordo) this.cy = q[1] - bordo;
+      this.cx1 = this.cx; this.cy1 = this.cy;
     }
-    out.push({ tMs: t, cx, cy, z });
+    return { tMs: t, cx: this.cx, cy: this.cy, z: this.z };
   }
-  return out;
+}
+
+/** Lo stesso zoom come trasformazione CSS di un elemento che mostra lo schermo intero (anteprima in diretta). */
+export function cssCamera(p: PuntoCamera): string {
+  const z = Math.max(1, p.z), m = 0.5 / z;
+  const cx = clamp(p.cx, m, 1 - m), cy = clamp(p.cy, m, 1 - m);
+  return `scale(${z.toFixed(3)}) translate(${((0.5 - cx) * 100).toFixed(2)}%, ${((0.5 - cy) * 100).toFixed(2)}%)`;
 }
 
 /**

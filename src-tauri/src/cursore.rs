@@ -31,6 +31,18 @@ struct Sessione {
 #[derive(Default)]
 pub struct Cursore(Mutex<Option<Sessione>>);
 
+/// L'ultimo campione, per l'anteprima in diretta dello zoom (telecomando e LIVE). I clic si sommano fino alla lettura.
+#[derive(Clone, Serialize)]
+pub struct Ora {
+    cx: f64,
+    cy: f64,
+    visible: bool,
+    clicks: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    win: Option<[f64; 4]>,
+}
+static ORA: Mutex<Option<Ora>> = Mutex::new(None);
+
 impl Cursore {
     pub fn chiudi(&self) {
         if let Ok(mut attiva) = self.0.lock() {
@@ -265,6 +277,10 @@ mod win {
                             win,
                         };
                         prima = ora;
+                        if let Ok(mut o) = ORA.lock() {
+                            let vecchi = o.as_ref().map(|v| (v.clicks, v.win)).unwrap_or((0, None));
+                            *o = Some(Ora { cx: s.cx, cy: s.cy, visible: s.visible, clicks: vecchi.0 | s.clicks, win: s.win.or(vecchi.1) });
+                        }
                         serde_json::to_writer(&mut out, &s).map_err(|e| e.to_string())?;
                         out.write_all(b"\n").map_err(|e| e.to_string())?;
                         // Flush periodico: niente ring buffer che perda l'inizio delle registrazioni lunghe.
@@ -280,6 +296,7 @@ mod win {
                     std::fs::read_to_string(&path).map_err(|e| e.to_string())
                 })();
                 let _ = std::fs::remove_file(path);
+                if let Ok(mut o) = ORA.lock() { *o = None; }
                 risultato
             })
             .map_err(|e| e.to_string())?;
@@ -343,4 +360,13 @@ pub async fn cursore_ferma(stato: tauri::State<'_, Cursore>, id: u64) -> Result<
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Dov'è il cursore adesso (None se non si sta registrando). I clic tornano a zero dopo ogni lettura.
+#[tauri::command]
+pub fn cursore_ora() -> Option<Ora> {
+    let mut o = ORA.lock().ok()?;
+    let v = o.clone();
+    if let Some(x) = o.as_mut() { x.clicks = 0; }
+    v
 }
