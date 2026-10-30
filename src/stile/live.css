@@ -153,3 +153,35 @@
 
 /* la finestra in onda fra le miniature è una selezione: ciano, non rosso (il rosso è solo REC) */
 .live-fonte.in-onda { border-color: var(--cia); box-shadow: 0 0 0 1px var(--cia), 0 0 10px rgba(53, 232, 255, 0.35); }
+/* Due corsie per tenere le impostazioni a vista anche su una finestra 1280×720. */
+@media (min-width: 1181px) {
+  #app[data-pagina='live'] { --livecol: clamp(600px, 48vw, 660px); }
+  #app .live .live-comandi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; padding: 8px; overflow: auto; }
+  .live-corsia, .live-comandi .live-configurazione { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .live-comandi .live-blocco { gap: 4px; }
+  .live-comandi .live-sez, .live-comandi .live-configurazione > .live-sez { margin: 3px 0 0; line-height: 14px; }
+  .live-comandi .live-configurazione { border: 0; }
+  .live-comandi .fin-interruttore.live-cosa, .live-configurazione .fin-interruttore { min-height: 34px; padding: 0 8px; font-size: 13px; }
+  .live-configurazione .live-griglia { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .live-configurazione .fin-int-testo { line-height: 1.05; }
+  .live-dispositivi { gap: 4px; }
+  .live-dispositivi label { grid-template-columns: 72px minmax(0, 1fr); }
+  .live-schermo-scelta { margin: 0; }
+  .live-configurazione .live-riga { gap: 4px; }
+  .live-configurazione .live-chips .chip { padding: 0 6px; }
+  .live-comandi .live-archivio summary { min-height: 34px; padding: 4px 2px; }
+  .live-corsia .live-guida { margin: 0; font-size: 11px; }
+}
+#app[data-pagina='live']:not(.stretto) .live-comandi { grid-area: auto; }
+@media (min-width: 1181px) {
+  .live-azioni { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .live-azioni .live-btn.tele { grid-column: auto; }
+  .live-configurazione .live-sfondo { width: 34px; height: 34px; }
+}
+@media (min-width: 1181px) {
+  .live-webcam-choix { display: grid; grid-template-columns: 2fr 1fr; gap: 4px; }
+  .live-webcam-choix .live-angoli, .live-webcam-choix .live-forme { gap: 4px; }
+  .live-webcam-choix .live-forme .chip { font-size: 11px; letter-spacing: 0; }
+  .live-corsia .live-sfondo { width: 34px; height: 34px; }
+  .live-comandi .live-configurazione { gap: 2px; }
+}

@@ -41,7 +41,7 @@ export async function proveLive({ page: paginaDi, prova, OUT }) {
 
     // la colonna usa --livecol, mostra le opzioni e non scorre di lato
     const col = await page.evaluate(() => { const c = document.querySelector('.live-comandi'); return { w: Math.round(c.getBoundingClientRect().width), scrollX: c.scrollWidth > c.clientWidth + 1, opzioni: document.querySelector('.live-configurazione')?.tagName === 'SECTION' }; });
-    prova('la colonna usa --livecol, mostra le opzioni e non scorre di lato', col.w >= 380 && col.w <= 600 && !col.scrollX && col.opzioni, JSON.stringify(col));
+    prova('la colonna usa --livecol, mostra le opzioni e non scorre di lato', col.w >= 380 && col.w <= 660 && !col.scrollX && col.opzioni, JSON.stringify(col));
 
     // prima di registrare: il tasto WEBCAM e il tasto C accendono e spengono
     const stato = () => page.evaluate(() => ({ opz: window.__dpvTest.ui().live.opz.cam, anteprima: document.querySelector('.live').classList.contains('con-cam'), tasto: document.querySelector('.live-btn.cam').classList.contains('acceso'), interruttore: [...document.querySelectorAll('.live .fin-interruttore')].find((e) => /Webcam/.test(e.textContent))?.classList.contains('acceso') }));
