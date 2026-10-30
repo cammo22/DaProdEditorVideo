@@ -947,9 +947,16 @@ export class Live {
     if (microfonoProva) return risorseLive.flusso(await microfonoProva());
     const f = this.opz.audio.filtri;
     // i filtri del browser (toglie i disturbi con il suo modello AI, eco, volume automatico) sono scelte tue
-    return risorseLive.flusso(await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: this.opz.micId ? { exact: this.opz.micId } : undefined, echoCancellation: f.eco, noiseSuppression: f.disturbi, autoGainControl: f.livellaAuto },
-    }));
+    const vincoli = { echoCancellation: f.eco, noiseSuppression: f.disturbi, autoGainControl: f.livellaAuto };
+    if (this.opz.micId) {
+      try {
+        return risorseLive.flusso(await navigator.mediaDevices.getUserMedia({ audio: { ...vincoli, deviceId: { exact: this.opz.micId } } }));
+      } catch {
+        // il microfono scelto non c'è più (cuffie staccate, Windows gli ha cambiato nome): si usa quello predefinito
+        avviso('Il microfono scelto non risponde: uso quello predefinito di Windows', 'info', 4000);
+      }
+    }
+    return risorseLive.flusso(await navigator.mediaDevices.getUserMedia({ audio: vincoli }));
   }
 
   /** i filtri del browser cambiati mentre il microfono è già aperto: si riapplicano alla traccia viva (senza richiuderla) */
@@ -1252,7 +1259,7 @@ export class Live {
         mic = await this.apriMic();
         this.flussi.push(mic);
         this.micReg = mic;
-      } catch { avviso('Il microfono non si apre: registro senza', 'info', 2400); }
+      } catch (e) { avviso('⚠ Il microfono non si apre, la voce NON viene registrata. Controlla in Windows → Privacy → Microfono. (' + String(e).slice(0, 80) + ')', 'errore', 9000); }
     }
     await mix.pronto;
     this.micSep = null;

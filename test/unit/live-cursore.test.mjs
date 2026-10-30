@@ -283,3 +283,12 @@ test('il compositore libera le immagini uscite dal quadro e le ricarica quando t
   assert.notEqual(cp.texs.get('img:foto').tex, prima);
   cp.distruggi();
 });
+
+test('mouse veloce: la camera non va nel panico (resta larga e si sposta piano)', () => {
+  const raw = [];
+  for (let i = 0; i < 600; i++) raw.push({ tMs: i * 1000 / 60, cx: (Math.floor(i / 6) % 2) ? .9 : .1, cy: (Math.floor(i / 9) % 2) ? .85 : .15, clicks: 0, visible: true });
+  const d = Z.rimappaCursore(raw, schermo, [{ da: 0, fine: 10000, videoMs: 0, durataMs: 10000 }], 10000);
+  const cam = Z.camminoCamera(d, 10000);
+  assert.ok(cam.every(k => k.z < 1.12), 'resta quasi a quadro intero');
+  for (let i = 1; i < cam.length; i++) assert.ok(Math.hypot(cam[i].cx - cam[i - 1].cx, cam[i].cy - cam[i - 1].cy) <= .0501, 'si sposta piano');
+});

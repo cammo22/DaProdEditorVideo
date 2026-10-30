@@ -101,16 +101,22 @@ function finestraAl(campioni: CampioneCursore[], tMs: number): [number, number, 
  */
 export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[] {
   const out: PuntoCamera[] = [];
-  let cx = 0.5, cy = 0.5, z = 1;
+  // due stadi per grandezza (molla «criticamente smorzata» alla buona): il secondo toglie gli strappi del primo
+  let cx1 = 0.5, cy1 = 0.5, z1 = 1, cx = 0.5, cy = 0.5, z = 1;
+  let tx = 0.5, ty = 0.5;
   let ancora: [number, number] | null = null, fermoDa = 0;
   let ic = 0;
+  const storia: [number, number, number][] = [];
   for (let t = 0; t <= durataMs; t += PASSO_MS) {
     const q = puntoCursoreAl(dati.campioni, t);
-    let tx = 0.5, ty = 0.5, tz = 1;
-    // clic nella finestra [t - 1,9 s, t + 0,35 s]: si arriva prima del clic e si resta dopo
+    let tz = 1;
     while (ic < dati.clic.length && dati.clic[ic].tMs < t - 1900) ic++;
     const clic = dati.clic.slice(ic).find((c) => c.tMs <= t + 350);
     if (q) {
+      // velocità del cursore negli ultimi 300 ms, in schermi al secondo
+      storia.push([t, q[0], q[1]]);
+      while (storia.length && t - storia[0][0] > 300) storia.shift();
+      const v = storia.length > 1 ? Math.hypot(q[0] - storia[0][1], q[1] - storia[0][2]) / Math.max(0.1, (t - storia[0][0]) / 1000) : 0;
       if (!ancora || Math.hypot(q[0] - ancora[0], q[1] - ancora[1]) > RAGGIO_FERMO) { ancora = q; fermoDa = t; }
       const fermo = t - fermoDa >= FERMO_MS;
       const w = fermo ? finestraAl(dati.campioni, t) : null;
@@ -120,13 +126,23 @@ export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[
         tx = (w[0] + w[2]) / 2; ty = (w[1] + w[3]) / 2;
         tz = clamp(0.94 / Math.max(ww, wh), 1, ZOOM_MAX);
       } else if (fermo) { tx = q[0]; ty = q[1]; tz = ZOOM_FERMO; }
-      else { tx = q[0]; ty = q[1]; tz = ZOOM_SEGUI; }
-    } else ancora = null;
-    // avvicinarsi un po' più svelti, allontanarsi piano; il centro segue più rapido quando si è vicini
-    const kz = 1 - Math.exp(-PASSO_MS / (tz > z ? 450 : 900));
-    const kc = 1 - Math.exp(-PASSO_MS / (z > 1.3 ? 380 : 600));
-    z += (tz - z) * kz;
-    cx += (tx - cx) * kc; cy += (ty - cy) * kc;
+      else {
+        // in movimento: più è veloce, più si allarga (oltre 1,2 schermi al secondo torna al quadro intero)
+        tz = 1 + (ZOOM_SEGUI - 1) * clamp(1 - v / 1.2, 0, 1);
+        // zona morta: la camera si sposta solo se il cursore esce dal 60% centrale dell'inquadratura
+        const meta = 0.3 / Math.max(1, z);
+        if (q[0] < cx - meta) tx = q[0] + meta; else if (q[0] > cx + meta) tx = q[0] - meta; else tx = cx;
+        if (q[1] < cy - meta) ty = q[1] + meta; else if (q[1] > cy + meta) ty = q[1] - meta; else ty = cy;
+      }
+    } else { ancora = null; storia.length = 0; }
+    const kz = 1 - Math.exp(-PASSO_MS / (tz > z1 ? 320 : 650));
+    const kc = 1 - Math.exp(-PASSO_MS / 300);
+    z1 += (tz - z1) * kz; z += (z1 - z) * kz;
+    cx1 += (tx - cx1) * kc; cy1 += (ty - cy1) * kc;
+    // la camera non corre: al massimo mezzo quadro inquadrato al secondo
+    const passo = 0.05 / Math.max(1, z), dx = cx1 - cx, dy = cy1 - cy, d = Math.hypot(dx, dy);
+    const k = d > passo ? passo / d : 1;
+    cx += dx * k; cy += dy * k;
     out.push({ tMs: t, cx, cy, z });
   }
   return out;
