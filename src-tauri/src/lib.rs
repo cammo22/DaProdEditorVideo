@@ -11,6 +11,7 @@ mod associazioni;
 mod cartelle;
 mod conversioni;
 mod cursore;
+mod audio_pc;
 mod motori;
 mod motore_ai;
 
@@ -578,6 +579,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Stato::default())
         .manage(cursore::Cursore::default())
+        .manage(audio_pc::AudioPc::default())
         .manage(Avvio(Mutex::new(dall_avvio)))
         .manage(audio_riserva::Decoder::default())
         .invoke_handler(tauri::generate_handler![
@@ -609,6 +611,10 @@ pub fn run() {
             cursore::cursore_avvia,
             cursore::cursore_ferma,
             cursore::cursore_ora,
+            audio_pc::audio_pc_uscite,
+            audio_pc::audio_pc_avvia,
+            audio_pc::audio_pc_livello,
+            audio_pc::audio_pc_ferma,
             audio_apri,
             audio_decodifica,
             audio_chiudi,
@@ -641,6 +647,7 @@ pub fn run() {
         .run(|_app, _ev| {
             if matches!(_ev, tauri::RunEvent::Exit) {
                 _app.state::<cursore::Cursore>().chiudi();
+                _app.state::<audio_pc::AudioPc>().chiudi();
                 motore_ai::chiudi();
             }
             // sul Mac il doppio clic su un progetto arriva come evento (anche ad app già aperta)

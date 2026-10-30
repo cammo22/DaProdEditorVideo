@@ -16,7 +16,8 @@ per Windows (portatile e installabile), Mac e Android, e va online su [GitHub Pa
 
 - **Audio del LIVE**: si registrano le tracce vere del microfono e del computer. Prima passavano dal mixer, e se il suo contesto audio restava in pausa (registrazione partita dal telecomando o dal conto alla rovescia) i file venivano **muti**.
 - **Tasti VOCE e COMPUTER**: ognuno spegne solo la sua traccia (prima il tasto del computer poteva spegnere il microfono).
-- **Il telecomando non finisce nella registrazione**: Windows lo esclude dalla cattura dello schermo mentre è aperto.
+- **Audio del computer vero**: nell'app su Windows lo prende direttamente Windows (quello che esce dalle casse o dalle cuffie): la traccia che dava WebView2 era finta e muta. Nelle Altre opzioni del LIVE scegli **l'uscita** (casse, cuffie…) e la barra COMPUTER mostra il suo livello mentre registri. Finisce in un file WAV accanto al video, sulla prima traccia audio, legato alla ripresa.
+- **Premi REC e il telecomando si apre da solo**, e **non finisce nella registrazione**: Windows lo esclude dalla cattura dello schermo mentre è aperto.
 - **Anteprima dello zoom fluida**: niente più scatti fra un passo della camera e l'altro.
 
 ## [1.8.8] — 2026-10-30 · Lo zoom si vede mentre registri
