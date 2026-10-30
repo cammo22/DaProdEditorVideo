@@ -4,7 +4,7 @@
    (--lato) e dentro si scorre. Colori: solo spie (oro = il valore che si regola, ciano = selezione, rosso = muto/errore,
    verde = pronto); il metallo è per i tasti, il vetrino scuro per i numeri. Le variabili sono quelle di editor.css: qui
    se ne leggono, non se ne ridefiniscono (i fallback servono solo se mancano).
-   Vale solo per .ispettore.banco: l'editor della clip (doppio clic) tiene il suo aspetto. */
+   Il popup .editor-clip usa la stessa grafica con navigazione laterale. */
 
 .ispettore.banco {
   --pp-vetrino: var(--vetrino, #050407);
@@ -201,3 +201,124 @@
 .ispettore.banco .ck-numero { font-size: 14px; }
 .ispettore.banco .ck-numero input { background: var(--pp-vetrino); border: 1px solid var(--bordo); border-radius: 5px; color: var(--oro); font: 14px var(--pp-mono); padding: 4px 6px; min-height: 32px; }
 .ispettore.banco .ck-altre summary { min-height: 34px; display: flex; align-items: center; font-size: 14px; color: var(--testo2); }
+/* Banco compatto: i dettagli stanno nei menu, le azioni restano visibili. */
+.ispettore.banco .pp-testa { padding: 8px 12px; gap: 6px; }
+.ispettore.banco .pp-mini { width: 48px; height: 27px; }
+.ispettore.banco .isp-nome { font: 700 16px/1.3 var(--ui); }
+.ispettore.banco .pp-testa-riga { gap: 8px; }
+.ispettore.banco .pp-dati { font: 13px/1.3 var(--pp-mono); }
+.ispettore.banco .pp-mini-btn { height: var(--riga, 34px); font: 600 15px/1.3 var(--ui); border-radius: 6px; }
+.ispettore.banco .pp-azioni .pp-menu { flex: 0 0 34px; }
+.ispettore.banco .pp-schede { padding: 6px 8px; }
+.ispettore.banco .pp-scheda { height: 36px; font-size: 12px; letter-spacing: 1px; }
+.ispettore.banco .pp-scroll { padding: 12px; }
+.ispettore.banco .pp-pannello { gap: 8px; }
+.ispettore.banco .pp-inciso, .ispettore.banco .etichetta, .ispettore.banco .isp-gruppo summary { letter-spacing: 1px; }
+.ispettore.banco .pp-piede { padding: 8px 12px; }
+.ispettore.banco .pp-pie { font-size: 15px; }
+.ispettore.banco .pp-ai { height: 64px; min-height: 64px; padding: 5px 8px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; border-radius: 6px; }
+.pp-ai-testa, .pp-ai-comandi { display: flex; align-items: center; gap: 6px; }
+.pp-ai-testa b { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 16px/1.3 var(--ui); }
+.ispettore.banco .pp-ai-stato { font: 12px/1.3 var(--pp-mono); letter-spacing: 0; }
+.pp-ai-peso { flex: 1; font: 12px/1.3 var(--pp-mono); color: var(--testo2); }
+.ispettore.banco .pp-ai-comandi .pp-mini-btn { height: 30px; padding: 0 6px; font-size: 13px; }
+.ispettore.banco .pp-ai-comandi .pp-info { width: 30px; flex: 0 0 30px; }
+.pp-ai-filtri, .pp-ai-pagine { display: flex; gap: 8px; align-items: center; }
+.pp-ai-filtri > button { flex: 1; }
+.pp-ai-filtri [aria-pressed='true'], .ec-scelte [aria-pressed='true'] { border-color: var(--cia); color: var(--cia); }
+.pp-ai-pagine { justify-content: center; }
+.ispettore.banco .pp-centro-ai { width: 100%; }
+
+/* Il popup mantiene i campi vivi e Ctrl+Z, con una sezione per volta. */
+.dialogo.editor-clip { width: min(1120px, calc(100vw - 48px)); height: min(760px, calc(100dvh - 80px)); max-height: calc(100dvh - 80px); background: #15141b; border: 1px solid var(--bordo-forte); border-radius: 6px; display: flex; flex-direction: column; font: 500 15px/1.3 var(--ui); }
+.editor-clip .dlg-testa { flex: none; height: 48px; padding: 0 12px; background: linear-gradient(#2c2b34, #1d1c23); }
+.editor-clip .dlg-testa b { font: 700 18px/1.3 var(--ui); }
+.editor-clip .dlg-corpo { flex: 1; min-height: 0; max-height: none; padding: 0; overflow: hidden; display: flex; }
+.editor-clip .ispettore.completo { width: 100%; padding: 0; min-height: 0; display: flex; }
+.editor-clip .isp-corpo { display: grid; grid-template-columns: 160px minmax(0, 1fr); width: 100%; min-height: 0; gap: 0; }
+.editor-clip .ec-nav { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-right: 1px solid var(--bordo); background: #0b0a0f; overflow-y: auto; }
+.editor-clip .ec-nav button { flex-shrink: 0; height: var(--riga, 34px); display: flex; align-items: center; gap: 8px; padding: 0 8px; text-align: left; border: 1px solid var(--bordo); border-radius: 6px; background: linear-gradient(#2c2b34, #1d1c23); color: var(--testo); font: 600 15px/1.3 var(--ui); }
+.editor-clip .ec-nav button > span { font-size: 18px; width: 20px; text-align: center; }
+.editor-clip .ec-nav [aria-pressed='true'] { border-color: var(--cia); color: var(--cia); background: #123039; }
+.editor-clip .ec-area { min-width: 0; min-height: 0; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.editor-clip .ec-titolo { display: flex; align-items: center; justify-content: space-between; flex: none; }
+.editor-clip .ec-titolo h2 { font: 700 18px/1.3 var(--ui); margin: 0; }
+.editor-clip .ec-scelte { display: flex; flex-wrap: wrap; gap: 8px; flex: none; }
+.editor-clip .ec-contenuto { min-height: 0; overflow: auto; flex: 1; overscroll-behavior: contain; }
+.editor-clip .isp-gruppo { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.editor-clip .isp-gruppo[hidden] { display: none; }
+.editor-clip .isp-gruppo > summary { display: none; }
+.editor-clip .isp-gruppo > :not(summary) { margin: 0 0 12px; }
+
+
+.editor-clip .isp-gruppo > .etichetta { grid-column: 1 / -1; font: 700 12px/1.3 var(--ui); letter-spacing: 1px; }
+.editor-clip .isp-riga { min-width: 0; font: 500 15px/1.3 var(--ui); }
+.editor-clip .isp-riga > label { font: 500 15px/1.3 var(--ui); }
+.editor-clip .isp-riga label small { display: none; }
+.editor-clip .nota { font: 500 13px/1.3 var(--ui); color: var(--testo2); }
+.editor-clip .isp-gruppo > .nota:not(.avviso-rosso):not(.ok) { grid-column: 1 / -1; }
+.editor-clip :is(.num, .dur-numero, .dur-dove, .dur-velocita, .aai-nota, .aai-stato) { font: 13px/1.3 'Share Tech Mono', monospace; }
+.editor-clip :is(input, select, .mini-select, .campo-testo) { min-width: 0; max-width: 100%; min-height: var(--riga, 34px); border-radius: 6px; background: #0b0a0f; color: var(--testo); border: 1px solid var(--bordo); }
+.editor-clip :is(.btn-mini, .pp-mini-btn, .chip, .aai-bottone) { min-height: var(--riga, 34px); padding: 0 10px; font: 600 15px/1.3 var(--ui); border: 1px solid var(--bordo-forte); border-radius: 6px; background: linear-gradient(#2c2b34, #1d1c23); color: var(--testo); }
+.editor-clip :is(.chip.acceso, .pp-tessera.acceso) { border-color: var(--cia); color: var(--cia); box-shadow: inset 0 0 0 1px var(--cia); }
+.editor-clip .pp-griglia { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.editor-clip .pp-tessera { height: 64px; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px; padding: 8px; background: linear-gradient(#2c2b34, #1d1c23); border: 1px solid var(--bordo); border-radius: 6px; color: var(--testo); font: 600 15px/1.3 var(--ui); }
+.editor-clip .pp-tessera > span:last-child { font: inherit; }
+.editor-clip :is(.pp-ico, .mv-prev) { flex: 0 0 64px; width: 64px; height: 36px; }
+.editor-clip .pp-ico > b, .editor-clip .mv-box { background: linear-gradient(135deg, #a9e9ee, #237386); }
+.editor-clip .mv-daSinistra { left: 5%; }
+.editor-clip .mv-daDestra { left: 60%; }
+.editor-clip .mv-dalBasso { top: 55%; height: 30%; }
+.editor-clip .mv-dallAlto { top: 5%; height: 30%; }
+.editor-clip .mv-avvicina { left: 14%; top: 10%; width: 72%; height: 80%; }
+.editor-clip .mv-allontana { left: 40%; top: 35%; width: 20%; height: 30%; }
+.editor-clip .mv-scivola { left: 12%; top: 12%; transform: rotate(-12deg); }
+.editor-clip .mv-gira { transform: rotate(35deg); }
+.editor-clip .dlg-piede { flex: none; min-height: 68px; padding: 12px; border-top: 1px solid var(--bordo); background: #0b0a0f; }
+.editor-clip .dlg-piede .nota { margin: 0; }
+.editor-clip .dlg-piede .btn { height: 44px; padding: 0 24px; font: 600 15px/1.3 var(--ui); border-radius: 6px; }
+.editor-clip .dlg-piede .primario { background: linear-gradient(#ffe28a, #d5aa39); color: #191407; }
+.editor-clip :focus-visible { outline: 2px solid var(--cia); outline-offset: 2px; }
+@media (pointer: coarse) { .ispettore.banco button, .editor-clip button { min-height: 44px; } .ispettore.banco .pp-ai { height: auto; min-height: 84px; } }
+@media (max-width: 760px) { .editor-clip .isp-corpo { grid-template-columns: 120px minmax(0, 1fr); } .editor-clip .pp-griglia, .editor-clip .isp-gruppo[open] { grid-template-columns: minmax(0, 1fr); } .editor-clip .ec-nav { padding: 8px; } }
+.editor-clip .isp-gruppo > .tessere-blocco { grid-column: 1 / -1; }
+.editor-clip .ec-aiuto { justify-self: start; }
+.editor-clip .aai-scheda { padding: 12px; border: 1px solid var(--bordo); border-radius: 6px; background: #0b0a0f; }
+.editor-clip .aai-testa { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.editor-clip .aai-testa > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; }
+.editor-clip .aai-testa b { font: 700 16px/1.3 var(--ui); }
+.editor-clip .aai-bottoni { display: flex; flex-direction: column; gap: 8px; }
+.editor-clip .tessera-nome { font: 700 12px/1.3 var(--ui); }
+.editor-clip .isp-pulsanti { display: flex; flex-wrap: wrap; gap: 8px; }
+.editor-clip .isp-num small { font: 12px/1.3 'Share Tech Mono', monospace; }
+.editor-clip .isp-gruppo[hidden] { display: none; }
+.editor-clip .isp-gruppo > .aai-scheda { margin: 0; }
+.editor-clip .isp-riga.spunta input { min-height: 20px; width: 20px; }
+/* La scheda AI usa la colonna alta: quattro funzioni e azioni restano visibili. */
+#app[data-pagina='montaggio']:not(.stretto):not(.senza-lato):has(.ispettore.banco .pp-scheda[data-scheda='ai'].attiva) {
+  grid-template-areas: 'testa testa testa testa testa' 'bin bbin monitor blato lato' 'div div div blato lato' 'puls puls puls blato lato' 'tl tl tl blato lato' 'stato stato stato stato stato';
+}
+.ispettore.banco .pp-testa { padding: 4px 12px; gap: 4px; }
+.ispettore.banco .isp-nome { height: 22px; min-height: 22px; }
+.editor-clip .isp-gruppo[open] { display: block; }
+.editor-clip .isp-gruppo[hidden] { display: none; }
+.editor-clip .isp-gruppo > .ec-campi { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start; }
+.editor-clip .ec-campi > * { min-width: 0; margin: 0; }
+.editor-clip .ec-campi > :is(.pp-griglia, .isp-riga.col, .tessere-blocco, .isp-durata, .etichetta, .nota) { grid-column: 1 / -1; }
+.editor-clip .ec-campi > .etichetta { font: 700 12px/1.3 var(--ui); letter-spacing: 1px; text-transform: uppercase; }
+.editor-clip .pp-tessera { text-align: left; }
+.editor-clip .aai-scheda .aai-testa { margin-bottom: 12px; }
+@media (max-width: 760px) { .editor-clip .isp-gruppo > .ec-campi { grid-template-columns: minmax(0,1fr); } }
+.editor-clip .aai-bottone.primario { background: linear-gradient(#2c2b34, #1d1c23); color: var(--testo); border-color: var(--bordo-forte); }
+.editor-clip :is(small, .tessere-filtro, .kf-freccia, .pp-piu > summary) { font-size: 12px; }
+.editor-clip .pp-piu > summary { min-height: var(--riga, 34px); font: 600 15px/1.3 var(--ui); }
+.pp-dati { font-family: var(--mono, 'Share Tech Mono', monospace); overflow-wrap: anywhere; }
+.ispettore.banco .pp-ai { padding: 2px 8px; gap: 0; }
+.ispettore.banco .pp-ai-comandi .pp-mini-btn { height: var(--riga, 34px); }
+.ispettore.banco .pp-ai-comandi .pp-info { width: 34px; flex-basis: 34px; }
+.dialogo p.pp-dati { white-space: normal; overflow: visible; font: 13px/1.3 var(--mono, 'Share Tech Mono', monospace); }
+.ispettore.banco .pp-testa { display: grid; grid-template-rows: 39px var(--riga, 34px); height: 88px; min-height: 88px; max-height: 88px; align-content: center; }
+.ispettore.banco .pp-testa-riga { min-height: 0; }
+.dialogo.editor-clip.largo { width: min(1120px, calc(100vw - 48px)); }
+.dialogo.editor-clip .dlg-corpo { max-height: none; }
+@media (pointer: coarse) { .ispettore.banco .pp-testa { height: 104px; min-height: 104px; max-height: 104px; grid-template-rows: 44px 44px; } }

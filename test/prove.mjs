@@ -273,7 +273,7 @@ try {
     // la durata sta nell'editor della clip (doppio clic): si apre da lì
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
     await page.waitForSelector('.editor-clip');
-    await page.evaluate(() => document.querySelectorAll('.editor-clip .isp-gruppo:not([open]) > summary').forEach((x) => x.click()));
+    await page.click('.editor-clip .ec-nav [data-sezione=tempo]');
     await page.waitForTimeout(150);
     await page.click('.editor-clip .isp-pulsanti button:has-text("+5 s")');
     await page.keyboard.press('Escape');
