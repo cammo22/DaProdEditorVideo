@@ -1,11 +1,13 @@
 // Cursore LIVE, nello spirito di OpenScreen (MIT, vedi TERZE-PARTI.md).
 // La geometria del focus è adattata da videoPlayback/zoomTransform.ts all'origine centrale di DaProd.
 // Il movimento viene scritto una volta nelle tappe normali: seek, monitor ed export fanno lo stesso conto.
-import type { Clip, MediaItem, Project, Transform } from './tipi';
+import type { ChiaveAnim, Clip, MediaItem, Project, Transform } from './tipi';
 import { newClip } from './progetto';
+import { valoreAnim } from './automazioni';
 
 export interface SchermoCursore { id: string; left: number; top: number; width: number; height: number }
-export interface CampioneCursore { tMs: number; cx: number; cy: number; visible: boolean; clicks: number }
+/** `win` = la finestra sotto il cursore (sinistra, alto, destra, basso) in frazioni dello schermo, quando il campionatore l'ha letta */
+export interface CampioneCursore { tMs: number; cx: number; cy: number; visible: boolean; clicks: number; win?: [number, number, number, number] }
 export interface ClicCursore { tMs: number; cx: number; cy: number; button: number }
 export interface SegmentoCursore { daMs: number; durataMs: number }
 export interface DatiCursore {
@@ -71,42 +73,120 @@ export function puntoCursoreAl(campioni: CampioneCursore[], tMs: number): [numbe
   return [a.cx + (b.cx - a.cx) * k, a.cy + (b.cy - a.cy) * k];
 }
 
-/** Solo sulla clip appena creata da LIVE: non riscrive movimenti già lavorati a mano. */
-export function applicaZoomCursore(p: Project, c: Clip, m: MediaItem): boolean {
-  const dati = m.cursoreLive;
-  if (!dati || dati.v !== 1 || c.tfFine || c.via?.length || c.len < 3 || m.width <= 0 || m.height <= 0 || c.speed <= 0) return false;
-  const r = p.rate.num / p.rate.den, durata = (c.len - 1) * 1000 / r;
-  const ingresso = (c.srcIn - (m.t0 || 0)) * 1000;
-  const clic = dati.clic.map((s) => ({ ...s, tMs: (s.tMs - ingresso) / c.speed }));
-  const regioni = regioniZoom(clic, durata);
-  if (!regioni.length) return false;
-  const fit = Math.min(p.w / m.width, p.h / m.height), base = { ...c.tf };
-  const tappe: { t: number; tf: Transform }[] = [{ t: 0, tf: base }];
-  for (const g of regioni) {
-    // Entrata e uscita hanno due tappe uguali ai lati: passaPer dà la S senza stato di playback.
-    const entrata = Math.min(g.fine, g.da + 500), uscita = Math.max(entrata, g.fine - 550);
-    tappe.push({ t: g.da / durata, tf: { ...base } });
-    let x = g.clic[0].cx, y = g.clic[0].cy;
-    // Bake deterministico a 5 Hz nel tempo del contenuto, poi passaPer raccorda le tappe con la S.
-    // Il filtro usa sempre lo stesso passo, indipendente dai seek e dai fotogrammi del monitor.
-    for (let ms = entrata; ms < uscita; ms += 200) {
-      const q = puntoCursoreAl(dati.campioni, ingresso + ms * c.speed);
-      if (q) { const k = 1 - Math.exp(-200 / 280); x += (q[0] - x) * k; y += (q[1] - y) * k; }
-      const tf = trasformazioneFocus(base, x, y, 1.65, m.width * fit, m.height * fit);
-      const prima = tappe.at(-1)!;
-      if (ms === entrata || Math.hypot(tf.x - prima.tf.x, tf.y - prima.tf.y) >= 3) tappe.push({ t: ms / durata, tf });
-    }
-    tappe.push({ t: uscita / durata, tf: trasformazioneFocus(base, x, y, 1.65, m.width * fit, m.height * fit) });
-    tappe.push({ t: g.fine / durata, tf: { ...base } });
+/** Un punto della camera: dove guarda (frazioni dello schermo registrato) e quanto è vicina (1 = quadro intero). */
+export interface PuntoCamera { tMs: number; cx: number; cy: number; z: number }
+
+const PASSO_MS = 100;
+/** fermo = il cursore resta in un cerchio di questo raggio (frazione dello schermo) */
+const RAGGIO_FERMO = 0.025;
+const FERMO_MS = 700;
+const ZOOM_CLIC = 1.9, ZOOM_FERMO = 1.6, ZOOM_SEGUI = 1.18, ZOOM_MAX = 2.6;
+
+/** la finestra più recente letta vicino a tMs (il campionatore la legge ogni ~100 ms) */
+function finestraAl(campioni: CampioneCursore[], tMs: number): [number, number, number, number] | null {
+  let lo = 0, hi = campioni.length;
+  while (lo < hi) { const m = (lo + hi) >>> 1; if (campioni[m].tMs <= tMs) lo = m + 1; else hi = m; }
+  for (let i = lo - 1; i >= 0 && tMs - campioni[i].tMs < 400; i--) if (campioni[i].win) return campioni[i].win!;
+  return null;
+}
+
+/**
+ * Il percorso della camera, un punto ogni 100 ms, calcolato a registrazione finita (si può guardare anche avanti):
+ * - un clic: si avvicina al punto un attimo prima e resta lì un paio di secondi;
+ * - cursore fermo su una finestra: la inquadra tutta, centrata e il più grande possibile;
+ * - cursore fermo senza finestra (desktop, finestra a tutto schermo): zoom medio sul cursore;
+ * - cursore che si muove: torna indietro piano e lo segue dolcemente.
+ * Il moto è filtrato (molla del primo ordine, costanti di tempo diverse per avvicinarsi e allontanarsi), così la
+ * camera non scatta mai.
+ */
+export function camminoCamera(dati: DatiCursore, durataMs: number): PuntoCamera[] {
+  const out: PuntoCamera[] = [];
+  let cx = 0.5, cy = 0.5, z = 1;
+  let ancora: [number, number] | null = null, fermoDa = 0;
+  let ic = 0;
+  for (let t = 0; t <= durataMs; t += PASSO_MS) {
+    const q = puntoCursoreAl(dati.campioni, t);
+    let tx = 0.5, ty = 0.5, tz = 1;
+    // clic nella finestra [t - 1,9 s, t + 0,35 s]: si arriva prima del clic e si resta dopo
+    while (ic < dati.clic.length && dati.clic[ic].tMs < t - 1900) ic++;
+    const clic = dati.clic.slice(ic).find((c) => c.tMs <= t + 350);
+    if (q) {
+      if (!ancora || Math.hypot(q[0] - ancora[0], q[1] - ancora[1]) > RAGGIO_FERMO) { ancora = q; fermoDa = t; }
+      const fermo = t - fermoDa >= FERMO_MS;
+      const w = fermo ? finestraAl(dati.campioni, t) : null;
+      const ww = w ? w[2] - w[0] : 1, wh = w ? w[3] - w[1] : 1;
+      if (clic) { tx = clic.cx; ty = clic.cy; tz = ZOOM_CLIC; }
+      else if (w && ww * wh < 0.8 && ww * wh > 0.01) {
+        tx = (w[0] + w[2]) / 2; ty = (w[1] + w[3]) / 2;
+        tz = clamp(0.94 / Math.max(ww, wh), 1, ZOOM_MAX);
+      } else if (fermo) { tx = q[0]; ty = q[1]; tz = ZOOM_FERMO; }
+      else { tx = q[0]; ty = q[1]; tz = ZOOM_SEGUI; }
+    } else ancora = null;
+    // avvicinarsi un po' più svelti, allontanarsi piano; il centro segue più rapido quando si è vicini
+    const kz = 1 - Math.exp(-PASSO_MS / (tz > z ? 450 : 900));
+    const kc = 1 - Math.exp(-PASSO_MS / (z > 1.3 ? 380 : 600));
+    z += (tz - z) * kz;
+    cx += (tx - cx) * kc; cy += (ty - cy) * kc;
+    out.push({ tMs: t, cx, cy, z });
   }
-  tappe.push({ t: 1, tf: { ...base } });
-  // Se un clic è sul primo/ultimo fotogramma, gli estremi restano comunque a quadro intero.
-  const uniche = new Map<number, Transform>();
-  for (const t of tappe) uniche.set(clamp(t.t, 0, 1), t.tf);
-  uniche.set(0, base); uniche.set(1, { ...base });
-  const ordine = [...uniche].sort((a, b) => a[0] - b[0]);
-  c.tf = ordine[0][1]; c.tfFine = ordine.at(-1)![1];
-  c.via = ordine.slice(1, -1).map(([t, tf]) => ({ t, tf }));
+  return out;
+}
+
+/**
+ * Lo zoom che segue il cursore, scritto come keyframe di tf.scale/tf.x/tf.y (modificabili dopo come gli altri).
+ * Si somma alla posizione che la clip ha già in quel fotogramma (anche quella delle scene LIVE): la camera
+ * lavora solo quando lo schermo è a tutto quadro (`pieno`), altrove lascia la scena com'è.
+ */
+export function applicaZoomCursore(p: Project, c: Clip, m: MediaItem, pieno: (lf: number) => boolean = () => true): boolean {
+  const dati = m.cursoreLive;
+  if (!dati || dati.v !== 1 || c.via?.length || c.len < 3 || m.width <= 0 || m.height <= 0 || c.speed <= 0) return false;
+  const r = p.rate.num / p.rate.den;
+  const ingresso = (c.srcIn - (m.t0 || 0)) * 1000;
+  const fineMs = ingresso + (c.len * 1000 / r) * c.speed;
+  const cammino = camminoCamera(dati, Math.max(0, Math.min(dati.durataMs, fineMs)));
+  if (!cammino.length) return false;
+  const fit = Math.min(p.w / m.width, p.h / m.height), w = m.width * fit, h = m.height * fit;
+  c.anim ??= {};
+  // rifarlo parte dalle chiavi di prima dello zoom: mai due zoom uno sopra l'altro
+  const prima = c.zoomLive ?? { scale: c.anim['tf.scale'], x: c.anim['tf.x'], y: c.anim['tf.y'] };
+  const nuove: Record<'scale' | 'x' | 'y', ChiaveAnim[]> = { scale: [], x: [], y: [] };
+  const passo = Math.max(1, Math.round(r * PASSO_MS / 1000));
+  let mosso = false;
+  for (let lf = 0; lf <= c.len; lf += passo) {
+    const tMs = ingresso + (lf * 1000 / r) * c.speed;
+    const k = cammino[clamp(Math.round(tMs / PASSO_MS), 0, cammino.length - 1)];
+    const base: Transform = { ...c.tf, scale: valoreAnim(prima.scale, lf, c.tf.scale), x: valoreAnim(prima.x, lf, c.tf.x), y: valoreAnim(prima.y, lf, c.tf.y) };
+    const tf = pieno(lf) && k.z > 1.001 ? trasformazioneFocus(base, k.cx, k.cy, k.z, w, h) : base;
+    if (tf !== base) mosso = true;
+    for (const chiave of ['scale', 'x', 'y'] as const) {
+      const lista = nuove[chiave], v = tf[chiave];
+      const ultima = lista.at(-1);
+      // niente chiavi inutili: si salta se il valore è uguale all'ultima (le prime e le ultime restano)
+      if (ultima && Math.abs(ultima.v - v) < (chiave === 'scale' ? 0.0005 : 0.25) && lf + passo <= c.len) continue;
+      lista.push({ f: lf, v });
+    }
+  }
+  if (!mosso) return false;
+  // solo le chiavi che esistono: il progetto salvato (JSON) non ha campi vuoti
+  c.zoomLive = JSON.parse(JSON.stringify(prima));
+  for (const chiave of ['scale', 'x', 'y'] as const) {
+    const lista = nuove[chiave];
+    if (lista.at(-1)!.f < c.len) lista.push({ f: c.len, v: lista.at(-1)!.v });
+    c.anim['tf.' + chiave] = lista;
+  }
+  return true;
+}
+
+/** Toglie lo zoom che segue il cursore: tornano le chiavi di prima (anche quelle delle scene). */
+export function togliZoomCursore(c: Clip): boolean {
+  const z = c.zoomLive;
+  if (!z) return false;
+  c.anim ??= {};
+  for (const chiave of ['scale', 'x', 'y'] as const) {
+    const k = z[chiave];
+    if (k?.length) c.anim['tf.' + chiave] = k; else delete c.anim['tf.' + chiave];
+  }
+  delete c.zoomLive;
   return true;
 }
 

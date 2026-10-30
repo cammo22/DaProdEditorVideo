@@ -418,6 +418,8 @@ export interface Clip {
   ritaglio?: Ritaglio;
   /** keyframe su qualunque parametro numerico (src/core/automazioni.ts): chi ha una linea qui la usa al posto del valore fermo */
   anim?: Animazioni;
+  /** zoom che segue il cursore (LIVE): le chiavi di tf.scale/tf.x/tf.y che c'erano prima, così si toglie o si rifà senza sommarlo due volte */
+  zoomLive?: { scale?: ChiaveAnim[]; x?: ChiaveAnim[]; y?: ChiaveAnim[] };
   /** le maschere a forma (rettangolo, ellisse, Bézier), sommate o sottratte in ordine (src/core/maschereForma.ts) */
   maschere?: MascheraForma[];
   /** la ripresa si tiene ferma sull'oggetto tracciato (stabilizza) */

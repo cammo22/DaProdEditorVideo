@@ -21,7 +21,7 @@ import {
   Input, Mp4OutputFormat, Output, WebMOutputFormat,
 } from 'mediabunny';
 import '../stile/live.css';
-import { SCENE_LIVE, cambiaScena, scenaDaTasto, animaScene, type CambioScena, type ScenaLive } from '../core/sceneLive';
+import { SCENE_LIVE, cambiaScena, scenaDaTasto, animaScene, riquadriScena, type CambioScena, type ScenaLive } from '../core/sceneLive';
 import { mostraScena } from './sceneLive';
 import { store } from '../core/store';
 import { newClip, newTrack, nextTrackName, projectEnd, uid, TITLE0 } from '../core/progetto';
@@ -699,7 +699,7 @@ export class Live {
           h('section', { class: 'live-configurazione', 'aria-label': 'Altre opzioni' }, sezione('Altre opzioni'),
             sezione('Cursore e zoom'),
             griglia(
-              interruttore('zoomCursore', null, 'Zoom che segue il cursore', 'Zoom morbido sulle zone dei clic: dopo lo cambi dalle tappe del movimento della clip'),
+              interruttore('zoomCursore', null, 'Zoom che segue il cursore', 'Segue il cursore dolcemente, si avvicina sui clic e inquadra la finestra su cui ti fermi. Dopo lo ritocchi dai keyframe della clip'),
               interruttore('clicAnimati', null, 'Clic animati', 'Un cerchietto sui clic: dopo lo accorci o lo togli come un blocco effetto'),
               interruttore('cursore', null, 'Cursore visibile', 'Il puntatore del mouse nella registrazione (dove il sistema lo permette)')),
             this.sceltaSchermo.el,
@@ -1682,7 +1682,6 @@ export class Live {
         if (o.presentazione) v.tf = presentazione();
         link ??= v.link ?? (v.link = uid('l'));
         for (const c of p.clips) if (nuovi.includes(c.id)) { c.link = link; if (tMic && c.track !== tSchermo) c.name = 'Audio del computer'; }
-        if (cursore.zoom) applicaZoomCursore(p, v, m);
         if (cursore.clic && m.cursoreLive?.clic.length) {
           const blocco = bloccoClicLive(v);
           p.clips.push(blocco); ids.push(blocco.id);
@@ -1694,6 +1693,16 @@ export class Live {
           ids.push(...voce);
         }
         if (scene.length) animaScene(v, p, m, scene, 'schermo', (v.start - inizio) / fps(p.rate));
+        // lo zoom dopo le scene: si somma alla loro posizione, e solo quando lo schermo è a tutto quadro
+        if (cursore.zoom) {
+          const da = (v.start - inizio) / fps(p.rate), r = fps(p.rate);
+          applicaZoomCursore(p, v, m, (lf) => {
+            const s = scene.filter((x) => x.t <= da + lf / r).at(-1) ?? scene[0];
+            if (!s) return !o.presentazione;
+            const q = riquadriScena(s).schermo;
+            return q.visibile && q.w === 1 && q.h === 1 && q.x === 0 && q.y === 0;
+          });
+        }
         if (tSopra) {
           const sopra = structuredClone(v); sopra.id = uid('c'); sopra.track = tSopra; delete sopra.anim;
           animaScene(sopra, p, m, scene, 'schermo-sopra', (v.start - inizio) / fps(p.rate));
