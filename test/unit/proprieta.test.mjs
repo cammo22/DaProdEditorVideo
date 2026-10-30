@@ -134,6 +134,18 @@ test('Ripristina: quadro, colore e audio tornano ai valori di partenza (e tolgon
   R.ripristinaScheda('audio', a1);
   assert.deepEqual([a1.gain, a1.gainKeys.length, a1.pan, a1.afx.voce, a1.afx.radio], [0, 0, 0, undefined, undefined]);
   assert.ok(a1.afx.pulito, 'l\'audio già pulito con l\'AI resta com\'è');
+  // la voce pulita tiene i dB aggiunti, la clip originale di una separazione resta muta, la normalizzazione si toglie
+  a1.afx.pulito.piu = 3; a1.afx.norm = 4; a1.gain = -9;
+  R.ripristinaScheda('audio', a1);
+  assert.deepEqual([a1.gain, a1.afx.norm], [3, undefined]);
+  const orig = { ...a1, gain: -60, afx: { separata: { ruolo: 'originale', con: [], gain: -2 } } };
+  R.ripristinaScheda('audio', orig);
+  assert.equal(orig.gain, -60, 'la clip originale separata non torna a suonare');
+  const altra = { ...a1, gain: -5, afx: {} };
+  R.copiaScheda('audio', orig, altra);
+  assert.equal(altra.gain, -2, 'dalla clip originale si copia il volume di prima, non il muto');
+  R.copiaScheda('audio', altra, orig);
+  assert.equal(orig.gain, -60);
   assert.equal(R.ripristinaScheda('ai', a1), false);
   assert.ok(p);
 });

@@ -12,7 +12,7 @@ import { clipById, end, isVideoClip, mediaOf, newClip, newTrack, nextTrackName, 
 import { frameToTc, fps } from '../core/timecode';
 import { avviso, conferma, h, evidenzia } from './dom';
 import { SCHEDE, copiaScheda, dbTesto, destinatarieDellaCopia, etichettaStato, funzioniAIPerSelezione, haProprieta, lufsStimati, lufsTesto, pesoEVram, posizioniChiavi, ripristinaScheda, schedaDaMostrare, schedaDiSezione, schedeUsabili, zoomSuiClic, zoomTesto, type Scheda } from '../core/proprieta';
-import { mediaRT, PEAKS_PER_SEC } from '../media/libreria';
+import { mediaRT, PEAKS_PER_SEC, quandoPicchi } from '../media/libreria';
 import { applicaZoomCursore } from '../core/zoomCursore';
 import * as M from '../core/montaggio';
 import { esegui, modi, mettiBlocco } from '../azioni';
@@ -86,6 +86,7 @@ export class Ispettore {
     this.banco = !completo;
     this.corpo = h('div', { class: 'isp-corpo' });
     this.el = h('div', { class: 'ispettore' + (completo ? ' completo' : ' banco') }, this.corpo);
+    if (this.banco) this.disiscrivi.push(quandoPicchi(() => this.aggiornaMisura?.()));
     this.disiscrivi.push(store.on('sel', () => this.costruisci()), store.on('doc', () => this.costruisci()),
       // il cursore si sposta: i parametri con i keyframe mostrano il valore di lì
       store.on('head', () => { for (const c of this.campi) if (c.anim) c.aggiorna(); }));
@@ -113,7 +114,7 @@ export class Ispettore {
     if (firma === this.firma && this.campi.length) { for (const c of this.campi) c.aggiorna(); return; }
     this.firma = firma;
     this.campi = [];
-    this.navi = null; this.piedeEl = null; this.pannelli.clear();
+    this.navi = null; this.piedeEl = null; this.pannelli.clear(); this.aggiornaMisura = null;
     if (!cs.length) {
       this.corpo.replaceChildren(h('div', { class: 'isp-vuoto' },
         h('b', null, 'Nessuna clip scelta'),
@@ -861,6 +862,10 @@ export class Ispettore {
 
   /** la scheda che si vede adesso (può essere diversa da quella scelta, se per questa clip la scelta non ha senso) */
   private attiva: Scheda = 'quadro';
+  /** la clip per cui il corpo è stato fatto l'ultima volta (per tenere lo scorrimento quando si rifà) */
+  private scorsaDi = '';
+  /** chi mostra i LUFS si rinfresca quando le forme d'onda sono pronte */
+  private aggiornaMisura: (() => void) | null = null;
 
   private montaBanco(x: {
     cs: Clip[]; primo: Clip; m: ReturnType<typeof mediaOf>; tipo: string; legate: number; out: HTMLElement[]; video: Clip[]; audio: Clip[]; sonore: Clip[]; conAudio: boolean;
@@ -899,12 +904,18 @@ export class Ispettore {
       type: 'button', class: 'pp-scheda', role: 'tab', 'data-scheda': s.id, title: s.titolo, disabled: !usabili[s.id],
       on: { click: () => this.mostraScheda(s.id, true) },
     }, s.nome)));
+    // se il pannello si rifà per la stessa clip (una chiave messa, un effetto acceso) si resta dov'eravamo, non si risale in cima
+    const prima = this.corpo.querySelector<HTMLElement>('.pp-scroll');
+    const resta = prima && this.scorsaDi === x.primo.id ? prima.scrollTop : 0;
     this.corpo.replaceChildren(
       this.testaBanco(x.cs, x.primo, x.m, x.tipo, x.legate),
       this.navi,
       h('div', { class: 'pp-scroll' }, ...pannelli),
       this.piedeBanco());
     this.mostraScheda(schedaDaMostrare(this.scheda, usabili), false);
+    this.scorsaDi = x.primo.id;
+    const nuovo = this.corpo.querySelector<HTMLElement>('.pp-scroll');
+    if (nuovo && resta) nuovo.scrollTop = resta;
   }
 
   /** mostra una scheda; `scelta` = l'ha scelta l'utente (si ricorda), se no è quella che la clip permette */
@@ -1192,6 +1203,7 @@ export class Ispettore {
       lufs.title = 'Una stima dai picchi della forma d\'onda (non la misura vera): serve a confrontare una clip con le altre';
     };
     agg();
+    this.aggiornaMisura = agg;
     const el = h('div', { class: 'pp-vetrino-largo', role: 'status', 'aria-label': 'Volume e sonorità della clip' }, db, lufs);
     this.campi.push({ el, aggiorna: agg, anim: true });
     return el;
@@ -1233,7 +1245,7 @@ export class Ispettore {
     const { clip, audio } = funzioniAIPerSelezione(s);
     const voce = (f: FunzioneAI) => {
       const et = etichettaStato(f.stato), peso = pesoEVram(f);
-      return h('button', { type: 'button', class: 'pp-ai', 'data-ai': f.id, 'data-stato': f.stato, title: f.descrizione, on: { click: () => void this.eseguiAI(f) } },
+      return h('button', { type: 'button', class: 'pp-ai', 'data-ai': f.id, 'data-stato': f.stato, title: f.descrizione, on: { click: (e: Event) => void this.eseguiAI(f, e.currentTarget as HTMLButtonElement) } },
         h('span', { class: 'pp-ai-testo' },
           h('b', null, f.nome),
           h('small', null, f.descrizione),
@@ -1248,9 +1260,13 @@ export class Ispettore {
     return out;
   }
 
-  private async eseguiAI(f: FunzioneAI) {
+  private async eseguiAI(f: FunzioneAI, tasto?: HTMLButtonElement) {
     if (!f.esegui) { document.dispatchEvent(new CustomEvent('dpv:centro-ai')); return; }
+    // un lavoro alla volta per tasto: un secondo clic non lo fa partire due volte
+    if (tasto?.disabled) return;
+    if (tasto) { tasto.disabled = true; tasto.setAttribute('aria-busy', 'true'); }
     try { await f.esegui({ clipIds: [...store.sel] }); } catch (e) { avviso(`${f.nome}: ${e instanceof Error ? e.message : String(e)}`, 'errore', 4200); }
+    finally { if (tasto) { tasto.disabled = false; tasto.removeAttribute('aria-busy'); } }
   }
 
   /**

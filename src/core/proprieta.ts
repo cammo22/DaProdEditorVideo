@@ -143,9 +143,11 @@ export function ripristinaScheda(s: Scheda, c: Clip): boolean {
     return true;
   }
   if (s === 'audio') {
-    c.gain = 0; c.gainKeys = []; c.pan = 0;
+    // la clip originale di una separazione resta muta (se no voce e base suonerebbero doppie); la voce pulita tiene i dB che le servono
+    if (c.afx?.separata?.ruolo !== 'originale') c.gain = c.afx?.pulito?.piu ?? 0;
+    c.gainKeys = []; c.pan = 0;
     togliAnimazione(c, 'gain', 'pan');
-    if (c.afx) for (const k of AUDIO_FILTRI) delete c.afx[k];
+    if (c.afx) { for (const k of AUDIO_FILTRI) delete c.afx[k]; delete c.afx.norm; }
     return true;
   }
   return false;
@@ -169,9 +171,12 @@ export function copiaScheda(s: Scheda, da: Clip, a: Clip): boolean {
     return true;
   }
   if (s === 'audio') {
-    a.gain = da.gain; a.gainKeys = []; a.pan = da.pan;
+    // il volume della clip originale di una separazione (muta) non si copia, e quella non lo riceve
+    if (a.afx?.separata?.ruolo !== 'originale') a.gain = da.afx?.separata?.ruolo === 'originale' ? (da.afx.separata.gain ?? 0) : da.gain;
+    a.gainKeys = []; a.pan = da.pan;
     togliAnimazione(a, 'gain', 'pan');
     for (const k of AUDIO_FILTRI) { if (da.afx?.[k]) (a.afx ??= {})[k] = true; else if (a.afx) delete a.afx[k]; }
+    if (a.afx) delete a.afx.norm;
     return true;
   }
   return false;
