@@ -77,6 +77,7 @@ await build({
         suggerimento: path.join(radice, 'src/ui/suggerimento.ts'),
         funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
         proprieta: path.join(radice, 'src/core/proprieta.ts'),
+        schedaAI: path.join(radice, 'src/core/schedaAI.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

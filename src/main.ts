@@ -31,6 +31,8 @@ import './stile/titoliHtml.css';
 import './stile/banco.css';
 import { avvia } from './ui/app';
 import { attivaSuggerimenti } from './ui/suggerimento';
+// il sistema «Banco» sulle altre schermate: va DOPO tutti gli altri stili (anche quelli che arrivano con ui/app)
+import './stile/schermate.css';
 import { h } from './ui/dom';
 import { isTauri } from './platform';
 import { preparaRiserva } from './media/riserva';

@@ -1,13 +1,14 @@
-/* Il testo sta nel suo pannello: il banco sotto conserva i suoi spazi. */
+/* Il testo sta nel suo pannello: il banco sotto conserva i suoi spazi. Colori del sistema Banco:
+   ciano = parole scelte, rosso = parole che si tagliano. */
 .montaggio-testo { width: min(880px, 94vw); }
-.montaggio-testo .testo-riga { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.montaggio-testo .testo-riga { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
 .montaggio-testo .testo-riga label { display: flex; align-items: center; gap: 8px; max-width: 100%; }
 .montaggio-testo select { max-width: 100%; }
 .montaggio-testo input[type='text'] { flex: 1; min-width: 150px; }
 .montaggio-testo .num { width: 72px; }
-.montaggio-testo .testo-parlato { min-height: 140px; max-height: 34vh; overflow: auto; padding: 14px; margin: 12px 0; line-height: 2; font-size: 16px; background: var(--fondo, #171b20); border: 1px solid var(--bordo, #424850); border-radius: 4px; user-select: text; cursor: text; }
+.montaggio-testo .testo-parlato { min-height: 140px; max-height: 34vh; overflow: auto; padding: 14px; margin: 12px 0; line-height: 2; font-size: 18px; background: #050407; border: 1px solid rgba(255, 255, 255, 0.13); border-radius: 6px; user-select: text; cursor: text; }
 .montaggio-testo .testo-parola { border-radius: 3px; cursor: pointer; }
-.montaggio-testo .testo-parola:hover, .montaggio-testo .testo-parola:focus-visible { outline: 1px solid currentColor; }
-.montaggio-testo .testo-parola.scelta { background: #385d83; color: #fff; }
-.montaggio-testo .testo-parola.taglio { text-decoration: line-through; background: #683b3b; color: #fff; }
+.montaggio-testo .testo-parola:hover, .montaggio-testo .testo-parola:focus-visible { outline: 1px solid #35e8ff; }
+.montaggio-testo .testo-parola.scelta { background: rgba(53, 232, 255, 0.22); color: #ebe7f4; outline: 1px solid #35e8ff; }
+.montaggio-testo .testo-parola.taglio { text-decoration: line-through; background: rgba(255, 77, 109, 0.22); color: #ffb1c0; outline: 1px solid rgba(255, 77, 109, 0.6); }
 .montaggio-testo .testo-anteprima { min-height: 1.5em; }

@@ -28,7 +28,7 @@ export interface StatoTelecomando {
   finestre: number;
 }
 
-const MISURA = { w: 360, h: 420 };
+const MISURA = { w: 360, h: 440 };
 const CHIAVE = 'dpv-tele-anteprima';
 
 export class Telecomando {

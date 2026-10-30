@@ -4,15 +4,15 @@
 .home.hm { background: radial-gradient(120% 90% at 50% 0%, rgba(53, 16, 70, 0.55), rgba(8, 7, 12, 0.97) 70%); align-items: start; }
 .home.hm .hm-dentro { width: min(1280px, 97vw); max-height: none; padding: 18px 16px 28px; gap: 16px; }
 .hm-testa { padding-bottom: 12px; border-bottom: 1px solid var(--bordo); }
-.hm-targa { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 6px; background: #060509; box-shadow: inset 0 2px 6px #000, 0 1px 0 rgba(255, 255, 255, 0.07); }
+.hm-targa { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 6px; background: #050407; box-shadow: inset 0 2px 6px #000, 0 1px 0 rgba(255, 255, 255, 0.07); }
 .hm-targa .hm-seg { font-size: 15px; }
 .home.hm .home-chiudi { margin-left: 6px; }
 
-.hm-corpo { display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.hm-corpo { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .hm-destra { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 /* il pannello: metallo scuro, bordo nero, viti negli angoli */
-.home.hm .hm-col { position: relative; background: var(--metallo); border: 1px solid #000; border-radius: 12px; padding: 16px 16px 16px; gap: 12px;
+.home.hm .hm-col { position: relative; background: var(--pann); border: 1px solid var(--bordo-forte); border-radius: 8px; padding: 16px 16px 16px; gap: 12px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.03), 0 10px 28px rgba(0, 0, 0, 0.45); overflow: visible; }
 .home.hm .hm-col::before, .home.hm .hm-col::after { content: ''; position: absolute; top: 7px; width: 7px; height: 7px; border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #6d6a78, #25232c 70%); box-shadow: 0 0 0 1px #000, inset 0 -1px 0 rgba(0, 0, 0, 0.5); }
@@ -22,7 +22,7 @@
 
 /* l'intestazione: targhetta incisa col suo LED */
 .hm-intesta { display: flex; align-items: center; gap: 9px; margin: 6px 0 0; padding: 5px 10px; border-radius: 6px; background: #100f15; box-shadow: inset 0 1px 3px #000, 0 1px 0 rgba(255, 255, 255, 0.06);
-  font: 900 13px var(--marchio); letter-spacing: 2px; text-transform: uppercase; color: var(--oro); }
+  font: 700 12.5px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--testo2); }
 .hm-conta { margin-left: auto; font: 700 11px var(--ui); letter-spacing: 1px; color: var(--testo3); text-transform: none; }
 .hm-centro { margin-left: auto; letter-spacing: 0; }
 
@@ -33,7 +33,7 @@
 .hm-led.forse { background: radial-gradient(circle at 35% 35%, #fff0d2, var(--ambra) 60%); box-shadow: 0 0 8px var(--ambra), 0 0 0 1px #000; }
 
 /* il display a sette segmenti */
-.hm-seg { font-family: var(--tc); color: var(--verde); text-shadow: 0 0 8px rgba(93, 255, 180, 0.55); letter-spacing: 1px; }
+.hm-seg { font-family: var(--tc); color: var(--verde); text-shadow: 0 0 8px rgba(93, 255, 180, 0.4); letter-spacing: 1px; }
 .hm-unita { font: 700 12px var(--ui); color: var(--testo2); }
 
 /* da dove comincio */
@@ -59,22 +59,22 @@
 .hm-tessera { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 9px; background: #07060b; box-shadow: inset 0 2px 7px #000, 0 1px 0 rgba(255, 255, 255, 0.07); min-width: 0; }
 .hm-tessera[hidden] { display: none; }
 .hm-tessera-testa { display: flex; align-items: center; gap: 7px; }
-.hm-titolo { font: 800 10.5px var(--ui); letter-spacing: 1.3px; text-transform: uppercase; color: var(--testo3); }
-.hm-valore { font: 800 19px var(--ui); color: var(--testo); min-height: 28px; display: flex; align-items: baseline; gap: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-titolo { font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: #8d889c; }
+.hm-valore { font: 700 20px var(--ui); color: var(--testo); min-height: 28px; display: flex; align-items: baseline; gap: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-valore .hm-seg { font-size: 22px; }
-.hm-sotto { font: 600 11.5px var(--ui); color: var(--testo2); line-height: 1.25; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.hm-azione { color: var(--oro); }
+.hm-sotto { font: 500 14px var(--ui); color: var(--testo2); line-height: 1.25; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.hm-azione { color: var(--testo); min-height: 34px; padding: 0 12px; font-size: 14px; }
 
 /* Aggiusta tutto */
 .hm-aggiusta { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.28); box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.05); }
 .hm-aggiusta-testa { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.hm-aggiusta-tasto { padding: 11px 22px; font: 900 15px var(--marchio); letter-spacing: 1.5px; text-transform: uppercase; }
-.hm-aggiusta-tasto .hm-led { background: #6b4d00; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6); }
-.hm-aggiusta-tasto.lavora .hm-led { background: radial-gradient(circle at 35% 35%, #fff, #35e8ff 60%); box-shadow: 0 0 8px var(--cia); animation: hm-lampeggia 0.8s infinite; }
+.hm-aggiusta-tasto { padding: 0 22px; font: 700 17px var(--ui); letter-spacing: 1px; }
+.hm-aggiusta-tasto .hm-led { background: #3a3844; box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6); }
+.hm-aggiusta-tasto.lavora .hm-led { background: radial-gradient(circle at 35% 35%, #fff, #5dffb4 60%); box-shadow: 0 0 8px var(--verde); animation: hm-lampeggia 0.8s infinite; }
 .hm-aggiusta-riga { font: 700 13px var(--ui); color: var(--testo2); }
 .hm-aggiusta-riga.no { color: var(--ambra); }
 .hm-passi { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.hm-passo { display: grid; grid-template-columns: 22px minmax(120px, 190px) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 10px; border-radius: 7px; background: #0c0b11; box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7); font: 600 13px var(--ui); }
+.hm-passo { display: grid; grid-template-columns: 22px minmax(120px, 190px) minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 8px 10px; border-radius: 6px; background: #050407; box-shadow: none; border: 1px solid rgba(255, 255, 255, 0.08); font: 500 15px var(--ui); overflow-wrap: anywhere; }
 .hm-passo b { font-weight: 800; color: var(--testo); }
 .hm-passo-testo { color: var(--testo2); }
 .hm-segno { font: 900 15px var(--ui); text-align: center; color: var(--testo3); }
@@ -83,7 +83,7 @@
 .hm-passo.salta .hm-passo-testo { color: var(--testo3); }
 .hm-passo.no .hm-segno { color: var(--rosso); text-shadow: 0 0 8px rgba(255, 77, 109, 0.6); }
 .hm-passo.no .hm-passo-testo { color: #ffb3c0; }
-.hm-passo.corre .hm-segno { color: var(--cia); animation: hm-lampeggia 0.8s infinite; }
+.hm-passo.corre .hm-segno { color: var(--verde); animation: hm-lampeggia 0.8s infinite; }
 @keyframes hm-lampeggia { 50% { opacity: 0.35; } }
 
 @media (max-width: 1000px) { .hm-corpo { grid-template-columns: 1fr; } .hm-passo { grid-template-columns: 22px 1fr; } .hm-passo-testo { grid-column: 2; } }

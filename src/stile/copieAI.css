@@ -1,16 +1,10 @@
-/* Indicazioni dei modelli, nello stesso pannello del Centro AI. */
+/* Indicazioni dei modelli, nello stesso pannello del Centro AI. Il cartellino (PRONTA / OPZIONALE / SPERIMENTALE),
+   le schede e i tasti sono nel sistema Banco: src/stile/schermate.css. */
 .voce-locale { display: grid; gap: 8px; margin: 10px 0; }
 .voce-locale[hidden] { display: none; }
 .voce-locale textarea { width: 100%; min-height: 70px; resize: vertical; box-sizing: border-box; }
 .voce-locale input[type='file'] { max-width: 100%; }
 .fin-scelte[hidden] { display: none; }
-.centro-ai .hub-opzionale {
-  display: inline-block;
-  margin-left: 8px;
-  color: var(--oro);
-  font-size: 11px;
-  font-weight: 400;
-}
-.centro-ai .hub-nome .hub-peso { color: var(--testo2); margin-top: 3px; }
+.centro-ai .hub-nome .hub-peso { margin-top: 3px; }
 .centro-ai .hub-nome .hub-macchina { line-height: 1.4; }
-.centro-ai .hub-macchina[data-esito='lento'] { color: var(--oro); }
+.centro-ai .hub-macchina[data-esito='lento'] { color: var(--ambra); }

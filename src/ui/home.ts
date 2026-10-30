@@ -137,13 +137,13 @@ export class Home {
     const registraB = h('button', { class: 'btn hm-strada hm-registra', title: 'Registra lo schermo, la voce e la webcam (F10)', on: { click: () => { this.nascondi(); this.vaiALive(); } } },
       h('i', { class: 'hm-rec' }), h('span', { class: 'hm-etichetta-doppia' }, h('b', null, 'Registra lo schermo'), h('small', null, 'pagina LIVE · F10')));
     const montaB = h('button', { class: 'btn home-grande home-montage', title: 'Butta dentro le foto e i video e il programma monta da solo', on: { click: () => { this.nascondi(); this.vaiAMontage(); } } },
-      '✨', h('span', { class: 'hm-etichetta-doppia' }, h('b', null, 'Importa e monta'), h('small', null, 'DaProdMontage · foto e video, a tempo di musica')));
+      h('i', { class: 'hm-led ok' }), h('span', { class: 'hm-etichetta-doppia' }, h('b', null, 'Importa e monta'), h('small', null, 'DaProdMontage · foto e video, a tempo di musica')));
     const col: HTMLElement = h('section', { class: 'home-col hm-col hm-inizio' },
       h('h3', { class: 'hm-intesta' }, h('i', { class: 'hm-led ok' }), 'Da dove comincio'),
       inCorso ? h('div', { class: 'home-continua' },
         h('b', null, 'Montaggio in corso'),
         h('span', null, `${p.name || 'Montaggio senza nome'} · ${p.clips.filter((c) => c.kind !== 'fx').length} clip`),
-        h('button', { class: 'btn primario', on: { click: () => this.nascondi() } }, '▶ Continua')) : null,
+        h('button', { class: 'btn hm-continua-tasto', on: { click: () => this.nascondi() } }, '▶ Continua')) : null,
       h('div', { class: 'hm-nuovo' },
         h('label', { class: 'home-etichetta' }, 'Un progetto nuovo: per cosa lo fai?'), obiettivi,
         h('label', { class: 'home-etichetta' }, 'Risoluzione'), chipRis,
@@ -152,9 +152,9 @@ export class Home {
       h('div', { class: 'hm-strade' }, apriB, registraB, montaB),
       // per chi comincia: la guida, la ricerca dei comandi e il Centro AI
       h('div', { class: 'home-impara' },
-        h('button', { class: 'btn', on: { click: () => evento('dpv:guida', 'inizio') } }, '🚀 Il primo montaggio in un minuto'),
-        h('button', { class: 'btn', on: { click: () => evento('dpv:guida') } }, '📖 Come si fa (tutte le guide, F1)'),
-        h('button', { class: 'btn', on: { click: () => evento('dpv:centro-ai') } }, '✨ Centro AI: sottotitoli, sfondo, voce…'),
+        h('button', { class: 'btn', on: { click: () => evento('dpv:guida', 'inizio') } }, 'Il primo montaggio in un minuto'),
+        h('button', { class: 'btn', on: { click: () => evento('dpv:guida') } }, 'Come si fa (tutte le guide, F1)'),
+        h('button', { class: 'btn', on: { click: () => evento('dpv:centro-ai') } }, 'Centro AI: sottotitoli, sfondo, voce…'),
         h('button', { class: 'btn-mini', on: { click: () => { this.nascondi(); evento('dpv:demo'); } } }, 'Prova con il montaggio dimostrativo')));
     aggiorna();
     return col;
@@ -181,7 +181,7 @@ export class Home {
     };
     t.file.el.hidden = true;
     this.tess = t;
-    this.tasto = h('button', { class: 'btn primario hm-aggiusta-tasto', title: 'Sistema l\'apertura dei file, le cartelle, i modelli AI e guarda gli aggiornamenti', on: { click: () => void this.aggiustaTutto() } }, h('i', { class: 'hm-led' }), 'Aggiusta tutto') as HTMLButtonElement;
+    this.tasto = h('button', { class: 'btn hm-aggiusta-tasto', title: 'Sistema l\'apertura dei file, le cartelle, i modelli AI e guarda gli aggiornamenti', on: { click: () => void this.aggiustaTutto() } }, h('i', { class: 'hm-led' }), 'Aggiusta tutto') as HTMLButtonElement;
     this.tasto.disabled = this.aggiustando;
     this.elRiga = h('div', { class: 'hm-aggiusta-riga' });
     this.elPassi = h('ul', { class: 'hm-passi' });

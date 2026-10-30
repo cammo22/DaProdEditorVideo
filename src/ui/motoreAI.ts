@@ -8,9 +8,10 @@ import { liberaVram } from '../media/vram';
 import { salvaMediaSulDisco } from '../platform';
 import { importaFile } from '../progetti';
 import { avviso, h } from './dom';
+import { azioniPossibili, etichettaStato, pesoEVram, spiaMotore, type StatoMotore } from '../core/schedaAI';
 
 export function schedaMotoreLocale(): HTMLElement {
-  const stato = h('p', { class: 'nota' }, motoreLocaleDisponibile() ? 'Leggo lo stato…' : 'Disponibile nell’app per Windows x64.');
+  const stato = h('p', { class: 'motore-stato', 'data-spia': 'spenta' }, motoreLocaleDisponibile() ? 'Leggo lo stato…' : 'Disponibile nell’app per Windows x64.');
   const modello = h('p', { class: 'nota' }, 'Qwen3-TTS 0.6B Base · Apache-2.0 · circa 2,5 GB, tokenizer compreso.');
   const pulsanti: HTMLButtonElement[] = [];
   let occupato = false;
@@ -20,18 +21,15 @@ export function schedaMotoreLocale(): HTMLElement {
       const s = await motoreAI.stato();
       const nomi = { 'non-installato': 'Non installato', installazione: 'Installazione', pronto: 'Pronto, spento', avvio: 'Avvio', acceso: 'Acceso', errore: 'Da riprovare' };
       stato.textContent = `${nomi[s.stato]}${s.k !== null && s.stato === 'installazione' ? ' · ' + Math.round(s.k * 100) + '%' : ''} · ${s.dettaglio}`;
-      pulsanti.forEach((b) => {
-        const a = b.dataset.azione;
-        b.disabled = occupato || (a === 'installa' && !['non-installato', 'errore'].includes(s.stato))
-          || (a === 'accendi' && !['pronto', 'errore'].includes(s.stato))
-          || (a === 'spegni' && !['acceso', 'avvio', 'installazione'].includes(s.stato))
-          || (a === 'scarica' && !['pronto', 'acceso'].includes(s.stato));
-      });
+      stato.dataset.spia = spiaMotore(s.stato as StatoMotore);
+      // quali tasti si possono premere con questo stato: la regola sta in core/schedaAI.ts (provata da sola)
+      const si = azioniPossibili(s.stato as StatoMotore, occupato);
+      pulsanti.forEach((b) => { b.disabled = !si[b.dataset.azione as keyof typeof si]; });
       if (s.stato === 'acceso') {
         const m = (await motoreAI.modelli())[0];
         modello.textContent = `${m.nome} · ${m.licenza} · circa ${(m.byte / 1e9).toFixed(1)} GB · ${m.scaricato ? 'Sul computer' : 'Da scaricare'}`;
       }
-    } catch (e) { stato.textContent = String(e); }
+    } catch (e) { stato.textContent = String(e); stato.dataset.spia = 'rosso'; }
   };
   const fai = (azione: AzioneLocale | 'scarica') => {
     if (occupato) return;
@@ -53,7 +51,9 @@ export function schedaMotoreLocale(): HTMLElement {
     pulsanti.push(b);
   }
   void aggiorna();
-  return h('section', { class: 'ai-sezione', 'data-ai': 'motore-locale' }, h('h4', null, 'Motore AI locale — Opzionale'),
+  const pv = pesoEVram({ peso: 'circa 2,5 GB (Qwen3-TTS) + 15–25 GB di Python e CUDA', vram: '6 GB o più (NVIDIA), il processore va più piano' });
+  return h('section', { class: 'ai-sezione motore-locale', 'data-ai': 'motore-locale' }, h('h4', null, 'Motore AI locale', h('span', { class: 'sch-cartellino', 'data-stato': 'opzionale' }, etichettaStato('opzionale'))),
+    h('p', { class: 'sch-pesovram' }, pv.riga),
     h('p', { class: 'nota' }, 'Voce realistica e clonazione in italiano da un campione di almeno 3 secondi. GPU NVIDIA 6+ GB consigliata, processore disponibile. Prevedi 15–25 GB liberi: Python, torch e CUDA pesano diversi GB; i pesi della voce si scaricano a parte. Montaggio ed export funzionano anche senza.'),
     h('p', { class: 'nota' }, 'Installa scarica Python privato, torch CUDA e le librerie. Scarica Qwen3-TTS prende i pesi da Hugging Face. Poi la voce lavora offline. Disinstalla rimuove motore, pesi e cache. Per annullare un lavoro usa Attività; se fallisce trovi Riprova nella stessa riga.'),
     modello, stato, h('div', { class: 'ai-riga' }, pulsanti));
