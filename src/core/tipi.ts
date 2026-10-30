@@ -447,6 +447,7 @@ export interface Clip {
 export type MediaType = 'video' | 'audio' | 'image';
 
 export interface MediaItem {
+  sceneLive?: import('./sceneLive').DatiSceneLive;
   /** Opzionale: i progetti vecchi restano identici. Incorporato anche nel .daprod, senza file da ricollegare. */
   cursoreLive?: import('./zoomCursore').DatiCursore;
   id: string;

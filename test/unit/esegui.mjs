@@ -73,6 +73,7 @@ await build({
         zoomCursore: path.join(radice, 'src/core/zoomCursore.ts'),
         cursoreLive: path.join(radice, 'src/media/cursoreLive.ts'),
         risorseLive: path.join(radice, 'src/core/risorseLive.ts'),
+        sceneLive: path.join(radice, 'src/core/sceneLive.ts'),
         liveInfo: path.join(radice, 'src/core/liveInfo.ts'),
         spoolLive: path.join(radice, 'src/media/spoolLive.ts'),
         funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
