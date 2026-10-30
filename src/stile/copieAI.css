@@ -14,3 +14,22 @@
 .centro-ai .hub-nome .hub-peso { color: var(--testo2); margin-top: 3px; }
 .centro-ai .hub-nome .hub-macchina { line-height: 1.4; }
 .centro-ai .hub-macchina[data-esito='lento'] { color: var(--oro); }
+
+/* Le funzioni AI con la loro etichetta incisa (stile banco): spia + MAIUSCOLO distanziato; il colore pieno è solo la spia. */
+.fun-ai { display: grid; gap: 6px; }
+.fun-ai .fun-gruppo { margin: 10px 0 2px; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--inciso, #8d889c); }
+.fun-riga { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; min-height: 44px; padding: 8px 12px; border-radius: 6px; background: var(--pann2); box-shadow: inset 0 0 0 1px #000; }
+.fun-testo { display: grid; gap: 2px; min-width: 0; }
+.fun-testo b { font-weight: 700; }
+.fun-testo small { color: var(--testo2); line-height: 1.35; }
+.fun-peso { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.fun-stato { display: inline-flex; align-items: center; gap: 6px; font: 700 12px var(--ui); letter-spacing: 3px; text-transform: uppercase; color: var(--inciso, #8d889c); }
+.fun-spia { width: 8px; height: 8px; border-radius: 50%; background: #2a2932; box-shadow: inset 0 0 0 1px #000; }
+.fun-stato[data-stato='pronta'] .fun-spia { background: var(--verde); box-shadow: 0 0 6px var(--verde); }
+.fun-stato[data-stato='sperimentale'] .fun-spia { background: var(--ambra); box-shadow: 0 0 6px var(--ambra); }
+.fun-riga[data-stato='sperimentale'] { box-shadow: inset 0 0 0 1px #000, inset 0 0 0 2px rgba(255, 178, 61, 0.28); }
+.fun-azioni { display: flex; gap: 8px; }
+.fun-azioni button, .fun-ai .ai-riga button { min-height: 44px; border-radius: 6px; padding: 0 14px; }
+.fun-presenza[data-presenza='si'] { color: var(--verde); }
+.fun-presenza { font: 700 12px var(--ui); letter-spacing: 1px; color: var(--testo2); }
+@media (max-width: 700px) { .fun-riga { grid-template-columns: minmax(0, 1fr); } }

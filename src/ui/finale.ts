@@ -711,7 +711,7 @@ export class Finale {
       nota.textContent = !s.righe.some((x) => x.testo.trim()) ? 'Prima servono i sottotitoli: scrivili nella pagina Sottotitoli, o fatti aiutare dall\'AI.'
         : stessa ? 'I sottotitoli sono già in questa lingua.'
           : !sappiamoTradurre(s.lingua, this.trad.a) ? `Da ${nome(s.lingua)} a ${nome(this.trad.a)} non so tradurre.`
-            : `Le righe restano ai loro tempi, cambia solo il testo (da ${nome(s.lingua)} a ${nome(this.trad.a)}). Si annulla con Ctrl+Z. Il modello di traduzione (NLLB di Meta) si scarica la prima volta e poi resta sul computer.`;
+            : `Le righe restano ai loro tempi, cambia solo il testo (da ${nome(s.lingua)} a ${nome(this.trad.a)}). Si annulla con Ctrl+Z. Traduce Hy-MT2, nel motore AI locale opzionale (Centro AI): se non c'è, ti dico cosa installare.`;
     } });
     return [
       sez('1 · Sottotitoli', 'sottotitoli',
@@ -732,7 +732,7 @@ export class Finale {
     const da = s.lingua, a = this.trad.a;
     const righe = s.righe.map((x) => ({ id: x.id, testo: x.testo }));
     if (!righe.some((x) => x.testo.trim())) { avviso('Non ci sono righe da tradurre', 'info'); return; }
-    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'NLLB-200', repo: 'Xenova/nllb-200-distilled-600M', mb: 600, ids: ['nllb'] }))) return;
+    if (!(await confermaAvvioAI({ compito: 'Traduci sottotitoli', ambito: `${righe.length} righe · ${da} → ${a}`, modello: 'Hy-MT2 1.8B · motore AI locale', locale: true, dettagli: 'Serve il motore AI locale opzionale con Hy-MT2 già scaricato dal Centro AI: da qui non viene scaricato niente. Il risultato si applica ai sottotitoli; Ctrl+Z lo annulla.', ids: ['hymt2'] }))) return;
     if (this.lavoroTrad) return;
     const progetto = progettoAttuale();
     const ctrl = new AbortController();

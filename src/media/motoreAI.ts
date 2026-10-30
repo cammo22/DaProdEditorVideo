@@ -4,7 +4,17 @@ import { leggiWav } from './wav';
 export type StatoLocale = 'non-installato' | 'installazione' | 'pronto' | 'avvio' | 'acceso' | 'errore';
 export type AzioneLocale = 'installa' | 'accendi' | 'spegni' | 'disinstalla';
 export interface StatoMotoreAI { stato: StatoLocale; k: number | null; dettaglio: string; cartella: string }
-export interface ModelloLocale { id: string; nome: string; repo: string; revisione: string; licenza: string; byte: number; requisiti: string; scaricato: boolean }
+export interface ModelloLocale {
+  id: string; nome: string; repo: string; revisione: string; licenza: string; byte: number; requisiti: string; scaricato: boolean;
+  /** opzionale o sperimentale (RIFE) */
+  stato?: 'opzionale' | 'sperimentale';
+  /** peso e memoria della scheda video, come testo per le persone */
+  peso?: string; vram?: string; funzioni?: string[]; ambiente_gb?: number;
+}
+/** gli indirizzi dei lavori lunghi del motore (partono, poi si legge l'avanzamento) */
+export type PercorsoLavoro = '/modelli/scarica' | '/voce/genera' | '/voce/clona' | '/traduci' | '/voce/pulisci' | '/audio/separa' | '/scene' | '/rallenta' | '/trascrivi';
+/** il pezzo massimo che passa in una richiesta (il motore e Rust ne accettano 8 MB in base64) */
+export const PEZZO_SCAMBIO = 4 * 1024 * 1024;
 export interface OpzioniVoceLocale { campione: string; testoCampione?: string; lingua: string; dispositivo: 'cuda' | 'cpu' }
 export type AvanzaLocale = (k: number | null, testo: string) => void;
 export type TrasportoLocale = <T>(comando: string, dati?: Record<string, unknown>) => Promise<T>;
@@ -59,7 +69,7 @@ export class MotoreAI {
     return this.chiama<T>('ai_locale_richiesta', { metodo, percorso, dati });
   }
   async modelli(): Promise<ModelloLocale[]> { return (await this.richiesta<{ modelli: ModelloLocale[] }>('GET', '/modelli')).modelli; }
-  async lavoro<T>(percorso: '/modelli/scarica' | '/voce/genera' | '/voce/clona', dati: Record<string, unknown>, avanza: AvanzaLocale, segnale?: AbortSignal): Promise<T> {
+  async lavoro<T>(percorso: PercorsoLavoro, dati: Record<string, unknown>, avanza: AvanzaLocale, segnale?: AbortSignal): Promise<T> {
     if (segnale?.aborted) throw new Error('fermato');
     const { id } = await this.richiesta<{ id: string }>('POST', percorso, dati);
     const fine = Date.now() + 45 * 60_000;
@@ -80,6 +90,37 @@ export class MotoreAI {
       throw e;
     }
   }
+  /** manda un file al motore a pezzi (la cartella di scambio del motore): resta lì finché non si pulisce */
+  async inviaFile(nome: string, byte: Uint8Array, avanza: (k: number) => void = () => {}, segnale?: AbortSignal): Promise<void> {
+    for (let da = 0; da === 0 || da < byte.length; da += PEZZO_SCAMBIO) {
+      if (segnale?.aborted) throw new Error('fermato');
+      await this.richiesta('POST', '/scambio/scrivi', { nome, da, dati: base64DaByte(byte.subarray(da, da + PEZZO_SCAMBIO)) });
+      avanza(Math.min(1, (da + PEZZO_SCAMBIO) / Math.max(1, byte.length)));
+    }
+  }
+  /** prende un file che il motore ha prodotto, a pezzi */
+  async scaricaFile(nome: string, avanza: (k: number) => void = () => {}, segnale?: AbortSignal): Promise<Uint8Array> {
+    const pezzi: Uint8Array[] = [];
+    let da = 0;
+    for (;;) {
+      if (segnale?.aborted) throw new Error('fermato');
+      const r = await this.richiesta<{ dati: string; byte: number; fine: boolean }>('POST', '/scambio/leggi', { nome, da, len: PEZZO_SCAMBIO });
+      const p = Uint8Array.from(atob(r.dati), (c) => c.charCodeAt(0));
+      pezzi.push(p);
+      da += p.length;
+      avanza(r.byte ? Math.min(1, da / r.byte) : 1);
+      if (r.fine || !p.length) break;
+    }
+    const out = new Uint8Array(da);
+    let q = 0;
+    for (const p of pezzi) { out.set(p, q); q += p.length; }
+    return out;
+  }
+  /** svuota la cartella di scambio del motore (file mandati e risultati già presi) */
+  pulisciScambio() { return this.richiesta('POST', '/scambio/pulisci').catch(() => {}); }
+  /** toglie un modello dal computer (pesi e ambiente Python suo) */
+  togliModello(id: string) { return this.richiesta('POST', '/modelli/togli', { modello: id }); }
+
   async genera(testo: string, o: OpzioniVoceLocale, avanza: AvanzaLocale, segnale?: AbortSignal) {
     if (!o.campione) throw new Error('Qwen3-TTS Base richiede un campione vocale da almeno 3 secondi');
     const r = await this.lavoro<{ wav: string }>('/voce/genera', { ...o, testo }, avanza, segnale);

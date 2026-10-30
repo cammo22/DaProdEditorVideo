@@ -15,7 +15,7 @@ import { store } from '../core/store';
 import { StatisticheMono } from '../core/separa';
 import { NOMI_FORZA, PODCAST, mescolaDi, usaMossFormer } from '../core/rumore';
 import { Ricampionatore } from '../core/ricampiona';
-import { voceDaPodcast } from './clear';
+import { FRASE_CLEAR_SPENTO, clearAttivo, voceDaPodcast } from './clear';
 import { invoke, isTauri, type FileScelto } from '../platform';
 import { conservaFileNelBrowser } from '../progetti';
 import { avviso } from '../ui/dom';
@@ -54,15 +54,15 @@ export function clipAudioDi(p: Project, c: Clip): Clip | null {
 }
 
 /** le altre clip audio che sono la stessa ripresa (stesso legame, file, punto e durata): cambiano insieme */
-function gemelle(p: Project, c: Clip): Clip[] {
+export function gemelle(p: Project, c: Clip): Clip[] {
   if (!c.link) return [];
   return p.clips.filter((x) => x.id !== c.id && x.link === c.link && x.kind === 'media' && x.media === c.media && x.srcIn === c.srcIn && x.len === c.len && x.speed === c.speed && trackOf(p, x.track)?.kind === 'audio');
 }
 
 /** la clip è cambiata (o sparita) mentre l'AI lavorava: non è un guasto del motore, il risultato semplicemente non si applica */
-class ClipCambiata extends Error {}
+export class ClipCambiata extends Error {}
 
-const inCorso = new Map<string, 'rumore' | 'separa'>();
+export const inCorso = new Map<string, 'rumore' | 'separa'>();
 /** la maniglia del lavoro che sta girando (dice a che punto è): serve ai bottoni delle Proprietà per scrivere "in corso 42%" */
 const maniglie = new Map<string, Lavoro>();
 const ultimiErrori: { rumore: string; separa: string } = { rumore: '', separa: '' };
@@ -122,7 +122,7 @@ export function tornaOriginale(clipId: string): void {
 
 // ——— leggere l'audio della clip ———
 
-interface Tratto {
+export interface Tratto {
   m: MediaItem;
   rt: MediaRT;
   /** il tratto del file da lavorare, in secondi del file */
@@ -136,7 +136,7 @@ interface Tratto {
 }
 
 /** il tratto di file usato dalla clip (srcIn…) più il margine, dentro il file */
-function tratto(p: Project, m: MediaItem, srcIn: number, c: Clip): Tratto | string {
+export function tratto(p: Project, m: MediaItem, srcIn: number, c: Clip): Tratto | string {
   const rt = mediaRT(m.id);
   if (!rt?.a || !rt.aDecodable) return 'L\'audio di questo file non si riesce a leggere';
   const usato = f2s(c.len, p.rate) * (c.speed || 1);
@@ -158,7 +158,7 @@ function troppoGrosso(byte: number): string | null {
  * i pacchetti di un file non cadono sempre dove ti aspetti (il primo comincia un po' prima, a volte c'è un buco), quindi ogni
  * pezzo si mette al campione giusto secondo il suo tempo. Alla fine si completa con il silenzio fino a n campioni.
  */
-async function leggiAudio(t: Tratto, blocco: number, fn: (ch: Float32Array[]) => Promise<void>, segnale?: AbortSignal): Promise<void> {
+export async function leggiAudio(t: Tratto, blocco: number, fn: (ch: Float32Array[]) => Promise<void>, segnale?: AbortSignal): Promise<void> {
   const sink = new AudioBufferSink(t.rt.a!);
   const nc = t.canali;
   let scritti = 0;
@@ -317,12 +317,12 @@ class Ponte {
 const impostazioniProva: { base?: string; modello?: ModelloAudio; finta?: { attesaMs?: number } | null; ripiego?: 'auto' | 'solo' | 'mai'; modelloRumore?: ModelloAudio; fintaRumore?: { maschera?: number } | null } = {};
 export const impostaProveAudioAI = (o: typeof impostazioniProva | null) => { for (const k of Object.keys(impostazioniProva)) delete (impostazioniProva as Record<string, unknown>)[k]; if (o) Object.assign(impostazioniProva, o); };
 
-const nomeBase = (nome: string) => nome.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || 'audio';
+export const nomeBase = (nome: string) => nome.replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || 'audio';
 
 // ——— il lavoro vero ———
 
 /** mette il lavoro nella corsia pesante; ritorna il valore, o lancia l'errore (in italiano) o 'fermato' */
-async function inLavoro<T>(titolo: string, fn: (l: Lavoro) => Promise<T>, chiave?: string): Promise<T> {
+export async function inLavoro<T>(titolo: string, fn: (l: Lavoro) => Promise<T>, chiave?: string): Promise<T> {
   let errore: unknown = null, fatto = false;
   const r = await inCoda({ corsia: 'pesante', titolo, categoria: 'ai', priorita: 1000 }, async (l) => {
     if (chiave) maniglie.set(chiave, l);
@@ -333,13 +333,13 @@ async function inLavoro<T>(titolo: string, fn: (l: Lavoro) => Promise<T>, chiave
   return r as T;
 }
 
-interface Sorgente { m: MediaItem; srcIn: number }
+export interface Sorgente { m: MediaItem; srcIn: number }
 
 /**
  * Da dove si parte. Per togliere il rumore: l'originale, se la clip era già stata pulita (così si può cambiare la forza senza
  * pulire il pulito). Per separare voce e base: il file che la clip suona adesso (`corrente`).
  */
-function sorgenteDi(p: Project, a: Clip, corrente = false): Sorgente | string {
+export function sorgenteDi(p: Project, a: Clip, corrente = false): Sorgente | string {
   const pul = corrente ? undefined : a.afx?.pulito;
   const orig = pul ? p.media.find((m) => m.id === pul.media) : undefined;
   const m = orig ?? p.media.find((x) => x.id === a.media);
@@ -348,7 +348,7 @@ function sorgenteDi(p: Project, a: Clip, corrente = false): Sorgente | string {
 }
 
 /** la cartella del contenitore per i file fatti dall'AI (si crea la prima volta) */
-function cartellaAudioLavorato(p: Project): string {
+export function cartellaAudioLavorato(p: Project): string {
   const c = (p.cartelle ??= []).find((x) => x.nome === NOME_CARTELLA && !x.genitore);
   if (c) return c.id;
   const id = uid('d');
@@ -357,7 +357,7 @@ function cartellaAudioLavorato(p: Project): string {
 }
 
 /** la clip è ancora quella di prima? Ritorna le clip da cambiare, o il motivo per cui non si può più */
-function ancoraValida(a: Clip, t: Tratto, s: Sorgente, corrente = false): string | null {
+export function ancoraValida(a: Clip, t: Tratto, s: Sorgente, corrente = false): string | null {
   const p = store.doc;
   const x = p.clips.find((c) => c.id === a.id);
   if (!x) return 'La clip è stata tolta mentre lavoravo';
@@ -376,6 +376,7 @@ export async function togliRumore(clipId: string, forza: Forza = 'pulita'): Prom
   if (!c0) throw new Error('Non trovo la clip');
   const poss = possibilita(c0, p0);
   if (!poss.rumore) throw new Error(poss.perche ?? 'Su questa clip non si può togliere il rumore');
+  if (PODCAST[forza] && !clearAttivo()) throw new Error(FRASE_CLEAR_SPENTO);
   const a = clipAudioDi(p0, c0)!;
   const s0 = sorgenteDi(p0, a);
   if (typeof s0 === 'string') throw new Error(s0);
