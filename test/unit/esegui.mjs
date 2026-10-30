@@ -20,7 +20,7 @@ await build({
   logLevel: 'warn',
   // Esponiamo solo nel bundle di prova un confine asincrono privato; nessun hook nell'app.
   plugins: [{ name: 'confini-progetti-test', enforce: 'pre', transform(code, id) {
-    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia, valida as _testValida };', map: null };
+    if (id.replaceAll('\\', '/').endsWith('/src/progetti.ts')) return { code: code + '\nexport { mettiCopia as _testMettiCopia, valida as _testValida, reteDiSicurezza as _testRete, apriDaTesto as _testApriDaTesto };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/media/proxy.ts')) return { code: code + '\nexport { scriviProxy as _testScriviProxy };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/ui/live.ts')) return { code: code + '\nexport { avvisaErroreSchermo as _testAvvisaErroreSchermo };', map: null };
     if (id.replaceAll('\\', '/').endsWith('/src/pacchetto.ts')) return { code: code + '\nexport { progettoDentro as _testProgettoDentro };', map: null };
@@ -85,6 +85,11 @@ await build({
         funzioniAI: path.join(radice, 'src/core/funzioniAI.ts'),
         proprieta: path.join(radice, 'src/core/proprieta.ts'),
         schedaAI: path.join(radice, 'src/core/schedaAI.ts'),
+        solido: path.join(radice, 'src/core/solido.ts'),
+        sottotitoli: path.join(radice, 'src/core/sottotitoli.ts'),
+        versioni: path.join(radice, 'src/media/versioni.ts'),
+        ricollega: path.join(radice, 'src/media/ricollega.ts'),
+        spazio: path.join(radice, 'src/media/spazio.ts'),
       },
       output: { format: 'es', entryFileNames: '[name].mjs', chunkFileNames: 'pezzi/[name]-[hash].mjs' },
     },

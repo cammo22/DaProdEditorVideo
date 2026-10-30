@@ -98,3 +98,64 @@ export function espandiPicchi(b: Uint8Array): Float32Array {
   for (let i = 0; i < b.length; i++) { const x = b[i] / 255; o[i] = x * x; }
   return o;
 }
+
+// ——— quanto pesa la memoria delle misure, e come si alleggerisce (Centro attività → Spazio) ———
+const pesoVoce = (v: unknown): number => {
+  if (!v || typeof v !== 'object') return 16;
+  const o = v as { byteLength?: number; size?: number; length?: number };
+  if (typeof o.byteLength === 'number') return o.byteLength;
+  if (typeof o.size === 'number') return o.size;
+  if (typeof o.length === 'number') return o.length * 4;
+  return 256;
+};
+
+/** quante voci ci sono, quanto pesano all'incirca e quante non si toccano da `giorni` giorni */
+export async function statisticheCache(giorni = 30, ora = Date.now()): Promise<{ voci: number; byte: number; vecchie: number; byteVecchie: number }> {
+  const out = { voci: 0, byte: 0, vecchie: 0, byteVecchie: 0 };
+  const d = await db();
+  if (!d) return out;
+  const limite = ora - giorni * 86_400_000;
+  for (const dep of DEPOSITI) {
+    try {
+      await new Promise<void>((ok) => {
+        const r = d.transaction(dep, 'readonly').objectStore(dep).openCursor();
+        r.onsuccess = () => {
+          const c = r.result;
+          if (!c) { ok(); return; }
+          const v = c.value as { t?: number; v?: unknown };
+          const b = pesoVoce(v.v);
+          out.voci++; out.byte += b;
+          if ((v.t ?? 0) < limite) { out.vecchie++; out.byteVecchie += b; }
+          c.continue();
+        };
+        r.onerror = () => ok();
+      });
+    } catch { /* deposito illeggibile: si salta */ }
+  }
+  return out;
+}
+
+/** toglie le voci che non si usano da `giorni` giorni (giorni = 0: tutte). Ritorna quante. */
+export async function potaCacheVecchia(giorni = 30, ora = Date.now()): Promise<number> {
+  const d = await db();
+  if (!d) return 0;
+  const limite = giorni <= 0 ? Infinity : ora - giorni * 86_400_000;
+  let tolte = 0;
+  for (const dep of DEPOSITI) {
+    try {
+      await new Promise<void>((ok) => {
+        const tx = d.transaction(dep, 'readwrite');
+        const r = tx.objectStore(dep).openCursor();
+        r.onsuccess = () => {
+          const c = r.result;
+          if (!c) return;
+          if (((c.value as { t?: number }).t ?? 0) < limite) { c.delete(); tolte++; }
+          c.continue();
+        };
+        tx.oncomplete = () => ok();
+        tx.onerror = tx.onabort = () => ok();
+      });
+    } catch { /* niente */ }
+  }
+  return tolte;
+}
