@@ -1,0 +1,1 @@
+var e=new URL(`montserrat-latin-700-normal-BdjcYUrC.woff2`,import.meta.url).href;export{e as default};

@@ -1,0 +1,1 @@
+var e=new URL(`orbitron-latin-900-normal-DrIi7unX.woff2`,import.meta.url).href;export{e as default};

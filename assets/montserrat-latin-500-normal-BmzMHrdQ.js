@@ -1,0 +1,1 @@
+var e=new URL(`montserrat-latin-500-normal-DRFEGfly.woff2`,import.meta.url).href;export{e as default};
