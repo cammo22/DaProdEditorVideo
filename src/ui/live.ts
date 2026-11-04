@@ -561,7 +561,7 @@ export class Live {
     this.regTesto = h('span', { class: 'live-reg-testo' }, 'REGISTRA');
     // un tasto solo per partire e per fermare (la spia rossa si accende solo mentre registri)
     this.bReg = h('button', { class: 'live-btn reg', title: 'Scegli cosa registrare e parti (R)', on: { click: () => { if (this.fase === 'fermo') void this.registra(); else this.ferma(); } } }, h('i', { class: 'live-punto' }), this.regTesto) as HTMLButtonElement;
-    this.bPausa = h('button', { class: 'live-btn', disabled: true, title: 'Pausa e riprendi (Spazio o P)', on: { click: () => this.pausa() } }, '❚❚ PAUSA') as HTMLButtonElement;
+    this.bPausa = h('button', { class: 'live-btn pausa', disabled: true, title: 'Pausa e riprendi (Spazio o P)', on: { click: () => this.pausa() } }, '❚❚ PAUSA') as HTMLButtonElement;
     this.bFerma = h('button', { class: 'live-btn ferma', disabled: true, title: 'Ferma: finisce nel contenitore (F)', on: { click: () => this.ferma() } }, '■ FERMA') as HTMLButtonElement;
     this.bSegna = h('button', { class: 'live-btn segna', disabled: true, title: 'Un segno qui: nella timeline diventa un marcatore (M)', on: { click: () => this.segna() } }, icona('marcatore', 14), 'SEGNA') as HTMLButtonElement;
     this.bCam = h('button', { class: 'live-btn cam', title: 'Accendi o spegni la webcam, anche mentre registri (C)', on: { click: () => this.commutaCam() } }, icona('webcam', 15), 'WEBCAM') as HTMLButtonElement;
@@ -833,12 +833,14 @@ export class Live {
     if (document.querySelector('.velo') || e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key.toLowerCase();
     let preso = true;
-    if (scenaDaTasto(k) && !e.shiftKey && !e.code.startsWith('Numpad')) { if (!e.repeat) this.cambiaScena(scenaDaTasto(k)!); }
+    // con più finestre in regia i numeri scelgono la finestra in onda (come prima delle scene); altrimenti 1–6 = scena
+    const piuFinestre = !!this.regia && this.regia.fonti.length > 1 && this.fase !== 'fermo';
+    if (piuFinestre && /^[1-9]$/.test(k)) this.passaA(Number(k) - 1);
+    else if (scenaDaTasto(k) && !e.shiftKey && !e.code.startsWith('Numpad')) { if (!e.repeat) this.cambiaScena(scenaDaTasto(k)!); }
     else if (k === 'r' && this.fase === 'fermo') void this.registra();
     else if ((k === ' ' || k === 'p') && (this.fase === 'registra' || this.fase === 'pausa')) this.pausa();
     else if (k === 'm' && this.fase === 'registra') this.segna();
     else if (k === 'c') this.commutaCam();
-    else if (/^[7-9]$/.test(k) && this.regia && this.fase !== 'fermo') this.passaA(Number(k) - 1);
     else if (k === 'n' && this.fase === 'fermo') void this.aggiungiPrima();
     else if (k === 'l' && this.regia && this.fase !== 'fermo') this.ciclaLayout();
     else if ((k === 'f' || k === 'escape') && this.fase !== 'fermo') this.ferma();
@@ -1419,7 +1421,8 @@ export class Live {
     this.aggiornaTasti();
     this.stato.textContent = '● Sto registrando';
     // premuto REC, il telecomando si apre da solo (e Windows lo tiene fuori dalla registrazione)
-    if (!this.tele.aperto) void this.apriTelecomando()?.catch?.(() => {});
+    // (non nelle prove automatiche, come la Home: lì i tasti della pagina devono restare a portata)
+    if (!this.tele.aperto && !navigator.webdriver) void this.apriTelecomando()?.catch?.(() => {});
     this.fermaGiro();
     this.giro = window.setInterval(() => this.aggiornaTempo(), 250);
     this.chiudiGiro = risorseLive.apri('intervallo');
