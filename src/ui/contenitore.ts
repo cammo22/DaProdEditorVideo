@@ -875,6 +875,9 @@ function anteprimaAnimazione(cv: HTMLCanvasElement, id: string) {
 }
 
 /** l'anteprima ferma di un titolo: disegnato davvero (come nel monitor), su un fondo scuro, a metà della sua entrata */
+/** le anteprime dei titoli pronti: una alla volta, lasciando respirare la pagina (disegnarle tutte di fila a 1920×1080
+ *  bloccava l'apertura della categoria Titoli per secondi sui PC senza scheda video, e mezzo minuto nella CI) */
+let codaAnteprimeTitoli: Promise<void> = Promise.resolve();
 function anteprimaTitolo(id: string): HTMLCanvasElement {
   const cv = h('canvas', { class: 'gen-anteprima', width: 192, height: 108 }) as HTMLCanvasElement;
   const x = cv.getContext('2d')!;
@@ -882,6 +885,15 @@ function anteprimaTitolo(id: string): HTMLCanvasElement {
   g.addColorStop(0, '#1d2a4a'); g.addColorStop(1, '#2a1333');
   x.fillStyle = g;
   x.fillRect(0, 0, 192, 108);
+  codaAnteprimeTitoli = codaAnteprimeTitoli
+    .then(() => new Promise<void>((ok) => setTimeout(ok, 0)))
+    // la pagina è cambiata prima del suo turno: non si disegna
+    .then(() => { if (cv.isConnected) disegnaAnteprimaTitolo(x, id); })
+    .catch(() => undefined);
+  return cv;
+}
+
+function disegnaAnteprimaTitolo(x: CanvasRenderingContext2D, id: string) {
   const pr = presetTitolo(id);
   const spec = { ...TITLE0, ...(pr?.spec ?? {}) };
   // nella scheda piccola le lettere si ingrandiscono (se no non si leggono)
@@ -895,5 +907,4 @@ function anteprimaTitolo(id: string): HTMLCanvasElement {
     else if (spec.style === 'rullo') x.drawImage(tt.tela as CanvasImageSource, 0, 0, W, Math.min(tt.h, H), 0, 0, 192, 108 * Math.min(tt.h, H) / H);
     else x.drawImage(tt.tela as CanvasImageSource, (W - tt.w) / 2 * k + 0, (H - tt.h) / 2 * k, tt.w * k, tt.h * k);
   } catch { /* resta il fondo */ }
-  return cv;
 }

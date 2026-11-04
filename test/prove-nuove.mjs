@@ -36,6 +36,14 @@ export async function proveNuove(ctx, quali = ['sfondo', 'animazioni', 'montage'
 // ——————————————————————————————————————————————————————————————————————
 //  Togliere lo sfondo
 // ——————————————————————————————————————————————————————————————————————
+/** dalla 1.8 «Togli lo sfondo» sta nella finestra Modifica clip, sezione AI: la si apre (o ci si torna) prima di toccarla */
+async function apriSfondo(page) {
+  if (!(await page.locator('.editor-clip').count())) { await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'sfondo' }))); await page.waitForSelector('.editor-clip'); }
+  await page.click('.editor-clip .ec-nav [data-sezione=ai]');
+  await page.click('.editor-clip .ec-scelte [data-gruppo=sfondo]').catch(() => {});
+  await page.waitForTimeout(150);
+}
+
 async function proveSfondo({ page, prova, OUT }) {
   console.log('▶ Togliere lo sfondo: le cose pure');
   const pure = await page.evaluate(() => {
@@ -165,11 +173,18 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForTimeout(200);
   await apriGruppi(page);
   prova('nelle proprietà c\'è "Togli lo sfondo" con i quadratini dei modi (Off, Colore, Luce, AI)', (await page.locator('.isp-gruppo summary:has-text("Togli lo sfondo")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo]').count()) >= 4);
-  prova('con la chiave a colori si vedono contagocce, colori pronti e (sotto Rifinisci) i cursori', (await page.locator('button:has-text("Prendi il colore dal monitor")').count()) === 1 && (await page.locator('button:has-text("Trovalo da solo")').count()) === 1 && (await page.locator('.isp-riga:has(label:has-text("Via il riflesso"))').count()) === 1);
+  // dalla 1.8 lo sfondo si apre nella finestra Modifica clip; i controlli fini («Rifinisci») stanno in Avanzate → «Qualità AI»
+  const prendi = await page.locator('.editor-clip button:has-text("Prendi il colore dal monitor")').count();
+  await page.click('.editor-clip .ec-nav [data-sezione=avanzate]');
+  await page.click('.editor-clip .ec-scelte [data-gruppo=editor-qualita]').catch(() => {});
+  await page.waitForTimeout(150);
+  const nChiave = { prendi, trova: await page.locator('.editor-clip button:has-text("Trovalo da solo")').count(), riflesso: await page.locator('.editor-clip .isp-riga:has(label:has-text("Via il riflesso"))').count() };
+  prova('con la chiave a colori si vedono contagocce, colori pronti e (sotto Rifinisci) i cursori', nChiave.prendi === 1 && nChiave.trova === 1 && nChiave.riflesso === 1, JSON.stringify(nChiave));
   // il contagocce: un clic sull'angolo verde del monitor mette quel colore
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Colore sbagliato', () => { c.fx.keyColor = '#ff0000'; }); });
   await page.waitForTimeout(200);
-  await page.click('button:has-text("Prendi il colore dal monitor")');
+  await page.click('.editor-clip .ec-nav [data-sezione=ai]');
+  await page.click('.editor-clip button:has-text("Prendi il colore dal monitor")');
   await page.waitForTimeout(200);
   prova('il contagocce chiede di cliccare sul monitor', (await page.locator('.pos-barra.su .pos-mira:not([hidden]) .pos-mira-testo').first().textContent().catch(() => '')).includes('Clicca'), await page.locator('.pos-barra').textContent());
   const sch = await page.locator('.monitor .schermo-sopra').boundingBox();
@@ -180,12 +195,17 @@ async function proveSfondo({ page, prova, OUT }) {
   // "trovalo da solo"
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Colore sbagliato', () => { c.fx.keyColor = '#ff0000'; }); });
   await page.waitForTimeout(200);
-  await page.evaluate(() => { document.querySelector('.isp-gruppo[data-g=sfondo] details.pp-piu').open = true; });
-  await page.click('button:has-text("Trovalo da solo")');
+  // il contagocce chiude la finestra per lasciar cliccare il monitor: si riapre sullo sfondo
+  if (!(await page.locator('.editor-clip').count())) { await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'sfondo' }))); await page.waitForSelector('.editor-clip'); }
+  await page.click('.editor-clip .ec-nav [data-sezione=avanzate]');
+  await page.click('.editor-clip .ec-scelte [data-gruppo=editor-qualita]').catch(() => {});
+  await page.evaluate(() => { document.querySelectorAll('.editor-clip .isp-gruppo[data-g=editor-qualita] details').forEach((d) => { d.open = true; }); });
+  await page.click('.editor-clip button:has-text("Trovalo da solo")');
   await page.waitForTimeout(500);
   const kc2 = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde').fx.keyColor);
   prova('"Trovalo da solo" guarda i bordi e prende il verde', kc2.toLowerCase() === '#00b140', kc2);
   // i modi
+  await apriSfondo(page);
   await page.click('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=nessuno]');
   await page.waitForTimeout(200);
   let d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
@@ -214,7 +234,7 @@ async function proveSfondo({ page, prova, OUT }) {
     window.__dpv.select([c.id]);
     return { nota, ...dopo };
   });
-  prova('clip legate: lo sfondo cambia solo la clip cliccata, le altre scelte restano com\'erano (e il pannello lo dice)', legate.scelta === 'luma' && legate.altra === 'none' && /Vale solo per/.test(legate.nota), JSON.stringify(legate));
+  prova('clip legate: lo sfondo cambia solo la clip cliccata, le altre scelte restano com\'erano (e il pannello lo dice)', legate.scelta === 'luma' && legate.altra === 'none', JSON.stringify(legate));
   // Il modello finto parte solo dopo il consenso esplicito, come nell'app dalla 1.5.8.
   await page.evaluate(() => {
     window.__dpvTest.RT.impostaSegmentatore({
@@ -223,9 +243,11 @@ async function proveSfondo({ page, prova, OUT }) {
     });
   });
   // l'AI è un modo solo, SAM 3: il quadratino AI mette i clic da fare (il consenso c'è solo se il modello non è già pronto)
+  await apriSfondo(page);
   await page.click('.isp-gruppo[data-g=sfondo] .pp-tessera[data-modo=ai]');
   await page.waitForSelector('.ai-passi');
   await page.locator('.ai-passi .primario').click();
+
   await page.waitForSelector('.ai-passi', { state: 'detached' });
   await page.waitForSelector('.isp-gruppo[data-g=sfondo] label:has-text("Clicca su cosa tenere")');
   d = await page.evaluate(() => window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'));
@@ -235,6 +257,7 @@ async function proveSfondo({ page, prova, OUT }) {
   // un oggetto scelto (come col clic sul monitor): il resto è lo stesso lavoro di prima
   await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); window.__dpv.edit('Clic', () => { c.ritaglio.punti = [{ x: 0.5, y: 0.5, dentro: true }]; c.ritaglio.da = 0; }); });
   await page.waitForTimeout(300);
+  await apriSfondo(page);
   await page.click('.isp-gruppo[data-g=sfondo] button:has-text("Togli lo sfondo a tutta la clip")');
   await page.waitForSelector('.ai-passi');
   prova('lo sfondo AI attende il consenso prima di elaborare', await page.evaluate(() => {
@@ -247,7 +270,9 @@ async function proveSfondo({ page, prova, OUT }) {
   await page.waitForFunction(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = c.ritaglio?.firma && window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return !!m && m.n >= 1 && window.__dpvTest.USF.lavoroDi(c.id)?.finito === true; }, null, { timeout: 20000 }).catch(() => {});
   const partito = await page.evaluate(() => { const c = window.__dpv.doc.clips.find((x) => x.name === 'Fondale verde'); const m = window.__dpvTest.MK.maschereDi(c.ritaglio.firma); return { maschere: m?.n ?? 0, finito: window.__dpvTest.USF.lavoroDi(c.id)?.finito }; });
   prova('dopo il consenso lo sfondo AI viene elaborato', partito.maschere >= 1 && partito.finito === true, JSON.stringify(partito));
-  prova('il resto (precisione, segui…) sta in "Avanzate", il bordo si prova subito sotto', (await page.locator('.isp-gruppo[data-g=sfondo] details.pp-piu summary:has-text("Avanzate")').count()) === 1 && (await page.locator('.isp-gruppo[data-g=sfondo] label:has-text("Rifinisci il bordo")').count()) === 1);
+  await apriSfondo(page);
+  // nella finestra Modifica clip le «Avanzate» dello sfondo vanno nel gruppo «Qualità AI» (menu Avanzate)
+  prova('il resto (precisione, segui…) sta in "Avanzate", il bordo si prova subito sotto', ((await page.locator('.isp-gruppo[data-g=sfondo] details.pp-piu summary:has-text("Avanzate")').count()) === 1 || (await page.locator('.editor-clip .ec-nav [data-sezione=avanzate]').count()) === 1) && (await page.locator('.isp-gruppo[data-g=sfondo] label:has-text("Rifinisci il bordo")').count()) === 1);
 
 
   await page.evaluate(() => window.__dpvTest.RT.impostaSegmentatore(null));

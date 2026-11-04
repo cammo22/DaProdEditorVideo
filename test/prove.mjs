@@ -270,14 +270,11 @@ try {
     await page.evaluate((id) => window.__dpv.select([id]), clipFoto.id);
     await page.click('.lato .scheda[data-s=clip]');
     await page.waitForTimeout(200);
-    // la durata sta nell'editor della clip (doppio clic): si apre da lì
+    // dalla grafica Banco la durata sta nel pannello di destra (scheda QUADRO): dpv:sezione la apre lì
     await page.evaluate(() => document.dispatchEvent(new CustomEvent('dpv:sezione', { detail: 'durata' })));
-    await page.waitForSelector('.editor-clip');
-    await page.click('.editor-clip .ec-nav [data-sezione=tempo]');
+    await page.waitForSelector('.lato .isp-pulsanti button:has-text("+5 s")');
+    await page.click('.lato .isp-pulsanti button:has-text("+5 s")');
     await page.waitForTimeout(150);
-    await page.click('.editor-clip .isp-pulsanti button:has-text("+5 s")');
-    await page.keyboard.press('Escape');
-    await page.waitForSelector('.editor-clip', { state: 'detached' });
     dd = await doc();
     prova('l\'istantanea si allunga (+5 s dalle proprietà)', dd.clips.find((c) => c.id === clipFoto.id).len === 50 + 125, dd.clips.find((c) => c.id === clipFoto.id).len);
     await tasto('Control+z'); await tasto('Control+z');
@@ -958,10 +955,10 @@ try {
     await page.click('.pagina-btn[data-p=live]');
     await page.click('.live-btn.reg');
     await page.waitForTimeout(1600);
-    await page.click('.live-tasti .live-btn:nth-child(2)');
+    await page.click('.live-btn.pausa');
     await page.waitForTimeout(900);
     const inPausa = await page.evaluate(() => document.querySelector('.live').classList.contains('in-pausa'));
-    await page.click('.live-tasti .live-btn:nth-child(2)');
+    await page.click('.live-btn.pausa');
     await page.waitForTimeout(900);
     await page.click('.live-btn.ferma');
     await page.evaluate(() => window.__dpvTest.ui().live.ultima);
@@ -1199,7 +1196,7 @@ try {
       r.sfondo?.o === 0 && !!r.sfondo.gen.color2 && r.schermo?.o === 1 && r.schermo.tf.angoli > 0 && r.schermo.tf.ombra > 0 && r.schermo.tf.scale < 1 &&
       r.cam?.o === 2 && r.cam.tf.angoli === 1 && r.cam.tf.cropL > 0 && r.cam.tf.x > 0 && r.cam.tf.y > 0 && r.cam.len <= r.schermo.len &&
       r.schermo.link && r.cam.link === r.schermo.link && r.sfondo.start === r.schermo.start, JSON.stringify(r));
-    prova('LIVE: il tasto M mette un segno (marcatore in timeline) e la pausa col tasto Spazio', r.segni.length === 1 && r.segni[0][0] === 'Segno 1' && r.segni[0][1] > r.schermo.start && pausa, JSON.stringify({ segni: r.segni, pausa }));
+    prova('LIVE: il tasto M mette un segno (marcatore in timeline) e la pausa col tasto Spazio', r.segni.filter((x) => !String(x[0]).startsWith('Scena')).length === 1 && r.segni.find((x) => x[0] === 'Segno 1') && r.segni.find((x) => x[0] === 'Segno 1')[1] > r.schermo.start && pausa, JSON.stringify({ segni: r.segni, pausa }));
     prova('LIVE: la registrazione nella lista con la miniatura', r.lista === 1);
     // il fotogramma composto: sfondo, schermo, bolla
     await pg.click('.pagina-btn[data-p=montaggio]');
@@ -1423,6 +1420,9 @@ try {
     prova('LIVE: la voce va su un\'altra traccia audio, nello stesso punto e legata allo schermo', !!r.cMic && !!r.cAudio && r.cMic.track !== r.cAudio.track && r.cMic.start === r.cSch.start && r.cMic.link === r.cSch.link && r.cAudio.link === r.cSch.link && r.cMic.name === 'Microfono', JSON.stringify(r));
     // con l'interruttore spento tutto va in un file solo, come prima
     await pg.evaluate(() => { window.__dpvTest.ui().live.opz.separato = false; });
+    // finita una registrazione l'app va dritta al Montaggio: si torna su LIVE per la seconda
+    await pg.click('.pagina-btn[data-p=live]');
+    await pg.waitForTimeout(300);
     await pg.keyboard.press('r');
     await pg.waitForTimeout(2200);
     await pg.keyboard.press('f');
