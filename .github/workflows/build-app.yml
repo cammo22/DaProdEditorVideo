@@ -894,6 +894,20 @@ jobs:
       # declares, and both start (`--version`, and `--smoke` under Xvfb).
       # A library the package forgot to depend on fails here rather than
       # on somebody's machine. See scripts/ci/smoke-linux.sh.
+      - name: Preserve executable permission for browser downloads
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd stage
+          image=$(printf '%s' DaProdEditorVideo-*.AppImage)
+          test -x "$image"
+          tar -cf "$image.tar" "$image"
+          dest=$(mktemp -d)
+          tar -xf "$image.tar" -C "$dest"
+          test -x "$dest/$image"
+          "$dest/$image" --appimage-extract-and-run --version | grep -Fx "DaProd Editor Video ${{ steps.version.outputs.version }}"
+
       - name: Banco - edit, reopen and measure the AppImage export
         if: matrix.platform == 'linux'
         shell: bash
@@ -934,7 +948,7 @@ jobs:
           $name = "Concat-$env:VERSION-windows-${{ matrix.arch }}"
           $dir = "stage\$name"
           New-Item -ItemType Directory -Force $dir | Out-Null
-          Copy-Item "src\target\${{ matrix.target }}\app\concat.exe" $dir
+          Copy-Item "src\target\${{ matrix.target }}\app\concat.exe" (Join-Path $dir "DaProdEditorVideo.exe")
           Copy-Item "$env:FFMPEG_DIR\bin\*.dll" $dir
           Copy-Item "$env:ORT_DIR\lib\*.dll" $dir
           # whisper's DLLs and its CPU modules, one per x86_64 generation
@@ -1134,5 +1148,6 @@ jobs:
           name: Concat-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
             stage/*.AppImage
+            stage/*.AppImage.tar
             stage/*-setup.exe
           if-no-files-found: error

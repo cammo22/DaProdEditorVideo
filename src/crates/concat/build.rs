@@ -115,8 +115,8 @@ fn main() {
         // build, where the default would be the crate's lower-case name.
         winresource::WindowsResource::new()
             .set_icon(icon)
-            .set("ProductName", "Concat")
-            .set("FileDescription", "Concat")
+            .set("ProductName", "DaProd Editor Video")
+            .set("FileDescription", "DaProd Editor Video - Banco di montaggio")
             .set(
                 "LegalCopyright",
                 "Copyright 2026 Jareer Abdullah, AGPL-3.0-or-later",

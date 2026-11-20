@@ -103,16 +103,19 @@ Name: "vietnamese"; MessagesFile: "languages\Vietnamese.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+Type: files; Name: "{app}\concat.exe"
+
 [Files]
 Source: "{#Stage}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\icons\concat.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\DaProdEditorVideo"; Filename: "{app}\concat.exe"; IconFilename: "{app}\concat.ico"
+Name: "{autoprograms}\DaProdEditorVideo"; Filename: "{app}\DaProdEditorVideo.exe"; IconFilename: "{app}\concat.ico"
 ; The way in when a graphics driver draws the window as coloured squares:
 ; it turns off Settings > General > Draw on the GPU, which that window hides.
-Name: "{autoprograms}\DaProdEditorVideo (safe graphics)"; Filename: "{app}\concat.exe"; Parameters: "--software"; IconFilename: "{app}\concat.ico"
-Name: "{autodesktop}\DaProdEditorVideo"; Filename: "{app}\concat.exe"; IconFilename: "{app}\concat.ico"; Tasks: desktopicon
+Name: "{autoprograms}\DaProdEditorVideo (safe graphics)"; Filename: "{app}\DaProdEditorVideo.exe"; Parameters: "--software"; IconFilename: "{app}\concat.ico"
+Name: "{autodesktop}\DaProdEditorVideo"; Filename: "{app}\DaProdEditorVideo.exe"; IconFilename: "{app}\concat.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\concat.exe"; Description: "{cm:LaunchProgram,DaProdEditorVideo}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\DaProdEditorVideo.exe"; Description: "{cm:LaunchProgram,DaProdEditorVideo}"; Flags: nowait postinstall skipifsilent

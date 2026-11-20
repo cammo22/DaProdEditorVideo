@@ -34,7 +34,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $bundle = (Resolve-Path $Bundle).Path
-$exe = Join-Path $bundle "concat.exe"
+$exe = Join-Path $bundle "DaProdEditorVideo.exe"
 if (-not (Test-Path $exe)) { throw "$exe is not there" }
 
 function Say($text) { Write-Host ""; Write-Host "== $text" }
