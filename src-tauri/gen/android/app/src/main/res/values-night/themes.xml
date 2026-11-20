@@ -1,8 +1,0 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.daprod_video" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="android:windowBackground">@color/fondo</item>
-        <item name="android:statusBarColor">@color/fondo</item>
-        <item name="android:navigationBarColor">@color/fondo</item>
-    </style>
-</resources>
