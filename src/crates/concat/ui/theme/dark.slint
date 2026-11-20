@@ -43,13 +43,7 @@
 //
 // ── the palette ──────────────────────────────────────────────────────────────
 //
-// The surfaces are a flat neutral grey scale with no blue cast. A tinted
-// ground competes with everything placed on it; a neutral one lets the accent
-// and the clip hues carry all of the colour in the window.
-//
-// The clip and media-kind hues and the meter ramp name things the engine and
-// the project format also name, so they are fixed by what they mean rather
-// than by the surfaces around them.
+// Banco uses violet-black panels, recessed glass, and metal controls.
 import { Accent } from "accent.slint";
 
 export global Dark {
@@ -81,10 +75,10 @@ export global Dark {
     // window rather than as surfaces on it.
     out property <color> panel: #15141b;
     out property <color> raised: #1c1b23;
-    out property <color> well: #0b0a0f;
-    out property <color> field: #323235;
-    out property <color> field-hover: #3b3b3e;
-    out property <color> field-active: #46464a;
+    out property <color> well: #050407;
+    out property <color> field: #2c2b34;
+    out property <color> field-hover: #383742;
+    out property <color> field-active: #454350;
 
     // the launch screen's own ladder — a deeper cut of the one above
     //
@@ -108,8 +102,8 @@ export global Dark {
     out property <color> launch-field-active: #313138;
 
     // hairlines — white-alpha, so they hold on panel, well, and ground alike.
-    out property <color> line: #ffffff1a;         // rgb(255 255 255 / 0.1)
-    out property <color> line-strong: #ffffff33;  // rgb(255 255 255 / 0.2)
+    out property <color> line: #ffffff14;         // rgb(255 255 255 / 0.1)
+    out property <color> line-strong: #ffffff21;  // rgb(255 255 255 / 0.2)
 
     // text
     out property <color> fg: #ebe7f4;
@@ -126,8 +120,7 @@ export global Dark {
     // The two places that carry the look are the selection highlight and
     // every activated tool, and both are the accent.
     //
-    // Six to choose from, and Settings › Appearance picks one. The first,
-    // lime, is the default. Each is legible against near-black and
+    // Settings › Appearance picks the accent. Each is legible against near-black and
     // near-white alike, which is what a selection has to be: it lands on
     // whatever happens to be underneath it. What sits *on* them therefore
     // has to be dark ink, and is fixed with it: `on` is a deep shade of the
@@ -142,13 +135,14 @@ export global Dark {
         { accent: #ff6fa3, hover: #ff8fb8, soft: #ff6fa333, on: #38091c },   // rose
         { accent: #ffb340, hover: #ffc46a, soft: #ffb34033, on: #2d1a00 },   // amber
         { accent: #3fdcc4, hover: #6ae7d4, soft: #3fdcc433, on: #05261f },   // mint
+        { accent: #35e8ff, hover: #9af3ff, soft: #35e8ff24, on: #06171b },   // cyan
     ];
     out property <color> green: #5dffb4;
     out property <color> on-green: #06210f;
     /// A warning's amber: the amber accent's own, so the one amber in the
     /// window is the one amber in the palette, and clear of the meters'
     /// yellow and of `danger`.
-    out property <color> warn: #ffb340;
+    out property <color> warn: #ffb23d;
 
     // The Rail's dragger — the raised chip you push along a hairline rail, as
     // distinct from the Fader's flat bar. It is a light chip and not the
@@ -234,14 +228,14 @@ export global Dark {
     // still reads as a well cut into the pane, and a clip's own dark ground
     // now sits *on* something rather than floating in a hole. Both stay well
     // under `panel`, or the empty stretches would read as content.
-    out property <color> lane: #1a1a1c;
-    out property <color> lane-alt: #1e1e20;
+    out property <color> lane: #101016;
+    out property <color> lane-alt: #131219;
     // The ruler is its own surface, not the first row of the stack: a step
     // under the darker lane, so the strip carrying the timestamps reads as
     // the floor of the pane and the banding starts below it. It followed
     // `raised` before, which put it above the panel and made it the brightest
     // thing in the pane — the opposite of what a ruler should be.
-    out property <color> ruler: #171719;
+    out property <color> ruler: #0e0d13;
     /// The vertical rules. 6% white was set against a lane that was still a
     /// dark grey, and all but vanished when the lanes went black — a grid that
     /// costs elements and reads as nothing. 14% clears both of the tones the
@@ -318,8 +312,8 @@ export global Dark {
     out property <color> on-scrim: #ffffff;
 
     // destructive
-    out property <color> danger: #ff453a;
-    out property <color> danger-soft: #ff453a24;   // rgb(255 69 58 / 0.14)
+    out property <color> danger: #ff4d6d;
+    out property <color> danger-soft: #ff4d6d24;   // rgb(255 69 58 / 0.14)
     /// A progress bar that has failed: the track it runs in, and the hairline
     /// round it. Desaturated rather than `danger-soft` over the usual well,
     /// because a bar is a large area and the alpha version of a saturated red
@@ -329,6 +323,6 @@ export global Dark {
 
     // window ground the panes float on — a shade under the darkest panel so
     // the gutters read as gaps and not as seams
-    out property <color> page: #151517;
+    out property <color> page: #0b0a0f;
     out property <color> page-fg-muted: #a1a1a6;
 }

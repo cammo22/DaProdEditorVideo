@@ -206,7 +206,7 @@ impl Package {
         if manifest.effect.kind.is_visual() {
             if !manifest.scene_linear() {
                 return Err(invalid(
-                    "a picture package written for format 1, which this Concat no longer \
+                    "a picture package written for format 1, which this version no longer \
                      draws: it needs `format = 2` and a shader (see the package guide)"
                         .to_owned(),
                 ));

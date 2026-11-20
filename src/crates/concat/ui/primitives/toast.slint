@@ -207,12 +207,12 @@ export component ToastLayer inherits Rectangle {
         // A confirmation's bottom padding matches its top.
         height: message.y + message.height
             + (root.problem ? root.row-gap + root.row-height + root.row-bottom : message.y);
-        border-radius: Theme.r-lg;
+        border-radius: Theme.banco-desktop ? Theme.r : Theme.r-lg;
         // Elevated, ringed and lifted, because it floats over panes that are
         // themselves `panel`: the hairline draws its edge against a pane of
         // the same grey, and the shadow puts it above the pane rather than
         // in it.
-        background: Theme.raised;
+        background: Theme.popup-surface;
         border-width: 1px;
         border-color: Theme.line-strong;
         drop-shadow-blur: 18px;
@@ -229,6 +229,16 @@ export component ToastLayer inherits Rectangle {
         animate y, opacity {
             duration: root.shown ? 260ms : 420ms;
             easing: ease-out;
+        }
+
+        if Theme.banco-desktop: Rectangle {
+            x: 1px;
+            y: 6px;
+            width: 2px;
+            height: parent.height - 12px;
+            border-radius: 1px;
+            background: root.data.kind == ToastKind.failed ? Theme.danger
+                : root.data.kind == ToastKind.warning ? Theme.warn : Theme.green;
         }
 
         // Slint reaches the clipboard through a TextInput and nothing else, so

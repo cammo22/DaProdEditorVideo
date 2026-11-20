@@ -104,7 +104,7 @@ fn draw(bytes: &[u8], folder: Option<&Path>) -> std::result::Result<Vec<u8>, Str
     };
     options.fontdb_mut().load_system_fonts();
     let tree = resvg::usvg::Tree::from_data(bytes, &options)
-        .map_err(|error| format!("not an SVG Concat can read: {error}"))?;
+        .map_err(|error| format!("could not read the SVG: {error}"))?;
     let size = tree.size();
     let scale = LONG_SIDE / size.width().max(size.height());
     let width = (size.width() * scale).round().max(1.0) as u32;

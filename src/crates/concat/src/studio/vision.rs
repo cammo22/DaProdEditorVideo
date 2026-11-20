@@ -40,7 +40,7 @@ impl Studio {
                     concat_vision::mask_dir(&request.project, &request.media_path, request.subject);
                 if self.tripped_strokes.insert(dir) {
                     log::warn!(
-                        "cutout: skipped Remove background on a file: Concat closed while analysing it last time, and would again"
+                        "cutout: skipped Remove background on a file: DaProd Editor Video closed while analysing it last time, and would again"
                     );
                     self.notify(&t("studio.removeBackgroundSkipped"), true);
                 }
@@ -129,7 +129,7 @@ impl Studio {
                     // would close the app on every open.
                     if self.tripped_strokes.insert(dir) {
                         log::warn!(
-                            "stabilize: skipped a file: Concat closed while measuring it last time, and would again"
+                            "stabilize: skipped a file: DaProd Editor Video closed while measuring it last time, and would again"
                         );
                         self.notify(&t("studio.stabilizeSkipped"), true);
                     }

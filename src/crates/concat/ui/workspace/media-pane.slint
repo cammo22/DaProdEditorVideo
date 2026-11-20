@@ -303,6 +303,7 @@ component ImportButton inherits Rectangle {
     in property <string> label: I18n.t("mediaPane.import");
     in property <string> busy-label: I18n.t("mediaPane.importing");
     in property <Glyph> glyph: Glyph.import;
+    in property <bool> compact: false;
 
     callback clicked();
 
@@ -331,12 +332,12 @@ component ImportButton inherits Rectangle {
     // the whole of what "even" means in a dashed line.
     property <length> bite-h: root.pitch-h / 2;
     property <length> bite-v: root.pitch-v / 2;
-    property <brush> ground: (touch.has-hover && !root.busy) ? Theme.field : Theme.panel;
+    property <brush> ground: (touch.has-hover && !root.busy) ? Theme.metal-hover : root.compact ? Theme.metal : Theme.panel;
 
     height: 36px;
     border-width: 1px;
     border-radius: Theme.r;
-    border-color: (touch.has-hover && !root.busy) ? Theme.accent : Theme.line-strong;
+    border-color: (touch.has-hover && !root.busy) ? Theme.accent : root.compact ? Theme.action.with-alpha(0.42) : Theme.line-strong;
     background: root.ground;
     opacity: root.busy ? 0.4 : 1.0;
 
@@ -347,8 +348,8 @@ component ImportButton inherits Rectangle {
         // Shoulders on the words, so a button sized to its own label — the
         // media page's, which is one word — still reads as a zone to drop on
         // rather than as the text with a box drawn round it.
-        padding-left: 18px;
-        padding-right: 18px;
+        padding-left: root.compact ? 10px : 18px;
+        padding-right: root.compact ? 10px : 18px;
         spacing: 8px;
 
         VerticalLayout {
@@ -356,13 +357,13 @@ component ImportButton inherits Rectangle {
             Icon {
                 glyph: root.glyph;
                 size: 14px;
-                tint: touch.has-hover ? Theme.fg : Theme.fg-muted;
+                tint: root.compact ? Theme.timecode : touch.has-hover ? Theme.fg : Theme.fg-muted;
             }
         }
 
         Text {
             text: root.busy ? root.busy-label : root.label;
-            color: touch.has-hover ? Theme.fg : Theme.fg-muted;
+            color: root.compact ? Theme.timecode : touch.has-hover ? Theme.fg : Theme.fg-muted;
             font-size: Theme.fs;
             vertical-alignment: center;
         }
@@ -373,28 +374,28 @@ component ImportButton inherits Rectangle {
     // Both axes pinned on every bite: an element given only one coordinate is
     // centred on the other axis by default, which drew the top run's dashes
     // across the middle of the button.
-    for step in root.dashes-h: Rectangle {
+    for step in (root.compact ? 0 : root.dashes-h): Rectangle {
         x: root.inset + (step + 0.5) * root.pitch-h - root.bite-h / 2;
         y: 0;
         width: root.bite-h;
         height: 1px;
         background: root.ground;
     }
-    for step in root.dashes-h: Rectangle {
+    for step in (root.compact ? 0 : root.dashes-h): Rectangle {
         x: root.inset + (step + 0.5) * root.pitch-h - root.bite-h / 2;
         y: root.height - 1px;
         width: root.bite-h;
         height: 1px;
         background: root.ground;
     }
-    for step in root.dashes-v: Rectangle {
+    for step in (root.compact ? 0 : root.dashes-v): Rectangle {
         x: 0;
         y: root.inset + (step + 0.5) * root.pitch-v - root.bite-v / 2;
         width: 1px;
         height: root.bite-v;
         background: root.ground;
     }
-    for step in root.dashes-v: Rectangle {
+    for step in (root.compact ? 0 : root.dashes-v): Rectangle {
         x: root.width - 1px;
         y: root.inset + (step + 0.5) * root.pitch-v - root.bite-v / 2;
         width: 1px;
@@ -1910,6 +1911,7 @@ export component MediaPane inherits Rectangle {
     }
 
     Pane {
+        square: true;
         // The page strip. Its bottom edge is the pane's full-width divider,
         // which is why the hairline is a child of this row and not a border on
         // the pill below it.
@@ -1932,6 +1934,16 @@ export component MediaPane inherits Rectangle {
                 padding-left: 8px;
                 padding-right: 8px;
                 spacing: 8px;
+
+                if root.tab == 0: VerticalLayout {
+                    alignment: center;
+                    ImportButton {
+                        height: 30px;
+                        compact: true;
+                        busy: root.importing;
+                        clicked => { root.import-media(); }
+                    }
+                }
 
                 // The chips sit straight on the header, in its own colour:
                 // no sunken track and no border, so the strip reads as the
@@ -2057,6 +2069,19 @@ export component MediaPane inherits Rectangle {
                         clicked => {
                             strip.content-x = Math.max(root.strip-floor, strip.content-x - strip.width * 0.6);
                         }
+                    }
+                }
+
+                if root.tab == 0: VerticalLayout {
+                    alignment: center;
+                    Select {
+                        horizontal-stretch: 0;
+                        width: self.natural-width;
+                        options: [I18n.t("mediaPane.sortAdded"), I18n.t("mediaPane.sortName"),
+                            I18n.t("mediaPane.sortType")];
+                        icons: [Glyph.clock, Glyph.text-mark, Glyph.tag];
+                        current: 0;
+                        changed(index) => { root.sort-changed(index); }
                     }
                 }
 
@@ -2455,43 +2480,6 @@ export component MediaPane inherits Rectangle {
                 x: root.sidebar + 1px;
                 width: Math.max(0px, parent.width - root.sidebar - 1px);
                 height: parent.height;
-
-                if root.tab == 0: HorizontalLayout {
-                    padding: 8px;
-                    spacing: 8px;
-                    // Import holds the left edge at the width its own word
-                    // needs; sort and filter are pushed against the right by
-                    // the gap between, which is the only part of the row with
-                    // any give in it.
-                    ImportButton {
-                        // The row holds one other control, and two controls
-                        // side by side at two different heights read as two
-                        // rows that failed to line up.
-                        height: Theme.h;
-                        horizontal-stretch: 0;
-                        busy: root.importing;
-                        clicked => { root.import-media(); }
-                    }
-                    Rectangle { horizontal-stretch: 1; }
-                    // Sort, and sort only: narrowing the bin by kind is the
-                    // sidebar's, where each kind carries its count and the
-                    // current one stays lit. A second control saying the same
-                    // thing from the other side of the panel can only ever
-                    // agree with it or contradict it.
-                    //
-                    // Marked rather than worded: at the end of a row this
-                    // narrow, "Sort: Added" costs more room than it earns, and
-                    // the list behind it still spells all three out.
-                    Select {
-                        horizontal-stretch: 0;
-                        width: self.natural-width;
-                        options: [I18n.t("mediaPane.sortAdded"), I18n.t("mediaPane.sortName"),
-                            I18n.t("mediaPane.sortType")];
-                        icons: [Glyph.clock, Glyph.text-mark, Glyph.tag];
-                        current: 0;
-                        changed(index) => { root.sort-changed(index); }
-                    }
-                }
 
                 // Only worth a row when a multiple selection exists — one
                 // selected card is deleted from the card itself.

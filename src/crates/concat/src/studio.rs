@@ -3059,8 +3059,7 @@ impl Studio {
         // to; a saved dock this build cannot read is the default instead.
         let saved = prefs.layout.as_ref().filter(|_| prefs.remembers_layout());
         let dock = saved
-            .and_then(|layout| layout.wide.as_ref())
-            .and_then(Dock::from_saved)
+            .and_then(|layout| layout.restore_wide(crate::platform::phone()))
             .unwrap_or_else(default_dock);
         let dock_aside = saved
             .and_then(|layout| layout.compact.as_ref())

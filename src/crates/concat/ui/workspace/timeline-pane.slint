@@ -8,7 +8,7 @@ import { PaneKind, PaneSwitcher } from "pane-switcher.slint";
 import { I18n } from "../i18n.slint";
 import { Glyph } from "../icons.slint";
 import { ContextMenu, MenuItemData, MenuMetrics, MenuRow } from "../primitives/context-menu.slint";
-import { Button } from "../primitives/modal.slint";
+import { Fmt } from "../util.slint";
 import { HairlineSplitter } from "splitter.slint";
 import { ThinHScrollbar, ThinScrollbar } from "../primitives/scrollbar.slint";
 import {
@@ -20,12 +20,7 @@ import { TrackHeaders } from "../timeline/track-header.slint";
 import { Lanes } from "../timeline/lanes.slint";
 import { VuMeter } from "../timeline/vu-meter.slint";
 
-// The timeline pane: tabs, tray, and then the lane grid — a fixed header
-// column beside the lanes themselves, and the VU meters at their far edge.
-//
-// No PaneHeader, unlike the other three panes. The timeline owns its whole
-// interior: a title strip above the tabs would be a third bar over a panel
-// that already has two.
+// The command strip leads into the sequence tabs and the lane grid.
 export component TimelinePane inherits Rectangle {
     // ── the tabs ─────────────────────────────────────────────────────────
     in property <[TimelineTabData]> tabs;
@@ -61,6 +56,7 @@ export component TimelinePane inherits Rectangle {
     in property <bool> reversible;
     /// The VU meters at the grid's right edge; the tray's meter button.
     in property <bool> meters-shown: true;
+    in property <bool> inline-meters: true;
 
     callback tool-changed(tool: TimelineTool);
     callback snap-changed(snap: bool);
@@ -145,18 +141,8 @@ export component TimelinePane inherits Rectangle {
     /// That row was used.
     callback pane-removed();
 
-    /// Wide enough for what the column actually carries, and no wider: every
-    /// pixel here is a pixel the lanes do not get.
-    ///
-    /// A lane has no name — it is untyped, and its place in the stack is the
-    /// only handle anything needs on it — so the column is a strip of
-    /// switches. Five 26px slots at their widest (row height, lock,
-    /// visibility, mute against the leading edge; remove alone against the
-    /// trailing one, shown on hover), 1px between them and the row's own
-    /// 8px and 4px gutters come to 147px. The rest is the gap between the
-    /// two ends, which at the old 156px was nine pixels and read as one
-    /// crammed strip beside the lanes it labels.
-    in-out property <length> header-width: 188px;
+    /// The compact header keeps the lane switches and the drag handle.
+    in-out property <length> header-width: 156px;
     /// The switches and their gutters, and nothing spare: below this the row
     /// has nowhere left to take the squeeze from and the buttons overlap.
     in property <length> min-header: 150px;
@@ -175,10 +161,10 @@ export component TimelinePane inherits Rectangle {
     /// pane that grows again finds its column where it left it.
     property <length> headers-w: Math.max(0px,
         Math.min(root.header-width, root.width / 2));
-    in property <length> ruler-height: 28px;
+    in property <length> ruler-height: 34px;
     /// The meters' column: the ruler, two bars and their gaps, a few
     /// pixels of air, and nothing when they are put away.
-    property <length> meters-w: root.meters-shown ? 60px : 0px;
+    property <length> meters-w: root.meters-shown && root.inline-meters ? 60px : 0px;
 
     /// Clamped here rather than only where it is written, so a pane dragged
     /// taller than its own track stack cannot stay parked past the end. The
@@ -294,6 +280,7 @@ export component TimelinePane inherits Rectangle {
     }
 
     Pane {
+        square: true;
         // The one edge kept when the outlines came off. The timeline sits
         // under the three panes above it rather than beside anything, so its
         // top is the only pane edge in the window that a gutter does not
@@ -305,52 +292,6 @@ export component TimelinePane inherits Rectangle {
         Rectangle {
             height: 1px;
             background: Theme.line;
-        }
-
-        TimelineTabs {
-            tabs: root.tabs;
-            current: root.current-tab;
-
-            selected(index) => { root.tab-selected(index); }
-            renamed(index, name) => { root.tab-renamed(index, name); }
-            close-requested(index) => { root.tab-close-requested(index); }
-            added => { root.tab-added(); }
-            moved(from, to) => { root.tab-moved(from, to); }
-
-            PaneSwitcher {
-                kind: PaneKind.timeline;
-                seat: root.pane-seat;
-                removable: root.pane-removable;
-                picked(kind) => { root.pane-picked(kind); }
-                removed => { root.pane-removed(); }
-            }
-        }
-
-        HorizontalLayout {
-            height: 32px;
-            spacing: 4px;
-            padding-left: 4px;
-            alignment: start;
-            Button {
-                label: "1  TAGLIA";
-                clicked => { root.split(); }
-            }
-            Button {
-                label: "2  ELIMINA";
-                danger: true;
-                enabled: root.selected-count > 0 || root.transition-selected;
-                clicked => { root.delete-selected(); }
-            }
-            Button {
-                label: "3  CHIUDI";
-                enabled: root.selected-count > 0;
-                clicked => { root.clip-verb("ripple-delete"); }
-            }
-            Button {
-                label: "S  " + I18n.t("shortcuts.clipGroup");
-                enabled: root.selected-count > 0;
-                clicked => { root.clip-verb("toggle-clip-group"); }
-            }
         }
 
         tray := TimelineTray {
@@ -401,6 +342,7 @@ export component TimelinePane inherits Rectangle {
             undo => { root.undo(); }
             redo => { root.redo(); }
             split => { root.split(); }
+            clip-verb(action) => { root.clip-verb(action); }
             merge => { root.merge(); }
             delete-selected => { root.delete-selected(); }
             captions => { root.captions(); }
@@ -412,6 +354,25 @@ export component TimelinePane inherits Rectangle {
             // press zooms about the view, since a press has no pointer to
             // speak of. -1 is read as "keep the left edge".
             zoom(factor) => { root.zoom(factor, -1); }
+        }
+
+        TimelineTabs {
+            tabs: root.tabs;
+            current: root.current-tab;
+
+            selected(index) => { root.tab-selected(index); }
+            renamed(index, name) => { root.tab-renamed(index, name); }
+            close-requested(index) => { root.tab-close-requested(index); }
+            added => { root.tab-added(); }
+            moved(from, to) => { root.tab-moved(from, to); }
+
+            PaneSwitcher {
+                kind: PaneKind.timeline;
+                seat: root.pane-seat;
+                removable: root.pane-removable;
+                picked(kind) => { root.pane-picked(kind); }
+                removed => { root.pane-removed(); }
+            }
         }
 
         // The lane grid. Positioned by hand for the reason the workspace is:
@@ -430,6 +391,7 @@ export component TimelinePane inherits Rectangle {
 
                 tracks: root.tracks;
                 ruler-height: root.ruler-height;
+                timecode: Fmt.frames-timecode(root.playhead, root.frame-rate);
                 track-scroll: root.at;
                 overflow: root.overflow;
 
@@ -548,7 +510,7 @@ export component TimelinePane inherits Rectangle {
             // The VU meters, the height of the grid and outside the lanes'
             // scroll: how loud the cut plays is not a place along it. Only
             // built while shown, so a hidden meter is no element at all.
-            if root.meters-shown: VuMeter {
+            if root.meters-shown && root.inline-meters: VuMeter {
                 x: parent.width - root.meters-w;
                 y: 0;
                 width: root.meters-w;

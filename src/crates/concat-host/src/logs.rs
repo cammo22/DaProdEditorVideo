@@ -82,7 +82,7 @@ fn install(
     // What every report is asked first, answered before it is asked.
     log::info!(
         "build: {} · {}",
-        crate::machine::build(),
+        crate::machine::build_for_log(),
         if cfg!(debug_assertions) {
             "debug build"
         } else {
@@ -96,12 +96,12 @@ fn install(
     }
     match &opened.file {
         Some(path) => log::info!(
-            "log: {} · Concat at {}",
+            "log: {} · DaProd Editor Video at {}",
             path.display(),
             level_name(concat_log::level())
         ),
         None => log::info!(
-            "log: no file this run · Concat at {}",
+            "log: no file this run · DaProd Editor Video at {}",
             level_name(concat_log::level())
         ),
     }

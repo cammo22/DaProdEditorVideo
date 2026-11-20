@@ -20,10 +20,12 @@ export component Pane inherits Rectangle {
     /// which is what the timeline does across its top.
     in property <bool> outlined: false;
 
+    in property <bool> square: false;
+
     background: Theme.panel;
     border-width: root.outlined ? 1px : 0px;
     border-color: Theme.line;
-    border-radius: Theme.r-lg;
+    border-radius: root.square ? 0px : Theme.r-lg;
     // Rounded corners only cut the pane's own fill; the body has to be clipped
     // to them as well or a full-bleed child squares them off again.
     clip: true;
@@ -37,6 +39,8 @@ export component Pane inherits Rectangle {
 // PanelHeader uses.
 export component PaneHeader inherits Rectangle {
     in property <string> title;
+    in property <brush> title-color: Theme.fg;
+    in property <color> indicator: Colors.transparent;
 
     // 52px, which is the library pane's tab strip — the tallest of the three
     // top bars, because that one has a row of chips in it and the other two
@@ -59,9 +63,14 @@ export component PaneHeader inherits Rectangle {
         padding-right: 8px;
         spacing: 8px;
 
+        if root.indicator != Colors.transparent: VerticalLayout {
+            alignment: center;
+            Rectangle { width: 7px; height: 7px; border-radius: 4px; background: root.indicator; }
+        }
+
         Text {
             text: root.title;
-            color: Theme.fg;
+            color: root.title-color;
             font-size: Theme.fs-lg;
             font-weight: Theme.weight-title;
             vertical-alignment: center;

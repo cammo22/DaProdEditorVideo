@@ -67,7 +67,7 @@ fn main() -> Result<(), slint::PlatformError> {
             .unwrap_or_default();
         let _ = concat_host::logs::open_console(None);
         return concat_mcp::run(mode).map_err(|error| {
-            log::error!("api: the MCP server for an agent stopped: {error}; Concat exits");
+            log::error!("api: the MCP server for an agent stopped: {error}; DaProd Editor Video exits");
             slint::PlatformError::Other(error)
         });
     }

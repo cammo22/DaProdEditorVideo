@@ -182,7 +182,7 @@ pub(crate) fn closing(how: &str) {
 pub fn report_startup_failure(error: &slint::PlatformError) {
     let error = error.to_string();
     // "could not start" right after the topic: the smoke scripts look for it.
-    log::error!("start: could not start the window: {error}; Concat says so in a dialog and quits");
+    log::error!("start: could not start the window: {error}; DaProd Editor Video shows the error in a dialog and quits");
     platform::report_startup_failure(&error);
 }
 
@@ -367,7 +367,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
                     terminating.set(true);
                     if let Err(error) = studio.close_project() {
                         log::error!(
-                            "close: saving {} before quitting failed: {error}; Concat quits without it",
+                            "close: saving {} before quitting failed: {error}; DaProd Editor Video quits without it",
                             studio.project_name
                         );
                     }
@@ -448,53 +448,34 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     motion_tiles::install(&app);
     // Windows puts a dialog's OK before its Cancel; macOS and Linux after.
     app.global::<Theme>().set_ok_first(cfg!(windows));
-    // The accent is remembered by name and the names live on the Theme
-    // global, so the index is looked up there rather than kept in Rust too.
-    // A remembered hex is a colour picked by hand, which is the slot past
-    // the names.
+    // Resolve named colours against the theme's palette. Missing values use
+    // the platform defaults, including when loading a pre-Banco profile.
     {
         let theme = app.global::<Theme>();
-        let names = theme.get_accent_names();
-        let count = slint::Model::row_count(&names);
+        theme.set_banco_desktop(!phone);
+        let names: Vec<_> = slint::Model::iter(&theme.get_accent_names())
+            .map(|name| name.to_string())
+            .collect();
         match studio.prefs.custom_accent().and_then(format::parse_colour) {
             Some(colour) => {
                 theme.set_accent_custom(colour);
-                theme.set_accent_choice(count as i32);
+                theme.set_accent_choice(names.len() as i32);
             }
-            None => {
-                let index = studio
-                    .prefs
-                    .accent_index(slint::Model::iter(&names).map(|name| name.to_string()));
-                theme.set_accent_choice(index as i32);
-            }
+            None => theme.set_accent_choice(studio.prefs.accent_index(&names, phone) as i32),
         }
-    }
-    // The playhead is remembered the accent's way: an accent's name, worn
-    // as each palette has it, or a picked colour's hex. None remembered,
-    // or a name no longer on the list, is Lime, the palette's own.
-    {
-        let theme = app.global::<Theme>();
-        let names = theme.get_accent_names();
-        let count = slint::Model::row_count(&names);
-        let remembered = studio.prefs.playhead.as_deref().map(str::trim);
-        match remembered
+        match studio
+            .prefs
+            .playhead
+            .as_deref()
+            .map(str::trim)
             .filter(|text| text.starts_with('#'))
             .and_then(format::parse_colour)
         {
             Some(colour) => {
                 theme.set_playhead_custom(colour);
-                theme.set_playhead_choice(count as i32);
+                theme.set_playhead_choice(names.len() as i32);
             }
-            None => {
-                let index = remembered
-                    .and_then(|wanted| {
-                        slint::Model::iter(&names).position(|name| {
-                            prefs::Preferences::accent_id(&name) == wanted.to_lowercase()
-                        })
-                    })
-                    .unwrap_or(0);
-                theme.set_playhead_choice(index as i32);
-            }
+            None => theme.set_playhead_choice(studio.prefs.playhead_index(&names, phone)),
         }
     }
     // The interface scale: the row on Settings > Appearance reads the index
@@ -2217,29 +2198,26 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
             });
         }
     });
-    // The playhead's colour is the same shape of thing as the accent: one
-    // int on the Theme global, remembered as the accent's name it points
-    // at, or as the hex of a colour picked by hand. Lime is the palette's
-    // own, and the file then names none.
     app.on_settings_playhead_chosen({
         move |index| {
             Shell::with(|shell, app| {
                 let theme = app.global::<Theme>();
-                let names = theme.get_accent_names();
-                let Some(name) = usize::try_from(index)
-                    .ok()
-                    .and_then(|row| slint::Model::row_data(&names, row))
-                else {
-                    return;
-                };
-                if index > 0 {
-                    log::info!("settings: Playhead colour {name}");
+                let default = if theme.get_banco_desktop() { -1 } else { 0 };
+                let choice = if index == default {
+                    None
                 } else {
-                    log::info!("settings: Playhead colour the theme's own");
-                }
+                    let names = theme.get_accent_names();
+                    let Some(name) = usize::try_from(index)
+                        .ok()
+                        .and_then(|row| slint::Model::row_data(&names, row))
+                    else {
+                        return;
+                    };
+                    Some(prefs::Preferences::accent_id(&name))
+                };
                 theme.set_playhead_choice(index);
                 let mut studio = shell.studio.borrow_mut();
-                studio.prefs.playhead = (index > 0).then(|| prefs::Preferences::accent_id(&name));
+                studio.prefs.playhead = choice;
                 studio.prefs.save(&studio.host.dirs);
             });
         }
@@ -2997,7 +2975,7 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     // anything else can end the process, and the exit says it failed.
     if let Err(error) = &result {
         log::error!(
-            "close: the window could not run: {error}; Concat quits, and the next launch starts safe"
+            "close: the window could not run: {error}; DaProd Editor Video quits, and the next launch starts safe"
         );
         // The mark stays: the next launch starts safe.
         if let Some(watch) = &startup_mark {
@@ -3106,7 +3084,7 @@ fn stop_exports() {
     }
     if exporter.is_busy() {
         log::warn!(
-            "close: wanted the export stopped before quitting, but it ran on past {}; Concat quits anyway",
+            "close: wanted the export stopped before quitting, but it ran on past {}; DaProd Editor Video quits anyway",
             concat_log::span(EXPORT_PATIENCE)
         );
     }

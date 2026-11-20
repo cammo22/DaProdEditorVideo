@@ -5,6 +5,7 @@ import { Theme } from "../theme/theme.slint";
 import { Editor } from "../editor.slint";
 import { ColSplitter, RowSplitter } from "splitter.slint";
 import { Seat } from "seat.slint";
+import { PaneKind } from "pane-switcher.slint";
 
 // The editor shell: whatever arrangement of views the layout tree currently
 // describes, drawn out of the two lists Rust publishes.
@@ -29,6 +30,16 @@ export component Workspace inherits Rectangle {
 
     background: Theme.page;
 
+    // Place the stereo meters above the inspector when it shares the upper
+    // row with the monitor and the timeline spans the desk below.
+    property <bool> console-meters: Editor.seats.length == 4 && Editor.dividers.length == 3
+        && !Editor.dividers[0].columns && Editor.dividers[1].columns && Editor.dividers[2].columns
+        && Editor.seats[0].kind == PaneKind.media
+        && Editor.seats[1].kind == PaneKind.preview
+        && Editor.seats[2].kind == PaneKind.inspector
+        && Editor.seats[3].kind == PaneKind.timeline
+        && Editor.seats[2].height >= 180px && Editor.seats[2].width >= 160px;
+
     // The box, on the way up. `init` as well as the two `changed` handlers,
     // because a window that opens and is never resized still has to be laid
     // out once — and the first layout is exactly when nothing has changed yet.
@@ -43,6 +54,7 @@ export component Workspace inherits Rectangle {
         height: seat.height;
         kind: seat.kind;
         index: seat.index;
+        console-meters: root.console-meters;
 
         picked(kind) => { Editor.dock-set(seat.index, kind); }
         dropped-on(from, side) => { Editor.dock-dropped(from, seat.index, side); }

@@ -254,32 +254,24 @@ pub fn lay_out(node: &Dock, (x, y, w, h): (f32, f32, f32, f32), out: &mut DockLa
     }
 }
 
-/// The arrangement the editor opens with: the inspector a column down the
-/// whole right side, and in the rest the library and the monitor across the
-/// top and the timeline under both of them. The inspector is the tallest
-/// thing in the window - a stack of sections that would otherwise scroll -
-/// and the timeline gives up its right end to it, which is the end with
-/// nothing on it yet. About 0.22 of the width to the inspector and 0.25 to
-/// the library, which is 0.32 of what is left once the inspector has had
-/// its share; the timeline takes the lower 0.4 of the height.
+/// Banco opens with a wide media bin, a central monitor and a right-hand
+/// inspector above a full-width timeline. Saved dock trees take precedence.
 pub fn default_dock() -> Dock {
     Dock::Split {
-        columns: true,
-        ratio: 0.78,
+        columns: false,
+        ratio: 0.47,
         first: Box::new(Dock::Split {
-            columns: false,
-            ratio: 0.6,
+            columns: true,
+            ratio: 0.78,
             first: Box::new(Dock::Split {
                 columns: true,
-                ratio: 0.32,
+                ratio: 0.55,
                 first: Dock::leaf(PaneKind::Media),
                 second: Dock::leaf(PaneKind::Preview),
             }),
-            // The timeline, whose VU meters are a column at its own right
-            // edge (see vu-meter.slint) rather than a seat of their own.
-            second: Dock::leaf(PaneKind::Timeline),
+            second: Dock::leaf(PaneKind::Inspector),
         }),
-        second: Dock::leaf(PaneKind::Inspector),
+        second: Dock::leaf(PaneKind::Timeline),
     }
 }
 
@@ -425,6 +417,22 @@ pub fn nearest_row(heights: &[f32], y: f32) -> i32 {
 #[cfg(test)]
 mod saved_tests {
     use super::*;
+
+    #[test]
+    fn banco_places_the_timeline_under_all_three_desktop_panes() {
+        let mut layout = DockLayout::default();
+        lay_out(&default_dock(), (0.0, 0.0, 1400.0, 760.0), &mut layout);
+        let [media, preview, inspector, timeline] = layout.seats.as_slice() else {
+            panic!("Banco has four panes");
+        };
+        assert_eq!(media.kind, PaneKind::Media);
+        assert_eq!(preview.kind, PaneKind::Preview);
+        assert_eq!(inspector.kind, PaneKind::Inspector);
+        assert_eq!(timeline.kind, PaneKind::Timeline);
+        assert!(media.width > preview.width);
+        assert!(inspector.y + inspector.height < timeline.y);
+        assert_eq!((timeline.x, timeline.width), (0.0, 1400.0));
+    }
 
     #[test]
     fn a_dock_comes_back_as_it_was_saved() {

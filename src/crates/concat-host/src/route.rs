@@ -291,7 +291,7 @@ fn system(_url: &str, scheme: &str, host: &str) -> Option<String> {
     let settings = Scutil::parse(&String::from_utf8_lossy(&output.stdout));
     if settings.on("ProxyAutoConfigEnable") {
         log::debug!(
-            "network: this Mac is set to a proxy script ({}), which Concat does not run",
+            "network: this Mac is set to a proxy script ({}), which the app does not run",
             settings
                 .value("ProxyAutoConfigURLString")
                 .unwrap_or_default()

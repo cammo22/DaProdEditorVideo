@@ -460,9 +460,12 @@ component PageTab inherits Rectangle {
 
     height: 30px;
     border-radius: Theme.r-sm;
-    background: root.current ? Theme.field-active
+    background: root.current ? Theme.accent-soft
         : touch.has-hover ? Theme.field
         : Colors.transparent;
+
+    border-width: root.current ? 1px : 0px;
+    border-color: Theme.accent.with-alpha(0.55);
 
     animate background { duration: 100ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
 
@@ -476,14 +479,14 @@ component PageTab inherits Rectangle {
             Icon {
                 glyph: root.glyph;
                 size: 13px;
-                tint: root.current ? Theme.fg : Theme.fg-muted;
+                tint: root.current ? Theme.accent : Theme.fg-muted;
             }
         }
 
         Text {
             horizontal-stretch: 1;
             text: root.label;
-            color: root.current ? Theme.fg : Theme.fg-muted;
+            color: root.current ? Theme.accent : Theme.fg-muted;
             font-size: Theme.fs;
             vertical-alignment: center;
             overflow: elide;
@@ -671,7 +674,7 @@ export component SettingsDialog inherits Sheet {
     /// The playhead's colour, picked by hand in place of the palette's own.
     callback playhead-changed(colour: color);
     /// One of the accents for the playhead, as an index into
-    /// `Theme.accent-names`: 0, Lime, is the palette's own.
+    /// `Theme.accent-names`, with -1 for the desktop default.
     callback playhead-chosen(index: int);
     /// The interface scale, as an index into the scales the row lists: 0
     /// follows the display's own.
@@ -718,7 +721,7 @@ export component SettingsDialog inherits Sheet {
     property <[string]> accent-labels: [
         I18n.t("settings.lime"), I18n.t("settings.sky"),
         I18n.t("settings.violet"), I18n.t("settings.rose"), I18n.t("settings.amber"),
-        I18n.t("settings.mint"),
+        I18n.t("settings.mint"), I18n.t("settings.cyan"),
     ];
 
     /// The window is a phone's. No Automation page then - the API on a socket
@@ -852,6 +855,7 @@ export component SettingsDialog inherits Sheet {
                 y: 0;
                 width: parent.width;
                 height: body.strip;
+                background: Theme.window-header;
 
                 Flickable {
                     content-width: Math.max(self.width, tabs.preferred-width);
@@ -880,6 +884,7 @@ export component SettingsDialog inherits Sheet {
                 y: 0;
                 width: body.pages;
                 height: parent.height;
+                background: Theme.raised;
                 clip: true;
 
                 VerticalLayout {
@@ -1134,7 +1139,7 @@ export component SettingsDialog inherits Sheet {
                             clicked => { root.accent-changed(index); }
                         }
 
-                        // The seventh dot is any colour at all. Grey with a
+                        // The last dot is any colour at all. Grey with a
                         // plus until one is picked — a grey dot is a blank,
                         // not an offer of grey — and the picked colour once
                         // one is. It opens the same picker a title's colour
@@ -1172,6 +1177,11 @@ export component SettingsDialog inherits Sheet {
                                 }
                             }
                         }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
 
                         Text {
                             text: Theme.accent-is-custom ? I18n.t("common.custom")
@@ -1191,15 +1201,7 @@ export component SettingsDialog inherits Sheet {
                     }
                 }
 
-                // The playhead: the one line over the lanes that has to be
-                // found at a glance, whatever the clips under it are wearing.
-                // The same seven dots the accent has: the six on the list,
-                // each worn as the palette that is on has it - the first,
-                // Lime, is the palette's own playhead - and the seventh any
-                // colour at all, through the same picker, one colour under
-                // both palettes. Read off the Theme global for the same
-                // reason the accent is, and the hex is always shown: what the
-                // line is wearing is the whole point of the row.
+                // The playhead offers the palette default, named colours and a picker.
                 DialogSection {
                     ruled: false;
                     title: I18n.t("settings.playhead");
@@ -1209,8 +1211,15 @@ export component SettingsDialog inherits Sheet {
                         spacing: 6px;
                         alignment: start;
 
+                        if Theme.banco-desktop: AccentSwatch {
+                            colour: Theme.playhead-default;
+                            label: I18n.t("common.auto");
+                            chosen: Theme.playhead-choice < 0;
+                            clicked => { root.playhead-chosen(-1); }
+                        }
+
                         for name[index] in Theme.accent-names: AccentSwatch {
-                            colour: index == 0 ? Theme.playhead-default : Theme.accent-of(index);
+                            colour: index == 0 && !Theme.banco-desktop ? Theme.playhead-default : Theme.accent-of(index);
                             label: root.accent-labels[index];
                             chosen: Theme.playhead-choice == index;
                             clicked => { root.playhead-chosen(index); }
@@ -1248,10 +1257,16 @@ export component SettingsDialog inherits Sheet {
                                 }
                             }
                         }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: start;
 
                         Text {
                             text: Theme.playhead-is-custom ? I18n.t("common.custom")
-                                : root.accent-labels[Math.max(0, Theme.playhead-choice)];
+                                : Theme.playhead-choice < 0 ? I18n.t("common.auto")
+                                : root.accent-labels[Theme.playhead-choice];
                             color: Theme.fg-muted;
                             font-size: Theme.fs;
                             vertical-alignment: center;

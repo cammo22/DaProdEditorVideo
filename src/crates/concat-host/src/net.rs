@@ -80,7 +80,7 @@ impl Cause {
     /// language from the cause itself.
     pub fn describe(self) -> String {
         match self {
-            Cause::Blocked => "something on this computer blocked Concat from the network - \
+            Cause::Blocked => "something on this computer blocked DaProd Editor Video from the network - \
                                a firewall, an antivirus or a VPN; the browser may be allowed \
                                where Concat is not"
                 .to_owned(),
@@ -320,7 +320,7 @@ fn roots() -> rustls::RootCertStore {
         log::debug!("network: the system's root certificates were not all read: {error}");
     }
     let (added, _) = roots.add_parsable_certificates(system.certs);
-    log::debug!("network: {added} of the system's root certificates trusted beside Concat's");
+    log::debug!("network: {added} of the system's root certificates trusted alongside the bundled certificates");
     roots
 }
 

@@ -1985,7 +1985,7 @@ export component Lanes inherits Rectangle {
             y: 0;
             width: parent.width;
             height: root.ruler-height;
-            background: Theme.ruler;
+            background: root.banco-wheel ? @linear-gradient(180deg, Theme.raised 0%, Theme.ruler 100%) : Theme.ruler;
             clip: true;
 
             // Fixed count, clipped to the pane. A tick count derived from the

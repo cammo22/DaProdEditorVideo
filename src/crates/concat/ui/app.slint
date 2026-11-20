@@ -751,10 +751,8 @@ export component App inherits Window {
                 keyboard-menu: root.keyboard-menu;
                 keyboard-token: root.keyboard-menu-token;
                 menu-opened(index, at-x, keyboard) => {
-                    // Under the strip, which is 32px tall - both measured
-                    // from the window's corner, past the system's bars.
                     appmenu.request-x = at-x + root.safe-area-insets.left;
-                    appmenu.request-y = 32px + root.safe-area-insets.top;
+                    appmenu.request-y = self.height + root.safe-area-insets.top;
                     root.menu-by-keyboard = keyboard;
                     root.menu-opened(index);
                 }
@@ -807,6 +805,33 @@ export component App inherits Window {
             // editor.slint.
             if !root.on-start && !root.phone: Workspace {
                 vertical-stretch: 1;
+            }
+
+            if !root.on-start && !root.phone: Rectangle {
+                height: 22px;
+                background: Theme.well;
+
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    spacing: 10px;
+
+                    Text {
+                        horizontal-stretch: 1;
+                        text: I18n.t("common.duration") + "  " + Editor.project-duration;
+                        color: Theme.fg-muted;
+                        font-family: Theme.font-technical;
+                        font-size: Theme.fs-xs;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "\{Editor.output-width} × \{Editor.output-height} · \{Math.round(Editor.frame-rate)} fps";
+                        color: Theme.fg-muted;
+                        font-family: Theme.font-technical;
+                        font-size: Theme.fs-xs;
+                        vertical-alignment: center;
+                    }
+                }
             }
 
             // The phone's editor reads the same global; only the shell round

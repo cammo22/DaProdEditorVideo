@@ -30,11 +30,8 @@ impl Studio {
     // ── publishing ──
 
     pub fn publish(&self, app: &App, models: &Models) {
-        // The tray's three menu labels and the tooltips' bare-letter
-        // hints, spelled from the keymap so a rebind moves the words
-        // with the key. An action left unbound shows an em dash rather
-        // than an empty bracket: there is a key, there just is not one
-        // now.
+        // Use the active keymap for the tray legends and tooltips.
+        // An unbound action displays an em dash.
         let hint = |id: &str| {
             let shown = keymap::label(&self.prefs, id);
             if shown.is_empty() {
@@ -47,6 +44,9 @@ impl Studio {
         editor.set_keys_undo(hint("undo").into());
         editor.set_keys_redo(hint("redo").into());
         editor.set_keys_split(hint("split").into());
+        editor.set_keys_delete(hint("delete").into());
+        editor.set_keys_ripple_delete(hint("ripple-delete").into());
+        editor.set_keys_clip_group(hint("toggle-clip-group").into());
         editor.set_keys_split_tool(hint("split-tool").into());
         editor.set_keys_delete_left(hint("delete-left").into());
         editor.set_keys_delete_right(hint("delete-right").into());

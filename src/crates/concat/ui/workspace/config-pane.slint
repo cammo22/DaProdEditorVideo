@@ -506,6 +506,7 @@ export component ConfigPane inherits Rectangle {
     }
 
     Pane {
+        square: Theme.banco-desktop;
         // ── details ──────────────────────────────────────────────────────
         if !root.has-selection && !root.on-transition: Rectangle {
             // The same 52px as the panes either side of it; see PaneHeader.

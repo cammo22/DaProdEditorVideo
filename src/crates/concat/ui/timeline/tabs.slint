@@ -40,7 +40,7 @@ component Tab inherits Rectangle {
     property <length> furniture: root.closable ? 38px : 22px;
 
     width: renaming ? 112px : root.text-w + root.furniture;
-    height: 30px;
+    height: 24px;
     border-radius: Theme.r-sm;
     // Bottom corners squared: the tab meets the strip's edge, it does not
     // float above it. Slint has no per-corner radius, so the two lower corners
@@ -58,6 +58,14 @@ component Tab inherits Rectangle {
         width: parent.width;
         height: Theme.r-sm;
         background: parent.background;
+    }
+
+    if root.current: Rectangle {
+        x: 5px;
+        y: 0;
+        width: Math.max(0px, parent.width - 10px);
+        height: 2px;
+        background: Theme.accent;
     }
 
     // Everything sits inside the hover target, so the close button revealed on
@@ -185,7 +193,7 @@ export component TimelineTabs inherits Rectangle {
     /// of `from` itself. Rust discounts the moving tab.
     callback moved(from: int, to: int);
 
-    height: 32px;
+    height: 26px;
     background: Theme.well;
 
     // The strip scrolls. Every tab is as wide as its name, so a project with

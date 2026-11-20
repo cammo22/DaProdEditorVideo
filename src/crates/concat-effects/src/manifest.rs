@@ -533,8 +533,8 @@ impl Manifest {
         }
         if self.format > FORMAT {
             return Err(self.invalid(format!(
-                "written for package format {}, and this Concat reads up to {FORMAT}: \
-                 a newer Concat is needed",
+                "written for package format {}, and this version reads up to {FORMAT}: \
+                 a newer version is needed",
                 self.format
             )));
         }
@@ -920,7 +920,7 @@ mod tests {
         let current = Manifest::parse(&format!("format = {FORMAT}\n{shader}")).expect("parses");
         assert_eq!(current.format, FORMAT);
         assert!(current.scene_linear());
-        rejects(&format!("format = {}\n{GOOD}", FORMAT + 1), "newer Concat");
+        rejects(&format!("format = {}\n{GOOD}", FORMAT + 1), "newer version");
         rejects(&format!("format = 0\n{GOOD}"), "format is 0");
         rejects(&format!("format = \"1\"\n{GOOD}"), "format");
     }

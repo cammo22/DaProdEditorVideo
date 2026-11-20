@@ -220,6 +220,8 @@ component Header inherits Rectangle {
     callback sized(size: TrackSize);
     callback removed();
 
+    background: @linear-gradient(90deg, Theme.panel 0%, Theme.ruler 100%);
+
     Rectangle {
         x: 0;
         y: parent.height - 1px;
@@ -322,6 +324,7 @@ export component TrackHeaders inherits Rectangle {
     /// Each row carries its own height and where it starts; see TrackData.
     in property <[TrackData]> tracks;
     in property <length> ruler-height: 28px;
+    in property <string> timecode;
     in property <length> track-scroll;
     /// How much taller the stack is than the room it has. Handed down rather
     /// than measured here: the pane already works it out to clamp the offset,
@@ -401,7 +404,16 @@ export component TrackHeaders inherits Rectangle {
             y: 0;
             width: parent.width;
             height: root.ruler-height;
-            background: Theme.ruler;
+            background: @linear-gradient(180deg, Theme.raised 0%, Theme.ruler 100%);
+            Text {
+                x: 8px;
+                height: parent.height;
+                text: root.timecode;
+                font-family: Theme.font-technical;
+                font-size: Theme.fs-sm;
+                color: Theme.fg;
+                vertical-alignment: center;
+            }
 
             Rectangle {
                 x: 0;

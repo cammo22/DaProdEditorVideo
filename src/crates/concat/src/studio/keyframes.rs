@@ -1722,7 +1722,7 @@ impl Studio {
         for dir in tripped {
             if self.tripped_strokes.insert(dir) {
                 log::warn!(
-                    "cutout: skipped a Smart brush stroke: Concat closed while reading it last time, and would again; painting it again reads it"
+                    "cutout: skipped a Smart brush stroke: DaProd Editor Video closed while reading it last time, and would again; painting it again reads it"
                 );
                 self.notify(&t("studio.smartBrushSkipped"), true);
             }

@@ -78,6 +78,43 @@ pub struct SavedLayout {
     pub maximized: bool,
 }
 
+impl SavedLayout {
+    /// Restore the wide dock, upgrading the pre-Banco factory layout on desktop.
+    pub fn restore_wide(&self, phone: bool) -> Option<crate::dock::Dock> {
+        use crate::dock::{Dock, SavedDock, default_dock};
+
+        let saved = self.wide.as_ref()?;
+        // Match the saved tree before restoring it, which can clamp ratios.
+        if !phone
+            && let SavedDock::Split {
+                columns: true,
+                ratio: 0.78,
+                first,
+                second,
+            } = saved
+            && matches!(second.as_ref(), SavedDock::Pane(name) if name == "inspector")
+            && let SavedDock::Split {
+                columns: false,
+                ratio: 0.6,
+                first,
+                second,
+            } = first.as_ref()
+            && matches!(second.as_ref(), SavedDock::Pane(name) if name == "timeline")
+            && let SavedDock::Split {
+                columns: true,
+                ratio: 0.32,
+                first,
+                second,
+            } = first.as_ref()
+            && matches!(first.as_ref(), SavedDock::Pane(name) if name == "media")
+            && matches!(second.as_ref(), SavedDock::Pane(name) if name == "preview")
+        {
+            return Some(default_dock());
+        }
+        Dock::from_saved(saved)
+    }
+}
+
 /// Remembered preferences.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -88,14 +125,12 @@ pub struct Preferences {
     pub last_project_location: Option<String>,
     /// The accent, by the lower-cased name the theme lists it under —
     /// "lime", "sky", ... — or as "#rrggbb" for a colour picked by hand.
-    /// `None`, or a name no longer on the list, is the first one, which is
-    /// Lime.
+    /// Absent or unrecognized names use the platform default.
     pub accent: Option<String>,
     /// The playhead's colour the accent's way: the lower-cased name of one
     /// of the accents - "sky", ... - worn as each palette has it, or
     /// "#rrggbb" for a colour picked by hand in Settings > Appearance.
-    /// `None`, or a name no longer on the list, is the palette's own, which
-    /// is Lime.
+    /// Absent or unrecognized names use the palette’s own playhead.
     pub playhead: Option<String>,
     /// The interface scale, as a percent from [`UI_SCALES`]: the window and
     /// everything in it are drawn this much larger than the display's own
@@ -297,19 +332,26 @@ impl Preferences {
         self.vu_meters.unwrap_or(true)
     }
 
-    /// Which of `names` — the theme's accents, in its order — the remembered
-    /// accent is. The first when nothing is remembered, and the first when
-    /// the name is one the list no longer has: it is the default, and a
-    /// choice that has gone away should fall back to the default rather
-    /// than to whatever happens to sit at its old position.
-    pub fn accent_index(&self, names: impl IntoIterator<Item = impl AsRef<str>>) -> usize {
-        let Some(wanted) = self.accent.as_deref().map(str::trim) else {
-            return 0;
-        };
-        names
-            .into_iter()
-            .position(|name| Self::accent_id(name.as_ref()) == wanted.to_lowercase())
+    /// Resolve the remembered accent by name, with Cyan as the desktop default.
+    pub fn accent_index(&self, names: &[impl AsRef<str>], phone: bool) -> usize {
+        let default = if phone { "lime" } else { "cyan" };
+        Self::palette_index(self.accent.as_deref(), names)
+            .or_else(|| Self::palette_index(Some(default), names))
             .unwrap_or(0)
+    }
+
+    /// A named playhead choice, or the palette default slot.
+    pub fn playhead_index(&self, names: &[impl AsRef<str>], phone: bool) -> i32 {
+        Self::palette_index(self.playhead.as_deref(), names)
+            .map(|index| index as i32)
+            .unwrap_or(if phone { 0 } else { -1 })
+    }
+
+    fn palette_index(wanted: Option<&str>, names: &[impl AsRef<str>]) -> Option<usize> {
+        let wanted = wanted?.trim();
+        names
+            .iter()
+            .position(|name| name.as_ref().eq_ignore_ascii_case(wanted))
     }
 
     /// The id an accent is remembered under: its name, lower-cased, so the
@@ -706,6 +748,163 @@ fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn only_the_exact_pre_banco_wide_dock_is_replaced_on_desktop() {
+        use crate::dock::{Dock, compact_dock, default_dock};
+
+        let dirs = scratch("pre-banco-wide-dock");
+        let file = serde_json::json!({
+            "layout": {
+                "wide": {"split": {
+                    "columns": true,
+                    "ratio": 0.78,
+                    "first": {"split": {
+                        "columns": false,
+                        "ratio": 0.6,
+                        "first": {"split": {
+                            "columns": true,
+                            "ratio": 0.32,
+                            "first": {"pane": "media"},
+                            "second": {"pane": "preview"},
+                        }},
+                        "second": {"pane": "timeline"},
+                    }},
+                    "second": {"pane": "inspector"},
+                }},
+                "compact": compact_dock().to_saved(),
+                "width": 1240.0,
+                "height": 760.0,
+                "maximized": true,
+            },
+            "proxies": true,
+            "future": {"keep": 1},
+        });
+        std::fs::write(dirs.config.join(FILE), serde_json::to_vec(&file).unwrap()).unwrap();
+        let mut prefs = Preferences::load(&dirs);
+        let layout = prefs.layout.as_ref().unwrap();
+        let banco = layout.restore_wide(false).unwrap().to_saved();
+        assert_eq!(banco, default_dock().to_saved());
+        assert_eq!(
+            layout.restore_wide(true).unwrap().to_saved(),
+            *layout.wide.as_ref().unwrap(),
+        );
+        assert_eq!(on_disk(&dirs), file);
+
+        for (path, ratio) in [
+            ("/split/ratio", 0.78_f32),
+            ("/split/first/split/ratio", 0.6_f32),
+            ("/split/first/split/first/split/ratio", 0.32_f32),
+        ] {
+            let mut adjusted = file["layout"].clone();
+            *adjusted["wide"].pointer_mut(path).unwrap() = serde_json::json!(ratio.next_up());
+            let adjusted: SavedLayout = serde_json::from_value(adjusted).unwrap();
+            assert_eq!(
+                adjusted.restore_wide(false).unwrap().to_saved(),
+                *adjusted.wide.as_ref().unwrap(),
+                "{path}",
+            );
+        }
+        assert_eq!(
+            Dock::from_saved(layout.compact.as_ref().unwrap())
+                .unwrap()
+                .to_saved(),
+            compact_dock().to_saved(),
+        );
+
+        // The regular desktop layout save records the restored wide dock.
+        prefs.layout.as_mut().unwrap().wide = Some(banco.clone());
+        prefs.save(&dirs);
+        let mut expected = file;
+        expected["layout"]["wide"] = serde_json::to_value(banco).unwrap();
+        assert_eq!(on_disk(&dirs), expected);
+        std::fs::remove_dir_all(dirs.config.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn banco_startup_defaults_cover_new_and_legacy_profiles() {
+        let root =
+            std::env::temp_dir().join(format!("concat-banco-defaults-{}", std::process::id()));
+        let dirs = AppDirs {
+            config: root.join("config"),
+            data: root.join("data"),
+        };
+        let path = dirs.config.join(FILE);
+        let names = ["Lime", "Sky", "Cyan"];
+        let fresh = Preferences::load(&dirs);
+        assert!(fresh.dark.unwrap_or(true));
+        assert_eq!(fresh.accent_index(&names, false), 2);
+        assert_eq!(fresh.playhead_index(&names, false), -1);
+        assert_eq!(fresh.accent_index(&names, true), 0);
+        assert_eq!(fresh.playhead_index(&names, true), 0);
+        assert!(!path.exists());
+
+        std::fs::create_dir_all(&dirs.config).unwrap();
+        let legacy = br#"{"accent":null,"playhead":null,"proxies":true,"future":{"keep":1}}"#;
+        std::fs::write(&path, legacy).unwrap();
+        let mut upgraded = Preferences::load(&dirs);
+        assert_eq!(upgraded.accent_index(&names, false), 2);
+        assert_eq!(upgraded.playhead_index(&names, false), -1);
+        assert_eq!(std::fs::read(&path).unwrap(), legacy);
+
+        upgraded.ui_scale = Some(125);
+        upgraded.save(&dirs);
+        let saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(saved["future"]["keep"], 1);
+        let reloaded = Preferences::load(&dirs);
+        assert!(reloaded.proxies);
+        assert_eq!(reloaded.ui_scale, Some(125));
+        assert_eq!(reloaded.accent_index(&names, false), 2);
+        assert_eq!(reloaded.playhead_index(&names, false), -1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn banco_keeps_explicit_appearance_and_window_layout() {
+        let root = std::env::temp_dir().join(format!("concat-banco-layout-{}", std::process::id()));
+        let dirs = AppDirs {
+            config: root.join("config"),
+            data: root.join("data"),
+        };
+        std::fs::create_dir_all(&dirs.config).unwrap();
+        let path = dirs.config.join(FILE);
+        let legacy = serde_json::json!({
+            "dark": false,
+            "accent": "lime",
+            "playhead": "sky",
+            "layout": {
+                "wide": crate::dock::SavedDock::Split {
+                    columns: false,
+                    ratio: 0.65,
+                    first: Box::new(crate::dock::SavedDock::Pane("preview".into())),
+                    second: Box::new(crate::dock::SavedDock::Pane("timeline".into())),
+                },
+                "compact": crate::dock::compact_dock().to_saved(),
+                "width": 1240.0,
+                "height": 760.0,
+                "maximized": true,
+            },
+            "lastProjectLocation": "/existing-projects",
+        });
+        std::fs::write(&path, serde_json::to_vec(&legacy).unwrap()).unwrap();
+        let mut prefs = Preferences::load(&dirs);
+        let names = ["Lime", "Sky", "Cyan"];
+        assert_eq!(prefs.dark, Some(false));
+        assert_eq!(prefs.accent_index(&names, false), 0);
+        assert_eq!(prefs.playhead_index(&names, false), 1);
+        assert!(prefs.remembers_layout());
+        prefs.playhead = Some("#123456".into());
+        prefs.save(&dirs);
+
+        let saved: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(saved["layout"], legacy["layout"]);
+        assert_eq!(saved["lastProjectLocation"], legacy["lastProjectLocation"]);
+        assert_eq!(
+            Preferences::load(&dirs).playhead.as_deref(),
+            Some("#123456")
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     /// A choice made is kept, whatever the platform's default: a phone
     /// that turned the magnet off stays off, and a desk that turned it on
     /// stays on.
@@ -832,7 +1031,7 @@ mod tests {
     /// Nothing remembered is the first accent, which is the default.
     #[test]
     fn no_accent_is_the_first() {
-        assert_eq!(Preferences::default().accent_index(NAMES), 0);
+        assert_eq!(Preferences::default().accent_index(&NAMES, false), 0);
     }
 
     /// A remembered name finds its row whatever its case or spacing, since
@@ -844,7 +1043,7 @@ mod tests {
                 accent: Some(spelled.to_owned()),
                 ..Preferences::default()
             };
-            assert_eq!(prefs.accent_index(NAMES), 2, "{spelled:?}");
+            assert_eq!(prefs.accent_index(&NAMES, false), 2, "{spelled:?}");
         }
     }
 
@@ -856,13 +1055,13 @@ mod tests {
             accent: Some("chartreuse".to_owned()),
             ..Preferences::default()
         };
-        assert_eq!(prefs.accent_index(NAMES), 0);
-        assert_eq!(prefs.accent_index(Vec::<String>::new()), 0);
+        assert_eq!(prefs.accent_index(&NAMES, false), 0);
+        assert_eq!(prefs.accent_index(&[] as &[&str], false), 0);
         let blank = Preferences {
             accent: Some(String::new()),
             ..Preferences::default()
         };
-        assert_eq!(blank.accent_index(NAMES), 0);
+        assert_eq!(blank.accent_index(&NAMES, false), 0);
     }
 
     /// The id is what gets written and what gets matched, so the two have
@@ -876,7 +1075,7 @@ mod tests {
         let text = serde_json::to_string(&prefs).unwrap();
         assert!(text.contains("\"accent\":\"sky\""), "{text}");
         let back: Preferences = serde_json::from_str(&text).unwrap();
-        assert_eq!(back.accent_index(NAMES), 1);
+        assert_eq!(back.accent_index(&NAMES, false), 1);
     }
 
     /// A hex is a picked colour and a word is not, whatever else is around
@@ -889,7 +1088,7 @@ mod tests {
             ..Preferences::default()
         };
         assert_eq!(picked.custom_accent(), Some("#FF00AA"));
-        assert_eq!(picked.accent_index(NAMES), 0);
+        assert_eq!(picked.accent_index(&NAMES, false), 0);
         let named = Preferences {
             accent: Some("sky".to_owned()),
             ..Preferences::default()
@@ -910,7 +1109,7 @@ mod tests {
         let back: Preferences = serde_json::from_str(r#"{"dark": false}"#).unwrap();
         assert_eq!(back.dark, Some(false));
         assert_eq!(back.accent, None);
-        assert_eq!(back.accent_index(NAMES), 0);
+        assert_eq!(back.accent_index(&NAMES, false), 0);
     }
 
     /// A picked playhead colour is written as its hex and read back as

@@ -6,6 +6,7 @@ import { Theme } from "../theme/theme.slint";
 import { Fmt } from "../util.slint";
 import { Glyph, Icon } from "../icons.slint";
 import { IconButton } from "../primitives/panel.slint";
+import { FocusRing } from "../primitives/focus-ring.slint";
 import { Tip } from "../primitives/tooltip.slint";
 import { NumberField } from "../primitives/number-field.slint";
 import { Select } from "../primitives/select.slint";
@@ -758,6 +759,7 @@ export component PreviewPane inherits Rectangle {
     /// A library file shown instead of the timeline, by name; empty when
     /// the monitor is the timeline's.
     in property <string> source-name;
+    in property <string> program-name;
     callback source-closed();
     /// The decoded frame. Drawn fitted to the stage when there is one.
     in property <image> frame;
@@ -838,22 +840,56 @@ export component PreviewPane inherits Rectangle {
     changed frames => { root.seed(); }
 
     Pane {
+        square: !root.bare;
         if !root.bare: PaneHeader {
-            title: I18n.t("common.preview");
+            height: 34px;
+            title: root.source-name == "" ? I18n.upper("banco.program") : I18n.upper("previewPane.source");
+            indicator: root.source-name == "" ? #6febae : #57ddf1;
+            title-color: root.source-name == "" ? Theme.fg : #57ddf1;
 
-            // The output, stated rather than implied. Tabular-ish and dim: it
-            // is a fact about the project, not a control.
-            VerticalLayout {
-                alignment: center;
-                Text {
-                    text: "\{root.output-width} × \{root.output-height} · \{Math.round(root.frame-rate)} fps";
-                    color: Theme.fg-dim;
-                    font-family: Theme.font-technical;
-                    font-size: Theme.fs;
-                    vertical-alignment: center;
-                }
+            if root.program-name != "" && root.source-name == "" && root.width >= 460px: Text {
+                max-width: 120px;
+                text: root.program-name;
+                overflow: elide;
+                color: Theme.fg-muted;
+                font-size: Theme.fs-sm;
+                vertical-alignment: center;
             }
 
+            if root.source-name == "": IconButton {
+                glyph: Glyph.image;
+                label: I18n.t("previewPane.saveFrameAs");
+                enabled: root.has-picture;
+                clicked => { root.save-frame(); }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                RatioPicker {
+                    widths: root.ratios-w;
+                    heights: root.ratios-h;
+                    names: root.ratio-names;
+                    current: root.ratio-index;
+                    changed(index) => { root.ratio-changed(index); }
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Select {
+                    snug: true;
+                    width: self.natural-width;
+                    current: root.quality-index;
+                    options: [I18n.t("common.full"), I18n.t("previewPane.half"), I18n.t("previewPane.quarter")];
+                    details: ["1:1", "1:2", "1:4"];
+                    changed(index) => { root.quality-changed(index); }
+                }
+            }
+            IconButton {
+                glyph: Glyph.fit;
+                label: I18n.t("previewPane.fitFramePane");
+                enabled: !viewport.fitted;
+                clicked => { viewport.fit(); }
+            }
             VerticalLayout {
                 alignment: center;
                 PaneSwitcher {
@@ -879,7 +915,7 @@ export component PreviewPane inherits Rectangle {
 
             // Less air on a phone, where the pane is the screen's width and
             // every pixel of margin is a pixel the picture does not get.
-            property <length> pad: root.bare ? 8px : 16px;
+            property <length> pad: 8px;
             property <length> room-w: Math.max(1px, self.width - 2 * self.pad);
             property <length> room-h: Math.max(1px, self.height - 2 * self.pad);
 
@@ -1217,6 +1253,89 @@ export component PreviewPane inherits Rectangle {
             }
         }
 
+        if !root.bare: Rectangle {
+            height: 12px;
+            property <bool> seekable: root.duration > 0;
+            property <float> position: Math.max(0, Math.min(root.duration, root.playhead));
+            property <float> frame-step: 1 / Math.max(1, root.frame-rate);
+
+            forward-focus: scrub-focus;
+            accessible-role: slider;
+            accessible-label: I18n.t("banco.monitorScrub");
+            accessible-enabled: self.seekable;
+            accessible-value: self.position;
+            accessible-value-minimum: 0;
+            accessible-value-maximum: Math.max(0, root.duration);
+            accessible-value-step: self.frame-step;
+            accessible-action-set-value(value) => {
+                if (value.is-float()) { self.seek-to(value.to-float()); }
+            }
+            accessible-action-increment => { self.seek-to(self.position + self.frame-step); }
+            accessible-action-decrement => { self.seek-to(self.position - self.frame-step); }
+
+            function seek-to(seconds: float) {
+                if (self.seekable) { root.seek(Math.max(0, Math.min(root.duration, seconds))); }
+            }
+
+            scrub-focus := FocusScope {
+                enabled: parent.seekable;
+                key-pressed(event) => {
+                    if (event.text == Key.LeftArrow || event.text == Key.DownArrow) {
+                        parent.seek-to(parent.position - parent.frame-step);
+                        return accept;
+                    }
+                    if (event.text == Key.RightArrow || event.text == Key.UpArrow) {
+                        parent.seek-to(parent.position + parent.frame-step);
+                        return accept;
+                    }
+                    if (event.text == Key.Home || event.text == Key.End) {
+                        parent.seek-to(event.text == Key.Home ? 0 : root.duration);
+                        return accept;
+                    }
+                    return reject;
+                }
+            }
+
+            TouchArea {
+                enabled: parent.seekable;
+                mouse-cursor: pointer;
+                function scrub() {
+                    let usable = Math.max(1px, self.width - 12px);
+                    parent.seek-to(root.duration * (self.mouse-x - 6px) / usable);
+                }
+                pointer-event(event) => {
+                    if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                        scrub-focus.focus();
+                        self.scrub();
+                    }
+                }
+                moved => { if (self.pressed) { self.scrub(); } }
+            }
+
+            Rectangle {
+                property <float> fraction: Math.max(0, Math.min(1, root.playhead / Math.max(0.001, root.duration)));
+                x: 6px;
+                y: 5px;
+                width: Math.max(0px, parent.width - 12px);
+                height: 3px;
+                border-radius: 2px;
+                background: Theme.well;
+                Rectangle {
+                    width: parent.width * parent.fraction;
+                    height: parent.height;
+                    background: Theme.fg-dim;
+                }
+                Rectangle {
+                    x: Math.max(0px, parent.width * parent.fraction - 1px);
+                    y: -3px;
+                    width: 2px;
+                    height: 9px;
+                    background: root.source-name == "" ? Theme.timecode : Theme.accent;
+                }
+            }
+            FocusRing { active: scrub-focus.has-focus; radius: 2px; }
+        }
+
         // ── the transport ────────────────────────────────────────────────
         if !root.bare: Rectangle {
             height: 46px;
@@ -1230,13 +1349,14 @@ export component PreviewPane inherits Rectangle {
                 background: Theme.line;
             }
 
-            HorizontalLayout {
+            transport := HorizontalLayout {
+                property <length> duration-width: 96px;
                 padding-left: 10px;
                 padding-right: 10px;
-                spacing: 12px;
+                spacing: 6px;
 
                 // Leading: where the playhead is, and how far it has to go.
-                HorizontalLayout {
+                timecode := HorizontalLayout {
                     horizontal-stretch: 1;
                     spacing: 8px;
                     alignment: start;
@@ -1263,17 +1383,10 @@ export component PreviewPane inherits Rectangle {
                         }
                     }
 
-                    Text {
-                        text: "/ " + Fmt.frames-timecode(root.duration, root.frame-rate);
-                        color: Theme.fg-dim;
-                        font-family: Theme.font-technical;
-                        font-size: Theme.fs;
-                        vertical-alignment: center;
-                    }
                 }
 
                 // Centre: the transport itself.
-                HorizontalLayout {
+                transport-buttons := HorizontalLayout {
                     horizontal-stretch: 0;
                     spacing: 2px;
                     alignment: center;
@@ -1297,7 +1410,7 @@ export component PreviewPane inherits Rectangle {
                         glyph: root.playing ? Glyph.pause : Glyph.play;
                         label: root.playing ? I18n.t("previewPane.pause") : I18n.t("previewPane.play");
                         icon-size: 16px;
-                        accent: true;
+                        idle: root.playing ? Theme.danger : #6febae;
                         clicked => { root.play-toggled(); }
                     }
 
@@ -1315,48 +1428,24 @@ export component PreviewPane inherits Rectangle {
                     }
                 }
 
-                // Trailing: what the output is and how close we are looking.
-                HorizontalLayout {
-                    horizontal-stretch: 1;
-                    spacing: 6px;
-                    alignment: end;
-
-                    VerticalLayout {
-                        alignment: center;
-                        RatioPicker {
-                            widths: root.ratios-w;
-                            heights: root.ratios-h;
-                            names: root.ratio-names;
-                            current: root.ratio-index;
-                            changed(index) => { root.ratio-changed(index); }
-                        }
-                    }
-
-                    // What fraction of the frame the engine composites for the
-                    // monitor, and the reason a 4K timeline stays scrubbable
-                    // on a laptop.
-                    VerticalLayout {
-                        alignment: center;
-                        Select {
-                            snug: true;
-                            width: self.natural-width;
-                            current: root.quality-index;
-                            options: [I18n.t("common.full"), I18n.t("previewPane.half"), I18n.t("previewPane.quarter")];
-                            details: ["1:1", "1:2", "1:4"];
-                            changed(index) => { root.quality-changed(index); }
-                        }
-                    }
-
-                    // The one control the view needs: the way back. The
-                    // zoom itself is the wheel's, and a readout of it was
-                    // width spent on a number nobody steers by.
-                    VerticalLayout {
-                        alignment: center;
-                        IconButton {
-                            glyph: Glyph.fit;
-                            label: I18n.t("previewPane.fitFramePane");
-                            enabled: !viewport.fitted;
-                            clicked => { viewport.fit(); }
+                if transport.width >= timecode.min-width + transport-buttons.min-width
+                    + transport.duration-width + transport.padding-left + transport.padding-right
+                    + 2 * transport.spacing: VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: transport.duration-width;
+                        height: 25px;
+                        border-radius: 4px;
+                        background: Theme.well;
+                        Text {
+                            width: parent.width;
+                            height: parent.height;
+                            text: Fmt.frames-timecode(root.duration, root.frame-rate);
+                            color: #6febae;
+                            font-family: Theme.font-technical;
+                            font-size: Theme.fs-sm;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
                         }
                     }
                 }

@@ -92,7 +92,7 @@ mod system {
             if !on {
                 return;
             }
-            let mut reason: Vec<u16> = "Concat is exporting or processing media"
+            let mut reason: Vec<u16> = "DaProd Editor Video is exporting or processing media"
                 .encode_utf16()
                 .chain([0])
                 .collect();
@@ -182,7 +182,7 @@ mod system {
                     );
                     let name = CFStringCreateWithCString(
                         std::ptr::null(),
-                        c"Concat is exporting or processing media".as_ptr(),
+                        c"DaProd Editor Video is exporting or processing media".as_ptr(),
                         K_CF_STRING_ENCODING_UTF8,
                     );
                     let mut id: IOPMAssertionID = 0;

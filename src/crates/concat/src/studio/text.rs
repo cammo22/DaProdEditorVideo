@@ -79,7 +79,7 @@ impl Studio {
             }
             let Some(installed) = presets::install_font_file(&self.host.dirs, &path) else {
                 log::warn!(
-                    "fonts: {file_name} could not be copied into Concat's fonts; it is not imported"
+                    "fonts: {file_name} could not be copied into the app’s fonts; it is not imported"
                 );
                 self.notify(&tf("studio.notAFont", &[&path.display()]), true);
                 continue;

@@ -578,12 +578,14 @@ export global Editor {
     /// listening.
     callback key-chord(text: string, shift: bool, alt: bool, control: bool, meta: bool, on-start: bool) -> bool;
 
-    /// The tray's three menu labels' shortcuts and the tooltips' own key
-    /// hints, as this platform writes them — kept by Rust from the same
-    /// keymap the window dispatches on, so a rebind moves the hint too.
+    /// Shortcut labels for the tray and tooltips, published by Rust from
+    /// the same keymap the window uses to dispatch shortcuts.
     in-out property <string> keys-undo;
     in-out property <string> keys-redo;
     in-out property <string> keys-split;
+    in-out property <string> keys-delete;
+    in-out property <string> keys-ripple-delete;
+    in-out property <string> keys-clip-group;
     in-out property <string> keys-split-tool;
     in-out property <string> keys-delete-left;
     in-out property <string> keys-delete-right;

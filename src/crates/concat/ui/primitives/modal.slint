@@ -115,14 +115,14 @@ export component Modal inherits Rectangle {
         height: root.fill ? root.room-h : Math.min(
             root.surface-height > 0px ? root.surface-height : body.preferred-height,
             root.room-h - 24px);
-        background: Theme.panel;
+        background: root.fill ? Theme.panel : Theme.window-surface;
         border-width: root.fill ? 0px : 1px;
         border-color: Theme.line-strong;
         border-radius: root.fill ? 0px : Theme.r-xl;
         // Lifted off the editor it floats over, as the voiceover card is.
-        drop-shadow-blur: root.floating ? 24px : 0px;
-        drop-shadow-offset-y: root.floating ? 6px : 0px;
-        drop-shadow-color: root.floating ? #00000059 : Colors.transparent;
+        drop-shadow-blur: root.fill ? 0px : (Theme.banco-desktop ? 28px : (root.floating ? 24px : 0px));
+        drop-shadow-offset-y: root.fill ? 0px : 8px;
+        drop-shadow-color: Theme.window-shadow;
         clip: true;
 
         // Swallows presses that land on the dialog, so they do not reach the
@@ -133,6 +133,7 @@ export component Modal inherits Rectangle {
         body := VerticalLayout {
             Rectangle {
                 height: 42px;
+                background: Theme.window-header;
 
                 // What drags a floating card, under the title and the ×.
                 if root.floating: TouchArea {
@@ -229,8 +230,8 @@ export component Modal inherits Rectangle {
                     Text {
                         text: root.title;
                         color: Theme.fg;
-                        font-size: Theme.fs-lg;
-                        font-weight: Theme.weight-title;
+                        font-size: Theme.banco-desktop ? Theme.fs-input : Theme.fs-lg;
+                        font-weight: Theme.banco-desktop ? Theme.weight-display : Theme.weight-title;
                         vertical-alignment: center;
                     }
                 }
@@ -306,6 +307,7 @@ export component Sheet inherits Rectangle {
 
             Rectangle {
                 height: 52px;
+                background: Theme.window-header;
 
                 Rectangle {
                     x: 0;
@@ -360,8 +362,8 @@ export component Sheet inherits Rectangle {
                     Text {
                         text: root.title;
                         color: Theme.fg;
-                        font-size: Theme.fs-lg;
-                        font-weight: Theme.weight-title;
+                        font-size: Theme.banco-desktop ? Theme.fs-input : Theme.fs-lg;
+                        font-weight: Theme.banco-desktop ? Theme.weight-display : Theme.weight-title;
                         vertical-alignment: center;
                     }
                 }
@@ -374,7 +376,7 @@ export component Sheet inherits Rectangle {
 
 // The push a dialog is built around.
 //
-// Four tones: `default` is a bordered field, `primary` fills with the accent,
+// Four tones: `default` is a bordered field, `primary` uses the primary action colour,
 // `ghost` is bare until hovered, and `danger` keeps its normal ink and turns
 // red only under the pointer — a row of permanently red text is a row of
 // alarms, where the warning belongs at the moment of pressing.
@@ -418,19 +420,19 @@ export component Button inherits Rectangle {
     border-radius: Theme.r;
     opacity: root.enabled ? 1.0 : 0.45;
     border-width: root.ghost ? 0px : 1px;
-    border-color: root.primary ? (root.lit ? Theme.accent-hover : Theme.accent)
+    border-color: root.primary ? (root.lit ? Theme.action-hover : Theme.action)
         : (root.danger && root.lit) ? root.danger-edge
         : root.lit ? Theme.line-strong
         : Theme.line;
-    background: root.primary ? (root.lit ? Theme.accent-hover : Theme.accent)
+    background: root.primary ? (root.lit ? Theme.action-hover : Theme.action)
         : root.ghost ? (root.lit ? Theme.field : Colors.transparent)
         : (root.danger && root.lit) ? root.danger-wash
-        : root.lit ? Theme.field-hover
-        : Theme.field;
+        : root.lit ? Theme.metal-hover
+        : Theme.metal;
 
     animate background, border-color { duration: 100ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
 
-    property <brush> ink: root.primary ? Theme.on-accent
+    property <brush> ink: root.primary ? Theme.on-action
         : root.ghost ? (root.lit ? Theme.fg : Theme.fg-muted)
         : Theme.fg;
 
@@ -894,11 +896,13 @@ export component Field inherits Rectangle {
     border-bottom-left-radius: root.radius-left;
     border-top-right-radius: root.radius-right;
     border-bottom-right-radius: root.radius-right;
-    background: input.has-focus ? Theme.field
+    background: Theme.banco-desktop && Theme.dark ? Theme.well
+        : input.has-focus ? Theme.field
         : touch.has-hover ? Theme.field-hover
         : Theme.field;
     border-width: 1px;
-    border-color: input.has-focus ? Theme.accent : Colors.transparent;
+    border-color: input.has-focus ? Theme.accent
+        : Theme.banco-desktop && Theme.dark ? Theme.line : Colors.transparent;
     clip: true;
 
     animate background, border-color { duration: 100ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }

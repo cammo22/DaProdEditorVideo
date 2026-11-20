@@ -612,9 +612,15 @@ pub fn select_backend(
 pub fn report_startup_failure(error: &str) {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
-        let mut description = format!("Concat could not start.\n\n{error}");
+        // A backend failure can arrive before Studio selects the saved locale.
+        if let Ok(dirs) = concat_host::AppDirs::locate() {
+            let prefs = crate::prefs::Preferences::load(&dirs);
+            crate::i18n::select(prefs.locale.as_deref().unwrap_or(crate::i18n::ENGLISH), &dirs);
+        }
+        let mut description = format!("{}\n\n{error}", crate::i18n::t("start.failedToStart"));
         if let Some(path) = concat_host::logs::current() {
-            description.push_str(&format!("\n\nLog: {}", path.display()));
+            description.push_str("\n\n");
+            description.push_str(&crate::i18n::tf("start.logPath", &[&path.display()]));
         }
         rfd::MessageDialog::new()
             .set_level(rfd::MessageLevel::Error)

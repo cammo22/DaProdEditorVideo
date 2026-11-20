@@ -321,7 +321,7 @@ fn run(
             cpal::SampleFormat::U16 => input::<u16>(&device, &config, events, shared),
             cpal::SampleFormat::I32 => input::<i32>(&device, &config, events, shared),
             other => Err(format!(
-                "the microphone records {other:?} samples, which Concat does not read"
+                "the microphone records {other:?} samples, which the app cannot read"
             )),
         }?;
         stream
@@ -678,7 +678,7 @@ pub fn repair(path: &Path) -> Result<bool, String> {
         || &head[36..40] != b"data"
     {
         return Err(format!(
-            "{} is not a recording Concat wrote",
+            "{} is not a recording made by the app",
             path.display()
         ));
     }

@@ -10,6 +10,7 @@ import { ConfigPane } from "config-pane.slint";
 import { MediaPane, SourcePreview } from "media-pane.slint";
 import { PreviewPane } from "preview-pane.slint";
 import { TimelinePane } from "timeline-pane.slint";
+import { ConsoleMeters } from "../timeline/vu-meter.slint";
 import { KeyframesPane } from "keyframes-pane.slint";
 
 // One box of the workspace, showing whichever view its `kind` names.
@@ -29,6 +30,8 @@ export component Seat inherits Rectangle {
     /// Which box this is, 0..3. Travels in the drag payload so a drop can say
     /// where the panel came from.
     in property <int> index;
+    in property <bool> console-meters;
+    property <length> meter-height: root.console-meters && Editor.meters-shown ? 96px : 0px;
 
     /// Its corner button was used.
     callback picked(kind: PaneKind);
@@ -194,6 +197,7 @@ export component Seat inherits Rectangle {
             playhead-free: Editor.playhead-free && !SourcePreview.open;
             playing: SourcePreview.open ? SourcePreview.playing : Editor.playing;
             source-name: SourcePreview.open ? SourcePreview.name : "";
+            program-name: Editor.project-name;
             has-picture: Editor.has-picture;
             clip-name: Editor.preview-clip-name;
             frame: Editor.preview-frame;
@@ -237,11 +241,18 @@ export component Seat inherits Rectangle {
             save-frame => { Editor.save-frame(); }
         }
 
+    if root.kind == PaneKind.inspector && root.meter-height > 0px: ConsoleMeters {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.meter-height;
+    }
+
     if root.kind == PaneKind.inspector: ConfigPane {
             x: 0;
-            y: 0;
+            y: root.meter-height;
             width: root.width;
-            height: root.height;
+            height: Math.max(0px, root.height - root.meter-height);
 
             pane-picked(kind) => { root.picked(kind); }
             pane-seat: root.index;
@@ -418,6 +429,7 @@ export component Seat inherits Rectangle {
             pan-mode: Editor.pan-mode;
             trim-follow: Editor.trim-follow;
             meters-shown: Editor.meters-shown;
+            inline-meters: !root.console-meters;
             preview-axis: Editor.preview-axis;
             preview-axis-audio: Editor.preview-axis-audio;
             selected-count: Editor.selected-count;

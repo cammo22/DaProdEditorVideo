@@ -96,7 +96,7 @@ pub enum CapcutError {
 impl std::fmt::Display for CapcutError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CapcutError::Empty => write!(f, "the CapCut draft has no clip Concat can read"),
+            CapcutError::Empty => write!(f, "the CapCut draft has no readable clips"),
         }
     }
 }
@@ -562,7 +562,7 @@ impl Reader<'_> {
                     clip.speed_curve = Some(points);
                     return;
                 }
-                notes.note("a CapCut speed curve Concat could not read, imported as its average");
+                notes.note("an unreadable CapCut speed curve, imported as its average");
             }
         }
         // What the clip covers of its source says the speed best when the
@@ -577,7 +577,7 @@ impl Reader<'_> {
         }
         if !(MIN_SPEED..=MAX_SPEED).contains(&speed) {
             notes.note(format!(
-                "a speed past Concat's {MIN_SPEED}-{MAX_SPEED}x, held to it"
+                "a speed outside the supported range of {MIN_SPEED}–{MAX_SPEED}×, held to it"
             ));
         }
         clip.speed = speed.clamp(MIN_SPEED, MAX_SPEED);
@@ -638,7 +638,7 @@ impl Reader<'_> {
                     continue;
                 }
                 _ => {
-                    notes.note("a CapCut keyframe Concat has no property for, not carried");
+                    notes.note("a CapCut keyframe with no supported property, not carried");
                     continue;
                 }
             };

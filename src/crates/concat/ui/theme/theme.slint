@@ -47,6 +47,7 @@ export global Theme {
     /// the tree is a property read away from it, so the window retones in a
     /// frame without anything being rebuilt.
     in-out property <bool> dark: true;
+    in-out property <bool> banco-desktop: true;
     /// Whether a dialog's go-ahead button comes before its Cancel, as on
     /// Windows, rather than after it, as on macOS and the Linux desktops
     /// (#681). Set once at start-up from the platform (lib.rs); read by
@@ -57,9 +58,9 @@ export global Theme {
     /// Settings > Appearance picks it (lib.rs, `on_settings_accent_changed`)
     /// the way it picks `dark`, and it retones the window the same way.
     /// Remembered by name rather than by number, so a list that grows or
-    /// reorders keeps everyone's choice; 0 is Lime, the default. One past
+    /// reorders keeps everyone's choice. One past
     /// the last name is the custom colour, `accent-custom`.
-    in-out property <int> accent-choice: 0;
+    in-out property <int> accent-choice: banco-desktop ? 6 : 0;
     /// A colour picked by hand in place of any on the list. Read only while
     /// `accent-choice` points past the list, and one colour under both
     /// palettes: whoever picked it picked what they see, and the three
@@ -74,18 +75,16 @@ export global Theme {
     /// name is the English word Settings shows for it, and the id it is
     /// remembered under in settings.json, lower-cased; the dialog holds the
     /// same list wrapped for translation, in this order.
-    out property <[string]> accent-names: ["Lime", "Sky", "Violet", "Rose", "Amber", "Mint"];
+    out property <[string]> accent-names: ["Lime", "Sky", "Violet", "Rose", "Amber", "Mint", "Cyan"];
     /// The playhead's colour when one was picked by hand in Settings >
     /// Appearance, in place of the palette's own. Read only while
     /// `playhead-is-custom`, and one colour under both palettes, for the
     /// reason the custom accent is: whoever picked it picked what they see.
     /// Grey until picked, so the dot that offers it reads as a blank.
     in-out property <color> playhead-custom: #808080;
-    /// Which colour the playhead wears: an index into `accent-names`, each
-    /// worn as the palette that is on has it - the first, Lime, is the
-    /// palette's own playhead - or one past them for `playhead-custom`.
+    /// A named palette colour, the desktop default at -1, or the custom slot.
     /// Settings > Appearance sets it (lib.rs, `on_settings_playhead_chosen`).
-    in-out property <int> playhead-choice: 0;
+    in-out property <int> playhead-choice: banco-desktop ? -1 : 0;
     /// The playhead wears `playhead-custom` rather than one of the list.
     out property <bool> playhead-is-custom: playhead-choice >= accent-names.length;
     /// Which interface scale the window is drawn at: an index into the
@@ -146,11 +145,11 @@ export global Theme {
     // radii
     out property <length> r-xs: 3px;
     out property <length> r-sm: 5px;
-    out property <length> r: 7px;
+    out property <length> r: banco-desktop ? 6px : 7px;
     out property <length> r-lg: 12px;
     /// The dialog sheet, and nothing smaller. A modal is the largest rounded
     /// thing in the window and wants a corner to match.
-    out property <length> r-xl: 16px;
+    out property <length> r-xl: banco-desktop ? 8px : 16px;
 
     // metrics
     out property <length> h: 28px;        // standard control height
@@ -223,6 +222,21 @@ export global Theme {
         return dark ? Dark.accents[index].accent : Light.accents[index].accent;
     }
 
+    // Banco separates the primary action from selection and focus.
+    out property <color> action: banco-desktop && dark ? #ffd54a : accent;
+    out property <color> action-hover: banco-desktop && dark ? #ffe07a : accent-hover;
+    out property <color> on-action: banco-desktop && dark ? #14110a : on-accent;
+    out property <color> timecode: banco-desktop && dark ? #ffd54a : fg;
+    out property <brush> metal: banco-desktop && dark
+        ? @linear-gradient(180deg, #2c2b34 0%, #1d1c23 100%) : field;
+    out property <brush> metal-hover: banco-desktop && dark
+        ? @linear-gradient(180deg, #383742 0%, #25242c 100%) : field-hover;
+    out property <brush> window-header: banco-desktop && dark
+        ? @linear-gradient(180deg, #23222b 0%, #15141b 100%) : panel;
+    out property <color> window-surface: banco-desktop && dark ? #18171e : panel;
+    out property <color> window-shadow: #00000070;
+    out property <color> popup-surface: banco-desktop && dark ? window-surface : raised;
+
     // the Rail's dragger
     out property <color> grip: dark ? Dark.grip : Light.grip;
     out property <color> grip-active: dark ? Dark.grip-active : Light.grip-active;
@@ -262,9 +276,9 @@ export global Theme {
     out property <color> grid: dark ? Dark.grid : Light.grid;
     /// The palette's own playhead, for the dot in Settings that offers it
     /// back while a picked colour is on.
-    out property <color> playhead-default: dark ? Dark.playhead : Light.playhead;
+    out property <color> playhead-default: dark ? (banco-desktop ? timecode : Dark.playhead) : Light.playhead;
     out property <color> playhead: playhead-is-custom ? playhead-custom
-        : playhead-choice <= 0 ? playhead-default
+        : playhead-choice < 0 || (!banco-desktop && playhead-choice == 0) ? playhead-default
         : accent-of(playhead-choice);
     out property <color> wave: dark ? Dark.wave : Light.wave;
     out property <color> wave-video: dark ? Dark.wave-video : Light.wave-video;

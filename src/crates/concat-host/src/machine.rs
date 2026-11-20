@@ -9,11 +9,19 @@
 //! asked. Nothing here is sent anywhere; it is written into the run's own
 //! log file like every other line.
 
-/// One line about the build: the version, the target, and the commit CI
-/// built it from - "local" for a build from a working tree.
+/// Build identity persisted by the startup recovery logic.
 pub fn build() -> String {
+    build_line("Concat")
+}
+
+/// The application version, target, and commit for a support log.
+pub(crate) fn build_for_log() -> String {
+    build_line("DaProd Editor Video")
+}
+
+fn build_line(name: &str) -> String {
     format!(
-        "Concat {} · {}-{} · commit {}",
+        "{name} {} · {}-{} · commit {}",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH,
@@ -330,5 +338,14 @@ mod tests {
         assert!(build().starts_with(&format!("Concat {}", env!("CARGO_PKG_VERSION"))));
         assert!(!system().is_empty());
         assert!(cpu().contains("threads"));
+    }
+
+    #[test]
+    fn support_log_brands_the_build_without_changing_its_identity() {
+        assert_eq!(
+            build_for_log().strip_prefix("DaProd Editor Video "),
+            build().strip_prefix("Concat ")
+        );
+        assert!(build_for_log().starts_with("DaProd Editor Video "));
     }
 }

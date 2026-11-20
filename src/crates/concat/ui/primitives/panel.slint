@@ -253,6 +253,7 @@ export component IconButton inherits Rectangle {
     in property <brush> idle: Theme.fg-muted;
 
     callback clicked();
+    out property <bool> has-focus: fs.has-focus;
 
     property <bool> lit: touch.has-hover && root.enabled;
     // Checked is a lime *glyph* on a darker chip, never dark ink on a lime

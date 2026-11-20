@@ -107,6 +107,34 @@ component HeaderIconButton inherits Rectangle {
     }
 }
 
+export component DaProdBrand inherits HorizontalLayout {
+    in property <bool> full-name;
+    in property <bool> show-wordmark: true;
+    in property <length> mark-size: 21px;
+    in property <length> font-size: Theme.fs-lg;
+
+    horizontal-stretch: 0;
+    spacing: root.full-name ? 12px : 7px;
+
+    VerticalLayout {
+        alignment: center;
+        Image {
+            source: @image-url("../../../../assets/daprod-banco.svg");
+            width: root.mark-size;
+            height: root.mark-size;
+            image-fit: contain;
+        }
+    }
+
+    if root.show-wordmark: Text {
+        text: root.full-name ? "DaProd Editor Video" : "DaProd";
+        color: Theme.fg;
+        font-size: root.font-size;
+        font-weight: Theme.weight-title;
+        vertical-alignment: center;
+    }
+}
+
 export component TitleBar inherits Rectangle {
     in property <string> project-name: I18n.t("common.untitledProject");
     /// "saved", "saving…" — the little truth beside the name. Empty hides it.
@@ -210,9 +238,11 @@ export component TitleBar inherits Rectangle {
         padding-right: root.own-buttons ? 0px : 8px;
         spacing: 2px;
 
-        // No mark and no wordmark: the strip opens on the menus. A window
-        // does not need to say whose it is on every frame, and the launch
-        // screen's heading already carries the name where it means something.
+        if !root.minimal: HorizontalLayout {
+            padding-left: root.macos ? 6px : 4px;
+            padding-right: 10px;
+            DaProdBrand { show-wordmark: root.width >= 620px; }
+        }
 
         // Each label reports its own position rather than a fixed one: they
         // are sized from their text, so where "View" starts depends on how
@@ -257,7 +287,39 @@ export component TitleBar inherits Rectangle {
             }
         }
 
-        Rectangle { horizontal-stretch: 1; }
+        // The name takes the space the controls leave and elides within it.
+        centre := Rectangle {
+            horizontal-stretch: 1;
+            min-width: 0px;
+            clip: true;
+
+            if !root.minimal: HorizontalLayout {
+                x: Math.max(0px, Math.min(parent.width - self.width,
+                    (root.width - self.width) / 2 - centre.x));
+                width: Math.min(parent.width, self.preferred-width);
+                padding-left: 8px;
+                padding-right: 8px;
+                spacing: 6px;
+
+                Text {
+                    horizontal-stretch: 1;
+                    text: root.project-name;
+                    color: Theme.fg-muted;
+                    font-size: Theme.fs;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                if centre.width >= 180px && root.status != "": Text {
+                    max-width: centre.width / 3;
+                    text: root.status;
+                    color: Theme.fg-dim;
+                    font-size: Theme.fs-xs;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
 
         // Beside Settings, because it is the same sort of thing: neither one
         // is about the project, both are about the window you are looking at
@@ -294,7 +356,7 @@ export component TitleBar inherits Rectangle {
                 width: label.width + icon.width + 26px;
                 height: 24px;
                 border-radius: Theme.r-sm;
-                background: export-touch.has-hover ? Theme.accent-hover : Theme.accent;
+                background: export-touch.has-hover ? Theme.action-hover : Theme.action;
 
                 animate background { duration: 100ms; easing: cubic-bezier(0.4, 0, 0.2, 1); }
 
@@ -303,14 +365,14 @@ export component TitleBar inherits Rectangle {
                     y: (parent.height - self.height) / 2;
                     glyph: Glyph.export;
                     size: 12px;
-                    tint: Theme.on-accent;
+                    tint: Theme.on-action;
                 }
 
                 label := Text {
                     x: icon.x + icon.width + 5px;
                     y: (parent.height - self.height) / 2;
                     text: I18n.t("common.export");
-                    color: Theme.on-accent;
+                    color: Theme.on-action;
                     font-size: Theme.fs;
                     font-weight: Theme.weight-title;
                 }
@@ -341,36 +403,6 @@ export component TitleBar inherits Rectangle {
                 danger: true;
                 enabled: root.can-close;
                 clicked => { root.close(); }
-            }
-        }
-    }
-
-    // Centre: the project name, placed against the whole strip rather than
-    // laid out, so it stays centred in the window and not in whatever space
-    // the menus leave over.
-    centre := HorizontalLayout {
-        visible: !root.minimal;
-        x: (parent.width - self.preferred-width) / 2;
-        y: 0;
-        width: self.preferred-width;
-        height: parent.height;
-        spacing: 6px;
-
-        VerticalLayout {
-            alignment: center;
-            Text {
-                text: root.project-name;
-                color: Theme.fg-muted;
-                font-size: Theme.fs;
-            }
-        }
-
-        VerticalLayout {
-            alignment: center;
-            Text {
-                text: root.status;
-                color: Theme.fg-dim;
-                font-size: Theme.fs-xs;
             }
         }
     }

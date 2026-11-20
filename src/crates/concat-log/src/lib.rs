@@ -281,7 +281,7 @@ impl Logger {
         };
         if let Some(file) = &mut state.file {
             file.write(&format!(
-                "Concat log · {} · times are UTC\n",
+                "DaProd Editor Video log · {} · times are UTC\n",
                 clock::date(at)
             ));
         }
@@ -571,7 +571,7 @@ mod tests {
         // No flush, no end: the file already has it.
         let text = read(&logger);
         assert!(
-            text.starts_with("Concat log · 2024-09-14 · times are UTC\n"),
+            text.starts_with("DaProd Editor Video log · 2024-09-14 · times are UTC\n"),
             "{text}"
         );
         // The file was opened as if on another day, so the day is said

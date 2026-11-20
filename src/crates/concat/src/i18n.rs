@@ -313,6 +313,33 @@ mod tests {
     }
 
     #[test]
+    fn desktop_branding_is_present_in_every_shipped_locale() {
+        const BRAND: &str = "DaProd Editor Video";
+        // These values refer to upstream services or the current iOS bundle.
+        const UPSTREAM_OR_IOS: [&str; 3] = [
+            "settings.concatsMirror",
+            "sounds.offline",
+            "export.photosNotAllowed",
+        ];
+
+        for (code, text) in BUILT_IN {
+            let (_, strings) = parse(text).unwrap_or_else(|| panic!("{code}.json parses"));
+            assert_eq!(strings["settings.concat"], format!("{BRAND} {{0}}"), "{code}");
+            for key in ["start.welcome", "start.failedToStart", "settings.restartTitle"] {
+                assert!(strings[key].contains(BRAND), "{code}: {key}");
+            }
+            assert_eq!(strings["start.logPath"].matches("{0}").count(), 1, "{code}");
+            for (key, value) in &strings {
+                if UPSTREAM_OR_IOS.contains(&key.as_str()) {
+                    assert!(value.contains("Concat"), "{code}: {key}");
+                } else {
+                    assert!(!value.contains("Concat"), "{code}: {key}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn every_shipped_locale_parses_names_itself_and_keys_off_the_inventory() {
         let inventory = inventory();
         assert!(inventory.len() > 100, "the inventory is missing");

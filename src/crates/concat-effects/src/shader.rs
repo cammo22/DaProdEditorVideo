@@ -1513,7 +1513,7 @@ fn stitch(
     }
     if !manifest.scene_linear() {
         return Err(
-            "the package is written for format 1, whose pictures this Concat no longer draws: \
+            "the package is written for format 1, whose pictures this version no longer draws: \
              a picture package needs `format = 2` (see the package guide)"
                 .to_owned(),
         );
