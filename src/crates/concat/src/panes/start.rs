@@ -97,7 +97,7 @@ pub fn shown<'a>(
 /// The official site, which the guides and the developer docs are pages of.
 const SITE: &str = "https://concat.standalones.org";
 /// The repository: the code, the issues, the releases.
-pub const REPOSITORY: &str = "https://github.com/jub0t/Concat";
+pub const REPOSITORY: &str = "https://github.com/cammo22/DaProdEditorVideo";
 
 /// Where each of the launch screen's links goes, by the name the screen
 /// sends. One table, so a moved page is one line here. Every address is a
@@ -107,16 +107,13 @@ pub const REPOSITORY: &str = "https://github.com/jub0t/Concat";
 pub fn link(name: &str) -> Option<String> {
     Some(match name {
         "guides" => format!("{SITE}/guides/"),
-        "report" => format!("{SITE}/guides/report-a-problem/"),
+        "report" => format!("{REPOSITORY}/issues"),
         "github" => REPOSITORY.to_owned(),
         // The gradient card: this version's "What's new" post on the
         // website's blog, the polished telling of its release notes.
-        "news" => format!(
-            "{SITE}/blog/whats-new-in-{}/",
-            env!("CARGO_PKG_VERSION").replace('.', "-")
-        ),
+        "news" => format!("{REPOSITORY}/releases"),
         // The invite the README carries.
-        "discord" => "https://discord.gg/DVuPfpXfqP".to_owned(),
+        "discord" => "https://discord.gg/Njs52aacwq".to_owned(),
         // The notes for the release this build is, under the tag the
         // release workflow pushes.
         "release-notes" => format!("{REPOSITORY}/releases/tag/v{}", env!("CARGO_PKG_VERSION")),

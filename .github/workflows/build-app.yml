@@ -49,6 +49,8 @@ name: Build app
 # the export run included, without a tag or a release. Its bundles stay
 # artifacts of the run; nothing is published.
 on:
+  push:
+    branches: [editor/2.0-banco]
   workflow_dispatch:
     inputs:
       ref:
@@ -127,21 +129,6 @@ jobs:
         include:
           # `ffmpeg` and `ort` name the target the way each project's
           # release archives do.
-          - platform: macos
-            arch: arm64
-            os: macos-15
-            target: aarch64-apple-darwin
-          - platform: macos
-            arch: x86_64
-            os: macos-15-intel
-            target: x86_64-apple-darwin
-            # No `ggml` row: built as 0.2.7 was, with no AVX2. This bundle
-            # runs on macOS 12 again, and so on the 2013 Mac Pro, whose Ivy
-            # Bridge has AVX and nothing newer; Intel Macs are about one
-            # download in a hundred, and slower captions there beat a crash.
-          # 22.04, not latest: the binary links the build machine's glibc,
-          # so the oldest supported runner is what keeps it runnable on
-          # older distributions.
           - platform: linux
             arch: x86_64
             os: ubuntu-22.04
@@ -151,14 +138,6 @@ jobs:
             nfpm: amd64
             appimage: x86_64
             ggml: variants
-          - platform: linux
-            arch: aarch64
-            os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            ffmpeg: linuxarm64
-            ort: aarch64
-            nfpm: arm64
-            appimage: aarch64
           - platform: windows
             arch: x86_64
             os: windows-2022
@@ -729,7 +708,7 @@ jobs:
           cat > "stage/$name/concat.desktop" <<DESKTOP
           [Desktop Entry]
           Type=Application
-          Name=Concat
+          Name=DaProd Editor Video
           Comment=Video editor
           Exec=concat
           Icon=concat
@@ -903,7 +882,7 @@ jobs:
           # Extract-and-run: the runner has no FUSE to mount the tool with.
           # No "linux" in its name: every AppImage is for Linux, and the
           # AppImage catalog's check warns about names that say so.
-          appimage="stage/Concat-${VERSION}-${{ matrix.arch }}.AppImage"
+          appimage="stage/DaProdEditorVideo-${VERSION}-${{ matrix.arch }}.AppImage"
           ./appimagetool --appimage-extract-and-run --runtime-file appimage-runtime "$appdir" "$appimage"
           chmod +x "$appimage"
 
@@ -925,7 +904,7 @@ jobs:
           for image in ubuntu:22.04 debian:12; do
             scripts/ci/smoke-linux.sh --container "$image" \
               "stage/Concat-${VERSION}-linux-${{ matrix.arch }}.deb" \
-              "stage/Concat-${VERSION}-${{ matrix.arch }}.AppImage"
+              "stage/DaProdEditorVideo-${VERSION}-${{ matrix.arch }}.AppImage"
           done
 
       # ── Package: Windows ───────────────────────────────────────────────
@@ -1117,8 +1096,8 @@ jobs:
           & $iscc "/DVersion=$env:VERSION" "/DArch=${{ matrix.inno }}" "/DSuffix=${{ matrix.arch }}" `
             "/DStage=$PWD\stage\$name" "/DOut=$PWD\stage" assets\windows\concat.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with $LASTEXITCODE" }
-          if (-not (Test-Path "stage\$name-setup.exe")) { throw "stage\$name-setup.exe is not there" }
-          Sign "stage\$name-setup.exe"
+          if (-not (Test-Path "stage\DaProdEditorVideo-$env:VERSION-windows-${{ matrix.arch }}-setup.exe")) { throw "stage\$name-setup.exe is not there" }
+          Sign "stage\DaProdEditorVideo-$env:VERSION-windows-${{ matrix.arch }}-setup.exe"
           # And the .msi, with WiX, for the machines an administrator
           # deploys to. See assets/windows/concat.wxs.
           dotnet tool install --global wix --version $env:WIX_VERSION | Out-Null
@@ -1142,5 +1121,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Concat-${{ matrix.platform }}-${{ matrix.arch }}
-          path: stage/*
+          path: |
+            stage/*.AppImage
+            stage/*-setup.exe
           if-no-files-found: error

@@ -22,13 +22,13 @@ On the start screen only `Ctrl` + `O`, `Ctrl` + `Q` (Windows/Linux) and `Ctrl` +
 
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl` + `B` | Split the selected clips at the playhead (every clip under it when nothing is selected) |
+| `1` or `Ctrl` + `B` | Split the selected clips at the playhead (every clip under it when nothing is selected) |
 | `B` | Toggle the split (razor) tool |
 | `Q` | Delete left: cut the clip from its start up to the playhead |
 | `W` | Delete right: cut the clip from the playhead to its end |
 | `F` | Freeze frame at the playhead |
-| `Delete` / `Backspace` | Delete selection |
-| `Shift` + `Delete` / `Backspace` | Ripple delete (close the gap) |
+| `2` / `Delete` / `Backspace` | Delete selection |
+| `3` or `Shift` + `Delete` / `Backspace` | Ripple delete (close the gap) |
 | `Ctrl` + `Z` | Undo |
 | `Ctrl` + `Shift` + `Z`, or `Ctrl` + `Y` on Windows/Linux | Redo |
 | `Ctrl` + `A` | Select all |

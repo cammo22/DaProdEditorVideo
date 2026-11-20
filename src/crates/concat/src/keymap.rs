@@ -91,18 +91,18 @@ pub const ACTIONS: &[Action] = &[
     },
     Action {
         id: "split",
-        defaults: &["ctrl+b"],
+        defaults: &["1", "ctrl+b"],
     },
     Action {
         id: "delete",
-        defaults: &["delete", "backspace"],
+        defaults: &["2", "delete", "backspace"],
     },
     // Shift closes the gap the deletion leaves — the ripple delete every
     // other editor has, on the key they all use for it.
     // https://github.com/jub0t/Concat/issues/106
     Action {
         id: "ripple-delete",
-        defaults: &["shift+delete", "shift+backspace"],
+        defaults: &["3", "shift+delete", "shift+backspace"],
     },
     Action {
         id: "freeze",

@@ -1344,6 +1344,8 @@ export component Lanes inherits Rectangle {
     /// a desk.
     in property <bool> finger: false;
 
+    in property <bool> banco-wheel: false;
+    callback frame-step(float);
     callback scrubbed(seconds: float);
     /// A ruler diamond dragged from one instant to another.
     callback key-mark-moved(from: float, to: float);
@@ -1660,6 +1662,10 @@ export component Lanes inherits Rectangle {
             // vertical swipe's y was thrown away: the stack crept and
             // stuttered while the ruler twitched underneath it. A diagonal
             // swipe now moves diagonally, the way it does on a page.
+            if (root.banco-wheel && !event.modifiers.shift && event.delta-y != 0px && event.delta-x == 0px) {
+                root.frame-step(event.delta-y > 0px ? -1 : 1);
+                return EventResult.accept;
+            }
             if (event.modifiers.shift) {
                 root.scrolled(Math.max(0, root.scroll-left
                     - (event.delta-x != 0px ? event.delta-x : event.delta-y)
