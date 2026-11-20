@@ -894,6 +894,17 @@ jobs:
       # declares, and both start (`--version`, and `--smoke` under Xvfb).
       # A library the package forgot to depend on fails here rather than
       # on somebody's machine. See scripts/ci/smoke-linux.sh.
+      - name: Banco - edit, reopen and measure the AppImage export
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          app=$(realpath stage/*.AppImage)
+          dir=$(mktemp -d)
+          (cd "$dir" && "$app" --appimage-extract >/dev/null)
+          command -v ffprobe || { sudo apt-get update && sudo apt-get install -y ffmpeg; }
+          xvfb-run -a -s '-screen 0 1920x1080x24' python3 scripts/ci/smoke-banco.py --bin "$dir/squashfs-root/AppRun"
+
       - name: Smoke test in clean distributions (Linux)
         if: matrix.platform == 'linux'
         timeout-minutes: 25
