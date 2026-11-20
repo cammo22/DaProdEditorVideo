@@ -6,7 +6,7 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
-const USAGE: &str = "usage: concat [--project <PROJECT_DIRECTORY> | --software | --mcp [auto|window|headless] | --schema | --version | --smoke | --smoke-export <CLIP> | --whisper-cpu]";
+const USAGE: &str = "usage: concat [--project <PROJECT_DIRECTORY> | --software | --mcp [auto|window|headless] | --schema | --version | --smoke | --smoke-export <CLIP> | --smoke-banco <FIXTURE_DIR> | --whisper-cpu]";
 
 /// The flag the window starts its encoder helper with.
 pub const PROBE_ENCODERS: &str = concat_media::encode::apart::FLAG;
@@ -45,6 +45,8 @@ pub enum Launch {
     /// file is written: 0, or 1 with the reason in the log. For CI, where a
     /// launch alone never reaches an export.
     SmokeExport(PathBuf),
+    /// Exercise the Banco edit and export using two generated fixtures.
+    SmokeBanco(PathBuf),
     /// Load whisper's CPU kernels the way the first transcription does,
     /// print the CPU they run on and exit, before logging, the GPU or a
     /// window. For CI on an emulated older CPU: where the kernels are one
@@ -89,6 +91,12 @@ pub fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Launch, String>
                     .ok_or_else(|| format!("--mcp takes auto, window or headless\n{USAGE}"))?,
             )),
         }
+    } else if option == "--smoke-banco" {
+        let dir = args
+            .next()
+            .filter(|arg| !arg.is_empty())
+            .ok_or_else(|| "--smoke-banco requires a fixture directory".to_string())?;
+        Launch::SmokeBanco(PathBuf::from(dir))
     } else if option == "--smoke-export" {
         let clip = args
             .next()
@@ -129,6 +137,16 @@ mod tests {
             parse_strs(&["--project", "podcasts/Café com amigos"]).unwrap(),
             Launch::Normal(Some(PathBuf::from("podcasts/Café com amigos")))
         );
+    }
+
+    #[test]
+    fn banco_requires_one_fixture_directory() {
+        assert_eq!(
+            parse_strs(&["--smoke-banco", "banco qa"]).unwrap(),
+            Launch::SmokeBanco("banco qa".into())
+        );
+        assert!(parse_strs(&["--smoke-banco"]).is_err());
+        assert!(parse_strs(&["--smoke-banco", "a", "b"]).is_err());
     }
 
     #[test]

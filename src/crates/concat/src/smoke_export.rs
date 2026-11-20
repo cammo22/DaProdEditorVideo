@@ -39,6 +39,7 @@ enum Step {
     Place,
     /// The clip is on its way to the timeline: Export once it is there.
     Export,
+    BancoEdit,
     /// The export is running.
     Watch,
 }
@@ -49,6 +50,7 @@ impl Step {
             Step::Make => "the project to open",
             Step::Place => "the clip to reach the bin",
             Step::Export => "the clip to reach the timeline",
+            Step::BancoEdit => "both clips on the timeline",
             Step::Watch => "the export to end",
         }
     }
@@ -56,7 +58,7 @@ impl Step {
 
 /// Starts the run's steps on a timer of the window's event loop; the timer
 /// is held for as long as the loop runs.
-pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
+pub(crate) fn drive(clip: PathBuf, banco: Option<PathBuf>) -> slint::Timer {
     log::info!("smoke: exporting {}", clip.display());
     let step = Cell::new(Step::Make);
     let since = Cell::new(Instant::now());
@@ -74,7 +76,19 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
                 let now = step.get();
                 let next = match now {
                     Step::Make => {
-                        studio.handle(Msg::Start(StartMsg::Dropped(vec![clip.clone()])));
+                        let mut paths = vec![clip.clone()];
+                        if let Some(dir) = &banco {
+                            paths.push(dir.join("blue.mp4"));
+                            if !paths.iter().all(|p| p.is_file()) || dir.join("result.mp4").exists() {
+                                fail("expected red.mp4 and blue.mp4 in a fresh Banco fixture directory");
+                            }
+                        }
+                        studio.handle(Msg::Start(StartMsg::Dropped(paths)));
+                        if let Some(dir) = &banco {
+                            studio.start.location = dir.to_string_lossy().into_owned();
+                            studio.start.size = crate::studio::SIZES.len();
+                            studio.start.custom_size = (320, 180);
+                        }
                         studio.handle(Msg::Start(StartMsg::Create));
                         if studio.session.is_some() {
                             Some(Step::Place)
@@ -83,6 +97,28 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
                         } else {
                             fail("the project was neither made nor refused");
                         }
+                    }
+                    Step::Place if banco.is_some() => {
+                        (studio.project().media.len() == 2).then(|| {
+                            // Place by filename, not the order the probe worker finishes.
+                            for (name, start) in [("red.mp4", 0.0), ("blue.mp4", 2.0)] {
+                                let id = studio.project().media.iter()
+                                    .find(|m| m.name == name && m.has_audio)
+                                    .unwrap_or_else(|| fail(name)).id.clone();
+                                studio.seek(start);
+                                studio.media.selected.clear();
+                                studio.media.selected.insert(id);
+                                studio.handle(Msg::Media(MediaMsg::AddSelectedAtPlayhead));
+                            }
+                            Step::BancoEdit
+                        })
+                    }
+                    Step::BancoEdit => {
+                        drop(studio); // Slint callbacks borrow the studio themselves.
+                        banco_edit(shell, &app);
+                        step.set(Step::Export);
+                        since.set(Instant::now());
+                        return;
                     }
                     Step::Place => {
                         let first = studio.project().media.first().map(|item| item.id.clone());
@@ -115,6 +151,10 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
                             let secs = began.borrow().map_or(0.0, |at| at.elapsed().as_secs_f32());
                             match bytes {
                                 Some(bytes) if bytes > 0 => {
+                                    if let Some(dir) = &banco {
+                                        std::fs::copy(&written, dir.join("result.mp4"))
+                                            .unwrap_or_else(|e| fail(&format!("copying export: {e}")));
+                                    }
                                     log::info!(
                                         "smoke: export finished in {secs:.1} s · {written} · {bytes} bytes"
                                     );
@@ -122,7 +162,7 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
                                 }
                                 // On a phone the file may have gone on into
                                 // the gallery, where no path reaches it.
-                                _ if written.is_empty() || cfg!(target_os = "android") => {
+                                _ if banco.is_none() && (written.is_empty() || cfg!(target_os = "android")) => {
                                     log::info!("smoke: export finished in {secs:.1} s · {written}");
                                     crate::leave(0);
                                 }
@@ -155,6 +195,90 @@ pub(crate) fn drive(clip: PathBuf) -> slint::Timer {
         },
     );
     timer
+}
+
+/// Drive the same Slint callbacks as the key table and the timeline pointer.
+fn banco_edit(shell: &Shell, app: &crate::ui::App) {
+    use slint::ComponentHandle;
+    let ui = app.global::<crate::ui::Editor>();
+    let key = |text: &str| {
+        if !ui.invoke_key_chord(text.into(), false, false, false, false, false) {
+            fail(&format!("Banco key {text} not handled"));
+        }
+    };
+    let click = |id: &str, additive| {
+        ui.invoke_clip_pressed(id.into(), additive, -1);
+        ui.invoke_clip_released();
+    };
+    let layout = |starts: &[f64]| {
+        let state = shell.studio.borrow();
+        let mut clips = state.timeline().clips.clone();
+        clips.sort_by(|a, b| a.start.total_cmp(&b.start));
+        if clips.len() != starts.len()
+            || clips
+                .iter()
+                .zip(starts)
+                .any(|(c, t)| (c.start - t).abs() > 0.025)
+        {
+            fail(&format!(
+                "expected clip starts {starts:?}, found {:?}",
+                clips.iter().map(|c| c.start).collect::<Vec<_>>()
+            ));
+        }
+        clips.iter().map(|c| c.id.clone()).collect::<Vec<_>>()
+    };
+    let grouped = |wanted: bool| {
+        let state = shell.studio.borrow();
+        let clips = &state.timeline().clips;
+        if clips.len() != 2
+            || (wanted && (clips[0].group_id.is_none() || clips[0].group_id != clips[1].group_id))
+            || (!wanted && clips.iter().any(|c| c.group_id.is_some()))
+        {
+            fail(&format!("expected two clips, grouped={wanted}"));
+        }
+    };
+    let ids = layout(&[0.0, 2.0]);
+    click(&ids[0], false);
+    ui.invoke_seek(1.0);
+    key("1");
+    let cut = layout(&[0.0, 1.0, 2.0]);
+    click(&cut[0], false);
+    key("3");
+    let ids = layout(&[0.0, 1.0]);
+    click(&ids[0], false);
+    click(&ids[1], true);
+    key("s");
+    grouped(true);
+    ui.invoke_shortcut("toggle-clip-group".into()); // Banco button's route
+    grouped(false);
+    app.invoke_app_menu_selected("undo".into());
+    grouped(true);
+    app.invoke_app_menu_selected("redo".into());
+    grouped(false);
+    ui.invoke_shortcut("deselect".into());
+    click(&ids[0], false);
+    click(&ids[1], true);
+    key("4");
+    grouped(true);
+    app.invoke_app_menu_selected("save".into());
+    {
+        let mut state = shell.studio.borrow_mut();
+        let path = state.session.as_ref().unwrap().path().to_owned();
+        state.close_project().unwrap_or_else(|e| fail(&e));
+        state.open_project_at(&path).unwrap_or_else(|e| fail(&e));
+    }
+    grouped(true);
+    let reopened = layout(&[0.0, 1.0]);
+    ui.invoke_clip_pressed(reopened[1].as_str().into(), false, -1);
+    if shell.studio.borrow().selection.len() != 2 {
+        fail("group selection lost after reopen");
+    }
+    ui.invoke_clip_dragged(2.0, 0.0);
+    ui.invoke_clip_released();
+    layout(&[2.0, 3.0]);
+    app.invoke_app_menu_selected("undo".into());
+    layout(&[0.0, 1.0]);
+    log::info!("smoke-banco: cut, ripple, group toggle, history, reopen and group drag passed");
 }
 
 /// Ends the run as failed, with the reason in the log.

@@ -224,6 +224,11 @@ pub fn smoke_export(clip: std::path::PathBuf) -> Result<(), slint::PlatformError
     start(None, Smoke::Export(clip))
 }
 
+/// Exercise a Banco cut, group, save/reopen and export in the running window.
+pub fn smoke_banco(dir: std::path::PathBuf) -> Result<(), slint::PlatformError> {
+    start(None, Smoke::Banco(dir))
+}
+
 /// Which of CI's runs a launch is, if any.
 #[derive(Clone, PartialEq, Eq, Debug)]
 enum Smoke {
@@ -233,6 +238,7 @@ enum Smoke {
     Start,
     /// [`smoke_export`]: a project of this clip, exported.
     Export(std::path::PathBuf),
+    Banco(std::path::PathBuf),
 }
 
 /// Runs one way out of the open project, in the order that keeps the work
@@ -2921,7 +2927,8 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     // An export run goes on into the loop, where its steps run on a timer
     // held for the loop's life.
     let _smoke_export = match smoke {
-        Smoke::Export(clip) => Some(smoke_export::drive(clip)),
+        Smoke::Export(clip) => Some(smoke_export::drive(clip, None)),
+        Smoke::Banco(dir) => Some(smoke_export::drive(dir.join("red.mp4"), Some(dir))),
         Smoke::No | Smoke::Start => None,
     };
 

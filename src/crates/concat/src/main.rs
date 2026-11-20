@@ -94,6 +94,9 @@ fn main() -> Result<(), slint::PlatformError> {
         Launch::Smoke => concat::smoke().inspect_err(|error| {
             log::error!("smoke: could not start: {error}");
         }),
+        Launch::SmokeBanco(dir) => concat::smoke_banco(dir).inspect_err(|error| {
+            log::error!("smoke-banco: could not start: {error}");
+        }),
         Launch::SmokeExport(clip) => concat::smoke_export(clip).inspect_err(|error| {
             log::error!("smoke: could not start: {error}");
         }),
