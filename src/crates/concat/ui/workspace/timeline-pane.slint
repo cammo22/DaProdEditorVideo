@@ -8,6 +8,7 @@ import { PaneKind, PaneSwitcher } from "pane-switcher.slint";
 import { I18n } from "../i18n.slint";
 import { Glyph } from "../icons.slint";
 import { ContextMenu, MenuItemData, MenuMetrics, MenuRow } from "../primitives/context-menu.slint";
+import { Button } from "../primitives/modal.slint";
 import { HairlineSplitter } from "splitter.slint";
 import { ThinHScrollbar, ThinScrollbar } from "../primitives/scrollbar.slint";
 import {
@@ -322,6 +323,33 @@ export component TimelinePane inherits Rectangle {
                 removable: root.pane-removable;
                 picked(kind) => { root.pane-picked(kind); }
                 removed => { root.pane-removed(); }
+            }
+        }
+
+        HorizontalLayout {
+            height: 32px;
+            spacing: 4px;
+            padding-left: 4px;
+            alignment: start;
+            Button {
+                label: "1  TAGLIA";
+                clicked => { root.split(); }
+            }
+            Button {
+                label: "2  ELIMINA";
+                danger: true;
+                enabled: root.selected-count > 0 || root.transition-selected;
+                clicked => { root.delete-selected(); }
+            }
+            Button {
+                label: "3  CHIUDI";
+                enabled: root.selected-count > 0;
+                clicked => { root.clip-verb("ripple-delete"); }
+            }
+            Button {
+                label: "S  " + I18n.t("shortcuts.clipGroup");
+                enabled: root.selected-count > 0;
+                clicked => { root.clip-verb("toggle-clip-group"); }
             }
         }
 

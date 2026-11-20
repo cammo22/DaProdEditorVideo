@@ -268,16 +268,7 @@ impl Studio {
             self.gesture = Gesture::None;
             return;
         };
-        let already = self.selection.iter().any(|held| held == &id);
-        if additive {
-            if already {
-                self.selection.retain(|held| held != &id);
-            } else {
-                self.selection.push(id.clone());
-            }
-        } else if !already {
-            self.selection = vec![id.clone()];
-        }
+        self.select_clip_group(&id, additive);
         if !self.selection.iter().any(|held| held == &id) {
             self.gesture = Gesture::None;
             return;

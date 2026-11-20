@@ -486,6 +486,7 @@ pub(super) fn apply(
             matched.source_start = clip.source_start;
             matched.speed = clip.speed;
             matched.speed_curve = clip.speed_curve.clone();
+            matched.group_id.clone_from(&clip.group_id);
             matched.detached_from = clip.detached_from.clone();
             matched.transition_in = clip.transition_in.clone();
             // A title's words and a shape's figure are what it is, and only

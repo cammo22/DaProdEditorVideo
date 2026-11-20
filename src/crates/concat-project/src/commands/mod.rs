@@ -929,6 +929,11 @@ pub enum Command {
         /// The background.
         background: Background,
     },
+    /// Dissolve one selected group, or join the selected clips and their groups.
+    ToggleClipGroup {
+        /// Selected clip ids in the active timeline.
+        clip_ids: Vec<String>,
+    },
     /// Turns a timeline's linkage on or off: whether its other lanes follow
     /// an edit that closes up or opens its main lane. See
     /// `Timeline::linkage`.
@@ -1111,6 +1116,9 @@ impl IdMint {
             }
             for clip in &timeline.clips {
                 self.adopt(&clip.id);
+                if let Some(group) = &clip.group_id {
+                    self.adopt(group);
+                }
             }
         }
         // And every id in what the read held unread: a clip minted here
@@ -1433,6 +1441,7 @@ pub fn apply(
         command @ (Command::AddTimeline
         | Command::SetTimelineVideo { .. }
         | Command::SetTimelineBackground { .. }
+        | Command::ToggleClipGroup { .. }
         | Command::SetTimelineLinkage { .. }
         | Command::RemoveTimeline { .. }
         | Command::RenameTimeline { .. }

@@ -2014,6 +2014,7 @@ fn command_kind(command: &Command) -> &'static str {
         Command::RemoveTimeline { .. } => "Delete timeline",
         Command::SetTimelineVideo { .. } => "Project settings",
         Command::SetTimelineBackground { .. } => "Canvas background",
+        Command::ToggleClipGroup { .. } => "Group / ungroup clips",
         Command::SetTimelineLinkage { on: true, .. } => "Linkage on",
         Command::SetTimelineLinkage { .. } => "Linkage off",
         Command::RenameTimeline { .. } => "Rename timeline",

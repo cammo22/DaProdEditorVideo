@@ -8,6 +8,20 @@ use concat_project::placement::shifted_starts;
 impl Studio {
     // ── gestures ──
 
+    pub(super) fn select_clip_group(&mut self, id: &str, additive: bool) {
+        let unit = self.timeline().group_members(id);
+        let already = self.selection.iter().any(|held| held == id);
+        if additive && already {
+            self.selection.retain(|held| !unit.contains(held));
+        } else {
+            if !already && !additive {
+                self.selection.clear();
+            }
+            self.selection.extend(unit);
+            self.selection = self.timeline().expand_groups(&self.selection);
+        }
+    }
+
     /// A press resolves the selection before anything moves, so a drag that
     /// starts on an already-selected clip carries the whole set.
     pub fn clip_pressed(&mut self, id: &str, additive: bool, edge: i32) {
@@ -37,24 +51,16 @@ impl Studio {
             return;
         }
         self.transition_selected = None;
-        let already = self.selection.iter().any(|held| held == id);
-        self.selection = if additive {
-            if already {
-                self.selection
-                    .iter()
-                    .filter(|held| held.as_str() != id)
-                    .cloned()
-                    .collect()
-            } else {
-                let mut next = self.selection.clone();
-                next.push(id.to_owned());
-                next
-            }
-        } else if already {
-            self.selection.clone()
-        } else {
-            vec![id.to_owned()]
-        };
+        self.select_clip_group(id, additive);
+        if !self.selection.iter().any(|held| held == id)
+            || self
+                .selection
+                .iter()
+                .any(|key| self.clip(key).is_some_and(|c| self.locked(&c.track_id)))
+        {
+            self.gesture = Gesture::None;
+            return;
+        }
 
         self.begin_echo();
         if edge >= 0 && self.selection.len() <= 1 {
@@ -72,12 +78,8 @@ impl Studio {
         // picture stays, as any two clips do. It used to travel with its
         // picture, which made Detach a split in name only (#265); the link
         // between them is kept for Reattach, not for the drag.
-        let moving = if self.selection.iter().any(|held| held == id) {
-            self.selection.clone()
-        } else {
-            vec![id.to_owned()]
-        };
-        let origins = moving
+        let origins = self
+            .selection
             .iter()
             .filter_map(|clip_id| {
                 let clip = self.clip(clip_id)?;
@@ -124,6 +126,20 @@ impl Studio {
                 let shift = seconds + self.snap_shift(&edges, threshold, &moving);
                 let rows = nearest_row(lanes, row_top(lanes, anchor.row) + pixels) - anchor.row;
                 let count = self.timeline().tracks.len() as i32;
+                // Clamp the lane delta once: a group never folds onto the first
+                // or last row or leaves just one member behind on a locked lane.
+                let min = origins.iter().map(|o| o.row).min().unwrap_or(anchor.row);
+                let max = origins.iter().map(|o| o.row).max().unwrap_or(anchor.row);
+                let rows = rows.clamp(-min, count - 1 - max);
+                let rows = if origins.iter().all(|o| {
+                    self.row_track(o.row + rows)
+                        .is_some_and(|t| !self.locked(&t.id))
+                }) {
+                    rows
+                } else {
+                    0
+                };
+
                 // Every start moves by the one shift, in f64 and from the
                 // start the press recorded: `self.clip` is the echo while a
                 // gesture runs and already holds the last shift. Why f64 is
@@ -134,13 +150,7 @@ impl Studio {
                     .iter()
                     .zip(landed_at)
                     .filter_map(|(origin, start)| {
-                        let clip = self.clip(&origin.clip)?;
-                        let row = (origin.row + rows).clamp(0, count - 1);
-                        let track_id = self
-                            .row_track(row)
-                            .filter(|track| !self.locked(&track.id))
-                            .map(|track| track.id.clone())
-                            .unwrap_or_else(|| clip.track_id.clone());
+                        let track_id = self.row_track(origin.row + rows)?.id.clone();
                         Some(ClipMove {
                             clip_id: origin.clip.clone(),
                             start,

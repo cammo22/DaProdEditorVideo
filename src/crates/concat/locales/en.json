@@ -667,6 +667,7 @@
   "shortcuts.pan": "Pan tool",
   "shortcuts.press": "Press a key…",
   "shortcuts.prevEdit": "Go to previous cut",
+  "shortcuts.clipGroup": "Ungroup / group",
   "shortcuts.previewAxis": "Preview axis",
   "shortcuts.reserved": "That chord belongs to the window",
   "shortcuts.resetAll": "Reset all",

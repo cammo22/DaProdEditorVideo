@@ -140,7 +140,11 @@ pub const ACTIONS: &[Action] = &[
     },
     Action {
         id: "preview-axis",
-        defaults: &["s"],
+        defaults: &["alt+s"],
+    },
+    Action {
+        id: "toggle-clip-group",
+        defaults: &["s", "4"],
     },
     Action {
         id: "zoom-in",
@@ -217,6 +221,7 @@ pub fn name(id: &str) -> String {
         "mute" => i18n::t("studio.mute"),
         "pan" => i18n::t("shortcuts.pan"),
         "snap" => i18n::t("common.snapToEdges"),
+        "toggle-clip-group" => i18n::t("shortcuts.clipGroup"),
         "preview-axis" => i18n::t("shortcuts.previewAxis"),
         "zoom-in" => i18n::t("common.zoomIn"),
         "zoom-out" => i18n::t("common.zoomOut"),

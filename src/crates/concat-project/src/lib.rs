@@ -3473,6 +3473,64 @@ mod tests {
     }
 
     #[test]
+    fn banco_group_move_keeps_track_and_time_offsets_in_one_undo_step() {
+        let (mut editor, media, a) = fixture();
+        let track = editor.project().active().tracks[1].id.clone();
+        let b = lane(&mut editor, &media, &track, &[4.0]).remove(0);
+        editor
+            .apply(Command::ToggleClipGroup {
+                clip_ids: vec![a.clone(), b.clone()],
+            })
+            .unwrap();
+        let tl = editor.project().active();
+        let moves = tl
+            .group_members(&b)
+            .iter()
+            .map(|id| {
+                let c = tl.clip(id).unwrap();
+                ClipMove {
+                    clip_id: id.clone(),
+                    start: c.start + 6.0,
+                    track_id: c.track_id.clone(),
+                }
+            })
+            .collect();
+        editor.apply(Command::MoveClips { moves }).unwrap();
+        assert_eq!((start_of(&editor, &a), start_of(&editor, &b)), (6.0, 10.0));
+        assert!(editor.undo());
+        assert_eq!((start_of(&editor, &a), start_of(&editor, &b)), (0.0, 4.0));
+        assert!(editor.redo());
+        assert_eq!(editor.project().active().clip(&b).unwrap().track_id, track);
+        assert_eq!((start_of(&editor, &a), start_of(&editor, &b)), (6.0, 10.0));
+    }
+
+    #[test]
+    fn banco_groups_expand_merge_dissolve_and_round_trip() {
+        let (mut editor, media, a) = fixture();
+        let track = editor.project().active().tracks[0].id.clone();
+        let others = lane(&mut editor, &media, &track, &[10.0, 20.0]);
+        let toggle = |ids: &[&String]| Command::ToggleClipGroup {
+            clip_ids: ids.iter().map(|id| (*id).clone()).collect(),
+        };
+        assert!(!editor.apply(toggle(&[&a])).unwrap().applied);
+        editor.apply(toggle(&[&a, &others[0]])).unwrap();
+        let members = |project: &Project| project.active().group_members(&a);
+        assert_eq!(members(editor.project()), [a.clone(), others[0].clone()]);
+        editor.apply(toggle(&[&others[0], &others[1]])).unwrap();
+        let saved = crate::from_document(&editor.to_document(&settings())).unwrap();
+        assert_eq!(
+            members(&saved),
+            [a.clone(), others[0].clone(), others[1].clone()]
+        );
+        editor.apply(toggle(&[&others[1]])).unwrap();
+        assert_eq!(members(editor.project()), [a.clone()]);
+        assert!(editor.undo());
+        assert_eq!(members(editor.project()), members(&saved));
+        assert!(editor.redo());
+        assert_eq!(members(editor.project()), [a.clone()]);
+    }
+
+    #[test]
     fn undo_and_redo_walk_the_history() {
         let (mut editor, _, clip_id) = fixture();
         editor

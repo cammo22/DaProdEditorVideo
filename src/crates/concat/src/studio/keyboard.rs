@@ -37,6 +37,23 @@ impl Studio {
             // of the playhead.
             "delete-left" => self.delete_to_playhead(PlayheadSide::Left),
             "delete-right" => self.delete_to_playhead(PlayheadSide::Right),
+            "toggle-clip-group" => {
+                self.flush_commit();
+                let clip_ids = self.timeline().expand_groups(&self.selection);
+                if !clip_ids
+                    .iter()
+                    .any(|id| self.clip(id).is_some_and(|c| self.locked(&c.track_id)))
+                {
+                    self.apply(Command::ToggleClipGroup {
+                        clip_ids: clip_ids.clone(),
+                    });
+                    // After separating, the next drag on any former member
+                    // must not carry the old multi-selection with it.
+                    if let Some(id) = clip_ids.first() {
+                        self.selection = self.timeline().group_members(id);
+                    }
+                }
+            }
             "select-all" => self.select_all(),
             // The phone's way out of the clip tools: nothing selected, the
             // way a press on an empty lane leaves it.

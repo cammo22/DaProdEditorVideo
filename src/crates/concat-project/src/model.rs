@@ -2857,6 +2857,9 @@ pub struct Clip {
     /// True when a video clip's embedded audio is detached out of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub muted: Option<bool>,
+    /// Banco editing group, scoped to this timeline (not an audio attachment).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
     /// On a detached audio clip: the video clip the sound came from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub detached_from: Option<String>,
@@ -2982,6 +2985,7 @@ impl Clip {
             video_effects: Vec::new(),
             audio_stream: None,
             muted: None,
+            group_id: None,
             detached_from: None,
             transition_in: None,
             enhanced: None,
@@ -3831,6 +3835,30 @@ impl Default for Project {
 }
 
 impl Timeline {
+    /// Include the whole group of every selected clip, once, in timeline order.
+    pub fn expand_groups(&self, ids: &[String]) -> Vec<String> {
+        let selected: std::collections::HashSet<_> = ids.iter().collect();
+        let groups: std::collections::HashSet<_> = self
+            .clips
+            .iter()
+            .filter(|clip| selected.contains(&clip.id))
+            .filter_map(|clip| clip.group_id.as_deref())
+            .collect();
+        self.clips
+            .iter()
+            .filter(|clip| {
+                selected.contains(&clip.id)
+                    || clip.group_id.as_deref().is_some_and(|g| groups.contains(g))
+            })
+            .map(|clip| clip.id.clone())
+            .collect()
+    }
+
+    /// Selection unit for a click on one clip.
+    pub fn group_members(&self, id: &str) -> Vec<String> {
+        self.expand_groups(&[id.to_owned()])
+    }
+
     /// The clip with this id, or None if it is not on this timeline - which
     /// most commands treat as a tolerated no-op, not an error.
     pub fn clip(&self, clip_id: &str) -> Option<&Clip> {

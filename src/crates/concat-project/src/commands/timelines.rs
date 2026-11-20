@@ -90,6 +90,27 @@ pub(super) fn apply(
             })
         }
 
+        Command::ToggleClipGroup { clip_ids } => {
+            let timeline = project.active_mut();
+            let members = timeline.expand_groups(&clip_ids);
+            let mut clips = members.iter().filter_map(|id| timeline.clip(id));
+            let group = clips.next().and_then(|clip| clip.group_id.as_ref());
+            let dissolve = group.is_some() && clips.all(|clip| clip.group_id.as_ref() == group);
+            if !dissolve && members.len() < 2 {
+                return Ok(Outcome::default());
+            }
+            let next = (!dissolve).then(|| mint.next("g"));
+            for id in members {
+                if let Some(clip) = timeline.clip_mut(&id) {
+                    clip.group_id.clone_from(&next);
+                }
+            }
+            Ok(Outcome {
+                applied: true,
+                created_id: None,
+            })
+        }
+
         Command::SetTimelineLinkage { timeline_id, on } => {
             let applied = project
                 .timelines
