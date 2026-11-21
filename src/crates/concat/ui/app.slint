@@ -273,8 +273,11 @@ export component App inherits Window {
     callback start-aspect-changed(index: int);
     callback start-size-changed(index: int);
     callback start-rate-changed(index: int);
-    callback start-custom-width-edited(width: float);
-    callback start-custom-height-edited(height: float);
+    callback start-custom-width-edited(width: string);
+    callback start-custom-height-edited(height: string);
+    callback start-preset-name-edited(name: string);
+    callback start-save-preset();
+    callback start-apply-preset(index: int);
     callback start-custom-fps-edited(fps: float);
     callback start-canvas-changed(value: color);
     callback start-create();
@@ -1003,6 +1006,9 @@ export component App inherits Window {
         rate-changed(index) => { root.start-rate-changed(index); }
         custom-width-edited(width) => { root.start-custom-width-edited(width); }
         custom-height-edited(height) => { root.start-custom-height-edited(height); }
+        preset-name-edited(name) => { root.start-preset-name-edited(name); }
+        save-preset => { root.start-save-preset(); }
+        apply-preset(index) => { root.start-apply-preset(index); }
         custom-fps-edited(fps) => { root.start-custom-fps-edited(fps); }
         canvas-changed(value) => { root.start-canvas-changed(value); }
         create => { root.start-create(); }

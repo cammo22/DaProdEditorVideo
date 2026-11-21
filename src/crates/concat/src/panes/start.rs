@@ -5,6 +5,7 @@
 //! and rate, the verb that opens one that already exists, and the project
 //! grid's own two verbs.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use concat_host::projects;
@@ -12,9 +13,50 @@ use concat_host::projects;
 use crate::i18n::{t, tf};
 use crate::platform;
 use crate::studio::{
-    ASPECTS, RATES, SIZES, Studio, custom_frame, custom_rate, fps_of, frame_size, home_folder,
+    ASPECTS, FRAME_SIDES, RATES, SIZES, Studio, custom_rate, fps_of, frame_size, home_folder,
 };
 use crate::ui::StartData;
+
+const PRESETS_FILE: &str = "resolution-presets.json";
+
+type ResolutionPresets = BTreeMap<String, (u32, u32)>;
+
+fn valid_side(side: u32) -> bool {
+    (FRAME_SIDES.0..=FRAME_SIDES.1).contains(&side) && side % 2 == 0
+}
+
+fn parse_side(raw: &str) -> Option<u32> {
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    raw.parse().ok().filter(|&side| valid_side(side))
+}
+
+fn read_presets(config: &Path) -> Result<ResolutionPresets, String> {
+    let bytes = match std::fs::read(config.join(PRESETS_FILE)) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
+        Err(error) => return Err(error.to_string()),
+    };
+    let mut presets: ResolutionPresets =
+        serde_json::from_slice(&bytes).map_err(|error| error.to_string())?;
+    presets.retain(|name, (width, height)| {
+        !name.trim().is_empty() && valid_side(*width) && valid_side(*height)
+    });
+    Ok(presets)
+}
+
+fn write_presets(config: &Path, presets: &ResolutionPresets) -> Result<(), String> {
+    let encoded = serde_json::to_vec_pretty(presets).map_err(|error| error.to_string())?;
+    let staging = config.join(format!(".{PRESETS_FILE}.{}.tmp", std::process::id()));
+    std::fs::create_dir_all(config).map_err(|error| error.to_string())?;
+    let written = std::fs::write(&staging, encoded)
+        .and_then(|()| std::fs::rename(&staging, config.join(PRESETS_FILE)));
+    if written.is_err() {
+        let _ = std::fs::remove_file(&staging);
+    }
+    written.map_err(|error| error.to_string())
+}
 
 /// Everything that can happen to the launch screen's sheet.
 #[derive(Clone, Debug)]
@@ -31,8 +73,11 @@ pub enum StartMsg {
     SizeChanged(i32),
     RateChanged(i32),
     /// The custom frame's sides and rate, as typed.
-    CustomWidth(f32),
-    CustomHeight(f32),
+    CustomWidth(String),
+    CustomHeight(String),
+    PresetNameEdited(String),
+    SavePreset,
+    ApplyPreset(i32),
     CustomFps(f32),
     /// What shows where no picture covers the frame, `[r, g, b, a]`.
     CanvasChanged([u8; 4]),
@@ -128,9 +173,11 @@ pub struct StartPane {
     pub size: usize,
     /// Index into [`RATES`], or one past its end for a custom rate.
     pub rate: usize,
-    /// The custom frame, even on both sides; seeded from the preset that
-    /// was picked when Custom was, so the fields start from a real frame.
-    pub custom_size: (u32, u32),
+    /// Keep the draft exactly as entered, including incomplete edits.
+    custom_width: String,
+    custom_height: String,
+    preset_name: String,
+    presets: ResolutionPresets,
     /// The custom rate, as an exact fraction.
     pub custom_rate: (i64, i64),
     /// What shows where no picture covers the frame (#456): black, as
@@ -159,7 +206,10 @@ impl Default for StartPane {
             // in the app assumes, and the one a phone and a desk agree on.
             size: 1,
             rate: 3,
-            custom_size: (1920, 1080),
+            custom_width: "1920".into(),
+            custom_height: "1080".into(),
+            preset_name: String::new(),
+            presets: BTreeMap::new(),
             custom_rate: (30, 1),
             canvas: [0, 0, 0, 255],
             busy: false,
@@ -252,6 +302,10 @@ impl StartPane {
         match msg {
             StartMsg::Compose => {
                 self.composing = true;
+                match read_presets(&studio.host.dirs.config) {
+                    Ok(presets) => self.presets = presets,
+                    Err(error) => self.error = tf("start.presetLoadError", &[&error]),
+                }
                 // A name somebody typed is kept for next time; one this
                 // sheet made up moves on past the folders already there.
                 if is_untitled(&self.name) {
@@ -271,13 +325,7 @@ impl StartPane {
             StartMsg::AspectChanged(index) => {
                 self.aspect = (index.max(0) as usize).min(ASPECTS.len() - 1);
             }
-            StartMsg::SizeChanged(index) => {
-                let index = (index.max(0) as usize).min(SIZES.len());
-                if index == SIZES.len() && !self.custom_frame() {
-                    self.custom_size = self.frame();
-                }
-                self.size = index;
-            }
+            StartMsg::SizeChanged(index) => self.select_size(index),
             StartMsg::RateChanged(index) => {
                 let index = (index.max(0) as usize).min(RATES.len());
                 if index == RATES.len() && !self.custom_rate_on() {
@@ -285,12 +333,14 @@ impl StartPane {
                 }
                 self.rate = index;
             }
-            StartMsg::CustomWidth(width) => {
-                self.custom_size = custom_frame(width, self.custom_size.1 as f32);
-            }
-            StartMsg::CustomHeight(height) => {
-                self.custom_size = custom_frame(self.custom_size.0 as f32, height);
-            }
+            StartMsg::CustomWidth(width) => self.custom_width = width,
+            StartMsg::CustomHeight(height) => self.custom_height = height,
+            StartMsg::PresetNameEdited(name) => self.preset_name = name,
+            StartMsg::SavePreset => match self.save_preset(&studio.host.dirs.config) {
+                Ok(()) => self.error.clear(),
+                Err(error) => self.error = error,
+            },
+            StartMsg::ApplyPreset(index) => self.apply_preset(index),
             StartMsg::CustomFps(fps) => self.custom_rate = custom_rate(f64::from(fps)),
             StartMsg::CanvasChanged(canvas) => self.canvas = canvas,
             StartMsg::DismissError => self.error.clear(),
@@ -418,24 +468,8 @@ impl StartPane {
     /// down with the project open behind it; a failure leaves it up, with
     /// the reason in its notice.
     fn create(&mut self, studio: &mut Studio) {
-        let name = self.name.trim().to_owned();
-        let name = if name.is_empty() {
-            self.free_untitled()
-        } else {
-            name
-        };
-        let (width, height) = self.frame();
-        let (num, den) = self.rate();
-        if self.location.trim().is_empty() {
-            self.error = t("start.chooseWhereProjectFolder");
-            return;
-        }
-        let opened = projects::create(&self.location, &name, width, height, num, den, self.canvas)
-            .inspect_err(|error| {
-                log::error!(
-                    "project: making {name} failed: {error}; the new-project sheet stays up"
-                );
-            })
+        let opened = self
+            .create_on_disk()
             .and_then(|info| studio.open_project(info));
         self.busy = false;
         match opened {
@@ -454,6 +488,63 @@ impl StartPane {
                 }
             }
             Err(error) => self.error = error,
+        }
+    }
+
+    fn create_on_disk(&self) -> Result<projects::ProjectInfo, String> {
+        let (width, height) = self.frame().ok_or_else(|| t("start.invalidResolution"))?;
+        if self.location.trim().is_empty() {
+            return Err(t("start.chooseWhereProjectFolder"));
+        }
+        let name = self.name.trim();
+        let name = if name.is_empty() {
+            self.free_untitled()
+        } else {
+            name.to_owned()
+        };
+        let (num, den) = self.rate();
+        projects::create(&self.location, &name, width, height, num, den, self.canvas).inspect_err(
+            |error| {
+                log::error!(
+                    "project: making {name} failed: {error}; the new-project sheet stays up"
+                );
+            },
+        )
+    }
+
+    fn select_size(&mut self, index: i32) {
+        let index = (index.max(0) as usize).min(SIZES.len());
+        if index == SIZES.len() && !self.custom_frame() {
+            self.set_manual_frame(frame_size(self.aspect, self.size));
+        }
+        self.size = index;
+    }
+
+    pub(crate) fn set_manual_frame(&mut self, (width, height): (u32, u32)) {
+        self.custom_width = width.to_string();
+        self.custom_height = height.to_string();
+    }
+
+    fn save_preset(&mut self, config: &Path) -> Result<(), String> {
+        let name = self.preset_name.trim();
+        if name.is_empty() {
+            return Err(t("start.presetName"));
+        }
+        let frame = self.frame().ok_or_else(|| t("start.invalidResolution"))?;
+        let mut presets =
+            read_presets(config).map_err(|error| tf("start.presetLoadError", &[&error]))?;
+        presets.insert(name.to_owned(), frame);
+        write_presets(config, &presets).map_err(|error| tf("start.presetSaveError", &[&error]))?;
+        self.presets = presets;
+        Ok(())
+    }
+
+    fn apply_preset(&mut self, index: i32) {
+        if let Ok(index) = usize::try_from(index)
+            && let Some(&frame) = self.presets.values().nth(index)
+        {
+            self.set_manual_frame(frame);
+            self.size = SIZES.len();
         }
     }
 
@@ -553,11 +644,14 @@ impl StartPane {
 
     /// The frame the sheet describes: the typed one, or the shape at the
     /// size.
-    fn frame(&self) -> (u32, u32) {
+    fn frame(&self) -> Option<(u32, u32)> {
         if self.custom_frame() {
-            self.custom_size
+            Some((
+                parse_side(&self.custom_width)?,
+                parse_side(&self.custom_height)?,
+            ))
         } else {
-            frame_size(self.aspect, self.size)
+            Some(frame_size(self.aspect, self.size))
         }
     }
 
@@ -573,7 +667,7 @@ impl StartPane {
 
     /// The sheet as Slint shows it.
     pub fn data(&self) -> StartData {
-        let (width, height) = self.frame();
+        let frame = self.frame();
         let (num, den) = self.rate();
         StartData {
             composing: self.composing,
@@ -582,17 +676,35 @@ impl StartPane {
             aspect: self.aspect as i32,
             size: self.size as i32,
             rate: self.rate as i32,
-            size_readout: format!("{width} x {height}").into(),
+            size_readout: frame.map_or_else(
+                || "— × —".into(),
+                |(width, height)| format!("{width} × {height}").into(),
+            ),
+            valid_resolution: frame.is_some(),
+            resolution_error: if frame.is_none() {
+                t("start.invalidResolution").into()
+            } else {
+                "".into()
+            },
+            preset_name: self.preset_name.as_str().into(),
+            preset_options: slint::ModelRc::new(slint::VecModel::from(
+                self.presets
+                    .iter()
+                    .map(|(name, (width, height))| {
+                        slint::SharedString::from(format!("{name} · {width} × {height}"))
+                    })
+                    .collect::<Vec<_>>(),
+            )),
             canvas: slint::Color::from_argb_u8(
                 self.canvas[3],
                 self.canvas[0],
                 self.canvas[1],
                 self.canvas[2],
             ),
-            custom_width: width as f32,
-            custom_height: height as f32,
+            custom_width: self.custom_width.as_str().into(),
+            custom_height: self.custom_height.as_str().into(),
             custom_fps: fps_of(num, den) as f32,
-            frame_aspect: width as f32 / height.max(1) as f32,
+            frame_aspect: frame.map_or(0.0, |(width, height)| width as f32 / height as f32),
             rate_readout: format!("{num}/{den} fps").into(),
             rate_options: slint::ModelRc::from(std::rc::Rc::new(slint::VecModel::from(
                 RATES
@@ -613,6 +725,102 @@ impl StartPane {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn effective_resolution_matches_created_and_reopened_projects() {
+        let root = std::env::temp_dir().join(format!("concat-resolution-{}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let config = root.join("config");
+        let mut pane = StartPane {
+            location: root.to_string_lossy().into_owned(),
+            ..StartPane::default()
+        };
+        let assert_project = |pane: &mut StartPane, name: &str, expected: (u32, u32)| {
+            pane.name = name.into();
+            let data = pane.data();
+            assert!(data.valid_resolution);
+            assert_eq!(
+                data.size_readout.as_str(),
+                format!("{} × {}", expected.0, expected.1)
+            );
+            let created = pane.create_on_disk().unwrap();
+            assert!(projects::is_project(Path::new(&created.path)));
+            let reopened = projects::open(&created.path).unwrap();
+            assert_eq!((reopened.width, reopened.height), expected);
+        };
+
+        assert_project(&mut pane, "Default", (1920, 1080));
+        pane.aspect = 1;
+        pane.select_size(0);
+        assert_project(&mut pane, "Portrait", (720, 1280));
+        pane.preset_name = "Portrait preset".into();
+        pane.save_preset(&config).unwrap();
+
+        pane.select_size(SIZES.len() as i32);
+        assert_eq!(pane.custom_width, "720");
+        assert_eq!(pane.custom_height, "1280");
+        pane.name = "Invalid".into();
+        pane.preset_name = "Invalid preset".into();
+        for raw in [
+            "",
+            " ",
+            "-16",
+            "+16",
+            "20.0",
+            "2e2",
+            "17",
+            "14",
+            "8194",
+            "4294967296",
+        ] {
+            pane.custom_width = raw.into();
+            let data = pane.data();
+            assert_eq!(data.custom_width.as_str(), raw);
+            assert!(!data.valid_resolution);
+            assert_eq!(data.size_readout.as_str(), "— × —");
+            assert!(pane.create_on_disk().is_err());
+            assert!(pane.save_preset(&config).is_err());
+        }
+        assert!(!root.join("Invalid").exists());
+        assert_eq!(parse_side("16"), Some(16));
+        assert_eq!(parse_side("8192"), Some(8192));
+        pane.custom_width = "01002".into();
+        pane.custom_height = "602".into();
+        assert_eq!(pane.data().custom_width.as_str(), "01002");
+        assert_project(&mut pane, "Manual", (1002, 602));
+        pane.preset_name = "  Client frame  ".into();
+        pane.save_preset(&config).unwrap();
+
+        let mut reloaded = StartPane {
+            location: pane.location.clone(),
+            presets: read_presets(&config).unwrap(),
+            ..StartPane::default()
+        };
+        assert_eq!(reloaded.presets.len(), 2);
+        assert_eq!(reloaded.presets["Portrait preset"], (720, 1280));
+        assert_eq!(reloaded.presets["Client frame"], (1002, 602));
+        reloaded.apply_preset(-1);
+        reloaded.apply_preset(2);
+        assert_eq!(reloaded.frame(), Some((1920, 1080)));
+        reloaded.apply_preset(0);
+        assert!(reloaded.custom_frame());
+        assert_eq!(reloaded.custom_width, "1002");
+        assert_project(&mut reloaded, "Personal", (1002, 602));
+        reloaded.apply_preset(1);
+        assert_project(&mut reloaded, "Personal portrait", (720, 1280));
+
+        reloaded.set_manual_frame((1280, 720));
+        reloaded.preset_name = "Banco HD".into();
+        reloaded.save_preset(&config).unwrap();
+        let mut hd = StartPane {
+            location: pane.location.clone(),
+            presets: read_presets(&config).unwrap(),
+            ..StartPane::default()
+        };
+        hd.apply_preset(0); // Banco HD sorts before Client frame.
+        assert_project(&mut hd, "Banco HD", (1280, 720));
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     /// An iPhone's projects go in its Documents, whatever a desktop would
     /// have said; a desktop's go on the desktop the system names.

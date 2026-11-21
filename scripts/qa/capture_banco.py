@@ -119,13 +119,25 @@ def fixture(scene, width, height):
     title_height = int(re.search(r"^    height: (\d+)px;", title, re.MULTILINE)[1])
     seats, dividers = dock_models(width, height - title_height)
     version = re.search(r'^version = "(.*?)"', (ROOT / "src/Cargo.toml").read_text(), re.MULTILINE)[1]
-    home = scene == "home"
+    home = scene in ("home", "nuovo-progetto")
+    project_sheet = '''
+    start-aspects: [{label: "16:9", ratio: 1.7778}, {label: "9:16", ratio: 0.5625},
+                    {label: "1:1", ratio: 1}, {label: "4:5", ratio: 0.8}, {label: "3:4", ratio: 0.75},
+                    {label: "4:3", ratio: 1.3333}, {label: "21:9", ratio: 2.3704}];
+    start-sizes: [{label: "720p"}, {label: "1080p"}, {label: "1440p"}, {label: "4K"}];
+    start: {composing: true, name: "Ritratti", location: "/fixture/Progetti", size: 4,
+        custom-width: "1280", custom-height: "720", size-readout: "1280 × 720", valid-resolution: true,
+        frame-aspect: 1.7778, rate: 6, rate-options: ["10 fps", "20 fps", "23.976 fps", "24 fps",
+            "25 fps", "29.97 fps", "30 fps", "48 fps", "50 fps", "59.94 fps", "60 fps"],
+        rate-readout: "30/1 fps", canvas: #000, preset-name: "Banco HD",
+        preset-options: ["Banco HD · 1280 × 720"]};''' if scene == "nuovo-progetto" else ""
     settings = scene == "impostazioni"
     return f"""
 import {{ App, ClipKind, Editor, MediaKind, Meters, PaneKind }} from "app.slint";
 
 export component Capture inherits App {{
     on-start: {str(home).lower()};
+    {project_sheet}
     own-window-buttons: true;
     app-version: {quote(version)};
     can-drop: true;
@@ -195,6 +207,7 @@ def main():
     parser.add_argument("--check", action="store_true", help="compile scenes without a display")
     parser.add_argument("--out", type=Path, default=ROOT / "docs/catture-banco")
     parser.add_argument("--size", default="1400x900")
+    parser.add_argument("--scene", choices=(*SCENES, "nuovo-progetto"), action="append")
     parser.add_argument("--viewer", type=Path, default=Path(tempfile.gettempdir()) /
                         "banco-slint/slint-viewer/slint-viewer")
     args = parser.parse_args()
@@ -213,7 +226,7 @@ def main():
         (sandbox / "assets").symlink_to(ROOT / "assets", target_is_directory=True)
         (ui.parent.parent / "concat-text").symlink_to(CRATE.parent / "concat-text", target_is_directory=True)
         translations(ui)
-        for scene in SCENES:
+        for scene in args.scene or SCENES:
             entry = ui / "capture.slint"
             entry.write_text(fixture(scene, width, height))
             command = [str(args.viewer.resolve()), str(entry)]
@@ -230,7 +243,7 @@ def main():
             print(f"{scene}: {'compiled' if args.check else args.size}", flush=True)
         if not args.check:
             args.out.mkdir(parents=True, exist_ok=True)
-            for scene in SCENES:
+            for scene in args.scene or SCENES:
                 shutil.copyfile(sandbox / f"{scene}.png", args.out / f"{scene}.png")
 
 

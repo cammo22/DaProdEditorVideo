@@ -75,13 +75,13 @@ export struct StartData {
     /// Custom: published with the rest of the sheet, so the words follow a
     /// change of language.
     rate-options: [string],
-    /// "1920 x 1080"
     size-readout: string,
-    /// The frame and rate as numbers, for the custom fields: the typed
-    /// ones when Custom is picked, the preset's otherwise, so picking
-    /// Custom starts the fields from the frame that was showing.
-    custom-width: float,
-    custom-height: float,
+    valid-resolution: bool,
+    resolution-error: string,
+    preset-name: string,
+    preset-options: [string],
+    custom-width: string,
+    custom-height: string,
     custom-fps: float,
     /// The chosen frame's width over its height, for the swatch beside the
     /// readout that shows its shape: 1.78 for landscape HD, 0.56 upright.
@@ -145,6 +145,9 @@ component PlainInput inherits Rectangle {
     in property <string> face: Theme.font;
     in property <bool> enabled: true;
 
+    in property <bool> sync-while-focused: false;
+    in property <length> inset: 0px;
+
     callback edited(text: string);
     callback accepted();
 
@@ -170,7 +173,7 @@ component PlainInput inherits Rectangle {
     function seed() { root.draft = root.text; }
     init => { root.seed(); }
     changed text => {
-        if (!input.has-focus) {
+        if ((!input.has-focus || root.sync-while-focused) && root.draft != root.text) {
             root.seed();
         }
     }
@@ -181,9 +184,9 @@ component PlainInput inherits Rectangle {
     }
 
     input := TextInput {
-        x: 0;
+        x: root.inset;
         y: (parent.height - self.height) / 2;
-        width: parent.width;
+        width: parent.width - 2 * root.inset;
         // A TextInput fills its Rectangle parent by default, so without
         // this the centring above subtracts the parent's own height from
         // itself and resolves to zero, leaving the text against the top
@@ -194,6 +197,7 @@ component PlainInput inherits Rectangle {
         font-family: root.face;
         font-size: root.size;
         single-line: true;
+        accessible-label: root.placeholder;
         read-only: !root.enabled;
         selection-background-color: Theme.accent;
         selection-foreground-color: Theme.on-accent;
@@ -203,9 +207,9 @@ component PlainInput inherits Rectangle {
     }
 
     if root.draft == "": Text {
-        x: 0;
+        x: root.inset;
         y: (parent.height - self.height) / 2;
-        width: parent.width;
+        width: parent.width - 2 * root.inset;
         text: root.placeholder;
         color: Theme.fg-dim;
         font-family: root.face;
@@ -468,9 +472,9 @@ component FormRow inherits Rectangle {
     /// its tracking, which is what keeps every value on one x.
     property <length> label-w: 84px;
     property <length> body-x: root.stacked ? 0px : root.label-w + 20px;
-    property <length> body-y: root.stacked ? 30px : 18px;
+    property <length> body-y: root.stacked ? 30px : 10px;
 
-    height: root.body-y + body.preferred-height + 18px;
+    height: root.body-y + body.preferred-height + (root.stacked ? 18px : 8px);
 
     Text {
         x: 0;
@@ -484,6 +488,7 @@ component FormRow inherits Rectangle {
         font-family: Theme.font-technical;
         font-size: Theme.fs-xs;
         letter-spacing: 0.9px;
+        wrap: word-wrap;
     }
 
     body := VerticalLayout {
@@ -2095,8 +2100,11 @@ export component NewProjectDialog inherits Modal {
     callback aspect-changed(index: int);
     callback size-changed(index: int);
     callback rate-changed(index: int);
-    callback custom-width-edited(width: float);
-    callback custom-height-edited(height: float);
+    callback custom-width-edited(width: string);
+    callback custom-height-edited(height: string);
+    callback preset-name-edited(name: string);
+    callback save-preset();
+    callback apply-preset(index: int);
     callback custom-fps-edited(fps: float);
     callback canvas-changed(value: color);
     callback create();
@@ -2112,7 +2120,7 @@ export component NewProjectDialog inherits Modal {
     in property <bool> phone;
     property <bool> narrow: root.width < 680px;
     /// A project needs somewhere to go. Everything else has a default.
-    property <bool> can-create: !root.data.busy && root.data.location != "";
+    property <bool> can-create: !root.data.busy && root.data.location != "" && root.data.valid-resolution;
 
     open: root.data.composing;
     title: I18n.t("start.newProject");
@@ -2186,7 +2194,7 @@ export component NewProjectDialog inherits Modal {
                 placeholder: I18n.t("common.untitledProject");
                 enabled: !root.data.busy;
                 edited(text) => { root.name-edited(text); }
-                accepted => { root.create(); }
+                accepted => { if (root.can-create) { root.create(); } }
             }
         }
 
@@ -2208,7 +2216,7 @@ export component NewProjectDialog inherits Modal {
                     face: Theme.font-technical;
                     enabled: !root.data.busy;
                     edited(text) => { root.location-edited(text); }
-                    accepted => { root.create(); }
+                    accepted => { if (root.can-create) { root.create(); } }
                 }
 
                 VerticalLayout {
@@ -2257,7 +2265,7 @@ export component NewProjectDialog inherits Modal {
                 // The chosen frame at the row's end, drawn rather than
                 // described: the one thing on this sheet that shows what
                 // the numbers mean.
-                if !root.narrow: VerticalLayout {
+                if !root.narrow && root.data.valid-resolution: VerticalLayout {
                     alignment: center;
                     horizontal-stretch: 0;
                     FrameShape {
@@ -2273,53 +2281,41 @@ export component NewProjectDialog inherits Modal {
             stacked: root.narrow;
 
             VerticalLayout {
-                spacing: 10px;
+                spacing: 8px;
 
-                HorizontalLayout {
-                    spacing: 16px;
-
-                    ChipRow {
-                        horizontal-stretch: 1;
-                        options: root.sizes;
-                        extra: I18n.t("common.custom");
-                        current: root.data.size;
-                        enabled: !root.data.busy;
-                        block: root.narrow;
-                        // Five chips and the readout do not fit one line of
-                        // a phone held upright: 4K and Custom ran off the
-                        // edge out of reach (#356). Three to a row there,
-                        // as the frame rates wrap four.
-                        per-row: root.narrow ? 3 : 0;
-                        changed(index) => { root.size-changed(index); }
-                    }
-
-                    VerticalLayout {
-                        alignment: center;
-                        horizontal-stretch: 0;
-                        Text {
-                            text: root.data.size-readout;
-                            color: Theme.fg-dim;
-                            font-family: Theme.font-technical;
-                            font-size: Theme.fs-sm;
-                        }
-                    }
+                ChipRow {
+                    options: root.sizes;
+                    extra: I18n.t("common.custom");
+                    current: root.data.size;
+                    enabled: !root.data.busy;
+                    block: root.narrow;
+                    per-row: root.narrow ? 3 : 0;
+                    changed(index) => { root.size-changed(index); }
                 }
 
-                // The typed frame: width by height, each side even and
-                // within 16 to 8192, which Rust rounds a typed number to.
+                Text {
+                    text: root.data.size-readout;
+                    color: Theme.fg;
+                    font-family: Theme.font-technical;
+                    font-size: Theme.fs;
+                }
+
                 if root.data.size == root.sizes.length: HorizontalLayout {
                     spacing: 8px;
-                    alignment: start;
 
-                    NumberField {
-                        width: 96px;
-                        value: root.data.custom-width;
-                        minimum: 16;
-                        maximum: 8192;
-                        step: 2;
-                        unit: "W";
+                    PlainInput {
+                        horizontal-stretch: 1;
+                        height: 32px;
+                        inset: 8px;
+                        border-radius: Theme.r;
+                        background: Theme.field;
+                        text: root.data.custom-width;
+                        placeholder: I18n.t("start.widthPx");
+                        face: Theme.font-technical;
                         enabled: !root.data.busy;
-                        changed(value) => { root.custom-width-edited(value); }
+                        sync-while-focused: true;
+                        edited(value) => { root.custom-width-edited(value); }
+                        accepted => { if (root.can-create) { root.create(); } }
                     }
 
                     Text {
@@ -2328,15 +2324,67 @@ export component NewProjectDialog inherits Modal {
                         vertical-alignment: center;
                     }
 
-                    NumberField {
-                        width: 96px;
-                        value: root.data.custom-height;
-                        minimum: 16;
-                        maximum: 8192;
-                        step: 2;
-                        unit: "H";
+                    PlainInput {
+                        horizontal-stretch: 1;
+                        height: 32px;
+                        inset: 8px;
+                        border-radius: Theme.r;
+                        background: Theme.field;
+                        text: root.data.custom-height;
+                        placeholder: I18n.t("start.heightPx");
+                        face: Theme.font-technical;
                         enabled: !root.data.busy;
-                        changed(value) => { root.custom-height-edited(value); }
+                        sync-while-focused: true;
+                        edited(value) => { root.custom-height-edited(value); }
+                        accepted => { if (root.can-create) { root.create(); } }
+                    }
+                }
+
+                if !root.data.valid-resolution: Text {
+                    text: root.data.resolution-error;
+                    color: Theme.danger;
+                    font-size: Theme.fs-sm;
+                    wrap: word-wrap;
+                }
+            }
+        }
+
+        FormRow {
+            label: I18n.upper("start.personalResolutions");
+            stacked: root.narrow;
+
+            VerticalLayout {
+                spacing: 8px;
+
+                if root.data.preset-options.length > 0: Select {
+                    options: root.data.preset-options;
+                    current: -1;
+                    placeholder: I18n.t("start.applyResolution");
+                    enabled: !root.data.busy;
+                    changed(index) => {
+                        root.apply-preset(index);
+                        self.current = -1;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+
+                    PlainInput {
+                        horizontal-stretch: 1;
+                        text: root.data.preset-name;
+                        placeholder: I18n.t("start.presetName");
+                        enabled: !root.data.busy;
+                        edited(name) => { root.preset-name-edited(name); }
+                        accepted => {
+                            if (save.enabled) { root.save-preset(); }
+                        }
+                    }
+
+                    save := LinkButton {
+                        label: I18n.t("start.saveResolution");
+                        enabled: !root.data.busy && root.data.valid-resolution && root.data.preset-name != "";
+                        clicked => { root.save-preset(); }
                     }
                 }
             }

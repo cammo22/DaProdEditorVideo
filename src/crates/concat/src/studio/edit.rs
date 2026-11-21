@@ -458,12 +458,7 @@ impl Studio {
         self.dirty = true;
         self.revision += 1;
         self.assign_media_rows();
-        let survivors: HashSet<String> = self
-            .timeline()
-            .clips
-            .iter()
-            .map(|clip| clip.id.clone())
-            .collect();
+        let survivors = super::split_selection::clip_ids(self.timeline());
         self.selection.retain(|id| survivors.contains(id));
         self.schedule_autosave();
         self.sync_audio();

@@ -87,7 +87,7 @@ pub(crate) fn drive(clip: PathBuf, banco: Option<PathBuf>) -> slint::Timer {
                         if let Some(dir) = &banco {
                             studio.start.location = dir.to_string_lossy().into_owned();
                             studio.start.size = crate::studio::SIZES.len();
-                            studio.start.custom_size = (320, 180);
+                            studio.start.set_manual_frame((320, 180));
                         }
                         studio.handle(Msg::Start(StartMsg::Create));
                         if studio.session.is_some() {

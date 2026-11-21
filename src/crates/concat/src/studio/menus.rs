@@ -25,10 +25,31 @@ impl Studio {
             .map(|clip| clip.id.clone())
             .collect();
         if !victims.is_empty() {
-            self.apply(Command::SplitClips {
-                clip_ids: victims,
-                time: at,
-            });
+            self.split_clips(victims, at);
+        }
+    }
+
+    fn split_clips(&mut self, clip_ids: Vec<String>, time: f64) {
+        self.flush_commit();
+        let Some(session) = &self.session else {
+            return;
+        };
+        let timeline = session.project().active();
+        let durations = clip_ids
+            .iter()
+            .filter_map(|id| timeline.clip(id).map(|clip| (id.clone(), clip.duration)))
+            .collect();
+        let fps = f64::from(self.frame_rate().max(1.0));
+        if self.apply(Command::SplitClips { clip_ids, time }).is_some()
+            && let Some(session) = &self.session
+        {
+            super::split_selection::select_shorter_segments(
+                session.project().active(),
+                &durations,
+                &mut self.selection,
+                time,
+                fps,
+            );
         }
     }
 
@@ -292,11 +313,7 @@ impl Studio {
         if at <= clip.start + edge || at >= clip.start + clip.duration - edge {
             return;
         }
-        self.flush_commit();
-        self.apply(Command::SplitClips {
-            clip_ids: vec![id.to_owned()],
-            time: at,
-        });
+        self.split_clips(vec![id.to_owned()], at);
     }
 
     /// Delete: the selection goes, and the hole stays unless the timeline

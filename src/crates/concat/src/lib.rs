@@ -871,11 +871,20 @@ fn start(project: Option<std::path::PathBuf>, smoke: Smoke) -> Result<(), slint:
     app.on_start_size_changed(on_window!(|state, index: i32| {
         state.handle(Msg::Start(StartMsg::SizeChanged(index)));
     }));
-    app.on_start_custom_width_edited(on_window!(|state, width: f32| {
-        state.handle(Msg::Start(StartMsg::CustomWidth(width)));
+    app.on_start_custom_width_edited(on_window!(|state, width: SharedString| {
+        state.handle(Msg::Start(StartMsg::CustomWidth(width.to_string())));
     }));
-    app.on_start_custom_height_edited(on_window!(|state, height: f32| {
-        state.handle(Msg::Start(StartMsg::CustomHeight(height)));
+    app.on_start_custom_height_edited(on_window!(|state, height: SharedString| {
+        state.handle(Msg::Start(StartMsg::CustomHeight(height.to_string())));
+    }));
+    app.on_start_preset_name_edited(on_window!(|state, name: SharedString| {
+        state.handle(Msg::Start(StartMsg::PresetNameEdited(name.to_string())));
+    }));
+    app.on_start_save_preset(on_window!(|state| {
+        state.handle(Msg::Start(StartMsg::SavePreset));
+    }));
+    app.on_start_apply_preset(on_window!(|state, index: i32| {
+        state.handle(Msg::Start(StartMsg::ApplyPreset(index)));
     }));
     app.on_start_custom_fps_edited(on_window!(|state, fps: f32| {
         state.handle(Msg::Start(StartMsg::CustomFps(fps)));

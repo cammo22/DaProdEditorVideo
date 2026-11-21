@@ -70,6 +70,7 @@ mod publish;
 mod speech;
 #[cfg(test)]
 mod speed_curve_tests;
+mod split_selection;
 mod stage;
 mod text;
 mod toast;
