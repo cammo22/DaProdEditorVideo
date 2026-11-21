@@ -94,25 +94,19 @@ pub fn shown<'a>(
     shown
 }
 
-/// The official site, which the guides and the developer docs are pages of.
-const SITE: &str = "https://concat.standalones.org";
 /// The repository: the code, the issues, the releases.
 pub const REPOSITORY: &str = "https://github.com/cammo22/DaProdEditorVideo";
 
 /// Where each of the launch screen's links goes, by the name the screen
-/// sends. One table, so a moved page is one line here. Every address is a
-/// page of the website's own content - src/content/guides in its
-/// repository - or the repository's, and None for a name nobody sends.
+/// sends. All external launch destinations belong to the project repository.
 /// "shortcuts" is not here: it opens Settings, not a page.
 pub fn link(name: &str) -> Option<String> {
     Some(match name {
-        "guides" => format!("{SITE}/guides/"),
+        "guides" => format!("{REPOSITORY}#readme"),
         "report" => format!("{REPOSITORY}/issues"),
         "github" => REPOSITORY.to_owned(),
         // The desktop and phone home cards open the project's release notes.
         "news" => format!("{REPOSITORY}/releases"),
-        // The invite the README carries.
-        "discord" => "https://discord.gg/Njs52aacwq".to_owned(),
         // The notes for the release this build is, under the tag the
         // release workflow pushes.
         "release-notes" => format!("{REPOSITORY}/releases/tag/v{}", env!("CARGO_PKG_VERSION")),
@@ -712,7 +706,6 @@ mod tests {
             "guides",
             "report",
             "github",
-            "discord",
             "news",
             "release-notes",
         ] {

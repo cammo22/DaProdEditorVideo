@@ -990,7 +990,7 @@ export component SettingsDialog inherits Sheet {
 
                     if root.data.download-source == 4: Field {
                         value: root.data.download-base;
-                        placeholder: "https://models.example.com/concat";
+                        placeholder: "https://models.example.com";
                         technical: true;
                         edited(text) => { root.download-base-edited(text); }
                     }

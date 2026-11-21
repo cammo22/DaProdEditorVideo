@@ -1480,16 +1480,12 @@ global Links {
         name: "github", glyph: Glyph.github, external: true,
         title: "GitHub",
     };
-    out property <HomeLink> chat: {
-        name: "discord", glyph: Glyph.discord, external: true,
-        title: "Discord",
-    };
     out property <HomeLink> report: {
         name: "report", glyph: Glyph.bug, external: true,
         title: I18n.t("start.reportProblem"),
     };
-    out property <[HomeLink]> desk: [docs, keys, code, chat, report];
-    out property <[HomeLink]> phone: [docs, code, chat, report];
+    out property <[HomeLink]> desk: [docs, keys, code, report];
+    out property <[HomeLink]> phone: [docs, code, report];
 }
 
 // Release notes sit in a recessed display like the other Banco readouts.
@@ -1742,7 +1738,7 @@ component WideHome inherits Rectangle {
                     }
 
                     HorizontalLayout {
-                        for item in [Links.code, Links.chat, Links.report]: SideLink {
+                        for item in [Links.code, Links.report]: SideLink {
                             item: item;
                             clicked => { root.link(item.name); }
                         }

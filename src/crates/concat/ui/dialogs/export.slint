@@ -231,7 +231,7 @@ component PreviewSection inherits DialogSection {
     Text {
         text: Fmt.frames-timecode(root.playhead, root.frame-rate)
             + " / " + Fmt.frames-timecode(root.duration, root.frame-rate);
-        color: Theme.fg-dim;
+        color: Theme.timecode;
         font-family: Theme.font-technical;
         font-size: Theme.fs-sm;
     }
@@ -635,7 +635,7 @@ export component ExportDialog inherits Rectangle {
         y: root.height * root.lowered;
         width: root.width;
         height: root.height;
-        background: Theme.panel;
+        background: root.phone ? Theme.panel : Theme.window-surface;
 
         // Nothing under the sheet takes a press while it is up.
         TouchArea { }
@@ -649,6 +649,7 @@ export component ExportDialog inherits Rectangle {
             // ── the header ───────────────────────────────────────────────
             Rectangle {
                 height: 52px;
+                background: root.phone ? Theme.panel : Theme.window-header;
 
                 Rectangle {
                     x: 0;
@@ -698,7 +699,7 @@ export component ExportDialog inherits Rectangle {
                 }
 
                 HorizontalLayout {
-                    x: (parent.width - self.preferred-width) / 2;
+                    x: root.phone ? (parent.width - self.preferred-width) / 2 : Theme.pad;
                     y: 0;
                     width: self.preferred-width;
                     height: parent.height;
@@ -706,7 +707,13 @@ export component ExportDialog inherits Rectangle {
 
                     VerticalLayout {
                         alignment: center;
-                        Icon { glyph: Glyph.export; size: 16px; tint: Theme.accent; }
+                        if root.phone: Icon { glyph: Glyph.export; size: 16px; tint: Theme.accent; }
+                        if !root.phone: Image {
+                            source: @image-url("../../../../../assets/daprod-banco.svg");
+                            width: 28px;
+                            height: 28px;
+                            image-fit: contain;
+                        }
                     }
 
                     Text {

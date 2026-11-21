@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 CRATE = ROOT / "src/crates/concat"
-SCENES = ("home", "montaggio", "impostazioni")
+SCENES = ("home", "montaggio", "impostazioni", "export")
 
 
 def quote(value):
@@ -137,6 +137,10 @@ export component Capture inherits App {{
         {{ path: "/fixture/viaggio", name: "Appunti di viaggio", frame: "1920 × 1080", when: "Una settimana fa", length: "2:15", ratio: 1.7778 }},
     ];
     settings: {{ open: {str(settings).lower()}, tab: 1, layout-switchable: true, gpu-switchable: true }};
+    export: {{ open: {str(scene == "export").lower()}, name: "Ritratti", path: "/fixture/Ritratti.mp4",
+        format: "1920 × 1080 · 30 fps", duration: "00:00:32:00", contents: "3 clip",
+        resolutions: ["1920 × 1080"], rates: ["30 fps"], h264-encodable: true,
+        rate-controlled: true, target: 12, encoding: "H.264", size-chosen: "48 MB" }};
     languages: ["Italiano"];
 
     init => {{
