@@ -1,0 +1,598 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Jareer Abdullah and Concat contributors
+
+import { I18n } from "../i18n.slint";
+import { Theme } from "../theme/theme.slint";
+import { Glyph, Icon } from "../icons.slint";
+import { IconButton } from "../primitives/panel.slint";
+import { Tip } from "../primitives/tooltip.slint";
+import { LevelMeter } from "../primitives/level-meter.slint";
+import { TimelineTool } from "model.slint";
+import { Editor } from "../editor.slint";
+
+component Divider inherits Rectangle {
+    width: 9px;
+
+    Rectangle {
+        x: 4px;
+        y: (parent.height - self.height) / 2;
+        width: 1px;
+        height: 18px;
+        background: Theme.line;
+    }
+}
+
+// The tray's button: an IconButton whose mark is bright at rest. The muted
+// default is for a row that must not compete with what it sits beside; this
+// row sits on its own strip under the lanes, where a muted mark reads as
+// switched off, and a switched-off one has nothing dimmer left to be.
+component TrayButton inherits IconButton {
+    idle: Theme.fg;
+    callback reveal(x: length, width: length);
+    changed has-focus => {
+        if (root.has-focus) { root.reveal(root.absolute-position.x, root.width); }
+    }
+}
+
+// The primary editing keys share one shape, with a shortcut legend above
+// the action. Keep the secondary tools in a separate group on the same bar.
+component EditKey inherits Rectangle {
+    in property <string> legend;
+    in property <string> caption;
+    in property <string> description: root.caption;
+    in property <Glyph> glyph;
+    in property <bool> enabled: true;
+    in property <bool> danger: false;
+    callback clicked();
+    callback reveal(x: length, width: length);
+
+    width: Math.max(48px, label.preferred-width + 10px, shortcut.preferred-width + 25px);
+    height: 32px;
+    border-width: 1px;
+    border-color: focus.has-focus ? Theme.accent : Theme.line-strong;
+    border-radius: 5px;
+    background: touch.pressed ? Theme.field-active : touch.has-hover ? Theme.field-hover
+        : root.danger && root.enabled ? Theme.danger-soft
+        : @linear-gradient(180deg, Theme.raised 0%, Theme.field 100%);
+
+    accessible-role: button;
+    accessible-label: root.description;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+
+    focus := FocusScope {
+        enabled: root.enabled;
+        focus-gained(reason) => { root.reveal(root.absolute-position.x, root.width); }
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    shortcut := Text {
+        x: 4px;
+        y: 1px;
+        text: root.legend;
+        color: root.enabled ? Theme.timecode : Theme.fg-dim;
+        font-family: Theme.font-technical;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    Icon {
+        x: parent.width - self.width - 4px;
+        y: 2px;
+        glyph: root.glyph;
+        size: 13px;
+        tint: root.enabled ? Theme.fg : Theme.fg-dim;
+    }
+    label := Text {
+        y: 15px;
+        width: parent.width;
+        text: root.caption;
+        color: root.enabled ? Theme.fg : Theme.fg-dim;
+        font-size: 10px;
+        font-weight: 700;
+        horizontal-alignment: center;
+    }
+    Tip { text: root.description; active: touch.has-hover; }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { focus.focus(); root.clicked(); }
+    }
+}
+
+// One row of the add menu and its submenu: a word, a mark at the end.
+component MenuItem inherits Rectangle {
+    in property <string> text;
+    in property <Glyph> trailing: Glyph.none;
+    out property <bool> hovered: touch.has-hover;
+
+    callback clicked();
+
+    height: 26px;
+    border-radius: Theme.r-sm;
+    background: touch.has-hover ? Theme.field-hover : Colors.transparent;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 6px;
+        spacing: 6px;
+
+        Text {
+            horizontal-stretch: 1;
+            text: root.text;
+            color: Theme.fg;
+            font-size: Theme.fs;
+            vertical-alignment: center;
+        }
+
+        if root.trailing != Glyph.none: VerticalLayout {
+            alignment: center;
+            Icon { glyph: root.trailing; size: 12px; tint: Theme.fg-muted; }
+        }
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The plus at the head of the tray: a menu that adds a lane on top of the
+// stack or under it, one row each. Flat rather than a row that flies a
+// submenu out beside it: a PopupWindow inside a PopupWindow draws, but the
+// part of it hanging outside its parent never takes the click, so top and
+// bottom could be seen and neither pressed.
+// https://github.com/slint-ui/slint/issues/7322
+component AddMenu inherits Rectangle {
+    callback add-track(bottom: bool);
+    callback reveal(x: length, width: length);
+
+    width: 26px;
+    height: 26px;
+
+    property <length> row-h: 26px;
+
+    TrayButton {
+        reveal(x, width) => { root.reveal(x, width); }
+        glyph: Glyph.plus;
+        label: I18n.t("tray.addTrack");
+        icon-size: 14px;
+        clicked => { list.show(); }
+    }
+
+    list := PopupWindow {
+        x: 0;
+        y: root.height + 4px;
+        width: 168px;
+        height: 2 * root.row-h + 8px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            background: Theme.raised;
+            border-width: 1px;
+            border-color: Theme.line-strong;
+            border-radius: Theme.r;
+
+            VerticalLayout {
+                padding: 4px;
+                alignment: start;
+
+                MenuItem {
+                    text: I18n.t("tray.addTrackTop");
+                    clicked => {
+                        list.close();
+                        root.add-track(false);
+                    }
+                }
+                MenuItem {
+                    text: I18n.t("tray.addTrackBottom");
+                    clicked => {
+                        list.close();
+                        root.add-track(true);
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component TimelineTray inherits Rectangle {
+    in property <TimelineTool> tool: TimelineTool.select;
+    in property <bool> snap: true;
+    in property <bool> magnetic: false;
+    in property <bool> linkage: true;
+    in property <bool> pan-mode: false;
+    /// Trim follow: the playhead rides a clip edge while it is dragged.
+    in property <bool> trim-follow: false;
+    /// The preview axis: the monitor follows the pointer across the lanes.
+    in property <bool> preview-axis: false;
+    in property <int> selected-count;
+    /// A transition is selected on its own: the trash takes it off.
+    in property <bool> transition-selected;
+    /// Whether the history has a step that way. Rust's answer, read from
+    /// the editor after every change, so the buttons never guess.
+    in property <bool> can-undo;
+    in property <bool> can-redo;
+    /// Empty when the selection can be merged; otherwise why it cannot.
+    in property <string> merge-blocked-because;
+    in property <string> merge-label;
+    /// What the selection offers the sound and word tools. Each is one
+    /// clip's worth of truth, decided by Rust; see the Editor global.
+    in property <bool> sound-selected;
+    in property <bool> title-selected;
+    /// What the selection offers the picture verbs behind one mark: a
+    /// picture to mirror or turn, and one the playhead is inside, to
+    /// freeze. Rust's answers, like the two above.
+    in property <bool> picture-selected;
+    in property <bool> freezable;
+    /// A voiceover take is running: the record button reads Stop, in red,
+    /// with the take's level beside it.
+    in property <bool> recording;
+    in property <float> record-level;
+    /// The VU meters at the lanes' right edge are shown.
+    in property <bool> meters-shown: true;
+
+    callback tool-changed(tool: TimelineTool);
+    callback snap-changed(snap: bool);
+    callback magnetic-changed(on: bool);
+    callback linkage-changed(on: bool);
+    callback pan-changed(on: bool);
+    callback trim-follow-changed(on: bool);
+    callback preview-axis-changed(on: bool);
+    /// The chevron beside the preview axis: open its menu under the button
+    /// at this x, in the tray's coordinates. The pane hosts the menu; see
+    /// there for why.
+    callback axis-menu-requested(x: length);
+    /// The mark over freeze, mirror and rotate: open its menu under the
+    /// button at this x, hosted by the pane like the axis menu.
+    callback transform-menu-requested(x: length);
+    callback undo();
+    callback redo();
+    callback split();
+    callback merge();
+    callback delete-selected();
+    callback clip-verb(action: string);
+    callback captions();
+    callback speak();
+    callback record-voiceover();
+    /// Add a lane: on top of the stack, or with `bottom` under it.
+    callback add-track(bottom: bool);
+    callback fit();
+    callback zoom(factor: float);
+    callback meters-shown-changed(on: bool);
+
+    height: 38px;
+    background: @linear-gradient(180deg, Theme.raised 0%, Theme.panel 100%);
+
+    clip: true;
+
+    overflow := TouchArea {
+        property <length> offset;
+        property <length> travel: Math.max(0px, commands.preferred-width - self.width);
+        property <length> at: Math.max(-self.travel, Math.min(0px, self.offset));
+        function reveal(x: length, width: length) {
+            let left = x - self.absolute-position.x;
+            let right = left + width;
+            if (left < 0px || width > self.width) {
+                self.offset = self.at - left;
+            } else if (right > self.width) {
+                self.offset = self.at + self.width - right;
+            }
+        }
+
+        scroll-event(event) => {
+            if (self.travel <= 0px) { return reject; }
+            self.offset = self.at + (event.delta-x != 0px ? event.delta-x : event.delta-y);
+            return accept;
+        }
+
+        commands := HorizontalLayout {
+            x: overflow.at;
+            width: Math.max(root.width, self.preferred-width);
+            height: root.height;
+            padding-left: 6px;
+            padding-right: 6px;
+            padding-top: 3px;
+            padding-bottom: 3px;
+            spacing: 4px;
+
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-split;
+                caption: I18n.upper("banco.cut");
+                glyph: Glyph.split;
+                clicked => { root.split(); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-delete;
+                caption: I18n.upper("common.delete");
+                glyph: Glyph.trash;
+                danger: true;
+                enabled: root.selected-count > 0 || root.transition-selected;
+                clicked => { root.delete-selected(); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-ripple-delete;
+                caption: I18n.upper("banco.closeGap");
+                glyph: Glyph.fold;
+                enabled: root.selected-count > 0;
+                clicked => { root.clip-verb("ripple-delete"); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-clip-group;
+                caption: I18n.upper("banco.group");
+                glyph: Glyph.link;
+                enabled: root.selected-count > 0;
+                clicked => { root.clip-verb("toggle-clip-group"); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                caption: I18n.upper("banco.merge");
+                description: root.merge-blocked-because == "" ? root.merge-label : root.merge-blocked-because;
+                glyph: Glyph.merge;
+                enabled: root.merge-blocked-because == "";
+                clicked => { root.merge(); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-delete-left;
+                caption: I18n.upper("banco.discardLeft");
+                glyph: Glyph.delete-left;
+                clicked => { root.clip-verb("delete-left"); }
+            }
+            EditKey {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                legend: Editor.keys-delete-right;
+                caption: I18n.upper("banco.discardRight");
+                glyph: Glyph.delete-right;
+                clicked => { root.clip-verb("delete-right"); }
+            }
+
+            if root.selected-count > 1: Text {
+                width: 18px;
+                text: "\{root.selected-count}";
+                color: Theme.accent;
+                font-size: Theme.fs-sm;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            Divider { }
+
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                wide: true;
+                text: I18n.upper("banco.free");
+                label: I18n.t("banco.free");
+                checked: !root.magnetic;
+                clicked => { root.magnetic-changed(false); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                wide: true;
+                text: I18n.upper("banco.ripple");
+                label: I18n.t("tray.magneticTimelineDeletingTrimming");
+                checked: root.magnetic;
+                clicked => { root.magnetic-changed(true); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                wide: true;
+                text: I18n.upper("banco.snap");
+                label: I18n.t("common.snapToEdges");
+                checked: root.snap;
+                clicked => { root.snap-changed(!root.snap); }
+            }
+            Divider { }
+
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.image;
+                label: I18n.t("previewPane.saveFrameAs");
+                enabled: Editor.has-picture;
+                clicked => { Editor.save-frame(); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.undo;
+                label: I18n.t1("tray.undo", Editor.keys-undo);
+                enabled: root.can-undo;
+                clicked => { root.undo(); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.redo;
+                label: I18n.t1("tray.redo", Editor.keys-redo);
+                enabled: root.can-redo;
+                clicked => { root.redo(); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.minus;
+                label: I18n.t("common.zoomOut");
+                clicked => { root.zoom(1.4); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.plus;
+                label: I18n.t("common.zoomIn");
+                clicked => { root.zoom(1 / 1.4); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.fit;
+                label: I18n.t("tray.zoomToFit");
+                clicked => { root.fit(); }
+            }
+
+            Divider { }
+
+            AddMenu {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                add-track(bottom) => { root.add-track(bottom); }
+            }
+            // And the razor, a tool rather than a verb: on, a click on a clip
+            // cuts it where the pointer is. Its key turns it on and off.
+            // https://github.com/jub0t/Concat/issues/241
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.razor;
+                label: I18n.t1("tray.splitTool", Editor.keys-split-tool);
+                icon-size: 16px;
+                checked: root.tool == TimelineTool.split;
+                clicked => {
+                    root.tool-changed(root.tool == TimelineTool.split
+                        ? TimelineTool.select : TimelineTool.split);
+                }
+            }
+            // Freeze, mirror and rotate behind one mark: three verbs about the
+            // selected clip's picture, and a tray has no room for three more
+            // buttons. The mark and the chevron both open the menu, set flush
+            // like the preview axis pair so they read as one control.
+            verbs := HorizontalLayout {
+                spacing: 0;
+
+                TrayButton {
+                    reveal(x, width) => { overflow.reveal(x, width); }
+                    glyph: Glyph.mirror-rotate;
+                    label: I18n.t("tray.freezeMirrorRotateSelected");
+                    icon-size: 16px;
+                    enabled: root.selected-count > 0;
+                    clicked => { root.transform-menu-requested(verbs.absolute-position.x - root.absolute-position.x); }
+                }
+                TrayButton {
+                    reveal(x, width) => { overflow.reveal(x, width); }
+                    width: 16px;
+                    glyph: Glyph.chevron-down;
+                    label: I18n.t("tray.freezeMirrorRotateSelected");
+                    icon-size: 11px;
+                    enabled: root.selected-count > 0;
+                    clicked => { root.transform-menu-requested(verbs.absolute-position.x - root.absolute-position.x); }
+                }
+            }
+
+            Divider { }
+
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.hand;
+                label: I18n.t1("tray.panTool", Editor.keys-pan);
+                icon-size: 16px;
+                checked: root.pan-mode;
+                clicked => { root.pan-changed(!root.pan-mode); }
+            }
+            // Beside the hand: while an edge is dragged the playhead rides it,
+            // so the monitor shows the frame the cut lands on.
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.trim-follow;
+                label: I18n.t("tray.playerFollowsResizePlayhead");
+                icon-size: 16px;
+                checked: root.trim-follow;
+                clicked => { root.trim-follow-changed(!root.trim-follow); }
+            }
+
+            Divider { }
+
+            // Linkage, beside the magnetic timeline it keeps in step: when the
+            // main lane closes up or opens, the captions, titles, overlays and
+            // sounds placed against it move with it.
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.link;
+                label: I18n.t("tray.linkage");
+                icon-size: 16px;
+                checked: root.linkage;
+                clicked => { root.linkage-changed(!root.linkage); }
+            }
+
+            Divider { }
+
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.text-mark;
+                label: I18n.t("tray.generateCaptions");
+                icon-size: 16px;
+                // On while the panel is up; a second press puts it away.
+                checked: Editor.captions-open;
+                clicked => { root.captions(); }
+            }
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.volume;
+                label: I18n.t("tray.textToSpeech");
+                icon-size: 16px;
+                checked: Editor.speech-open;
+                clicked => { root.speak(); }
+            }
+            // A voiceover: the picture rolls from the playhead and the words go
+            // onto a lane under it. The same button stops the take.
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: root.recording ? Glyph.stop : Glyph.mic;
+                label: root.recording ? I18n.t("tray.stopRecording") : I18n.t("tray.recordVoiceover");
+                icon-size: 16px;
+                idle: root.recording ? Theme.danger : Theme.fg;
+                checked: Editor.voiceover-open && !root.recording;
+                clicked => { root.record-voiceover(); }
+            }
+            if root.recording: LevelMeter {
+                width: 56px;
+                horizontal-stretch: 0;
+                value: root.record-level;
+            }
+
+            Rectangle { horizontal-stretch: 1; }
+
+            // The preview axis: the monitor shows the frame under the pointer
+            // as it crosses the lanes, the playhead staying put. The chevron
+            // beside it chooses whether the sound under the pointer plays too.
+            // Where the timecode readout was: the monitor already reads the
+            // playhead, and a second copy here was one more place to glance
+            // between.
+            // One control in two halves, set flush: the mark toggles, the
+            // chevron beside it opens the menu, and no air between them so
+            // they read as a split button and not as two neighbours.
+            axis := HorizontalLayout {
+                spacing: 0;
+
+                TrayButton {
+                    reveal(x, width) => { overflow.reveal(x, width); }
+                    glyph: Glyph.axis;
+                    label: root.preview-axis
+                        ? I18n.t1("tray.turnOffPreviewAxis", Editor.keys-preview-axis)
+                        : I18n.t1("tray.turnOnPreviewAxis", Editor.keys-preview-axis);
+                    icon-size: 16px;
+                    checked: root.preview-axis;
+                    clicked => { root.preview-axis-changed(!root.preview-axis); }
+                }
+                TrayButton {
+                    reveal(x, width) => { overflow.reveal(x, width); }
+                    width: 16px;
+                    glyph: Glyph.chevron-down;
+                    label: I18n.t("tray.previewAxisOptions");
+                    icon-size: 11px;
+                    clicked => { root.axis-menu-requested(axis.absolute-position.x - root.absolute-position.x); }
+                }
+            }
+
+            // The VU meters, shown or put away. Last on the row, so it sits
+            // over the column it switches.
+            TrayButton {
+                reveal(x, width) => { overflow.reveal(x, width); }
+                glyph: Glyph.meter;
+                label: root.meters-shown ? I18n.t("tray.hideMeters") : I18n.t("tray.showMeters");
+                icon-size: 16px;
+                checked: root.meters-shown;
+                clicked => { root.meters-shown-changed(!root.meters-shown); }
+            }
+        }
+    }
+}
