@@ -3,3 +3,13 @@ name = "zero-strength-preserves-input"
 at = "min"
 input = [0.25, 0.5, 0.75, 1]
 expect = [0.25, 0.5, 0.75, 1]
+[[probe]]
+name = "default-grade"
+input = [0.3, 0.2, 0.12, 1]
+expect = [0.345187, 0.196161, 0.09019, 1]
+
+[[probe]]
+name = "max-grade"
+at = "max"
+input = [0.25, 0.4, 0.2, 1]
+expect = [0.221895, 0.436243, 0.157313, 1]
