@@ -43,6 +43,7 @@ HOST_MODELS = CRATES / "concat-host" / "src" / "models.rs"
 TABLES = {
     "cutout": CRATES / "concat-vision" / "src" / "models.rs",
     "chatterbox": CRATES / "concat-speech" / "src" / "chatterbox.rs",
+    "supertonic": CRATES / "concat-speech" / "src" / "supertonic.rs",
     "whisper": CRATES / "concat-speech" / "src" / "transcribe.rs",
 }
 

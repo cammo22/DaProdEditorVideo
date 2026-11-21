@@ -105,6 +105,7 @@ pub enum VoiceChoice {
 fn reading_pace(family: Family) -> f32 {
     match family {
         Family::System => 0.1,
+        Family::Supertonic => 1.0,
         Family::Chatterbox => 1.6,
     }
 }
@@ -702,7 +703,7 @@ impl SpeechPane {
     /// speakers.
     fn sample_voice(&self) -> Option<i32> {
         match self.family {
-            Family::System => None,
+            Family::System | Family::Supertonic => None,
             Family::Chatterbox => Some(CHATTERBOX_CLONE),
         }
     }
@@ -761,6 +762,7 @@ impl SpeechPane {
         let offered = self.offered();
         let default = match self.family {
             Family::System => DEFAULT_SYSTEM_VOICE,
+            Family::Supertonic => 4000,
             Family::Chatterbox => DEFAULT_CHATTERBOX_VOICE,
         };
         wanted
@@ -863,6 +865,7 @@ impl SpeechPane {
             .iter()
             .map(|model| match family_of(&model.id) {
                 Family::System => t("speech.builtInSpeakersFast"),
+                Family::Supertonic => model.note.clone(),
                 Family::Chatterbox => t("speech.studioVoiceSlow"),
             })
             .map(SharedString::from)
@@ -940,6 +943,7 @@ impl SpeechPane {
             model: self.model as i32,
             family: match self.family {
                 Family::System => 0,
+                Family::Supertonic => 1,
                 Family::Chatterbox => 2,
             },
             speed: self.speed,
@@ -1253,6 +1257,10 @@ fn voice_label(name: &str) -> (String, String) {
         Some('m') => t("speech.male"),
         _ => String::new(),
     };
+    let title = match name {
+        "if_F1" | "if_F2" | "if_F3" | "im_M1" | "im_M2" | "im_M3" => format!("DaP {title}"),
+        _ => title,
+    };
     let detail = [accent, gender]
         .into_iter()
         .filter(|part| !part.is_empty())
@@ -1332,6 +1340,9 @@ mod tests {
         assert!(detail.contains("American"));
         assert!(detail.contains("female"));
         assert_eq!(voice_label("nova").0, "Nova");
+        for name in ["if_F1", "if_F2", "if_F3", "im_M1", "im_M2", "im_M3"] {
+            assert_eq!(voice_label(name).0, format!("DaP {}", &name[3..]));
+        }
         // The stock Chatterbox voices: a British woman, and a man whose
         // accent goes unsaid.
         let (title, detail) = voice_label("bf_ruth");

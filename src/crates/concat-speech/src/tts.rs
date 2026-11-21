@@ -42,6 +42,8 @@ pub enum Family {
     /// Resemble's Chatterbox Turbo: a voice is a reference recording.
     #[default]
     Chatterbox,
+    /// Fixed multilingual Supertonic 3 presets, spoken in Italian.
+    Supertonic,
     /// The phone's own text-to-speech engine, in the phone's voice.
     System,
 }
@@ -52,7 +54,9 @@ pub const SYSTEM_ID: &str = "system-voice";
 
 /// The family a model id belongs to.
 pub fn family_of(id: &str) -> Family {
-    if id == SYSTEM_ID {
+    if id == "supertonic-3-it" {
+        Family::Supertonic
+    } else if id == SYSTEM_ID {
         Family::System
     } else {
         Family::Chatterbox
@@ -101,6 +105,13 @@ const KNOWN_MODELS: &[KnownModel] = &[
         blurb: "The closest to a studio voice; reads in a stock voice or any sample of your own. English, slow, a gigabyte.",
         approx_bytes: crate::chatterbox::BUNDLE_BYTES,
     },
+    #[cfg(feature = "chatterbox")]
+    KnownModel {
+        id: crate::supertonic::BUNDLE_ID,
+        label: "DaP Italiano · Supertonic 3",
+        blurb: "Sei voci sintetiche. OpenRAIL-M: dichiarare che la voce è generata. Condizioni nel file LICENSE del modello.",
+        approx_bytes: crate::supertonic::BUNDLE_BYTES,
+    },
     KnownModel {
         id: SYSTEM_ID,
         label: "Phone voice",
@@ -132,6 +143,15 @@ pub const CHATTERBOX_CLONE: i32 = 2099;
 
 /// The phone's voice: whichever its engine is set to.
 pub const SYSTEM_VOICES: &[(i32, &str)] = &[(3000, "system_default")];
+
+const IT_VOICES: &[(i32, &str)] = &[
+    (4000, "if_F1"),
+    (4001, "if_F2"),
+    (4002, "if_F3"),
+    (4003, "im_M1"),
+    (4004, "im_M2"),
+    (4005, "im_M3"),
+];
 
 /// The stock recordings Concat carries, by file name.
 #[cfg(feature = "chatterbox")]
@@ -165,7 +185,9 @@ pub const REFERENCE_SECONDS: f64 = 10.0;
 
 /// Which family a voice id belongs to.
 pub fn voice_family(voice: i32) -> Option<Family> {
-    if CHATTERBOX_VOICES.iter().any(|(id, _, _)| *id == voice) {
+    if IT_VOICES.iter().any(|(id, _)| *id == voice) {
+        Some(Family::Supertonic)
+    } else if CHATTERBOX_VOICES.iter().any(|(id, _, _)| *id == voice) {
         Some(Family::Chatterbox)
     } else if SYSTEM_VOICES.iter().any(|(id, _)| *id == voice) {
         Some(Family::System)
@@ -176,6 +198,9 @@ pub fn voice_family(voice: i32) -> Option<Family> {
 
 /// The name of a voice, in either family.
 fn voice_name(voice: i32) -> Option<&'static str> {
+    if let Some((_, name)) = IT_VOICES.iter().find(|(id, _)| *id == voice) {
+        return Some(name);
+    }
     CHATTERBOX_VOICES
         .iter()
         .find(|(id, _, _)| *id == voice)
@@ -211,6 +236,12 @@ fn model_dir(dirs: &AppDirs, id: &str) -> Result<PathBuf, String> {
 fn model_downloaded(dirs: &AppDirs, id: &str) -> bool {
     match family_of(id) {
         Family::System => system_voice().is_some(),
+        #[cfg(feature = "chatterbox")]
+        Family::Supertonic => {
+            model_dir(dirs, id).is_ok_and(|dir| crate::supertonic::installed(&dir))
+        }
+        #[cfg(not(feature = "chatterbox"))]
+        Family::Supertonic => false,
         #[cfg(feature = "chatterbox")]
         Family::Chatterbox => {
             model_dir(dirs, id).is_ok_and(|dir| crate::chatterbox::installed(&dir))
@@ -496,6 +527,17 @@ impl Speech {
                             avatar: None,
                         }),
                 )
+                .chain(
+                    IT_VOICES
+                        .iter()
+                        .filter(|_| cfg!(feature = "chatterbox"))
+                        .map(|(id, name)| VoiceInfo {
+                            id: *id,
+                            name: (*name).into(),
+                            family: Family::Supertonic,
+                            avatar: None,
+                        }),
+                )
                 .collect(),
         })
     }
@@ -514,6 +556,10 @@ impl Speech {
         let destination = model_dir(dirs, id)?;
         match family_of(id) {
             Family::System => Ok(()),
+            #[cfg(feature = "chatterbox")]
+            Family::Supertonic => crate::supertonic::download(&destination, cancel, &mut progress),
+            #[cfg(not(feature = "chatterbox"))]
+            Family::Supertonic => Err("Supertonic unavailable".into()),
             #[cfg(feature = "chatterbox")]
             Family::Chatterbox => crate::chatterbox::download(&destination, cancel, &mut progress),
             #[cfg(not(feature = "chatterbox"))]
@@ -648,6 +694,40 @@ impl Speech {
         let voice_name = voice_name(request.voice).unwrap_or("voice");
         let file = out_dir.join(format!("speech-{voice_name}-{stamp}.wav"));
 
+        #[cfg(feature = "chatterbox")]
+        if family == Family::Supertonic {
+            let _guard = self.engine.lock().map_err(|_| "speech state poisoned")?;
+            concat_vision::runtime::ready()?;
+            progress(JobStage::Loading);
+            let mut tts = crate::supertonic_engine::load_text_to_speech(
+                &dir.join("onnx").to_string_lossy(),
+                false,
+            )
+            .map_err(|e| e.to_string())?;
+            let preset = voice_name.split_once('_').ok_or("invalid preset")?.1;
+            let style_path = dir.join("voice_styles").join(format!("{preset}.json"));
+            let style = crate::supertonic_engine::load_voice_style(
+                &[style_path.to_string_lossy().into_owned()],
+                false,
+            )
+            .map_err(|e| e.to_string())?;
+            progress(JobStage::Reading);
+            let (samples, _) = tts
+                .call(text, "it", &style, 5, speed, 0.25, &cancel)
+                .map_err(|e| e.to_string())?;
+            if cancel.load(Ordering::Relaxed) {
+                return Err("synthesis cancelled".into());
+            }
+            if samples.is_empty() {
+                return Err("empty speech".into());
+            }
+            std::fs::write(&file, wav_bytes(&samples, tts.sample_rate as u32))
+                .map_err(|e| e.to_string())?;
+            return Ok(SpeakResult {
+                path: file.to_string_lossy().into_owned(),
+                duration: samples.len() as f64 / tts.sample_rate as f64,
+            });
+        }
         if family == Family::System {
             let voice = system_voice().ok_or("this device has no voice of its own")?;
             let duration = speak_on_the_phone(voice, text, speed, &file, &cancel, &mut progress)?;

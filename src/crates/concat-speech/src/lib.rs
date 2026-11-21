@@ -21,6 +21,10 @@
 pub mod beats;
 #[cfg(feature = "chatterbox")]
 pub mod chatterbox;
+#[cfg(feature = "chatterbox")]
+mod supertonic;
+#[cfg(feature = "chatterbox")]
+mod supertonic_engine;
 #[cfg(feature = "isolate")]
 pub mod isolate;
 pub mod transcribe;

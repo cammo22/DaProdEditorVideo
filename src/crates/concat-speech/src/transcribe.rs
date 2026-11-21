@@ -226,6 +226,14 @@ const KNOWN_MODELS: &[KnownModel] = &[
         sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b",
         english_only: false,
     },
+    KnownModel {
+        id: "small-q5_1",
+        label: "DaP Italiano · Whisper Small Q5_1",
+        blurb: "Whisper multilingue quantizzato. Seleziona Italiano per trascrivere in italiano.",
+        approx_bytes: 190_085_487,
+        sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+        english_only: false,
+    },
 ];
 
 fn known(id: &str) -> Option<&'static KnownModel> {

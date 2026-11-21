@@ -255,3 +255,129 @@ bytes = 487601967
 sha256 = "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
 licence = "MIT"
 upstream = "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin"
+
+[[model]]
+id = "whisper-small-q5_1"
+family = "whisper"
+file = "ggml-small-q5_1.bin"
+bytes = 190085487
+sha256 = "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb"
+licence = "MIT"
+upstream = "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin"
+
+[[model]]
+id = "supertonic-3-LICENSE"
+family = "supertonic"
+file = "supertonic-3-LICENSE"
+bytes = 15007
+sha256 = "0d944a9110fed9a9602d60e0423a272903e7bd21ab060490774efc77c2275e9f"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/LICENSE"
+
+[[model]]
+id = "supertonic-3-duration_predictor.onnx"
+family = "supertonic"
+file = "supertonic-3-duration_predictor.onnx"
+bytes = 3700147
+sha256 = "c3eb91414d5ff8a7a239b7fe9e34e7e2bf8a8140d8375ffb14718b1c639325db"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/duration_predictor.onnx"
+
+[[model]]
+id = "supertonic-3-text_encoder.onnx"
+family = "supertonic"
+file = "supertonic-3-text_encoder.onnx"
+bytes = 36416150
+sha256 = "c7befd5ea8c3119769e8a6c1486c4edc6a3bc8365c67621c881bbb774b9902ff"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/text_encoder.onnx"
+
+[[model]]
+id = "supertonic-3-tts.json"
+family = "supertonic"
+file = "supertonic-3-tts.json"
+bytes = 8253
+sha256 = "42078d3aef1cd43ab43021f3c54f47d2d75ceb4e75f627f118890128b06a0d09"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/tts.json"
+
+[[model]]
+id = "supertonic-3-unicode_indexer.json"
+family = "supertonic"
+file = "supertonic-3-unicode_indexer.json"
+bytes = 277676
+sha256 = "9bf7346e43883a81f8645c81224f786d43c5b57f3641f6e7671a7d6c493cb24f"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/unicode_indexer.json"
+
+[[model]]
+id = "supertonic-3-vector_estimator.onnx"
+family = "supertonic"
+file = "supertonic-3-vector_estimator.onnx"
+bytes = 256534781
+sha256 = "883ac868ea0275ef0e991524dc64f16b3c0376efd7c320af6b53f5b780d7c61c"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/vector_estimator.onnx"
+
+[[model]]
+id = "supertonic-3-vocoder.onnx"
+family = "supertonic"
+file = "supertonic-3-vocoder.onnx"
+bytes = 101424195
+sha256 = "085de76dd8e8d5836d6ca66826601f615939218f90e519f70ee8a36ed2a4c4ba"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/vocoder.onnx"
+
+[[model]]
+id = "supertonic-3-F1.json"
+family = "supertonic"
+file = "supertonic-3-F1.json"
+bytes = 292046
+sha256 = "bbdec6ee00231c2c742ad05483df5334cab3b52fda3ba38e6a07059c4563dbc2"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F1.json"
+
+[[model]]
+id = "supertonic-3-F2.json"
+family = "supertonic"
+file = "supertonic-3-F2.json"
+bytes = 292423
+sha256 = "7c722c6a72707b1a77f035d67f0d1351ba187738e06f7683e8c72b1df3477fc6"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F2.json"
+
+[[model]]
+id = "supertonic-3-F3.json"
+family = "supertonic"
+file = "supertonic-3-F3.json"
+bytes = 290794
+sha256 = "12f6ef2573baa2defa1128069cb59f203e3ab67c92af77b42df8a0e3a2f7c6ab"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F3.json"
+
+[[model]]
+id = "supertonic-3-M1.json"
+family = "supertonic"
+file = "supertonic-3-M1.json"
+bytes = 291748
+sha256 = "e35604687f5d23694b8e91593a93eec0e4eca6c0b02bb8ed69139ab2ea6b0a5b"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M1.json"
+
+[[model]]
+id = "supertonic-3-M2.json"
+family = "supertonic"
+file = "supertonic-3-M2.json"
+bytes = 292055
+sha256 = "b76cbf62bac707c710cf0ae5aba5e31eea1a6339a9734bfae33ab98499534a50"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M2.json"
+
+[[model]]
+id = "supertonic-3-M3.json"
+family = "supertonic"
+file = "supertonic-3-M3.json"
+bytes = 290198
+sha256 = "ea1ac35ccb91b0d7ecad533a2fbd0eec10c91513d8951e3b25fbba99954e159b"
+licence = "OpenRAIL-M"
+upstream = "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M3.json"
