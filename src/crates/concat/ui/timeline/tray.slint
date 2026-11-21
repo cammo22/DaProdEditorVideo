@@ -46,8 +46,8 @@ component EditKey inherits Rectangle {
     callback clicked();
     callback reveal(x: length, width: length);
 
-    width: Math.max(48px, label.preferred-width + 10px, shortcut.preferred-width + 8px);
-    height: 43px;
+    width: Math.max(48px, label.preferred-width + 10px, shortcut.preferred-width + 25px);
+    height: 32px;
     border-width: 1px;
     border-color: focus.has-focus ? Theme.accent : Theme.line-strong;
     border-radius: 5px;
@@ -81,14 +81,14 @@ component EditKey inherits Rectangle {
         font-weight: 700;
     }
     Icon {
-        x: (parent.width - self.width) / 2;
-        y: 12px;
+        x: parent.width - self.width - 4px;
+        y: 2px;
         glyph: root.glyph;
         size: 13px;
         tint: root.enabled ? Theme.fg : Theme.fg-dim;
     }
     label := Text {
-        y: 25px;
+        y: 15px;
         width: parent.width;
         text: root.caption;
         color: root.enabled ? Theme.fg : Theme.fg-dim;
@@ -265,7 +265,7 @@ export component TimelineTray inherits Rectangle {
     callback zoom(factor: float);
     callback meters-shown-changed(on: bool);
 
-    height: 55px;
+    height: 38px;
     background: @linear-gradient(180deg, Theme.raised 0%, Theme.panel 100%);
 
     clip: true;
@@ -296,8 +296,8 @@ export component TimelineTray inherits Rectangle {
             height: root.height;
             padding-left: 6px;
             padding-right: 6px;
-            padding-top: 5px;
-            padding-bottom: 6px;
+            padding-top: 3px;
+            padding-bottom: 3px;
             spacing: 4px;
 
             EditKey {

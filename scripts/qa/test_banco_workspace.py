@@ -14,7 +14,7 @@ VIEWER = os.environ.get("SLINT_VIEWER", "slint-viewer")
 
 
 class BancoWorkspaceTest(unittest.TestCase):
-    def render(self, *, meters=True, split_key="1", preview_width=477):
+    def render(self, *, meters=True, split_key="1", preview_width=477, media_width=550):
         with tempfile.TemporaryDirectory(prefix="banco-workspace-") as temp:
             fixture = Path(temp) / "desk.slint"
             screenshot = fixture.with_suffix(".png")
@@ -26,14 +26,14 @@ export component Desk inherits Window {{
     Workspace {{}}
     init => {{
         Editor.seats = [
-            {{ index: 0, kind: PaneKind.media, x: 8px, y: 8px, width: 550px, height: 360px }},
+            {{ index: 0, kind: PaneKind.media, x: 8px, y: 8px, width: {media_width}px, height: 360px }},
             {{ index: 1, kind: PaneKind.preview, x: 566px, y: 8px, width: {preview_width}px, height: 360px }},
-            {{ index: 2, kind: PaneKind.inspector, x: 1051px, y: 8px, width: 341px, height: 360px }},
-            {{ index: 3, kind: PaneKind.timeline, x: 8px, y: 376px, width: 1384px, height: 416px }},
+            {{ index: 2, kind: PaneKind.timeline, x: 8px, y: 376px, width: 1035px, height: 416px }},
+            {{ index: 3, kind: PaneKind.inspector, x: 1051px, y: 8px, width: 341px, height: 784px }},
         ];
         Editor.dividers = [
-            {{ index: 0, columns: false, x: 8px, y: 368px, width: 1384px, height: 8px }},
-            {{ index: 1, columns: true, x: 1043px, y: 8px, width: 8px, height: 360px }},
+            {{ index: 0, columns: true, x: 1043px, y: 8px, width: 8px, height: 784px }},
+            {{ index: 1, columns: false, x: 8px, y: 368px, width: 1035px, height: 8px }},
             {{ index: 2, columns: true, x: 558px, y: 8px, width: 8px, height: 360px }},
         ];
         Editor.meters-shown = {str(meters).lower()};
@@ -78,9 +78,15 @@ export component Desk inherits Window {{
             for red, green, blue in self.pixels(image, (1065, 20, 1378, 90))
         )
 
-    def test_stereo_dials_live_above_inspector_and_follow_meter_toggle(self):
-        self.assertGreater(self.dial_pixels(self.render()), 10_000)
+    def test_inspector_is_free_of_dials_even_with_meters_enabled(self):
+        self.assertLess(self.dial_pixels(self.render()), 1_000)
         self.assertLess(self.dial_pixels(self.render(meters=False)), 1_000)
+
+    def test_import_does_not_stretch_with_media_header(self):
+        # The left edge, icon and label stay put; spare width goes to the tabs.
+        box = (16, 17, 123, 48)
+        self.assertEqual(self.render().crop(box).tobytes(),
+                         self.render(media_width=400).crop(box).tobytes())
 
     def test_monitor_scrub_marker_tracks_playhead_fraction(self):
         image = self.render()
@@ -96,7 +102,7 @@ export component Desk inherits Window {{
         ))
         self.assertTrue(any(
             red < 130 and green > 175 and blue > 175
-            for red, green, blue in self.pixels(image, (12, 430, 80, 439))
+            for red, green, blue in self.pixels(image, (12, 413, 80, 420))
         ))
 
     def test_rebound_split_legend_changes_and_can_be_unbound(self):

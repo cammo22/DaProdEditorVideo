@@ -307,6 +307,22 @@ component ImportButton inherits Rectangle {
 
     callback clicked();
 
+    accessible-role: button;
+    accessible-label: root.busy ? root.busy-label : root.label;
+    accessible-enabled: !root.busy;
+    accessible-action-default => { if (!root.busy) { root.clicked(); } }
+
+    focus := FocusScope {
+        enabled: !root.busy;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == "\n") {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+
     /// where the straight runs start, i.e. clear of the rounded corners
     property <length> inset: Theme.r;
     property <length> run-h: Math.max(0px, root.width - 2 * root.inset);
@@ -337,7 +353,7 @@ component ImportButton inherits Rectangle {
     height: 36px;
     border-width: 1px;
     border-radius: Theme.r;
-    border-color: (touch.has-hover && !root.busy) ? Theme.accent : root.compact ? Theme.action.with-alpha(0.42) : Theme.line-strong;
+    border-color: focus.has-focus || (touch.has-hover && !root.busy) ? Theme.accent : root.compact ? Theme.action.with-alpha(0.42) : Theme.line-strong;
     background: root.ground;
     opacity: root.busy ? 0.4 : 1.0;
 
@@ -407,6 +423,7 @@ component ImportButton inherits Rectangle {
         enabled: !root.busy;
         mouse-cursor: pointer;
         clicked => {
+            focus.focus();
             root.clicked();
         }
     }
@@ -1936,6 +1953,7 @@ export component MediaPane inherits Rectangle {
                 spacing: 8px;
 
                 if root.tab == 0: VerticalLayout {
+                    width: self.preferred-width;
                     alignment: center;
                     ImportButton {
                         height: 30px;

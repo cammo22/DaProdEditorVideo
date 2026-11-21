@@ -255,23 +255,23 @@ pub fn lay_out(node: &Dock, (x, y, w, h): (f32, f32, f32, f32), out: &mut DockLa
 }
 
 /// Banco opens with a wide media bin, a central monitor and a right-hand
-/// inspector above a full-width timeline. Saved dock trees take precedence.
+/// full-height inspector beside the timeline. Saved dock trees take precedence.
 pub fn default_dock() -> Dock {
     Dock::Split {
-        columns: false,
-        ratio: 0.47,
+        columns: true,
+        ratio: 0.78,
         first: Box::new(Dock::Split {
-            columns: true,
-            ratio: 0.78,
+            columns: false,
+            ratio: 0.55,
             first: Box::new(Dock::Split {
                 columns: true,
                 ratio: 0.55,
                 first: Dock::leaf(PaneKind::Media),
                 second: Dock::leaf(PaneKind::Preview),
             }),
-            second: Dock::leaf(PaneKind::Inspector),
+            second: Dock::leaf(PaneKind::Timeline),
         }),
-        second: Dock::leaf(PaneKind::Timeline),
+        second: Dock::leaf(PaneKind::Inspector),
     }
 }
 
@@ -419,10 +419,10 @@ mod saved_tests {
     use super::*;
 
     #[test]
-    fn banco_places_the_timeline_under_all_three_desktop_panes() {
+    fn banco_reserves_a_full_height_inspector() {
         let mut layout = DockLayout::default();
         lay_out(&default_dock(), (0.0, 0.0, 1400.0, 760.0), &mut layout);
-        let [media, preview, inspector, timeline] = layout.seats.as_slice() else {
+        let [media, preview, timeline, inspector] = layout.seats.as_slice() else {
             panic!("Banco has four panes");
         };
         assert_eq!(media.kind, PaneKind::Media);
@@ -430,8 +430,10 @@ mod saved_tests {
         assert_eq!(inspector.kind, PaneKind::Inspector);
         assert_eq!(timeline.kind, PaneKind::Timeline);
         assert!(media.width > preview.width);
-        assert!(inspector.y + inspector.height < timeline.y);
-        assert_eq!((timeline.x, timeline.width), (0.0, 1400.0));
+        assert_eq!((inspector.y, inspector.height), (0.0, 760.0));
+        assert_eq!(timeline.x, media.x);
+        assert_eq!(timeline.x + timeline.width + SEAT_GAP, inspector.x);
+        assert!(timeline.y > preview.y + preview.height);
     }
 
     #[test]

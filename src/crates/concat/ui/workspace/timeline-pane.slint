@@ -56,7 +56,6 @@ export component TimelinePane inherits Rectangle {
     in property <bool> reversible;
     /// The VU meters at the grid's right edge; the tray's meter button.
     in property <bool> meters-shown: true;
-    in property <bool> inline-meters: true;
 
     callback tool-changed(tool: TimelineTool);
     callback snap-changed(snap: bool);
@@ -164,7 +163,7 @@ export component TimelinePane inherits Rectangle {
     in property <length> ruler-height: 34px;
     /// The meters' column: the ruler, two bars and their gaps, a few
     /// pixels of air, and nothing when they are put away.
-    property <length> meters-w: root.meters-shown && root.inline-meters ? 60px : 0px;
+    property <length> meters-w: root.meters-shown ? 60px : 0px;
 
     /// Clamped here rather than only where it is written, so a pane dragged
     /// taller than its own track stack cannot stay parked past the end. The
@@ -510,7 +509,7 @@ export component TimelinePane inherits Rectangle {
             // The VU meters, the height of the grid and outside the lanes'
             // scroll: how loud the cut plays is not a place along it. Only
             // built while shown, so a hidden meter is no element at all.
-            if root.meters-shown && root.inline-meters: VuMeter {
+            if root.meters-shown: VuMeter {
                 x: parent.width - root.meters-w;
                 y: 0;
                 width: root.meters-w;
