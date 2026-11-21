@@ -1,0 +1,20 @@
+format = 2
+[effect]
+id = "dap.sbiadito"
+name = "DaP Sbiadito"
+kind = "filter"
+category = "DaProd"
+order = 3
+intensity = "mix"
+description = "Look Sbiadito del Banco DaProd originale, miscelabile con la ripresa."
+[[param]]
+key = "mix"
+label = "Intensità"
+min = 0
+max = 100
+default = 100
+step = 1
+unit = "%"
+[wgsl]
+entry = "effect.wgsl"
+space = "display"
